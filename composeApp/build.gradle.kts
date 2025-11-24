@@ -28,8 +28,6 @@ kotlin {
             implementation(libs.androidx.material3.adaptive.navigation3)
             implementation(libs.kotlinx.serialization.core)
 
-            implementation(libs.androidx.compose.material3.windowsizeclass)
-
             // Dependency injection
             api(libs.koin.core)
             implementation(libs.koin.android)

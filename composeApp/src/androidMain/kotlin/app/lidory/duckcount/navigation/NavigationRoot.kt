@@ -1,5 +1,9 @@
 package app.lidory.duckcount.navigation
 
+import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
+import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.dropUnlessResumed
@@ -16,16 +20,19 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
 @Serializable
-data object ExpenseListScreen : NavKey
+data object ExpenseListScreenKey : NavKey
 
 @Serializable
-data class ExpenseDetailScreen(val expenseUuid: String) : NavKey
+data class ExpenseDetailScreenKey(val expenseUuid: String) : NavKey
 
+@OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 fun NavigationRoot(
     modifier: Modifier = Modifier,
 ) {
-    val backStack = rememberNavBackStack(ExpenseListScreen)
+    val backStack = rememberNavBackStack(ExpenseListScreenKey)
+
+    val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>()
 
     NavDisplay(
         modifier = modifier,
@@ -34,16 +41,22 @@ fun NavigationRoot(
             rememberSaveableStateHolderNavEntryDecorator(),
             rememberViewModelStoreNavEntryDecorator(),
         ),
+        sceneStrategy = listDetailStrategy,
         entryProvider = { key ->
             when (key) {
-                is ExpenseListScreen -> {
+                is ExpenseListScreenKey -> {
                     NavEntry(
                         key = key,
+                        metadata = ListDetailSceneStrategy.listPane(
+                            detailPlaceholder = {
+                                Text("Choose an expense to display more information about it.")
+                            },
+                        )
                     ) {
                         ExpenseListScreen(
                             onExpenseClicked = { expenseUuid ->
                                 backStack.add(
-                                    ExpenseDetailScreen(
+                                    ExpenseDetailScreenKey(
                                         expenseUuid,
                                     )
                                 )
@@ -52,15 +65,16 @@ fun NavigationRoot(
                     }
                 }
 
-                is ExpenseDetailScreen -> {
+                is ExpenseDetailScreenKey -> {
                     NavEntry(
                         key = key,
+                        metadata = ListDetailSceneStrategy.detailPane(),
                     ) {
                         ExpenseDetailScreen(
                             viewModel = koinViewModel {
                                 parametersOf(key.expenseUuid)
                             },
-                            onBack = dropUnlessResumed { backStack.removeLastOrNull() },
+                            onBack = dropUnlessResumed { backStack.removeIf { it is ExpenseDetailScreenKey } },
                         )
                     }
                 }
