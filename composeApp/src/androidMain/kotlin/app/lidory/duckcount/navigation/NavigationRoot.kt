@@ -1,8 +1,5 @@
 package app.lidory.duckcount.navigation
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.dropUnlessResumed
@@ -12,13 +9,17 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import app.lidory.duckcount.ExpenseDetailScreen
+import app.lidory.duckcount.ExpenseListScreen
 import kotlinx.serialization.Serializable
+import org.koin.androidx.compose.koinViewModel
+import org.koin.core.parameter.parametersOf
 
 @Serializable
 data object ExpenseListScreen : NavKey
 
 @Serializable
-data class ExpenseDetailScreen(val id: String) : NavKey
+data class ExpenseDetailScreen(val expenseUuid: String) : NavKey
 
 @Composable
 fun NavigationRoot(
@@ -39,15 +40,15 @@ fun NavigationRoot(
                     NavEntry(
                         key = key,
                     ) {
-                        Column {
-                            Text("ExpenseListScreen")
-
-                            Button(
-                                onClick = dropUnlessResumed { backStack.add(ExpenseDetailScreen("3")) },
-                            ) {
-                                Text("Go to ExpenseDetailScreen")
-                            }
-                        }
+                        ExpenseListScreen(
+                            onExpenseClicked = { expenseUuid ->
+                                backStack.add(
+                                    ExpenseDetailScreen(
+                                        expenseUuid,
+                                    )
+                                )
+                            },
+                        )
                     }
                 }
 
@@ -55,15 +56,12 @@ fun NavigationRoot(
                     NavEntry(
                         key = key,
                     ) {
-                        Column {
-                            Text("ExpenseDetailScreen ${key.id}")
-
-                            Button(
-                                onClick = dropUnlessResumed { backStack.removeLastOrNull() },
-                            ) {
-                                Text("Go back to ExpenseListScreen")
-                            }
-                        }
+                        ExpenseDetailScreen(
+                            viewModel = koinViewModel {
+                                parametersOf(key.expenseUuid)
+                            },
+                            onBack = dropUnlessResumed { backStack.removeLastOrNull() },
+                        )
                     }
                 }
 
