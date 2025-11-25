@@ -1,9 +1,10 @@
 import Shared
 import SwiftUI
+import ExpenseList
 
 struct ContentView: View {
     @StateObject var router = AppRouter()
-    
+
     var body: some View {
         NavigationStack(path: $router.path) {
             ExpenseListView()
@@ -11,10 +12,8 @@ struct ContentView: View {
                     switch route {
                     case .expenseList:
                         ExpenseListView()
-                    case .expenseDetail(let id):
-                        ExpenseDetailView(id: id)
                     }
-            }
+                }
         }
         .environmentObject(router)
     }

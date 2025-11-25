@@ -7,20 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A1A4A5262ECFAB4500261176 /* ExpenseListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A4A5252ECFAB4500261176 /* ExpenseListView.swift */; };
-		A1A4A5372ED071D500261176 /* ExpenseDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1A4A5362ED071CD00261176 /* ExpenseDetailView.swift */; };
+		A11C710B2ED5EF2400CC845E /* ExpenseList in Frameworks */ = {isa = PBXBuildFile; productRef = A11C710A2ED5EF2400CC845E /* ExpenseList */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0E1729D1EFD855FAB38C8E9C /* DuckCount.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DuckCount.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1A4A5252ECFAB4500261176 /* ExpenseListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpenseListView.swift; sourceTree = "<group>"; };
-		A1A4A5362ED071CD00261176 /* ExpenseDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpenseDetailView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		79EE22C28C748E450BCF7B31 /* Exceptions for "iosApp" folder in "iosApp" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				ExpenseList,
 				Info.plist,
 			);
 			target = 117E386D6C33F4E966B83386 /* iosApp */;
@@ -48,6 +46,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A11C710B2ED5EF2400CC845E /* ExpenseList in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -68,8 +67,16 @@
 				A1A4A5272ECFAC2800261176 /* Presentation */,
 				840E697393EAA0C16D24A0EA /* Configuration */,
 				C2A31CBB66277FE33F990221 /* iosApp */,
+				A11C71092ED5EF2400CC845E /* Frameworks */,
 				3A1538368316C6171B5C8701 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		A11C71092ED5EF2400CC845E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		A1A4A5272ECFAC2800261176 /* Presentation */ = {
@@ -84,8 +91,6 @@
 		A1A4A5282ECFAC3800261176 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				A1A4A5362ED071CD00261176 /* ExpenseDetailView.swift */,
-				A1A4A5252ECFAB4500261176 /* ExpenseListView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -118,6 +123,7 @@
 			);
 			name = iosApp;
 			packageProductDependencies = (
+				A11C710A2ED5EF2400CC845E /* ExpenseList */,
 			);
 			productName = iosApp;
 			productReference = 0E1729D1EFD855FAB38C8E9C /* DuckCount.app */;
@@ -195,8 +201,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1A4A5372ED071D500261176 /* ExpenseDetailView.swift in Sources */,
-				A1A4A5262ECFAB4500261176 /* ExpenseListView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -408,6 +412,13 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A11C710A2ED5EF2400CC845E /* ExpenseList */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ExpenseList;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 5541D9DF61D88562451BAA23 /* Project object */;
 }
