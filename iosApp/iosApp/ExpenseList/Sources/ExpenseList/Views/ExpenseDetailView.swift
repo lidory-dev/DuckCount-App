@@ -1,17 +1,17 @@
 import SwiftUI
 
 public struct ExpenseDetailView: View {
-    let expenseUuid: String
+    let expense: Expense
     
-    public init(expenseUuid: String) {
-        self.expenseUuid = expenseUuid
+    public init(expense: Expense) {
+        self.expense = expense
     }
     
     public var body: some View {
-        Text("Expense \(expenseUuid)")
+        Text("Expense \(expense.id)")
     }
 }
 
 #Preview {
-    ExpenseDetailView(expenseUuid: "1")
+    ExpenseDetailView(expense: Expense(id: "1"))
 }

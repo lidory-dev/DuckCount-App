@@ -2,17 +2,12 @@ import SwiftUI
 
 public struct ExpenseListView: View {
     // TODO:
-    struct Expense: Identifiable, Hashable {
-        let id: String
-    }
+    private var expenses: [Expense]
     
-    // TODO:
-    private var expenses: [ExpenseListView.Expense]
-    
-    @State private var expenseUuid: Optional<String>
+    @State private var expense: Optional<Expense>
 
     public init() {
-        self.expenseUuid = Optional.none
+        self.expense = Optional.none
         self.expenses = [
             Expense(id: "1"),
             Expense(id: "2"),
@@ -20,19 +15,43 @@ public struct ExpenseListView: View {
         ]
     }
     
-    public var body: some View {
+    /// Returns `true` if the device is not a phone (e.g., iPad or Mac).
+    private var isBigScreen: Bool {
+        return UIDevice.current.userInterfaceIdiom != .phone
+    }
+    
+    private var bigScreenView: some View {
         NavigationSplitView {
-            List(expenses, selection: $expenseUuid) { expense in
+            List(expenses, selection: $expense) { expense in
                 Text(expense.id)
             }
         } detail: {
-            if let uuid = expenseUuid {
-                ExpenseDetailView(expenseUuid: uuid)
+            if let expense = expense {
+                ExpenseDetailView(expense: expense)
             } else {
                 Text("Choose an expense to display more information about it.")
             }
         }
-        
+    }
+    
+    private var smallScreenView: some View {
+        NavigationStack {
+            List(expenses) { expense in
+                NavigationLink {
+                    ExpenseDetailView(expense: expense)
+                } label: {
+                    ExpenseView(expense: expense)
+                }
+            }
+        }
+    }
+    
+    public var body: some View {
+        if isBigScreen {
+            bigScreenView
+        } else {
+            smallScreenView
+        }
     }
 }
 
