@@ -1,5 +1,3 @@
-package app.lidory.duckcount
-
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -10,7 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.compose.viewModel
-import app.lidory.duckcount.viewmodel.ExpenseListViewModel
+import viewmodel.ExpenseListViewModel
 
 @Composable
 fun ExpenseListScreen(

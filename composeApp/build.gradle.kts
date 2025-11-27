@@ -79,5 +79,7 @@ android {
 
 dependencies {
     debugImplementation(compose.uiTooling)
+
+    implementation(project(":feature:expenseList"))
 }
 

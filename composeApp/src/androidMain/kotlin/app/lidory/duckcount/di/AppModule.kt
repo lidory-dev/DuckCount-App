@@ -1,9 +1,7 @@
 package app.lidory.duckcount.di
 
-import app.lidory.duckcount.viewmodel.ExpenseDetailViewModel
-import org.koin.core.module.dsl.viewModelOf
-import org.koin.dsl.module
+import di.expenseListModule
 
-val appModule = module {
-    viewModelOf(::ExpenseDetailViewModel)
-}
+val appModule = listOf(
+    expenseListModule,
+)
