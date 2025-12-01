@@ -10,28 +10,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
-import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
-import kotlinx.serialization.Serializable
+import app.lidory.duckcount.navigation.key.ContactListScreenKey
+import app.lidory.duckcount.navigation.key.ExpenseDetailScreenKey
+import app.lidory.duckcount.navigation.key.ExpenseListScreenKey
+import app.lidory.duckcount.navigation.key.GroupListScreenKey
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
-@Serializable
-data object ExpenseListScreenKey : NavKey
-
-@Serializable
-data class ExpenseDetailScreenKey(val expenseUuid: String) : NavKey
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 fun NavigationRoot(
     modifier: Modifier = Modifier,
+    backStack: NavBackStack<NavKey>,
 ) {
-    val backStack = rememberNavBackStack(ExpenseListScreenKey)
-
     val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>()
 
     NavDisplay(
@@ -76,6 +73,22 @@ fun NavigationRoot(
                             },
                             onBack = dropUnlessResumed { backStack.removeIf { it is ExpenseDetailScreenKey } },
                         )
+                    }
+                }
+
+                is GroupListScreenKey -> {
+                    NavEntry(
+                        key = key,
+                    ) {
+                        Text(key.title())
+                    }
+                }
+
+                is ContactListScreenKey -> {
+                    NavEntry(
+                        key = key,
+                    ) {
+                        Text(key.title())
                     }
                 }
 
