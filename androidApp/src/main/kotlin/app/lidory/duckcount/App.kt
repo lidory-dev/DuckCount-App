@@ -6,11 +6,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation3.runtime.rememberNavBackStack
 import app.lidory.duckcount.navigation.BottomNavigationBar
 import app.lidory.duckcount.navigation.NavigationRoot
 import app.lidory.duckcount.navigation.key.ExpenseListScreenKey
-import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 @Preview
