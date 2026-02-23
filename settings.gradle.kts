@@ -31,4 +31,3 @@ dependencyResolutionManagement {
 include(":composeApp")
 include(":shared")
 include(":feature:expenseList")
-include(":androidApp")
