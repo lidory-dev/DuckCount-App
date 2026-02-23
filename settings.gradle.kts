@@ -30,4 +30,5 @@ dependencyResolutionManagement {
 
 include(":composeApp")
 include(":shared")
+include(":lib-duckcount")
 include(":feature:expenseList")

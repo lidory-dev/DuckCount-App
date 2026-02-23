@@ -80,6 +80,7 @@ android {
 dependencies {
     debugImplementation(compose.uiTooling)
 
+    implementation(project(":lib-duckcount"))
     implementation(project(":feature:expenseList"))
 }
 

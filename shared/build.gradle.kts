@@ -24,7 +24,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            // put your Multiplatform dependencies here
+            implementation(project(":lib-duckcount"))
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
