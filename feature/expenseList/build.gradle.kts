@@ -1,9 +1,19 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.kotlin.android)
 
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+}
+
+kotlin {
+    android {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
+        }
+    }
 }
 
 android {
@@ -22,9 +32,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
-    }
 }
 
 dependencies {
@@ -36,9 +43,9 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
 
     // Compose
-    implementation(compose.runtime)
-    implementation(compose.foundation)
-    implementation(compose.material3)
+    implementation(libs.compose.runtime)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
 
     // Dependency injection
     api(libs.koin.core)
