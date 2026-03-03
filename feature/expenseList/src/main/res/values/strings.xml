@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">ExpenseList</string>
+    <string name="beneficiary">Beneficiary</string>
+    <string name="creditor">Creditor</string>
+    <string name="neutral">Neutral</string>
+    <string name="paid_by">%1$s paid %2$s</string>
 </resources>
