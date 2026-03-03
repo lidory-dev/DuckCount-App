@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">ExpenseList</string>
+    <string name="date_format">EEEE dd MMMM</string>
+    <string name="date_format_with_year">EEEE dd MMMM yyyy</string>
     <string name="beneficiary">Beneficiary</string>
     <string name="creditor">Creditor</string>
     <string name="neutral">Neutral</string>

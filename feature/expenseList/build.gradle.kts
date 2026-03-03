@@ -54,6 +54,9 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.components.resources)
 
+    // Kotlinx
+    implementation(libs.kotlinx.datetime)
+
     // Dependency injection
     api(libs.koin.core)
     implementation(libs.koin.android)

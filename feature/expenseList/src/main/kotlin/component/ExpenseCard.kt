@@ -31,8 +31,7 @@ fun ExpenseCard(
 ) {
     ElevatedCard(
         modifier = modifier
-            .fillMaxWidth()
-            .padding(all = Padding.medium),
+            .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondary,
         ),
