@@ -1,0 +1,16 @@
+package database.expense
+
+import kotlinx.coroutines.flow.Flow
+
+interface ExpenseRepository {
+
+    suspend fun insert(expense: Expense)
+
+    suspend fun update(expense: Expense)
+
+    suspend fun delete(expense: Expense)
+
+    fun getAll(): Flow<List<Expense>>
+
+    fun getWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries>
+}

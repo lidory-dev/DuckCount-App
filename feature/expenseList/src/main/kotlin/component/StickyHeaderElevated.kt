@@ -23,6 +23,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 @Composable
 fun StickyHeaderElevated(
@@ -57,6 +58,7 @@ fun StickyHeaderElevated(
     }
 }
 
+@OptIn(ExperimentalTime::class)
 @Composable
 fun FormattedDate(date: LocalDateTime) {
     val instantDate = date.toInstant(timeZone = TimeZone.currentSystemDefault())
@@ -80,6 +82,7 @@ fun FormattedDate(date: LocalDateTime) {
     )
 }
 
+@OptIn(ExperimentalTime::class)
 fun LocalDateTime.isCurrentYear(): Boolean {
     val currentDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
     return this.year == currentDate.year

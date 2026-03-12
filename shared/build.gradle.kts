@@ -3,6 +3,13 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
+
+    // Room
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.androidx.room)
+
+    // KSafe
+    alias(libs.plugins.jetbrains.kotlin.serialization)
 }
 
 kotlin {
@@ -23,8 +30,27 @@ kotlin {
     }
 
     sourceSets {
+        androidMain.dependencies {
+            // SQLCipher
+            implementation("net.zetetic:sqlcipher-android:4.14.0@aar")
+
+            // Koin
+            implementation(libs.koin.android)
+        }
         commonMain.dependencies {
+            // Lib-DuckCount
             implementation(project(":lib-duckcount"))
+
+            // Room
+            implementation(libs.androidx.room.runtime)
+            implementation(libs.androidx.sqlite.bundled)
+
+            // Koin
+            implementation(libs.koin.core)
+
+            // KSafe
+            implementation(libs.ksafe)
+            implementation(libs.ksafe.compose)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -42,4 +68,14 @@ android {
     defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()
     }
+}
+
+dependencies {
+    add("kspAndroid", libs.androidx.room.compiler)
+    add("kspIosSimulatorArm64", libs.androidx.room.compiler)
+    add("kspIosArm64", libs.androidx.room.compiler)
+}
+
+room {
+    schemaDirectory("$projectDir/schemas")
 }

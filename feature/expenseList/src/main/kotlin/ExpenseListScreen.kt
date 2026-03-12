@@ -10,25 +10,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
-import androidx.lifecycle.viewmodel.compose.viewModel
 import app.lidory.duckcount.android.ui.constant.Padding
 import component.ExpenseCard
 import component.StickyHeaderElevated
 import kotlinx.datetime.LocalDateTime
+import org.koin.androidx.compose.koinViewModel
 import viewmodel.ExpenseListViewModel
+import kotlin.uuid.ExperimentalUuidApi
 
-
+// TODO: Add pull-to-refresh.
+@OptIn(ExperimentalUuidApi::class)
 @Composable
 fun ExpenseListScreen(
     modifier: Modifier = Modifier,
     onExpenseClicked: (String) -> Unit,
 ) {
-    val viewModel = viewModel<ExpenseListViewModel>()
-
-    val expenseListState by viewModel.expenseListState.collectAsStateWithLifecycle()
+    val viewModel = koinViewModel<ExpenseListViewModel>()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     // The groupBy convert the timestamp on LocalDateTime object during grouping
-    val groupedExpenseList = expenseListState.groupBy { LocalDateTime.parse(it.timestamp) }
+    val groupedExpenseList = state.expenses.groupBy { LocalDateTime.parse(it.timestamp) }
 
     LazyColumn(
         modifier = modifier
@@ -49,17 +50,16 @@ fun ExpenseListScreen(
                 items = expenses,
                 key = { expense -> expense.uuid },
             ) { expense ->
-                
+
                 // We navigate when clicking on an expense, so we need to safeguard the onClick with dropUnlessResumed.
-                //TODO Replace with real data
                 ExpenseCard(
                     modifier = Modifier
                         .clickable(
                             onClick = dropUnlessResumed { onExpenseClicked(expense.uuid) },
                         )
                         .padding(horizontal = Padding.medium, vertical = Padding.small),
-                    title = "Expense" + expense.uuid,
-                    amount = "25",
+                    title = expense.title,
+                    amount = expense.amount,
                 )
             }
 

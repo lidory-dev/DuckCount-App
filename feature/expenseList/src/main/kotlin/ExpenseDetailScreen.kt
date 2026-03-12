@@ -1,4 +1,7 @@
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -14,12 +17,22 @@ fun ExpenseDetailScreen(
     viewModel: ExpenseDetailViewModel = koinViewModel(),
     onBack: () -> Unit,
 ) {
-    val expenseState by viewModel.expenseState.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier,
     ) {
-        Text("ExpenseDetailScreen ${expenseState.uuid}")
+        Text("ExpenseDetailScreen ${state.expenseWithBeneficiaries?.uuid}")
+
+        LazyColumn {
+            items(state.expenseWithBeneficiaries?.beneficiaries ?: listOf()) {
+                Row {
+                    Text(it.userUuid + " ")
+
+                    Text(it.share)
+                }
+            }
+        }
 
         Button(
             onClick = onBack,

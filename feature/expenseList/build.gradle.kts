@@ -64,4 +64,7 @@ dependencies {
 
     // UI module
     implementation(project(":android-ui"))
+
+    // Db
+    implementation(project(":shared"))
 }
