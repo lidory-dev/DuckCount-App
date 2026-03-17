@@ -36,17 +36,20 @@ fun ExpenseListScreen(
             .padding(all = Padding.medium),
     ) {
         groupedExpenseList.forEach { (date, expenses) ->
+
             stickyHeader {
                 StickyHeaderElevated(
                     modifier = Modifier
                         .padding(bottom = Padding.medium),
-                    date = date
+                    date = date,
                 )
             }
+
             items(
                 items = expenses,
                 key = { expense -> expense.uuid },
             ) { expense ->
+                
                 // We navigate when clicking on an expense, so we need to safeguard the onClick with dropUnlessResumed.
                 //TODO Replace with real data
                 ExpenseCard(
@@ -59,6 +62,7 @@ fun ExpenseListScreen(
                     amount = "25",
                 )
             }
+
             item {
                 Spacer(modifier = Modifier.padding(bottom = Padding.large))
             }

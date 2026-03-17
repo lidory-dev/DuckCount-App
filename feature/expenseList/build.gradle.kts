@@ -54,7 +54,7 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.components.resources)
 
-    // Kotlinx
+    // Datetime
     implementation(libs.kotlinx.datetime)
 
     // Dependency injection

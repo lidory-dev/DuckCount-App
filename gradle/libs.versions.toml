@@ -18,12 +18,14 @@ compose-multiplatform = "1.10.1"
 compose-material3 = "1.9.0"
 
 # Navigation
-kotlinxDatetime = "0.7.1"
 nav3Core = "1.0.1"
 lifecycleViewmodelNav3 = "2.10.0"
 kotlinSerialization = "2.3.10"
 kotlinxSerializationCore = "1.10.0"
 material3AdaptiveNav3 = "1.3.0-alpha08"
+
+# Datetime
+kotlinxDatetime = "0.7.1"
 
 # Dependency injection
 koin = "4.1.1"
@@ -56,7 +58,9 @@ androidx-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", vers
 androidx-lifecycle-viewmodel-navigation3 = { module = "androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "lifecycleViewmodelNav3" }
 androidx-material3-adaptive-navigation3 = { group = "androidx.compose.material3.adaptive", name = "adaptive-navigation3", version.ref = "material3AdaptiveNav3" }
 
+# Datetime
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
+
 kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinxSerializationCore" }
 
 # Dependency injection
