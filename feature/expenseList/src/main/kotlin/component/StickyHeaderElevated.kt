@@ -18,10 +18,10 @@ import androidx.compose.ui.text.font.FontWeight
 import app.lidory.duckcount.android.ui.constant.Elevation
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
-import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
+import kotlinx.datetime.todayIn
 import kotlin.time.Clock
 
 @Composable
@@ -61,7 +61,7 @@ fun StickyHeaderElevated(
 fun FormattedDate(date: LocalDateTime) {
     val instantDate = date.toInstant(timeZone = TimeZone.currentSystemDefault())
 
-    val dateFormat = if (isCurrentYear(date.date)) {
+    val dateFormat = if (date.isCurrentYear()) {
         R.string.date_format
     } else {
         R.string.date_format_with_year
@@ -80,9 +80,7 @@ fun FormattedDate(date: LocalDateTime) {
     )
 }
 
-fun isCurrentYear(date: LocalDate): Boolean {
-    val secondsInDay = 60 * 60 * 24
-    val currentDate = LocalDate.fromEpochDays(Clock.System.now().epochSeconds / secondsInDay)
-
-    return currentDate.year == date.year
+fun LocalDateTime.isCurrentYear(): Boolean {
+    val currentDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
+    return this.year == currentDate.year
 }
