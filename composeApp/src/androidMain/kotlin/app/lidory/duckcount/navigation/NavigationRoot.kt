@@ -1,5 +1,6 @@
 package app.lidory.duckcount.navigation
 
+import CreateExpenseScreen
 import ExpenseDetailScreen
 import ExpenseListScreen
 import androidx.compose.material3.Text
@@ -16,6 +17,7 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import app.lidory.duckcount.navigation.key.ContactListScreenKey
+import app.lidory.duckcount.navigation.key.CreateExpenseScreenKey
 import app.lidory.duckcount.navigation.key.ExpenseDetailScreenKey
 import app.lidory.duckcount.navigation.key.ExpenseListScreenKey
 import app.lidory.duckcount.navigation.key.GroupListScreenKey
@@ -48,14 +50,19 @@ fun NavigationRoot(
                             detailPlaceholder = {
                                 Text("Choose an expense to display more information about it.")
                             },
-                        )
+                        ),
                     ) {
                         ExpenseListScreen(
                             onExpenseClicked = { expenseUuid ->
                                 backStack.add(
                                     ExpenseDetailScreenKey(
                                         expenseUuid,
-                                    )
+                                    ),
+                                )
+                            },
+                            onCreateExpenseClicked = { creditorId ->
+                                backStack.add(
+                                    CreateExpenseScreenKey(creditorId),
                                 )
                             },
                         )
@@ -92,8 +99,21 @@ fun NavigationRoot(
                     }
                 }
 
+                is CreateExpenseScreenKey -> {
+                    NavEntry(
+                        key = key,
+                    ) {
+                        CreateExpenseScreen(
+                            viewModel = koinViewModel {
+                                parametersOf(key.creditorId)
+                            },
+                            onBack = dropUnlessResumed { backStack.removeIf { it is CreateExpenseScreenKey } },
+                        )
+                    }
+                }
+
                 else -> throw RuntimeException("Invalid NavKey.")
             }
-        }
+        },
     )
 }
