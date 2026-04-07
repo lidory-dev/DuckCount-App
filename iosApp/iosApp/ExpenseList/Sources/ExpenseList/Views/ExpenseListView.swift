@@ -1,60 +1,110 @@
 import SwiftUI
 
 public struct ExpenseListView: View {
-    // TODO:
-    private var expenses: [Expense]
-    
-    @State private var expense: Optional<Expense>
+    private let sections: [ExpenseSection]
+    private let isLoading: Bool
+    private let onCreateRandomExpenses: (() -> Void)?
 
-    public init() {
-        self.expense = Optional.none
-        self.expenses = [
-            Expense(id: "1"),
-            Expense(id: "2"),
-            Expense(id: "3"),
-        ]
+    @State private var selectedExpense: Expense?
+    @State private var navigationPath = NavigationPath()
+
+    public init(
+        sections: [ExpenseSection] = [],
+        isLoading: Bool = false,
+        onCreateRandomExpenses: (() -> Void)? = nil
+    ) {
+        self.sections = sections
+        self.isLoading = isLoading
+        self.onCreateRandomExpenses = onCreateRandomExpenses
     }
-    
-    /// Returns `true` if the device is not a phone (e.g., iPad or Mac).
+
     private var isBigScreen: Bool {
-        return UIDevice.current.userInterfaceIdiom != .phone
+        UIDevice.current.userInterfaceIdiom != .phone
     }
-    
-    private var bigScreenView: some View {
-        NavigationSplitView {
-            List(expenses, selection: $expense) { expense in
-                Text(expense.id)
-            }
-        } detail: {
-            if let expense = expense {
-                ExpenseDetailView(expense: expense)
-            } else {
-                Text("Choose an expense to display more information about it.")
-            }
-        }
-    }
-    
-    private var smallScreenView: some View {
-        NavigationStack {
-            List(expenses) { expense in
-                NavigationLink {
-                    ExpenseDetailView(expense: expense)
-                } label: {
-                    ExpenseView(expense: expense)
-                }
-            }
-        }
-    }
-    
+
     public var body: some View {
         if isBigScreen {
-            bigScreenView
+            NavigationSplitView {
+                listContent
+            } detail: {
+                if let expense = selectedExpense {
+                    ExpenseDetailView(expense: expense)
+                } else {
+                    Text("Choose an expense to display more information about it.")
+                        .foregroundStyle(.secondary)
+                }
+            }
         } else {
-            smallScreenView
+            NavigationStack(path: $navigationPath) {
+                listContent
+                    .navigationDestination(for: Expense.self) { expense in
+                        ExpenseDetailView(expense: expense)
+                    }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var listContent: some View {
+        if isLoading {
+            ProgressView()
+        } else if sections.isEmpty {
+            VStack(spacing: 16) {
+                Text("No Expenses")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+
+                if let onCreateRandomExpenses {
+                    Button("Create Random Expenses", action: onCreateRandomExpenses)
+                        .buttonStyle(.borderedProminent)
+                }
+            }
+        } else {
+            List {
+                ForEach(sections) { section in
+                    Section {
+                        ForEach(section.expenses) { expense in
+                            ExpenseView(expense: expense)
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                                .onTapGesture {
+                                    if isBigScreen {
+                                        selectedExpense = expense
+                                    } else {
+                                        navigationPath.append(expense)
+                                    }
+                                }
+                        }
+                    } header: {
+                        SectionHeaderView(displayDate: section.displayDate)
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
         }
     }
 }
 
 #Preview {
-    ExpenseListView()
+    ExpenseListView(
+        sections: [
+            ExpenseSection(
+                id: "2026-04-08",
+                displayDate: "Wednesday 08 April",
+                expenses: [
+                    Expense(id: "1", title: "Lunch", amount: "25.00", currency: Currency(id: "1", name: "Euro", symbol: "€"), status: .beneficiary),
+                    Expense(id: "2", title: "A very long expense title that should be truncated with an ellipsis at the end", amount: "5.50", currency: Currency(id: "1", name: "Dollar", symbol: "$"), status: .creditor),
+                ]
+            ),
+            ExpenseSection(
+                id: "2024-01-14",
+                displayDate: "Sunday 14 January 2024",
+                expenses: [
+                    Expense(id: "3", title: "Groceries", amount: "85.00", currency: Currency(id: "1", name: "Dollar", symbol: "$"), status: .neutral),
+                ]
+            ),
+        ]
+    )
 }

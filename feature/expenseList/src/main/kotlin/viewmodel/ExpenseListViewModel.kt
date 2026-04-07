@@ -6,6 +6,7 @@ import database.beneficiary.Beneficiary
 import database.beneficiary.BeneficiaryRepository
 import database.expense.Expense
 import database.expense.ExpenseRepository
+import database.expense.ExpenseWithBeneficiaries
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,7 +16,6 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.uuid.ExperimentalUuidApi
 
 class ExpenseListViewModel(
     private val expenseRepository: ExpenseRepository,
@@ -39,7 +39,7 @@ class ExpenseListViewModel(
             .onEach { expenses ->
                 _state.update {
                     it.copy(
-                        expenses = expenses
+                        expenses = expenses,
                     )
                 }
             }
@@ -57,5 +57,5 @@ class ExpenseListViewModel(
 
 data class ExpenseListScreenState(
     val isLoading: Boolean = false,
-    val expenses: List<Expense> = emptyList()
+    val expenses: List<ExpenseWithBeneficiaries> = emptyList(),
 )

@@ -14,7 +14,7 @@ struct ContentView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             Tab("Expenses", systemImage: "receipt.fill", value: .expenseList) {
-                ExpenseListView()
+                ExpenseListScreen()
             }
 
             Tab("Groups", systemImage: "person.2.crop.square.stack.fill", value: .groupList) {

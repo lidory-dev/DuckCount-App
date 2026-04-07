@@ -14,5 +14,5 @@ interface CurrencyDao {
     suspend fun update(currencyEntity: CurrencyEntity)
 
     @Delete
-    fun delete(currencyEntity: CurrencyEntity)
+    suspend fun delete(currencyEntity: CurrencyEntity)
 }

@@ -10,7 +10,7 @@ interface ExpenseRepository {
 
     suspend fun delete(expense: Expense)
 
-    fun getAll(): Flow<List<Expense>>
+    fun getAll(): Flow<List<ExpenseWithBeneficiaries>>
 
     fun getWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries>
 }

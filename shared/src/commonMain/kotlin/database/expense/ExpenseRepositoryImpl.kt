@@ -20,14 +20,14 @@ class ExpenseRepositoryImpl(
         expenseDao.delete(expenseEntity = expense.toExpenseEntity())
     }
 
-    override fun getAll(): Flow<List<Expense>> {
-        return expenseDao.getAllAsFlow().map { expenseEntities ->
-            expenseEntities.map { it.toExpense() }
+    override fun getAll(): Flow<List<ExpenseWithBeneficiaries>> {
+        return expenseDao.getAllWithBeneficiariesAsFlow().map { expensesWithBeneficiariesEntities ->
+            expensesWithBeneficiariesEntities.map { it.toExpenseWithBeneficiaries() }
         }
     }
 
     override fun getWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries> {
-        return expenseDao.getWithCurrencyAndBeneficiariesAsFlow(uuid = uuid).map { expenseWithBeneficiariesEntity ->
+        return expenseDao.getWithBeneficiariesAsFlow(uuid = uuid).map { expenseWithBeneficiariesEntity ->
             expenseWithBeneficiariesEntity.toExpenseWithBeneficiaries()
         }
     }

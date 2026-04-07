@@ -14,10 +14,10 @@ interface ExpenseDao {
     suspend fun insert(expenseEntity: ExpenseEntity)
 
     @Update
-    fun update(expenseEntity: ExpenseEntity)
+    suspend fun update(expenseEntity: ExpenseEntity)
 
     @Delete
-    fun delete(expenseEntity: ExpenseEntity)
+    suspend fun delete(expenseEntity: ExpenseEntity)
 
     @Query("SELECT count(*) FROM ExpenseEntity")
     suspend fun count(): Int
@@ -26,6 +26,10 @@ interface ExpenseDao {
     fun getAllAsFlow(): Flow<List<ExpenseEntity>>
 
     @Transaction
+    @Query("SELECT * FROM ExpenseEntity")
+    fun getAllWithBeneficiariesAsFlow(): Flow<List<ExpenseWithBeneficiariesEntity>>
+
+    @Transaction
     @Query("SELECT * FROM ExpenseEntity WHERE uuid = :uuid")
-    fun getWithCurrencyAndBeneficiariesAsFlow(uuid: String): Flow<ExpenseWithBeneficiariesEntity>
+    fun getWithBeneficiariesAsFlow(uuid: String): Flow<ExpenseWithBeneficiariesEntity>
 }
