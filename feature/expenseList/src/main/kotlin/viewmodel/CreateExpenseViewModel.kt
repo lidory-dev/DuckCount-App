@@ -10,6 +10,7 @@ import database.expense.ExpenseRepository
 import database.user.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -28,32 +29,19 @@ class CreateExpenseViewModel(
     private val userRepository: UserRepository,
     private val beneficiaryRepository: BeneficiaryRepository,
 ) : ViewModel() {
-    // private var observeUsersJob: Job? = null
 
     private val _state = MutableStateFlow(
         CreateExpenseState(
             creditorUuid = creditorUuid,
         ),
     )
-    val state = _state.stateIn(
+    val state = _state.onStart {
+        getCreditorName()
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000L),
         initialValue = _state.value,
     )
-
-//    private fun observeUsers() {
-//        observeUsersJob?.cancel()
-//        observeUsersJob = userRepository
-//            .getAll()
-//            .onEach { users ->
-//                _state.update {
-//                    it.copy(
-//                        users = users,
-//                    )
-//                }
-//            }
-//            .launchIn(viewModelScope)
-//    }
 
     @OptIn(ExperimentalUuidApi::class)
     fun createExpense() = viewModelScope.launch {
@@ -72,6 +60,16 @@ class CreateExpenseViewModel(
             ),
         )
         _state.value.beneficiaries.map { beneficiaryRepository.insert(beneficiary = it) }
+    }
+
+    fun getCreditorName() {
+        // TODO: Use creditorUuid, supposed to be the current connected user
+        // For now we don't have users so we use a placeholder
+//        userRepository.getFullName(creditorUuid).onEach {
+//            updateCreditorFullName(it)
+//        }
+//            .launchIn(viewModelScope)
+        updateCreditor("User not found")
     }
 
     @OptIn(ExperimentalTime::class)
@@ -133,6 +131,12 @@ class CreateExpenseViewModel(
         }
     }
 
+    fun updateCreditorFullName(creditorFullName: String) {
+        _state.update {
+            it.copy(creditorFullName = creditorFullName)
+        }
+    }
+
     fun addBeneficiary(beneficiary: Beneficiary) {
         _state.update {
             it.copy(beneficiaries = _state.value.beneficiaries + beneficiary)
@@ -166,6 +170,8 @@ data class CreateExpenseState(
     val description: String = "",
     val amount: String = "",
     val creditorUuid: String = "",
+    // TODO: use the current connected user full name
+    val creditorFullName: String = "",
     val isRefund: Boolean = false,
     // TODO: adapt
     val currency: Currency = Currency("", "", "", false),

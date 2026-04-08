@@ -73,6 +73,8 @@ fun ExpenseListScreen(
                             )
                             .padding(horizontal = Padding.medium, vertical = Padding.small),
                         title = expense.title,
+                        // TODO: get fullName from userRepository
+                        creditorName = expense.creditorUuid,
                         amount = expense.amount,
                     )
                 }
@@ -86,6 +88,7 @@ fun ExpenseListScreen(
                 .align(Alignment.BottomEnd)
                 .padding(16.dp),
             onClick = {
+                // TODO: give current connected user
                 onCreateExpenseClicked("0")
             },
         ) {

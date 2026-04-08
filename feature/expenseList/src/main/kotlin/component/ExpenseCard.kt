@@ -27,6 +27,7 @@ import app.lidory.expenselist.R
 fun ExpenseCard(
     modifier: Modifier = Modifier,
     title: String,
+    creditorName: String,
     amount: String,
 ) {
     ElevatedCard(
@@ -51,15 +52,14 @@ fun ExpenseCard(
                     .padding(all = Padding.small),
             ) {
                 Text(
-                    text = "Expense really long that is too long a lot",
+                    text = title,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.titleLarge,
                 )
-                val debtor = "toto" //TODO: Change with real data
 
                 Text(
-                    text = stringResource(id = R.string.paid_by, debtor, amount),
+                    text = stringResource(id = R.string.paid_by, creditorName, amount),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.labelMedium,
@@ -71,7 +71,7 @@ fun ExpenseCard(
 
             if (role != ExpenseStatus.NEUTRAL) {
                 Spacer(
-                    modifier = Modifier.weight(.1f)
+                    modifier = Modifier.weight(.1f),
                 )
                 val screenWidth = LocalWindowInfo.current.containerDpSize.width
                 ExpenseAmount(
