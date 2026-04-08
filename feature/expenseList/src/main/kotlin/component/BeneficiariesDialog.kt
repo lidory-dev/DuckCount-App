@@ -105,62 +105,76 @@ fun BeneficiariesDialog(
                     modifier = Modifier
                         .fillMaxWidth(),
                     singleLine = true,
-                    error = "Aucun résultat",
-                    isInError = filteredUsers.isEmpty(),
+                    error = "",
+                    isInError = false,
                     focusManager = focusManager,
                 )
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    items(
-                        items = filteredUsers,
-                        key = { user -> user.uuid },
-                    ) { user ->
-                        var isUserSelected by remember { mutableStateOf(false) }
-                        Card(
-                            shape = RoundedCornerShape(size = Padding.large),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .animateItem(
-                                    fadeInSpec = tween(200),
-                                    placementSpec = tween(200),
-                                )
-                                .padding(vertical = Padding.medium),
-                            onClick = {
-                                isUserSelected = !isUserSelected
-                                if (selectedUsers.contains(user)) selectedUsers.remove(user) else selectedUsers.add(user)
-                            },
-                        ) {
-                            Row(
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
+
+
+                if (filteredUsers.isEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        Text(text = "Aucun résultat")
+                    }
+                } else {
+
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        items(
+                            items = filteredUsers,
+                            key = { user -> user.uuid },
+                        ) { user ->
+                            var isUserSelected by remember { mutableStateOf(false) }
+                            Card(
+                                shape = RoundedCornerShape(size = Padding.large),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(TextFieldDefaults.MinHeight),
+                                    .animateItem(
+                                        fadeInSpec = tween(200),
+                                        placementSpec = tween(200),
+                                    )
+                                    .padding(vertical = Padding.medium),
+                                onClick = {
+                                    isUserSelected = !isUserSelected
+                                    if (selectedUsers.contains(user)) selectedUsers.remove(user) else selectedUsers.add(
+                                        user,
+                                    )
+                                },
                             ) {
-                                Text(
-                                    text = user.fullName,
+                                Row(
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier
-                                        .padding(TextFieldDefaults.contentPaddingWithLabel()),
-                                )
-                                Checkbox(
-                                    checked = isUserSelected,
-                                    onCheckedChange = {
-                                        isUserSelected = !isUserSelected
-                                        if (selectedUsers.contains(user)) selectedUsers.remove(user) else selectedUsers.add(
-                                            user,
-                                        )
-                                    },
-                                )
+                                        .fillMaxWidth()
+                                        .height(TextFieldDefaults.MinHeight),
+                                ) {
+                                    Text(
+                                        text = user.fullName,
+                                        modifier = Modifier
+                                            .padding(TextFieldDefaults.contentPaddingWithLabel()),
+                                    )
+                                    Checkbox(
+                                        checked = isUserSelected,
+                                        onCheckedChange = {
+                                            isUserSelected = !isUserSelected
+                                            if (selectedUsers.contains(user)) selectedUsers.remove(user) else selectedUsers.add(
+                                                user,
+                                            )
+                                        },
+                                    )
+                                }
                             }
                         }
-                    }
-                    item {
-                        // Spacer to place the last element above the FloatingActionButton
-                        Spacer(modifier = Modifier.padding(FloatingActionButtonDefaults.LargeIconSize + Padding.medium))
+                        item {
+                            // Spacer to place the last element above the FloatingActionButton
+                            Spacer(modifier = Modifier.padding(FloatingActionButtonDefaults.LargeIconSize + Padding.medium))
+                        }
                     }
                 }
             }

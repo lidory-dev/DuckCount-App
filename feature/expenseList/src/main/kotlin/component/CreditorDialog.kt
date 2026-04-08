@@ -91,44 +91,53 @@ fun CreditorDialog(
                 modifier = Modifier
                     .fillMaxWidth(),
                 singleLine = true,
-                error = "Aucun résultat",
-                isInError = filteredUsers.isEmpty(),
+                error = "",
+                isInError = false,
                 focusManager = focusManager,
             )
 
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                items(
-                    items = filteredUsers,
-                    key = { user -> user.uuid },
-                ) { user ->
-                    Card(
-                        shape = RoundedCornerShape(size = Padding.large),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .animateItem(
-                                fadeInSpec = tween(200),
-                                placementSpec = tween(200),
-                            )
-                            .padding(vertical = Padding.medium),
-                        onClick = {
-                            onSelectedCreditor(user.fullName)
-                            onDismissRequest()
-                        },
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
+            if (filteredUsers.isEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    Text(text = "Aucun résultat")
+                }
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    items(
+                        items = filteredUsers,
+                        key = { user -> user.uuid },
+                    ) { user ->
+                        Card(
+                            shape = RoundedCornerShape(size = Padding.large),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(TextFieldDefaults.MinHeight),
+                                .animateItem(
+                                    fadeInSpec = tween(200),
+                                    placementSpec = tween(200),
+                                )
+                                .padding(vertical = Padding.medium),
+                            onClick = {
+                                onSelectedCreditor(user.fullName)
+                                onDismissRequest()
+                            },
                         ) {
-                            Text(
-                                text = user.fullName,
-                                modifier = Modifier.padding(TextFieldDefaults.contentPaddingWithLabel()),
-                            )
+                            Row(
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(TextFieldDefaults.MinHeight),
+                            ) {
+                                Text(
+                                    text = user.fullName,
+                                    modifier = Modifier.padding(TextFieldDefaults.contentPaddingWithLabel()),
+                                )
+                            }
                         }
                     }
                 }
