@@ -13,4 +13,6 @@ interface UserRepository {
     fun getAll(): Flow<List<User>>
 
     fun get(uuid: String): Flow<User>
+
+    fun getFullName(uuid: String): Flow<String>
 }

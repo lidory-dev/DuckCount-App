@@ -31,4 +31,8 @@ class UserRepositoryImpl(
             userEntity.toUser()
         }
     }
+
+    override fun getFullName(uuid: String): Flow<String> {
+        return userDao.getUserFullNameAsFlow(uuid = uuid)
+    }
 }
