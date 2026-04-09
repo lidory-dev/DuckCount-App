@@ -18,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import app.lidory.expenselist.R
 import database.currency.Currency
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -67,7 +69,7 @@ fun CurrencyDropDownMenu(
                         }
                     }
                     .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-                error = "Une monnaie doit être séléctionnée",
+                error = stringResource(R.string.currency_mandatory),
                 isInError = currency.isEmpty(),
                 focusManager = focusManager,
                 labelName = null,

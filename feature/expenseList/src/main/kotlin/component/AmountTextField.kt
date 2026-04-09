@@ -18,8 +18,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.expenselist.R
 
 @Composable
 fun AmountTextField(
@@ -44,7 +46,7 @@ fun AmountTextField(
     ) {
         CustomTextField(
             value = amountValue,
-            labelName = "Montant de la dépense",
+            labelName = stringResource(R.string.amount_expense),
             modifier = Modifier
                 .onSizeChanged { size ->
                     textFieldHeightPx = size.height
@@ -56,7 +58,7 @@ fun AmountTextField(
                 keyboardType = KeyboardType.Number,
             ),
             focusManager = focusManager,
-            error = "Le champ ne peut pas être vide",
+            error = stringResource(R.string.amount_mandatory),
             isInError = amountValue.isBlank(),
         )
         Spacer(modifier = Modifier.padding(Padding.small))

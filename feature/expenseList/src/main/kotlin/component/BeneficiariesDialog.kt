@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
@@ -91,14 +92,14 @@ fun BeneficiariesDialog(
                 verticalArrangement = Arrangement.spacedBy(Padding.large),
             ) {
                 TopBar(
-                    title = "Ajouter des personnes",
+                    title = stringResource(R.string.add_user),
                     onBack = onDismissRequest,
                 )
 
                 CustomTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text(text = "Rechercher") },
+                    placeholder = { Text(text = stringResource(R.string.search)) },
                     leadingIcon = {
                         Icon(painter = painterResource(R.drawable.ic_search), contentDescription = "Rechercher")
                     },
@@ -116,7 +117,7 @@ fun BeneficiariesDialog(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center,
                     ) {
-                        Text(text = "Aucun résultat")
+                        Text(text = stringResource(R.string.no_result))
                     }
                 } else {
 
@@ -188,7 +189,7 @@ fun BeneficiariesDialog(
                     onDismissRequest()
                 },
             ) {
-                Text(text = "Ajouter")
+                Text(text = stringResource(R.string.add))
             }
         }
     }

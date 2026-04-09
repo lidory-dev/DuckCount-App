@@ -18,10 +18,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.validateExpense
+import app.lidory.expenselist.R
 import component.AmountTextField
 import component.BeneficiariesDialog
 import component.BeneficiaryPart
@@ -81,7 +83,7 @@ fun CreateExpenseScreen(
     ) {
         item {
             TopBar(
-                title = "Ajouter une nouvelle dépense",
+                title = stringResource(R.string.add_new_expense),
                 onBack = onBack,
             )
         }
@@ -89,11 +91,11 @@ fun CreateExpenseScreen(
         item {
             CustomTextField(
                 value = expenseState.title,
-                labelName = "Titre de la dépense",
+                labelName = stringResource(R.string.expense_title),
                 onValueChange = { viewModel.updateTitle(title = it) },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 focusManager = focusManager,
-                error = "Le champ ne peut pas être vide",
+                error = stringResource(R.string.title_mandatory),
                 isInError = expenseState.title.isBlank(),
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -106,7 +108,7 @@ fun CreateExpenseScreen(
                     focusManager.clearFocus()
                 },
                 creditorName = expenseState.creditorUuid,
-                label = "Payé par",
+                label = stringResource(R.string.label_paid_by),
             )
         }
 
@@ -128,12 +130,12 @@ fun CreateExpenseScreen(
         item {
             CustomTextField(
                 value = expenseState.description,
-                labelName = "Description",
+                labelName = stringResource(R.string.label_description),
                 onValueChange = { viewModel.updateDescription(description = it) },
                 singleLine = false,
                 maxLines = 5,
                 focusManager = focusManager,
-                error = "Le champ ne peut pas être vide",
+                error = stringResource(R.string.description_mandatory),
                 isInError = expenseState.description.isBlank(),
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -165,7 +167,7 @@ fun CreateExpenseScreen(
                     onBack()
                 },
             ) {
-                Text(text = "Valider")
+                Text(text = stringResource(R.string.confirm))
             }
         }
     }

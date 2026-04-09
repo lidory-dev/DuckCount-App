@@ -12,8 +12,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.expenselist.R
 import database.beneficiary.Beneficiary
 
 @Composable
@@ -30,7 +32,7 @@ fun BeneficiaryPart(
         verticalAlignment = Alignment.CenterVertically,
     ) {
 
-        Text(text = "Personnes concernés")
+        Text(text = stringResource(R.string.concerned_users))
 
         IconButton(
             onClick = onAddUser,

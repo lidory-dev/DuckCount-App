@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
@@ -78,15 +79,18 @@ fun CreditorDialog(
             verticalArrangement = Arrangement.spacedBy(Padding.large),
         ) {
             TopBar(
-                title = "Auteur de la dépense",
+                title = stringResource(R.string.expense_creditor),
                 onBack = onDismissRequest,
             )
             CustomTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text(text = "Rechercher") },
+                placeholder = { Text(text = stringResource(R.string.search)) },
                 leadingIcon = {
-                    Icon(painter = painterResource(R.drawable.ic_search), contentDescription = "Rechercher")
+                    Icon(
+                        painter = painterResource(R.drawable.ic_search),
+                        contentDescription = stringResource(R.string.search),
+                    )
                 },
                 modifier = Modifier
                     .fillMaxWidth(),
@@ -101,7 +105,7 @@ fun CreditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
                 ) {
-                    Text(text = "Aucun résultat")
+                    Text(text = stringResource(R.string.no_result))
                 }
             } else {
                 LazyColumn(
