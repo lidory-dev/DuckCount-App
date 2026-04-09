@@ -1,7 +1,9 @@
 package app.lidory.duckcount.navigation
 
+import AuthenticationFlow
 import ContactDetailScreen
 import NewContactScreen
+import PendingProfile
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
@@ -14,6 +16,7 @@ import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import app.lidory.duckcount.R
 import app.lidory.duckcount.android.ui.theme.isAppInDarkTheme
 import app.lidory.duckcount.expenseList.CreateExpenseScreen
 import app.lidory.duckcount.expenseList.ExpenseDetailScreen
@@ -29,15 +32,16 @@ import app.lidory.duckcount.navigation.key.DashboardKey
 import app.lidory.duckcount.navigation.key.ExpenseDetailScreenKey
 import app.lidory.duckcount.navigation.key.GroupDetailScreenKey
 import app.lidory.duckcount.navigation.key.NewContactScreenKey
+import navigation.key.OnBoardingScreenKey
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
-
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 fun NavigationRoot(
     modifier: Modifier = Modifier,
     backStack: NavBackStack<NavKey>,
+    resumeRegistration: PendingProfile? = null,
 ) {
     val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>()
 
@@ -132,6 +136,23 @@ fun NavigationRoot(
                                 parametersOf(key.userUuid)
                             },
                             onBack = dropUnlessResumed { backStack.removeIf { it is ContactDetailScreenKey } },
+                        )
+                    }
+                }
+
+                is OnBoardingScreenKey -> {
+                    NavEntry(
+                        key = key,
+                    ) {
+                        AuthenticationFlow(
+                            appName = R.string.app_name,
+                            onBoardingTitle = R.string.on_boarding_title,
+                            onBoardingDescription = R.string.on_boarding_description,
+                            startResume = resumeRegistration,
+                            navigateToDashboard = {
+                                backStack.add(DashboardKey)
+                                backStack.remove(OnBoardingScreenKey)
+                            },
                         )
                     }
                 }

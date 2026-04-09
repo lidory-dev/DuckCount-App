@@ -1,172 +1,67 @@
 package networking
 
+import authenticationUtils.getLongLivedToken
+import authenticationUtils.getShortLivedToken
+import authenticationUtils.setTokens
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.request.delete
-import io.ktor.client.request.get
-import io.ktor.client.request.parameter
+import io.ktor.client.plugins.auth.Auth
+import io.ktor.client.plugins.auth.providers.BearerTokens
+import io.ktor.client.plugins.auth.providers.bearer
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.post
-import io.ktor.client.request.put
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
-import io.ktor.util.network.UnresolvedAddressException
-import kotlinx.serialization.SerializationException
-import util.NetworkError
-import util.Result
+import io.ktor.serialization.kotlinx.json.json
+import kotlinx.serialization.json.Json
 
-class DuckCountClient(
-    @PublishedApi internal val httpClient: HttpClient = createHttpClient(),
-) {
-    suspend inline fun <reified T> get(
-        route: String,
-        pathParams: Map<String, String> = emptyMap(),
-        queryParams: Map<String, String> = hashMapOf(),
-    ): Result<T, NetworkError> {
-        return executeMethod(
-            method = Method.GET,
-            route = route,
-            pathParams = pathParams,
-            queryParams = queryParams,
-            body = Unit,
-        )
-    }
-
-    suspend inline fun <reified T, D> post(
-        route: String,
-        pathParams: Map<String, String> = emptyMap(),
-        body: D,
-        contentType: ContentType = ContentType.Application.Json,
-    ): Result<T, NetworkError> {
-        return executeMethod(
-            method = Method.POST,
-            route = route,
-            pathParams = pathParams,
-            body = body,
-            contentType = contentType,
-        )
-    }
-
-    suspend inline fun <reified T, D> put(
-        route: String,
-        pathParams: Map<String, String> = emptyMap(),
-        body: D,
-        contentType: ContentType = ContentType.Application.Json,
-    ): Result<T, NetworkError> {
-        return executeMethod(
-            method = Method.PUT,
-            route = route,
-            pathParams = pathParams,
-            body = body,
-            contentType = contentType,
-        )
-    }
-
-    suspend inline fun <reified T> delete(
-        route: String,
-        pathParams: Map<String, String> = emptyMap(),
-    ): Result<T, NetworkError> {
-        return executeMethod(
-            method = Method.DELETE,
-            route = route,
-            pathParams = pathParams,
-            body = Unit,
-        )
-    }
-
-    suspend inline fun <reified T, reified D> executeMethod(
-        method: Method,
-        route: String,
-        pathParams: Map<String, String> = emptyMap(),
-        queryParams: Map<String, String> = hashMapOf(),
-        body: D? = null,
-        contentType: ContentType? = null,
-    ): Result<T, NetworkError> {
-        val routeWithPathParameters = pathParams.entries.fold(initial = route) { accumulator, (key, value) ->
-            accumulator.replace(oldValue = ":$key", newValue = value)
+class DuckCountClient : Client() {
+    override val httpClient = HttpClient {
+        install(Logging) {
+            level = LogLevel.ALL
         }
-
-        return execute {
-            when (method) {
-                Method.GET -> {
-                    httpClient.get(
-                        urlString = routeWithPathParameters,
-                    ) {
-                        queryParams.onEach { param ->
-                            parameter(key = param.key, value = param.value)
-                        }
+        install(ContentNegotiation) {
+            json(
+                json = Json {
+                    ignoreUnknownKeys = true
+                },
+            )
+        }
+        install(Auth) {
+            bearer {
+                loadTokens {
+                    getShortLivedToken()?.let { shortLivedToken ->
+                        BearerTokens(
+                            accessToken = shortLivedToken,
+                            refreshToken = getLongLivedToken(),
+                        )
                     }
                 }
+                refreshTokens {
+                    val refreshToken = getLongLivedToken()
 
-                Method.POST -> {
-                    httpClient.post(
-                        urlString = route,
+                    val accessTokens = client.post(
+                        urlString = DuckCountRoutes.Auth.TOKEN,
                     ) {
-                        setBody(body)
-                        contentType?.let {
-                            contentType(it)
-                        }
-                    }
-                }
+                        setBody(hashMapOf("long_lived_token" to refreshToken))
+                        contentType(ContentType.Application.Json)
+                        markAsRefreshTokenRequest()
+                    }.body<TokenResponse>()
 
-                Method.PUT -> {
-                    httpClient.put(
-                        urlString = route,
-                    ) {
-                        setBody(body)
-                        contentType?.let {
-                            contentType(it)
-                        }
-                    }
-                }
+                    setTokens(
+                        accessTokens.shortLivedToken,
+                        accessTokens.longLivedToken,
+                    )
 
-                Method.DELETE -> {
-                    httpClient.delete(
-                        urlString = route,
+                    BearerTokens(
+                        accessToken = accessTokens.shortLivedToken,
+                        refreshToken = accessTokens.longLivedToken,
                     )
                 }
             }
         }
-    }
-
-    suspend inline fun <reified T> execute(
-        executor: () -> HttpResponse,
-    ): Result<T, NetworkError> {
-        val response = try {
-            executor()
-        } catch (_: UnresolvedAddressException) {
-            return Result.Error(NetworkError.NO_INTERNET)
-        } catch (_: SerializationException) {
-            return Result.Error(NetworkError.SERIALIZATION)
-        }
-
-        return when (response.status.value) {
-            in 200..299 -> {
-                try {
-                    Result.Success(response.body<T>())
-                } catch (_: SerializationException) {
-                    Result.Error(NetworkError.SERIALIZATION)
-                }
-            }
-
-            400 -> Result.Error(NetworkError.BAD_REQUEST)
-            401 -> Result.Error(NetworkError.UNAUTHORIZED)
-            404 -> Result.Error(NetworkError.NOT_FOUND)
-            409 -> Result.Error(NetworkError.CONFLICT)
-            408 -> Result.Error(NetworkError.REQUEST_TIMEOUT)
-            413 -> Result.Error(NetworkError.PAYLOAD_TOO_LARGE)
-            422 -> Result.Error(NetworkError.UNPROCESSABLE_ENTITY)
-            429 -> Result.Error(NetworkError.TOO_MANY_REQUESTS)
-            in 500..599 -> Result.Error(NetworkError.SERVER_ERROR)
-            else -> Result.Error(NetworkError.UNKNOWN)
-        }
-    }
-
-    enum class Method {
-        GET,
-        POST,
-        PUT,
-        DELETE,
     }
 }

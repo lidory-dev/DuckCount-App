@@ -7,8 +7,8 @@ import io.ktor.client.plugins.logging.Logging
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
-fun createHttpClient(): HttpClient {
-    return HttpClient {
+class HaveIBeenPwnedClient : Client() {
+    override val httpClient = HttpClient {
         install(Logging) {
             level = LogLevel.ALL
         }
@@ -19,6 +19,5 @@ fun createHttpClient(): HttpClient {
                 },
             )
         }
-        // TODO: Add bearer token for requests to the DuckCount API and only for those requests.
     }
 }

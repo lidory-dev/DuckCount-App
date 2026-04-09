@@ -3,4 +3,6 @@
     <string name="contacts">Contacts</string>
     <string name="expenses">Expenses</string>
     <string name="groups">Groups</string>
+    <string name="on_boarding_title">Share your expenses, not your data.</string>
+    <string name="on_boarding_description">Split bills with your group in seconds. The amounts and what they’re for stay encrypted — we can’t read them.</string>
 </resources>

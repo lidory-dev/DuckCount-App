@@ -11,6 +11,12 @@ enum class NetworkError : Error {
     TOO_MANY_REQUESTS,
     SERVER_ERROR,
     NO_INTERNET,
+    UNREACHABLE,
     SERIALIZATION,
     UNKNOWN;
 }
+
+class NetworkException(
+    val error: NetworkError,
+    cause: Throwable? = null,
+) : Exception(error.name, cause)

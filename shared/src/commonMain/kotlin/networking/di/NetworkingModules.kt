@@ -4,5 +4,5 @@ import networking.DuckCountClient
 import org.koin.dsl.module
 
 val networkingModule = module {
-    single { DuckCountClient() }
+    single { DuckCountClient() } // TODO: Still needed?
 }
