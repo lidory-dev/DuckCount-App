@@ -42,4 +42,9 @@
     <string name="edit_expense">Edit expense</string>
     <string name="title_too_long">Title too long (%1$d/%2$d)</string>
     <string name="remove_fixed_share">Remove fixed share</string>
+
+    <!-- ExpenseDetailScreen -->
+    <string name="date">%1$s, %2$s</string>
+    <string name="creditor_paid">%1$s paid a total of %2$s %3$s</string>
+    <string name="beneficiary_has_to_pay">%1$s has to pay %2$s %3$s</string>
 </resources>

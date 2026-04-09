@@ -9,4 +9,6 @@ interface ExpenseDetailCallBacks {
     suspend fun deleteExpense(expenseUuid: String)
 
     suspend fun restoreExpense(expenseUuid: String)
+
+    fun getUserFullName(userUuid: String): Flow<String>
 }
