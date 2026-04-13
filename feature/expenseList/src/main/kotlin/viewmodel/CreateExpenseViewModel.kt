@@ -9,7 +9,6 @@ import database.beneficiary.BeneficiaryRepository
 import database.currency.Currency
 import database.expense.Expense
 import database.expense.ExpenseRepository
-import database.user.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.onStart
@@ -28,7 +27,8 @@ import kotlin.uuid.Uuid
 class CreateExpenseViewModel(
     private val creditorUuid: String,
     private val expenseRepository: ExpenseRepository,
-    private val userRepository: UserRepository,
+    // TODO: add when necessary
+    // private val userRepository: UserRepository,
     private val beneficiaryRepository: BeneficiaryRepository,
 ) : ViewModel() {
 
@@ -65,13 +65,13 @@ class CreateExpenseViewModel(
     }
 
     fun getCreditorName() {
-        // TODO: Use creditorUuid, supposed to be the current connected user
-        // For now we don't have users so we use a placeholder
+//         TODO: Use creditorUuid, supposed to be the current connected user
+//         For now we don't have correct creditorUuid so we use a placeholder
 //        userRepository.getFullName(creditorUuid).onEach {
 //            updateCreditorFullName(it)
 //        }
 //            .launchIn(viewModelScope)
-        updateCreditor("User not found")
+        updateCreditor("Test User")
     }
 
     @OptIn(ExperimentalTime::class)
