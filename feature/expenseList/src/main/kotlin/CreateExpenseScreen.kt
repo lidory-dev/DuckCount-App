@@ -152,8 +152,8 @@ fun CreateExpenseScreen(
                     singleLine = false,
                     maxLines = 5,
                     focusManager = focusManager,
-                    error = stringResource(R.string.description_mandatory),
-                    isInError = expenseState.description.isBlank(),
+                    error = "",
+                    isInError = false,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
