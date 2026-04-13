@@ -79,7 +79,7 @@ fun CreditorDialog(
         isVisible = isDialogShown,
     ) {
         Scaffold(
-            modifier = modifier,
+            modifier = Modifier,
             topBar = {
                 TopAppBar(
                     title = {
@@ -97,8 +97,8 @@ fun CreditorDialog(
         ) { innerPadding ->
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(innerPadding),
+                    .fillMaxSize()
+                    .padding(top = innerPadding.calculateTopPadding()),
                 verticalArrangement = Arrangement.spacedBy(Padding.large),
             ) {
                 CustomTextField(

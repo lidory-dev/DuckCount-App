@@ -73,7 +73,7 @@ fun CreateExpenseScreen(
 
     Scaffold(
         modifier = Modifier
-            .padding(all = Padding.medium)
+            .padding(horizontal = Padding.medium)
             .fillMaxWidth(),
         topBar = {
             TopAppBar(
@@ -102,7 +102,7 @@ fun CreateExpenseScreen(
                     focusManager.clearFocus()
                 }
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(top = innerPadding.calculateTopPadding()),
             verticalArrangement = Arrangement.spacedBy(Padding.medium),
         ) {
             item {

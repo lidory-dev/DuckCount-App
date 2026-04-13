@@ -107,7 +107,7 @@ fun BeneficiariesDialog(
                 FloatingActionButton(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(all = Padding.large),
+                        .padding(all = Padding.medium),
                     onClick = {
                         onAddUsers(selectedUsers)
                         onDismissRequest()
@@ -121,7 +121,7 @@ fun BeneficiariesDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(innerPadding),
+                    .padding(top = innerPadding.calculateTopPadding()),
                 verticalArrangement = Arrangement.spacedBy(Padding.large),
             ) {
                 CustomTextField(
