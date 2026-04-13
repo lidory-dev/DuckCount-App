@@ -52,9 +52,9 @@ fun BeneficiaryPart(
             Text(text = beneficiary.userUuid, modifier = Modifier.weight(4f))
             ExpenseTextField(
                 value = beneficiary.share,
-                onValueChange = {
+                onValueChange = { it ->
                     onBeneficiaryAmountChange(
-                        beneficiary.userUuid, beneficiary.share,
+                        beneficiary.userUuid, it,
                     )
                 },
                 modifier = Modifier.weight(1f),

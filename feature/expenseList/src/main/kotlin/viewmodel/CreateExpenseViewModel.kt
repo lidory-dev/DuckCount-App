@@ -152,7 +152,7 @@ class CreateExpenseViewModel(
     fun updateBeneficiaryShare(userUuid: String, share: String) {
         _state.update {
             it.copy(
-                beneficiaries = it.beneficiaries.map { beneficiary ->
+                beneficiaries = _state.value.beneficiaries.map { beneficiary ->
                     if (beneficiary.userUuid == userUuid) {
                         beneficiary.copy(share = share)
                     } else {
