@@ -36,4 +36,8 @@
     <string name="label_paid_by">Paid by</string>
     <string name="label_description">Description</string>
     <string name="description_mandatory">A description is mandatory</string>
+
+    <!-- ErrorCard -->
+    <string name="shares_below_total_amount">The shares can\'t be lower than the total amount</string>
+    <string name="shares_exceed_total_amount">The shares can\'t be greater than the total amount</string>
 </resources>

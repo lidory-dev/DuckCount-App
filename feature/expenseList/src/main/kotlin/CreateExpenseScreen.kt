@@ -170,12 +170,13 @@ fun CreateExpenseScreen(
                         focusManager.clearFocus()
                         isConcernedUsersDialogShown = !isConcernedUsersDialogShown
                     },
+                    expenseError = expenseState.error,
                 )
             }
 
             item {
                 Button(
-                    enabled = expenseState.isValid,
+                    enabled = expenseState.error == null,
                     onClick = {
                         viewModel.createExpense()
                         onBack()

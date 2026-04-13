@@ -2,6 +2,8 @@ package viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.lidory.duckcount.ExpenseError
+import app.lidory.duckcount.validateExpense
 import database.beneficiary.Beneficiary
 import database.beneficiary.BeneficiaryRepository
 import database.currency.Currency
@@ -176,4 +178,6 @@ data class CreateExpenseState(
     // TODO: adapt
     val currency: Currency = Currency("", "", "", false),
     val beneficiaries: List<Beneficiary> = emptyList(),
-)
+) {
+    val error: ExpenseError? = validateExpense(amount, currency, beneficiaries)
+}
