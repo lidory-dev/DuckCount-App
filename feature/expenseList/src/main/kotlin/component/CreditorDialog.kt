@@ -13,9 +13,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -34,6 +38,7 @@ import app.lidory.expenselist.R
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.UserViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreditorDialog(
     isDialogShown: Boolean,
@@ -73,74 +78,89 @@ fun CreditorDialog(
         modifier = modifier,
         isVisible = isDialogShown,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(Padding.large),
-        ) {
-            TopBar(
-                title = stringResource(R.string.expense_creditor),
-                onBack = onDismissRequest,
-            )
-            CustomTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text(text = stringResource(R.string.search)) },
-                leadingIcon = {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_search),
-                        contentDescription = stringResource(R.string.search),
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth(),
-                singleLine = true,
-                error = "",
-                isInError = false,
-                focusManager = focusManager,
-            )
-
-            if (filteredUsers.isEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    Text(text = stringResource(R.string.no_result))
-                }
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    items(
-                        items = filteredUsers,
-                        key = { user -> user.uuid },
-                    ) { user ->
-                        Card(
-                            shape = RoundedCornerShape(size = Padding.large),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .animateItem(
-                                    fadeInSpec = tween(200),
-                                    placementSpec = tween(200),
-                                )
-                                .padding(vertical = Padding.medium),
-                            onClick = {
-                                onSelectedCreditor(user.fullName)
-                                onDismissRequest()
-                            },
+        Scaffold(
+            modifier = modifier,
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(text = stringResource(R.string.expense_creditor))
+                    },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = onDismissRequest,
                         ) {
-                            Row(
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
+                            Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        }
+                    },
+                )
+            },
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(innerPadding),
+                verticalArrangement = Arrangement.spacedBy(Padding.large),
+            ) {
+                CustomTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text(text = stringResource(R.string.search)) },
+                    leadingIcon = {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_search),
+                            contentDescription = stringResource(R.string.search),
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    singleLine = true,
+                    error = "",
+                    isInError = false,
+                    focusManager = focusManager,
+                )
+
+                if (filteredUsers.isEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        Text(text = stringResource(R.string.no_result))
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(
+                            items = filteredUsers,
+                            key = { user -> user.uuid },
+                        ) { user ->
+                            Card(
+                                shape = RoundedCornerShape(size = Padding.large),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(TextFieldDefaults.MinHeight),
+                                    .animateItem(
+                                        fadeInSpec = tween(200),
+                                        placementSpec = tween(200),
+                                    )
+                                    .padding(vertical = Padding.medium),
+                                onClick = {
+                                    onSelectedCreditor(user.fullName)
+                                    onDismissRequest()
+                                },
                             ) {
-                                Text(
-                                    text = user.fullName,
-                                    modifier = Modifier.padding(TextFieldDefaults.contentPaddingWithLabel()),
-                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(TextFieldDefaults.MinHeight),
+                                ) {
+                                    Text(
+                                        text = user.fullName,
+                                        modifier = Modifier.padding(TextFieldDefaults.contentPaddingWithLabel()),
+                                    )
+                                }
                             }
                         }
                     }

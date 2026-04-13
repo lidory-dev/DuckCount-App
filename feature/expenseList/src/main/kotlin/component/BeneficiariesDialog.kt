@@ -2,7 +2,6 @@ package component
 
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,11 +16,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -84,18 +87,43 @@ fun BeneficiariesDialog(
         modifier = modifier,
         isVisible = isDialogShown,
     ) {
-        Box(
+        Scaffold(
             modifier = Modifier.fillMaxSize(),
-        ) {
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(text = stringResource(R.string.add_user))
+                    },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = onDismissRequest,
+                        ) {
+                            Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        }
+                    },
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(all = Padding.large),
+                    onClick = {
+                        onAddUsers(selectedUsers)
+                        onDismissRequest()
+                    },
+                ) {
+                    Text(text = stringResource(R.string.add))
+                }
+            },
+            floatingActionButtonPosition = FabPosition.Center,
+        ) { innerPadding ->
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(innerPadding),
                 verticalArrangement = Arrangement.spacedBy(Padding.large),
             ) {
-                TopBar(
-                    title = stringResource(R.string.add_user),
-                    onBack = onDismissRequest,
-                )
-
                 CustomTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -178,18 +206,6 @@ fun BeneficiariesDialog(
                         }
                     }
                 }
-            }
-            FloatingActionButton(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(all = Padding.large),
-                onClick = {
-                    onAddUsers(selectedUsers)
-                    onDismissRequest()
-                },
-            ) {
-                Text(text = stringResource(R.string.add))
             }
         }
     }

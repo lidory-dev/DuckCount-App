@@ -8,7 +8,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,11 +22,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.constant.Padding
-import app.lidory.duckcount.validateExpense
 import app.lidory.expenselist.R
 import component.AmountTextField
 import component.BeneficiariesDialog
@@ -30,7 +34,6 @@ import component.BeneficiaryPart
 import component.CreditorDialog
 import component.CreditorSelector
 import component.CustomTextField
-import component.TopBar
 import database.beneficiary.Beneficiary
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.CreateExpenseViewModel
@@ -68,106 +71,118 @@ fun CreateExpenseScreen(
         focusManager = focusManager,
     )
 
-    LazyColumn(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Scaffold(
         modifier = Modifier
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-            ) {
-                focusManager.clearFocus()
-            }
-            .fillMaxSize()
-            .padding(Padding.medium),
-        verticalArrangement = Arrangement.spacedBy(Padding.medium),
-    ) {
-        item {
-            TopBar(
-                title = stringResource(R.string.add_new_expense),
-                onBack = onBack,
-            )
-        }
-
-        item {
-            CustomTextField(
-                value = expenseState.title,
-                labelName = stringResource(R.string.expense_title),
-                onValueChange = { viewModel.updateTitle(title = it) },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                focusManager = focusManager,
-                error = stringResource(R.string.title_mandatory),
-                isInError = expenseState.title.isBlank(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        item {
-            CreditorSelector(
-                onClick = {
-                    isCreditorDialogShown = !isCreditorDialogShown
-                    focusManager.clearFocus()
-                },
-                creditorName = expenseState.creditorUuid,
-                label = stringResource(R.string.label_paid_by),
-            )
-        }
-
-        item {
-            AmountTextField(
-                amountValue = expenseState.amount,
-                currencyValue = expenseState.currency.symbol,
-                onExpenseValueChange = { amount ->
-                    viewModel.updateAmount(amount)
-                },
-                onCurrencyValueChange = { name, symbol, hasSubUnit ->
-                    viewModel.updateCurrency(name, symbol, hasSubUnit)
-                    focusManager.clearFocus()
-                },
-                focusManager = focusManager,
-            )
-        }
-
-        item {
-            CustomTextField(
-                value = expenseState.description,
-                labelName = stringResource(R.string.label_description),
-                onValueChange = { viewModel.updateDescription(description = it) },
-                singleLine = false,
-                maxLines = 5,
-                focusManager = focusManager,
-                error = stringResource(R.string.description_mandatory),
-                isInError = expenseState.description.isBlank(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        item {
-            BeneficiaryPart(
-                beneficiaries = expenseState.beneficiaries,
-                onBeneficiaryAmountChange = { userId, share ->
-                    viewModel.updateBeneficiaryShare(
-                        userUuid = userId, share = share,
+            .padding(all = Padding.medium)
+            .fillMaxWidth(),
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = stringResource(R.string.add_new_expense),
                     )
                 },
-                onAddUser = {
-                    focusManager.clearFocus()
-                    isConcernedUsersDialogShown = !isConcernedUsersDialogShown
+                navigationIcon = {
+                    IconButton(
+                        onClick = onBack,
+                    ) {
+                        Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                    }
                 },
             )
-        }
+        },
+    ) { innerPadding ->
+        LazyColumn(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                ) {
+                    focusManager.clearFocus()
+                }
+                .fillMaxSize()
+                .padding(innerPadding),
+            verticalArrangement = Arrangement.spacedBy(Padding.medium),
+        ) {
+            item {
+                CustomTextField(
+                    value = expenseState.title,
+                    labelName = stringResource(R.string.expense_title),
+                    onValueChange = { viewModel.updateTitle(title = it) },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    focusManager = focusManager,
+                    error = stringResource(R.string.title_mandatory),
+                    isInError = expenseState.title.isBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
 
-        val isExpenseValide = runCatching {
-            validateExpense(expenseState.amount, expenseState.currency, expenseState.beneficiaries)
-        }
-        item {
-            Button(
-                enabled = isExpenseValide != null,
-                onClick = {
-                    viewModel.createExpense()
-                    onBack()
-                },
-            ) {
-                Text(text = stringResource(R.string.confirm))
+            item {
+                CreditorSelector(
+                    onClick = {
+                        isCreditorDialogShown = !isCreditorDialogShown
+                        focusManager.clearFocus()
+                    },
+                    creditorName = expenseState.creditorUuid,
+                    label = stringResource(R.string.label_paid_by),
+                )
+            }
+
+            item {
+                AmountTextField(
+                    amountValue = expenseState.amount,
+                    currencyValue = expenseState.currency.symbol,
+                    onExpenseValueChange = { amount ->
+                        viewModel.updateAmount(amount)
+                    },
+                    onCurrencyValueChange = { name, symbol, hasSubUnit ->
+                        viewModel.updateCurrency(name, symbol, hasSubUnit)
+                        focusManager.clearFocus()
+                    },
+                    focusManager = focusManager,
+                )
+            }
+
+            item {
+                CustomTextField(
+                    value = expenseState.description,
+                    labelName = stringResource(R.string.label_description),
+                    onValueChange = { viewModel.updateDescription(description = it) },
+                    singleLine = false,
+                    maxLines = 5,
+                    focusManager = focusManager,
+                    error = stringResource(R.string.description_mandatory),
+                    isInError = expenseState.description.isBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            item {
+                BeneficiaryPart(
+                    beneficiaries = expenseState.beneficiaries,
+                    onBeneficiaryAmountChange = { userId, share ->
+                        viewModel.updateBeneficiaryShare(
+                            userUuid = userId, share = share,
+                        )
+                    },
+                    onAddUser = {
+                        focusManager.clearFocus()
+                        isConcernedUsersDialogShown = !isConcernedUsersDialogShown
+                    },
+                )
+            }
+
+            item {
+                Button(
+                    enabled = expenseState.isValid,
+                    onClick = {
+                        viewModel.createExpense()
+                        onBack()
+                    },
+                ) {
+                    Text(text = stringResource(R.string.confirm))
+                }
             }
         }
     }
