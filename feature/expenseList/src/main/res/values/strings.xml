@@ -18,7 +18,6 @@
 
     <!-- BeneficiariesDialog -->
     <string name="add_user">Add users</string>
-    <string name="search">Search</string>
 
     <!-- BeneficiaryPart -->
     <string name="concerned_users">Concerned users</string>

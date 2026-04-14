@@ -29,7 +29,7 @@ import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
+import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
 import org.koin.androidx.compose.koinViewModel
@@ -89,21 +89,10 @@ fun CreditorDialog(
                     .padding(top = innerPadding.calculateTopPadding()),
                 verticalArrangement = Arrangement.spacedBy(Padding.large),
             ) {
-                DuckCountTextField(
-                    value = viewModel.searchQuery,
-                    onValueChange = { viewModel.onSearchQueryChange(query = it) },
-                    placeholder = { Text(text = stringResource(R.string.search)) },
-                    leadingIcon = {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_search),
-                            contentDescription = stringResource(R.string.search),
-                        )
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth(),
-                    singleLine = true,
-                    error = "",
-                    isInError = false,
+                DuckCountSearchBar(
+                    modifier = Modifier.fillMaxWidth(),
+                    searchQuery = viewModel.searchQuery,
+                    onSearchChange = { viewModel.onSearchQueryChange(query = it) },
                     focusManager = focusManager,
                 )
 
