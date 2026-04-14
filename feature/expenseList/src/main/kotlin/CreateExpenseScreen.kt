@@ -86,7 +86,10 @@ fun CreateExpenseScreen(
                     IconButton(
                         onClick = onBack,
                     ) {
-                        Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                        Icon(
+                            painter = painterResource(R.drawable.ic_arrow_back),
+                            contentDescription = stringResource(R.string.back),
+                        )
                     }
                 },
             )

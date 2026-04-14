@@ -40,4 +40,5 @@
     <!-- ErrorCard -->
     <string name="shares_below_total_amount">The shares can\'t be lower than the total amount</string>
     <string name="shares_exceed_total_amount">The shares can\'t be greater than the total amount</string>
+    <string name="back">Back</string>
 </resources>
