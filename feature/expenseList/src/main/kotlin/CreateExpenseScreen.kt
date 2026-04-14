@@ -31,7 +31,7 @@ import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
 import component.AmountTextField
 import component.BeneficiariesDialog
-import component.BeneficiaryList
+import component.BeneficiaryList.beneficiaryList
 import component.CreditorDialog
 import component.CreditorSelector
 import database.beneficiary.Beneficiary
@@ -159,21 +159,19 @@ fun CreateExpenseScreen(
                 )
             }
 
-            item {
-                BeneficiaryList(
-                    beneficiaries = expenseState.beneficiaries,
-                    onBeneficiaryAmountChange = { userId, share ->
-                        viewModel.updateBeneficiaryShare(
-                            userUuid = userId, share = share,
-                        )
-                    },
-                    onAddUser = {
-                        focusManager.clearFocus()
-                        isConcernedUsersDialogShown = !isConcernedUsersDialogShown
-                    },
-                    expenseError = expenseState.error,
-                )
-            }
+            beneficiaryList(
+                beneficiaries = expenseState.beneficiaries,
+                onBeneficiaryAmountChange = { userId, share ->
+                    viewModel.updateBeneficiaryShare(
+                        userUuid = userId, share = share,
+                    )
+                },
+                onAddUser = {
+                    focusManager.clearFocus()
+                    isConcernedUsersDialogShown = !isConcernedUsersDialogShown
+                },
+                expenseError = expenseState.error,
+            )
 
             item {
                 Button(
