@@ -1,12 +1,15 @@
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -95,94 +98,104 @@ fun CreateExpenseScreen(
             )
         },
     ) { innerPadding ->
-        LazyColumn(
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Box(
             modifier = Modifier
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                ) {
-                    focusManager.clearFocus()
-                }
-                .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding()),
-            verticalArrangement = Arrangement.spacedBy(Padding.medium),
+                .padding(top = innerPadding.calculateTopPadding(), bottom = Padding.medium)
+                .fillMaxSize(),
         ) {
-            item {
-                DuckCountTextField(
-                    value = expenseState.title,
-                    labelName = stringResource(R.string.expense_title),
-                    onValueChange = { viewModel.updateTitle(title = it) },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    focusManager = focusManager,
-                    error = stringResource(R.string.title_mandatory),
-                    isInError = expenseState.title.isBlank(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            item {
-                CreditorSelector(
-                    onClick = {
-                        isCreditorDialogShown = !isCreditorDialogShown
+            LazyColumn(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                    ) {
                         focusManager.clearFocus()
-                    },
-                    creditorName = expenseState.creditorUuid,
-                    label = stringResource(R.string.label_paid_by),
-                )
-            }
-
-            item {
-                AmountTextField(
-                    amountValue = expenseState.amount,
-                    currencyValue = expenseState.currency.symbol,
-                    onExpenseValueChange = { amount ->
-                        viewModel.updateAmount(amount)
-                    },
-                    onCurrencyValueChange = { name, symbol, hasSubUnit ->
-                        viewModel.updateCurrency(name, symbol, hasSubUnit)
-                        focusManager.clearFocus()
-                    },
-                    focusManager = focusManager,
-                )
-            }
-
-            item {
-                DuckCountTextField(
-                    value = expenseState.description,
-                    labelName = stringResource(R.string.label_description),
-                    onValueChange = { viewModel.updateDescription(description = it) },
-                    singleLine = false,
-                    maxLines = 5,
-                    focusManager = focusManager,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            beneficiaryList(
-                beneficiaries = expenseState.beneficiaries,
-                onBeneficiaryAmountChange = { userId, share ->
-                    viewModel.updateBeneficiaryShare(
-                        userUuid = userId, share = share,
+                    }
+                    .fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(Padding.medium),
+            ) {
+                item {
+                    DuckCountTextField(
+                        value = expenseState.title,
+                        labelName = stringResource(R.string.expense_title),
+                        onValueChange = { viewModel.updateTitle(title = it) },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        focusManager = focusManager,
+                        error = stringResource(R.string.title_mandatory),
+                        isInError = expenseState.title.isBlank(),
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                },
-                onAddUser = {
-                    focusManager.clearFocus()
-                    isConcernedUsersDialogShown = !isConcernedUsersDialogShown
-                },
-                expenseError = expenseState.error,
-            )
-
-            item {
-                Button(
-                    enabled = expenseState.error == null,
-                    onClick = {
-                        viewModel.createExpense()
-                        onBack()
-                    },
-                ) {
-                    Text(text = stringResource(R.string.confirm))
                 }
+
+                item {
+                    CreditorSelector(
+                        onClick = {
+                            isCreditorDialogShown = !isCreditorDialogShown
+                            focusManager.clearFocus()
+                        },
+                        creditorName = expenseState.creditorUuid,
+                        label = stringResource(R.string.label_paid_by),
+                    )
+                }
+
+                item {
+                    AmountTextField(
+                        amountValue = expenseState.amount,
+                        currencyValue = expenseState.currency.symbol,
+                        onExpenseValueChange = { amount ->
+                            viewModel.updateAmount(amount)
+                        },
+                        onCurrencyValueChange = { name, symbol, hasSubUnit ->
+                            viewModel.updateCurrency(name, symbol, hasSubUnit)
+                            focusManager.clearFocus()
+                        },
+                        focusManager = focusManager,
+                    )
+                }
+
+                item {
+                    DuckCountTextField(
+                        value = expenseState.description,
+                        labelName = stringResource(R.string.label_description),
+                        onValueChange = { viewModel.updateDescription(description = it) },
+                        singleLine = false,
+                        maxLines = 5,
+                        focusManager = focusManager,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+
+                beneficiaryList(
+                    beneficiaries = expenseState.beneficiaries,
+                    onBeneficiaryAmountChange = { userId, share ->
+                        viewModel.updateBeneficiaryShare(
+                            userUuid = userId, share = share,
+                        )
+                    },
+                    onAddUser = {
+                        focusManager.clearFocus()
+                        isConcernedUsersDialogShown = !isConcernedUsersDialogShown
+                    },
+                    expenseError = expenseState.error,
+                )
+
+                item {
+                    // Spacer to place the last element above the add button
+                    Spacer(modifier = Modifier.padding(ButtonDefaults.MinHeight))
+                }
+            }
+
+            ElevatedButton(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter),
+                enabled = expenseState.error == null,
+                onClick = {
+                    viewModel.createExpense()
+                    onBack()
+                },
+            ) {
+                Text(text = stringResource(R.string.confirm))
             }
         }
     }
