@@ -152,8 +152,6 @@ fun CreateExpenseScreen(
                     singleLine = false,
                     maxLines = 5,
                     focusManager = focusManager,
-                    error = "",
-                    isInError = false,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

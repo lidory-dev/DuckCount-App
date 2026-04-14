@@ -44,7 +44,7 @@ fun BeneficiaryPart(
             IconButton(
                 onClick = onAddUser,
             ) {
-                Icon(painter = painterResource(app.lidory.expenselist.R.drawable.ic_add), contentDescription = "Add")
+                Icon(painter = painterResource(R.drawable.ic_add), contentDescription = "Add")
             }
         }
 

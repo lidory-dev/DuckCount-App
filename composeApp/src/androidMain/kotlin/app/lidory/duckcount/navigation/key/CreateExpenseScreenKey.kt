@@ -4,5 +4,4 @@ import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 
 @Serializable
-class CreateExpenseScreenKey(val creditorId: String) : NavKey {
-}
+class CreateExpenseScreenKey(val creditorId: String) : NavKey
