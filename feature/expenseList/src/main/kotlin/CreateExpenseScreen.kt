@@ -31,7 +31,7 @@ import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
 import component.AmountTextField
 import component.BeneficiariesDialog
-import component.BeneficiaryPart
+import component.BeneficiaryList
 import component.CreditorDialog
 import component.CreditorSelector
 import database.beneficiary.Beneficiary
@@ -157,7 +157,7 @@ fun CreateExpenseScreen(
             }
 
             item {
-                BeneficiaryPart(
+                BeneficiaryList(
                     beneficiaries = expenseState.beneficiaries,
                     onBeneficiaryAmountChange = { userId, share ->
                         viewModel.updateBeneficiaryShare(

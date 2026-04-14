@@ -22,7 +22,7 @@ import app.lidory.expenselist.R
 import database.beneficiary.Beneficiary
 
 @Composable
-fun BeneficiaryPart(
+fun BeneficiaryList(
     beneficiaries: List<Beneficiary>,
     onBeneficiaryAmountChange: (String, String) -> Unit,
     onAddUser: () -> Unit,
