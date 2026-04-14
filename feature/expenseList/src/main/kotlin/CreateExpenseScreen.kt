@@ -63,10 +63,10 @@ fun CreateExpenseScreen(
     BeneficiariesDialog(
         isDialogShown = isConcernedUsersDialogShown,
         onDismissRequest = { isConcernedUsersDialogShown = !isConcernedUsersDialogShown },
-        onAddUsers = {
-            it.forEach { user ->
-                viewModel.addBeneficiary(Beneficiary(uuid = "", expenseUuid = "", userUuid = user.uuid, share = "0"))
-            }
+        onAddUsers = { users ->
+            viewModel.addBeneficiaries(
+                users.map { user -> Beneficiary(uuid = "", expenseUuid = "", userUuid = user.uuid, share = "0") },
+            )
         },
         focusManager = focusManager,
     )
