@@ -122,8 +122,14 @@ class CreateExpenseViewModel(
     }
 
     fun updateDescription(description: String) {
-        _state.update {
-            it.copy(description = description)
+        if (description.length <= 2000) {
+            _state.update {
+                it.copy(description = description)
+            }
+        } else {
+            _state.update {
+                it.copy(description = description.substring(0, 2000))
+            }
         }
     }
 
