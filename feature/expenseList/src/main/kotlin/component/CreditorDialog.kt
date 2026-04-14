@@ -22,11 +22,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
@@ -53,29 +49,17 @@ fun CreditorDialog(
 
     val usersList = state.users
 
-    var searchQuery by remember { mutableStateOf("") }
-
     val listState = rememberLazyListState()
 
-    val filteredUsers by remember(searchQuery, usersList) {
-        derivedStateOf {
-            if (searchQuery.isBlank()) {
-                usersList
-            } else {
-                // TODO: Replace with db query
-                usersList.filter { item ->
-                    item.fullName.contains(searchQuery, ignoreCase = true)
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(searchQuery) {
+    LaunchedEffect(viewModel.searchQuery) {
         listState.animateScrollToItem(0)
     }
 
     FullScreenDialog(
-        onDismissRequest = onDismissRequest,
+        onDismissRequest = {
+            onDismissRequest()
+            viewModel.clearSearchQuery()
+        },
         modifier = modifier,
         isVisible = isDialogShown,
     ) {
@@ -88,7 +72,10 @@ fun CreditorDialog(
                     },
                     navigationIcon = {
                         IconButton(
-                            onClick = onDismissRequest,
+                            onClick = {
+                                onDismissRequest()
+                                viewModel.clearSearchQuery()
+                            },
                         ) {
                             Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
                         }
@@ -103,8 +90,8 @@ fun CreditorDialog(
                 verticalArrangement = Arrangement.spacedBy(Padding.large),
             ) {
                 DuckCountTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
+                    value = viewModel.searchQuery,
+                    onValueChange = { viewModel.onSearchQueryChange(query = it) },
                     placeholder = { Text(text = stringResource(R.string.search)) },
                     leadingIcon = {
                         Icon(
@@ -120,7 +107,7 @@ fun CreditorDialog(
                     focusManager = focusManager,
                 )
 
-                if (filteredUsers.isEmpty()) {
+                if (usersList.isEmpty()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center,
@@ -133,7 +120,7 @@ fun CreditorDialog(
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         items(
-                            items = filteredUsers,
+                            items = usersList,
                             key = { user -> user.uuid },
                         ) { user ->
                             Card(

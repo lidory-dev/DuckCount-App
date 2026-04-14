@@ -27,7 +27,6 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -62,29 +61,17 @@ fun BeneficiariesDialog(
 
     val selectedUsers = remember { mutableStateListOf<User>() }
 
-    var searchQuery by remember { mutableStateOf("") }
-
     val listState = rememberLazyListState()
 
-    val filteredUsers by remember(searchQuery, usersList) {
-        derivedStateOf {
-            if (searchQuery.isBlank()) {
-                usersList
-            } else {
-                // TODO: Replace with db query
-                usersList.filter { item ->
-                    item.fullName.contains(searchQuery, ignoreCase = true)
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(searchQuery) {
+    LaunchedEffect(viewModel.searchQuery) {
         listState.animateScrollToItem(0)
     }
 
     FullScreenDialog(
-        onDismissRequest = onDismissRequest,
+        onDismissRequest = {
+            onDismissRequest()
+            viewModel.clearSearchQuery()
+        },
         modifier = modifier,
         isVisible = isDialogShown,
     ) {
@@ -97,7 +84,10 @@ fun BeneficiariesDialog(
                     },
                     navigationIcon = {
                         IconButton(
-                            onClick = onDismissRequest,
+                            onClick = {
+                                onDismissRequest()
+                                viewModel.clearSearchQuery()
+                            },
                         ) {
                             Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
                         }
@@ -126,8 +116,8 @@ fun BeneficiariesDialog(
                 verticalArrangement = Arrangement.spacedBy(Padding.large),
             ) {
                 DuckCountTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
+                    value = viewModel.searchQuery,
+                    onValueChange = { viewModel.onSearchQueryChange(query = it) },
                     placeholder = { Text(text = stringResource(R.string.search)) },
                     leadingIcon = {
                         Icon(painter = painterResource(R.drawable.ic_search), contentDescription = "Rechercher")
@@ -141,7 +131,7 @@ fun BeneficiariesDialog(
                 )
 
 
-                if (filteredUsers.isEmpty()) {
+                if (usersList.isEmpty()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center,
@@ -157,7 +147,7 @@ fun BeneficiariesDialog(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         items(
-                            items = filteredUsers,
+                            items = usersList,
                             key = { user -> user.uuid },
                         ) { user ->
                             var isUserSelected by remember { mutableStateOf(false) }

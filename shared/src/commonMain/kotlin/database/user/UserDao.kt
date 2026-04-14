@@ -22,6 +22,9 @@ interface UserDao {
     @Query("SELECT * FROM UserEntity")
     fun getAllAsFlow(): Flow<List<UserEntity>>
 
+    @Query("SELECT * FROM UserEntity WHERE fullName LIKE '%' ||:filter|| '%'")
+    fun getAllFiltered(filter: String): Flow<List<UserEntity>>
+
     @Transaction
     @Query("SELECT * FROM UserEntity WHERE uuid = :uuid")
     fun getUserAsFlow(uuid: String): Flow<UserEntity>
