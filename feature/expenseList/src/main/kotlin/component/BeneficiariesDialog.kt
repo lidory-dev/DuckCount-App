@@ -39,6 +39,7 @@ import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
 import database.user.User
@@ -124,7 +125,7 @@ fun BeneficiariesDialog(
                     .padding(top = innerPadding.calculateTopPadding()),
                 verticalArrangement = Arrangement.spacedBy(Padding.large),
             ) {
-                CustomTextField(
+                DuckCountTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     placeholder = { Text(text = stringResource(R.string.search)) },

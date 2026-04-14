@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.graphics.Color
+import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import database.currency.Currency
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -49,7 +50,7 @@ fun CurrencyDropDownMenu(
                 expanded = !expanded
             },
         ) {
-            CustomTextField(
+            DuckCountTextField(
                 value = currency,
                 onValueChange = { },
                 readOnly = true,

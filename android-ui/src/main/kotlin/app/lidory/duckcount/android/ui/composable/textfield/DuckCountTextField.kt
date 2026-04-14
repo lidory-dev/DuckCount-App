@@ -1,4 +1,4 @@
-package component
+package app.lidory.duckcount.android.ui.composable.textfield
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -43,29 +43,29 @@ import app.lidory.duckcount.android.ui.constant.Padding
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CustomTextField(
+fun DuckCountTextField(
     value: String,
     onValueChange: (String) -> Unit,
-    error: String?,
-    isInError: Boolean,
-    labelName: String? = null,
     focusManager: FocusManager,
+    modifier: Modifier = Modifier,
+    isInError: Boolean = false,
+    error: String? = "",
     placeholder: @Composable (() -> Unit)? = null,
     enabled: Boolean = true,
-    textStyle: TextStyle = TextStyle.Companion.Default,
+    textStyle: TextStyle = TextStyle.Default,
     singleLine: Boolean = true,
     maxLines: Int = if (singleLine) 1 else 5,
     minLines: Int = 1,
     onTextLayout: (TextLayoutResult) -> Unit = {},
-    cursorBrush: Brush = SolidColor(Color.Companion.Black),
-    modifier: Modifier = Modifier.Companion,
+    cursorBrush: Brush = SolidColor(Color.Black),
+    labelName: String? = null,
     readOnly: Boolean = false,
-    innerModifier: Modifier = Modifier.Companion,
-    visualTransformation: VisualTransformation = VisualTransformation.Companion.None,
+    innerModifier: Modifier = Modifier,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
     colors: TextFieldColors = TextFieldDefaults.colors(),
     keyboardOptions: KeyboardOptions = KeyboardOptions(
-        keyboardType = KeyboardType.Companion.Text,
-        imeAction = ImeAction.Companion.Done,
+        keyboardType = KeyboardType.Text,
+        imeAction = ImeAction.Done,
     ),
     keyboardActions: KeyboardActions = KeyboardActions(
         onDone = { focusManager.clearFocus() },
@@ -83,7 +83,7 @@ fun CustomTextField(
     )
 
     val borderColor by animateColorAsState(
-        targetValue = if (isFocused) TextFieldDefaults.colors().focusedIndicatorColor else Color.Companion.Transparent,
+        targetValue = if (isFocused) TextFieldDefaults.colors().focusedIndicatorColor else Color.Transparent,
         animationSpec = tween(200),
     )
 
@@ -148,7 +148,7 @@ fun CustomTextField(
                                 initialOffsetY = { it },
                             ),
                             exit = shrinkVertically(
-                                shrinkTowards = Alignment.Companion.Top,
+                                shrinkTowards = Alignment.Top,
                             ),
                             visible = isInError,
                         ) {
@@ -162,14 +162,14 @@ fun CustomTextField(
                     }
                 },
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Companion.Transparent,
-                    unfocusedContainerColor = Color.Companion.Transparent,
-                    errorContainerColor = Color.Companion.Transparent,
-                    disabledContainerColor = Color.Companion.Transparent,
-                    focusedIndicatorColor = Color.Companion.Transparent,
-                    disabledIndicatorColor = Color.Companion.Transparent,
-                    unfocusedIndicatorColor = Color.Companion.Transparent,
-                    errorIndicatorColor = Color.Companion.Transparent,
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    errorContainerColor = Color.Transparent,
+                    disabledContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    errorIndicatorColor = Color.Transparent,
                     focusedTextColor = TextFieldDefaults.colors().focusedTextColor,
                     unfocusedTextColor = TextFieldDefaults.colors().unfocusedTextColor,
                     selectionColors = TextSelectionColors(

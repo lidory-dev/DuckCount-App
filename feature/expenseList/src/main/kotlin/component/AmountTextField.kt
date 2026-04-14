@@ -20,6 +20,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
 
@@ -44,7 +45,7 @@ fun AmountTextField(
             .fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CustomTextField(
+        DuckCountTextField(
             value = amountValue,
             labelName = stringResource(R.string.amount_expense),
             modifier = Modifier

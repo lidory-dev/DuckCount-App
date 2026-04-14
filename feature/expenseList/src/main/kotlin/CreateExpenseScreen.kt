@@ -26,6 +26,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
 import component.AmountTextField
@@ -33,7 +34,6 @@ import component.BeneficiariesDialog
 import component.BeneficiaryPart
 import component.CreditorDialog
 import component.CreditorSelector
-import component.CustomTextField
 import database.beneficiary.Beneficiary
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.CreateExpenseViewModel
@@ -106,7 +106,7 @@ fun CreateExpenseScreen(
             verticalArrangement = Arrangement.spacedBy(Padding.medium),
         ) {
             item {
-                CustomTextField(
+                DuckCountTextField(
                     value = expenseState.title,
                     labelName = stringResource(R.string.expense_title),
                     onValueChange = { viewModel.updateTitle(title = it) },
@@ -145,7 +145,7 @@ fun CreateExpenseScreen(
             }
 
             item {
-                CustomTextField(
+                DuckCountTextField(
                     value = expenseState.description,
                     labelName = stringResource(R.string.label_description),
                     onValueChange = { viewModel.updateDescription(description = it) },
