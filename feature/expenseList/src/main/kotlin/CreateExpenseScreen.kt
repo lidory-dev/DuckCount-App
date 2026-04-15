@@ -61,6 +61,7 @@ fun CreateExpenseScreen(
         onDismissRequest = { viewModel.hideConcernedUsersDialog() },
         onAddUsers = { users ->
             viewModel.addBeneficiaries(
+                // TODO: use real data
                 users.map { user -> Beneficiary(expenseUuid = "", userUuid = user.uuid, share = "0") },
             )
         },
