@@ -182,14 +182,18 @@ fun BeneficiariesDialog(
                 ElevatedButton(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(all = Padding.medium),
+                        .fillMaxWidth()
+                        .padding(bottom = Padding.medium),
                     onClick = {
                         onAddUsers(selectedUsers)
                         onDismissRequest()
                     },
                     enabled = selectedUsers.isNotEmpty(),
                 ) {
-                    Text(text = stringResource(R.string.add))
+                    Text(
+                        modifier = Modifier.padding(Padding.small),
+                        text = stringResource(R.string.add),
+                    )
                 }
             }
         }

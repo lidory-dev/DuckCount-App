@@ -189,6 +189,8 @@ fun CreateExpenseScreen(
 
             ElevatedButton(
                 modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = Padding.medium)
                     .align(Alignment.BottomCenter),
                 enabled = expenseState.error == null,
                 onClick = {
@@ -196,7 +198,10 @@ fun CreateExpenseScreen(
                     onBack()
                 },
             ) {
-                Text(text = stringResource(R.string.confirm))
+                Text(
+                    modifier = Modifier.padding(Padding.small),
+                    text = stringResource(R.string.confirm),
+                )
             }
         }
     }
