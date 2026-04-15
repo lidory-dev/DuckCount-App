@@ -113,9 +113,10 @@ class CreateExpenseViewModel(
     }
 
     fun updateAmount(amount: String) {
+        val formattedAmount = amount.replace(',', '.').replace(" ", "")
         if (_state.value.currency.hasSubunits) {
-            if (amount.isBlank() || amount.matches(Regex("^\\d*\\.?\\d*\$"))) {
-                _state.update { it.copy(amount = amount) }
+            if (formattedAmount.isBlank() || formattedAmount.matches(Regex("^\\d*\\.?\\d*\$"))) {
+                _state.update { it.copy(amount = formattedAmount) }
             }
         } else {
             if (amount.isBlank() || amount.matches(Regex("^\\d*\$"))) {
