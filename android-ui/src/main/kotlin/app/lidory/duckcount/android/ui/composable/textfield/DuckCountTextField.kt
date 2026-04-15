@@ -13,6 +13,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -42,7 +43,7 @@ fun DuckCountTextField(
     error: String? = "",
     placeholder: @Composable (() -> Unit)? = null,
     enabled: Boolean = true,
-    textStyle: TextStyle = TextStyle.Default,
+    textStyle: TextStyle = MaterialTheme.typography.bodyLarge,
     singleLine: Boolean = true,
     maxLines: Int = if (singleLine) 1 else 5,
     minLines: Int = 1,
@@ -86,7 +87,7 @@ fun DuckCountTextField(
             )
             .background(
                 color = TextFieldDefaults.colors().unfocusedContainerColor,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(Padding.large),
+                shape = RoundedCornerShape(Padding.large),
             ),
         value = value,
         enabled = enabled,
@@ -99,49 +100,48 @@ fun DuckCountTextField(
         singleLine = singleLine,
         readOnly = readOnly,
         keyboardOptions = keyboardOptions,
-        textStyle = textStyle.copy(color = colors.unfocusedTextColor),
+        textStyle = textStyle,
         keyboardActions = keyboardActions,
         cursorBrush = cursorBrush,
-        decorationBox = { innerTextField ->
-            TextFieldDefaults.DecorationBox(
-                isError = isInError,
-                enabled = true,
-                value = value,
-                placeholder = placeholder,
-                visualTransformation = visualTransformation,
-                singleLine = singleLine,
-                interactionSource = interactionSource,
-                contentPadding = TextFieldDefaults.contentPaddingWithLabel(),
-                trailingIcon = trailingIcon,
-                leadingIcon = leadingIcon,
-                innerTextField = {
-                    InnerTextField(
-                        labelName = labelName,
-                        modifier = innerModifier,
-                        error = error,
-                        isInError = isInError,
-                        colors = colors,
-                    ) {
-                        innerTextField()
-                    }
-                },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    errorContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    errorIndicatorColor = Color.Transparent,
-                    focusedTextColor = TextFieldDefaults.colors().focusedTextColor,
-                    unfocusedTextColor = TextFieldDefaults.colors().unfocusedTextColor,
-                    selectionColors = TextSelectionColors(
-                        handleColor = TextFieldDefaults.colors().textSelectionColors.handleColor,
-                        backgroundColor = TextFieldDefaults.colors().textSelectionColors.backgroundColor,
-                    ),
+    ) { innerTextField ->
+        TextFieldDefaults.DecorationBox(
+            isError = isInError,
+            enabled = true,
+            value = value,
+            placeholder = placeholder,
+            visualTransformation = visualTransformation,
+            singleLine = singleLine,
+            interactionSource = interactionSource,
+            contentPadding = DuckCountTextFieldDefault.contentPaddingWithLabel(),
+            trailingIcon = trailingIcon,
+            leadingIcon = leadingIcon,
+            innerTextField = {
+                InnerTextField(
+                    labelName = labelName,
+                    modifier = innerModifier,
+                    error = error,
+                    isInError = isInError,
+                    colors = colors,
+                ) {
+                    innerTextField()
+                }
+            },
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                errorContainerColor = Color.Transparent,
+                disabledContainerColor = Color.Transparent,
+                focusedIndicatorColor = Color.Transparent,
+                disabledIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                errorIndicatorColor = Color.Transparent,
+                focusedTextColor = TextFieldDefaults.colors().focusedTextColor,
+                unfocusedTextColor = TextFieldDefaults.colors().unfocusedTextColor,
+                selectionColors = TextSelectionColors(
+                    handleColor = TextFieldDefaults.colors().textSelectionColors.handleColor,
+                    backgroundColor = TextFieldDefaults.colors().textSelectionColors.backgroundColor,
                 ),
-            )
-        },
-    )
+            ),
+        )
+    }
 }
