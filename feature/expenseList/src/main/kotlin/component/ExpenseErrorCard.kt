@@ -24,8 +24,6 @@ fun ExpenseErrorCard(
             ErrorCard(text = stringResource(R.string.shares_below_total_amount))
         }
     }
-
-
 }
 
 @Composable

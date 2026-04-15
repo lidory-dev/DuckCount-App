@@ -22,6 +22,7 @@ fun FullScreenDialog(
         modifier = Modifier.zIndex(1f),
     ) {
         BackHandler(onBack = onDismissRequest)
+        
         Surface(
             modifier = modifier
                 .fillMaxSize()

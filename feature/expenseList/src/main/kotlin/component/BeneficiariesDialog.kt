@@ -56,7 +56,7 @@ fun BeneficiariesDialog(
 ) {
     val viewModel = koinViewModel<UserViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
-    
+
     val selectedUsers = remember { mutableStateListOf<User>() }
 
     val listState = rememberLazyListState()
@@ -109,7 +109,6 @@ fun BeneficiariesDialog(
                         focusManager = focusManager,
                     )
 
-
                     if (state.users.isEmpty()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -118,7 +117,6 @@ fun BeneficiariesDialog(
                             Text(text = stringResource(R.string.no_result))
                         }
                     } else {
-
                         LazyColumn(
                             state = listState,
                             modifier = Modifier

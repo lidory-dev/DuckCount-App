@@ -42,6 +42,7 @@ fun AmountTextField(
             with(localDensity) { textFieldHeightPx.toDp() }
         }
     }
+
     Row(
         modifier = modifier
             .fillMaxWidth(),
@@ -64,7 +65,9 @@ fun AmountTextField(
             error = stringResource(R.string.amount_mandatory),
             isInError = amountValue.isBlank(),
         )
+
         Spacer(modifier = Modifier.padding(Padding.small))
+
         CurrencyDropDownMenu(
             currency = currencyValue,
             currencies = currencies,
@@ -75,6 +78,5 @@ fun AmountTextField(
                 .height(textFieldHeightDp)
                 .animateContentSize(),
         )
-
     }
 }

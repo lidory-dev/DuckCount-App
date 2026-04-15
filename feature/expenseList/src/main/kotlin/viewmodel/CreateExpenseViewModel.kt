@@ -113,11 +113,9 @@ class CreateExpenseViewModel(
 
     @OptIn(ExperimentalTime::class)
     fun getCurrentTimestamp(): String {
-
         val timestamp = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).format(
             LocalDateTime.Formats.ISO,
         )
-
         return timestamp
     }
 
