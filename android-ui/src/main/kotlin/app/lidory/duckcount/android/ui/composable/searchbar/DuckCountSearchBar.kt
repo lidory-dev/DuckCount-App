@@ -29,8 +29,6 @@ fun DuckCountSearchBar(
             )
         },
         singleLine = true,
-        error = "",
-        isInError = false,
         focusManager = focusManager,
     )
 }
