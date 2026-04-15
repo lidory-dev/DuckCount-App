@@ -60,9 +60,9 @@ fun NavigationRoot(
                                     ),
                                 )
                             },
-                            onCreateExpenseClicked = { creditorId ->
+                            onCreateExpenseClicked = {
                                 backStack.add(
-                                    CreateExpenseScreenKey(creditorId),
+                                    CreateExpenseScreenKey(),
                                 )
                             },
                         )
@@ -105,7 +105,7 @@ fun NavigationRoot(
                     ) {
                         CreateExpenseScreen(
                             viewModel = koinViewModel {
-                                parametersOf(key.creditorId)
+                                parametersOf()
                             },
                             onBack = dropUnlessResumed { backStack.removeIf { it is CreateExpenseScreenKey } },
                         )

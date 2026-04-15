@@ -28,7 +28,6 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 class CreateExpenseViewModel(
-    private val creditorUuid: String,
     private val expenseRepository: ExpenseRepository,
     // TODO: add when necessary
     // private val userRepository: UserRepository,
@@ -39,6 +38,10 @@ class CreateExpenseViewModel(
     var isCreditorDialogShown by mutableStateOf(false)
 
     var isConcernedUsersDialogShown by mutableStateOf(false)
+
+    // TODO: use real data
+    @OptIn(ExperimentalUuidApi::class)
+    val creditorUuid: String = Uuid.random().toString()
 
     // TODO: remove when currencyRepository is implemented
     @OptIn(ExperimentalUuidApi::class)

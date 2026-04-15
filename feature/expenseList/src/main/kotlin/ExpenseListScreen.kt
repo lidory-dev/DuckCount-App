@@ -32,7 +32,7 @@ import kotlin.uuid.ExperimentalUuidApi
 fun ExpenseListScreen(
     modifier: Modifier = Modifier,
     onExpenseClicked: (String) -> Unit,
-    onCreateExpenseClicked: (String) -> Unit,
+    onCreateExpenseClicked: () -> Unit,
 ) {
     val viewModel = koinViewModel<ExpenseListViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -89,7 +89,7 @@ fun ExpenseListScreen(
                 .padding(16.dp),
             onClick = {
                 // TODO: give current connected user
-                onCreateExpenseClicked("0")
+                onCreateExpenseClicked()
             },
         ) {
             Icon(painter = painterResource(R.drawable.ic_add), contentDescription = "Add expense")
