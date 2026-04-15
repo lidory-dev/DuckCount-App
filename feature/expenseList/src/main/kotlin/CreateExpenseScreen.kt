@@ -143,6 +143,7 @@ fun CreateExpenseScreen(
                     AmountTextField(
                         amountValue = expenseState.amount,
                         currencyValue = expenseState.currency.symbol,
+                        currencies = viewModel.currencies,
                         onExpenseValueChange = { amount ->
                             viewModel.updateAmount(amount)
                         },

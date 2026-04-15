@@ -29,8 +29,18 @@ class CreateExpenseViewModel(
     private val expenseRepository: ExpenseRepository,
     // TODO: add when necessary
     // private val userRepository: UserRepository,
+    // private val currencyRepository: CurrencyRepository,
     private val beneficiaryRepository: BeneficiaryRepository,
 ) : ViewModel() {
+
+    // TODO: remove when currencyRepository is implemented
+    @OptIn(ExperimentalUuidApi::class)
+    val currencies =
+        listOf(
+            Currency(uuid = Uuid.random().toString(), "EUR", "€", true),
+            Currency(uuid = Uuid.random().toString(), "USD", "$", true),
+            Currency(uuid = Uuid.random().toString(), "JPY", "¥", false),
+        )
 
     private val _state = MutableStateFlow(
         CreateExpenseState(
@@ -39,6 +49,7 @@ class CreateExpenseViewModel(
     )
     val state = _state.onStart {
         getCreditorName()
+        updateCurrency(currencies.first().name, currencies.first().symbol, currencies.first().hasSubunits)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000L),

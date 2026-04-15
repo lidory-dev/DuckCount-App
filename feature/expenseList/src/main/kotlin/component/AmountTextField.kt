@@ -23,11 +23,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
+import database.currency.Currency
 
 @Composable
 fun AmountTextField(
     amountValue: String,
     currencyValue: String,
+    currencies: List<Currency>,
     onExpenseValueChange: (String) -> Unit,
     onCurrencyValueChange: (String, String, Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -65,6 +67,7 @@ fun AmountTextField(
         Spacer(modifier = Modifier.padding(Padding.small))
         CurrencyDropDownMenu(
             currency = currencyValue,
+            currencies = currencies,
             onValueChange = onCurrencyValueChange,
             focusManager = focusManager,
             modifier = Modifier

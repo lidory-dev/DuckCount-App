@@ -21,23 +21,16 @@ import androidx.compose.ui.graphics.Color
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import database.currency.Currency
 import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalUuidApi::class)
 @Composable
 fun CurrencyDropDownMenu(
     currency: String,
+    currencies: List<Currency>,
     onValueChange: (String, String, Boolean) -> Unit,
     modifier: Modifier = Modifier,
     focusManager: FocusManager,
 ) {
-    // TODO: Change with real currency
-    val currencies =
-        listOf(
-            Currency(uuid = Uuid.random().toString(), "EUR", "€", true),
-            Currency(uuid = Uuid.random().toString(), "USD", "$", true),
-            Currency(uuid = Uuid.random().toString(), "JPY", "¥", false),
-        )
 
     var expanded by remember { mutableStateOf(false) }
 
@@ -68,8 +61,6 @@ fun CurrencyDropDownMenu(
                         }
                     }
                     .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-                error = "",
-                isInError = currency.isEmpty(),
                 focusManager = focusManager,
                 labelName = null,
             )
