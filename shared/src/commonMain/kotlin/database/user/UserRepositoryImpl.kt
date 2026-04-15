@@ -27,7 +27,7 @@ class UserRepositoryImpl(
     }
 
     override fun getAllFiltered(filter: String): Flow<List<User>> {
-        return userDao.getAllFiltered(filter = '%' + filter + '%').map { userEntities ->
+        return userDao.getAllFiltered(filter = filter).map { userEntities ->
             userEntities.map { it.toUser() }
         }
     }
