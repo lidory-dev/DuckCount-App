@@ -34,7 +34,7 @@
     <string name="title_mandatory">A title is mandatory</string>
     <string name="label_paid_by">Paid by</string>
     <string name="label_description">Description</string>
-    <string name="description_mandatory">A description is mandatory</string>
+    <string name="description_cant_exceed_2000">Description too long (%1$s/2000)</string>
 
     <!-- ErrorCard -->
     <string name="shares_below_total_amount">The shares can\'t be lower than the total amount</string>

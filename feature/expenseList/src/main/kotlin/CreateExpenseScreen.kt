@@ -156,6 +156,8 @@ fun CreateExpenseScreen(
                         onValueChange = { viewModel.updateDescription(description = it) },
                         singleLine = false,
                         maxLines = 5,
+                        error = stringResource(R.string.description_cant_exceed_2000, expenseState.description.length),
+                        isInError = expenseState.description.length > 2000,
                         focusManager = focusManager,
                         modifier = Modifier.fillMaxWidth(),
                     )
