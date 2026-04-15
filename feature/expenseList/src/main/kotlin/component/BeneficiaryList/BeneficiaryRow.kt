@@ -9,16 +9,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
-import component.ExpenseTextField
 import database.beneficiary.Beneficiary
 
 @Composable
 fun BeneficiaryRow(
     onBeneficiaryAmountChange: (String, String) -> Unit,
     beneficiary: Beneficiary,
+    focusManager: FocusManager,
 ) {
     Row(
         modifier = Modifier
@@ -35,13 +37,14 @@ fun BeneficiaryRow(
                 .weight(4f)
                 .padding(Padding.medium),
         )
-        ExpenseTextField(
+        DuckCountTextField(
             value = beneficiary.share,
             onValueChange = {
                 onBeneficiaryAmountChange(
                     beneficiary.userUuid, it,
                 )
             },
+            focusManager = focusManager,
             modifier = Modifier.weight(1f),
         )
     }

@@ -173,6 +173,7 @@ fun CreateExpenseScreen(
                         focusManager.clearFocus()
                     },
                     expenseError = expenseState.error,
+                    focusManager = focusManager,
                 )
 
                 item {
