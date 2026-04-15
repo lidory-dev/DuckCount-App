@@ -1,5 +1,8 @@
 package viewmodel
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.ExpenseError
@@ -33,6 +36,10 @@ class CreateExpenseViewModel(
     private val beneficiaryRepository: BeneficiaryRepository,
 ) : ViewModel() {
 
+    var isCreditorDialogShown by mutableStateOf(false)
+
+    var isConcernedUsersDialogShown by mutableStateOf(false)
+
     // TODO: remove when currencyRepository is implemented
     @OptIn(ExperimentalUuidApi::class)
     val currencies =
@@ -41,6 +48,22 @@ class CreateExpenseViewModel(
             Currency(uuid = Uuid.random().toString(), "USD", "$", true),
             Currency(uuid = Uuid.random().toString(), "JPY", "¥", false),
         )
+
+    fun showCreditorDialog() {
+        isCreditorDialogShown = true
+    }
+
+    fun hideCreditorDialog() {
+        isCreditorDialogShown = false
+    }
+
+    fun showConcernedUsersDialog() {
+        isConcernedUsersDialogShown = true
+    }
+
+    fun hideConcernedUsersDialog() {
+        isConcernedUsersDialogShown = false
+    }
 
     private val _state = MutableStateFlow(
         CreateExpenseState(

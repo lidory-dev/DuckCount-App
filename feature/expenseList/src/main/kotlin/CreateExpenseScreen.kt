@@ -18,10 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
@@ -52,20 +49,16 @@ fun CreateExpenseScreen(
     val focusManager = LocalFocusManager.current
     val interactionSource = remember { MutableInteractionSource() }
 
-    var isCreditorDialogShown by rememberSaveable { mutableStateOf(false) }
-
-    var isConcernedUsersDialogShown by rememberSaveable { mutableStateOf(false) }
-
     CreditorDialog(
-        isDialogShown = isCreditorDialogShown,
-        onDismissRequest = { isCreditorDialogShown = !isCreditorDialogShown },
+        isDialogShown = viewModel.isCreditorDialogShown,
+        onDismissRequest = { viewModel.hideCreditorDialog() },
         onSelectedCreditor = { viewModel.updateCreditor(creditorUuid = it) },
         focusManager = focusManager,
     )
 
     BeneficiariesDialog(
-        isDialogShown = isConcernedUsersDialogShown,
-        onDismissRequest = { isConcernedUsersDialogShown = !isConcernedUsersDialogShown },
+        isDialogShown = viewModel.isConcernedUsersDialogShown,
+        onDismissRequest = { viewModel.hideConcernedUsersDialog() },
         onAddUsers = { users ->
             viewModel.addBeneficiaries(
                 users.map { user -> Beneficiary(expenseUuid = "", userUuid = user.uuid, share = "0") },
@@ -131,7 +124,7 @@ fun CreateExpenseScreen(
                 item {
                     CreditorSelector(
                         onClick = {
-                            isCreditorDialogShown = !isCreditorDialogShown
+                            viewModel.showCreditorDialog()
                             focusManager.clearFocus()
                         },
                         creditorName = expenseState.creditorUuid,
@@ -175,8 +168,8 @@ fun CreateExpenseScreen(
                         )
                     },
                     onAddUser = {
+                        viewModel.showConcernedUsersDialog()
                         focusManager.clearFocus()
-                        isConcernedUsersDialogShown = !isConcernedUsersDialogShown
                     },
                     expenseError = expenseState.error,
                 )
