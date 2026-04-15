@@ -56,9 +56,7 @@ fun BeneficiariesDialog(
 ) {
     val viewModel = koinViewModel<UserViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
-
-    val usersList = state.users
-
+    
     val selectedUsers = remember { mutableStateListOf<User>() }
 
     val listState = rememberLazyListState()
@@ -112,7 +110,7 @@ fun BeneficiariesDialog(
                     )
 
 
-                    if (usersList.isEmpty()) {
+                    if (state.users.isEmpty()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Center,
@@ -128,7 +126,7 @@ fun BeneficiariesDialog(
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             items(
-                                items = usersList,
+                                items = state.users,
                                 key = { user -> user.uuid },
                             ) { user ->
                                 var isUserSelected by remember { mutableStateOf(false) }
