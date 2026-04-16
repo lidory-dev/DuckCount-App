@@ -40,4 +40,5 @@
     <string name="back">Back</string>
     <string name="exclamation_mark">Exclamation Mark</string>
     <string name="non_positive_amount_share">Every beneficiary must have a share greater than zero</string>
+    <string name="select_all">Select all</string>
 </resources>

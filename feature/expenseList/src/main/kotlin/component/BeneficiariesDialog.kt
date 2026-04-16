@@ -1,6 +1,8 @@
 package component
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +18,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -29,37 +30,34 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.composable.checkbox.DuckCountCheckBox
+import app.lidory.duckcount.android.ui.composable.checkbox.DuckCountTriStateCheckBox
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
-import database.user.User
-import org.koin.androidx.compose.koinViewModel
-import viewmodel.UserViewModel
+import viewmodel.CreateExpenseViewModel
+import viewmodel.toToggleableState
 import app.lidory.duckcount.android.ui.R as SharedR
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BeneficiariesDialog(
+    viewModel: CreateExpenseViewModel,
     isDialogShown: Boolean,
     onDismissRequest: () -> Unit,
-    onAddUsers: (List<User>) -> Unit,
+    onSelectUsers: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
     focusManager: FocusManager,
 ) {
-    val viewModel = koinViewModel<UserViewModel>()
-    val state by viewModel.state.collectAsStateWithLifecycle()
-
-    val selectedUsers = remember { mutableStateListOf<User>() }
+    val usersState by viewModel.usersState.collectAsStateWithLifecycle()
+    val beneficiaryListState by viewModel.beneficiaryListState.collectAsStateWithLifecycle()
 
     val listState = rememberLazyListState()
 
@@ -119,7 +117,7 @@ fun BeneficiariesDialog(
                         focusManager = focusManager,
                     )
 
-                    if (state.users.isEmpty()) {
+                    if (usersState.users.isEmpty()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Center,
@@ -133,12 +131,50 @@ fun BeneficiariesDialog(
                                 .fillMaxSize(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
+                            item {
+                                AnimatedVisibility(
+                                    visible = viewModel.searchQuery.isBlank(),
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.End,
+                                    ) {
+                                        Card(
+                                            shape = RoundedCornerShape(Padding.extraLarge),
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(Padding.extraLarge))
+                                                .clickable(
+                                                    onClick = {
+                                                        viewModel.toggleSelectAllUsers()
+                                                    },
+                                                ),
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center,
+                                            ) {
+                                                Text(
+                                                    modifier = Modifier.padding(start = Padding.large),
+                                                    text = stringResource(R.string.select_all),
+                                                )
+                                                DuckCountTriStateCheckBox(
+                                                    state = beneficiaryListState.toToggleableState(),
+                                                    onClick = {
+                                                        viewModel.toggleSelectAllUsers()
+                                                    },
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             items(
-                                items = state.users,
+                                items = usersState.users,
                                 key = { user -> user.uuid },
                             ) { user ->
-                                var isUserSelected by remember { mutableStateOf(false) }
-
                                 Card(
                                     shape = RoundedCornerShape(size = Padding.large),
                                     modifier = Modifier
@@ -149,10 +185,7 @@ fun BeneficiariesDialog(
                                         )
                                         .padding(vertical = Padding.medium),
                                     onClick = {
-                                        isUserSelected = !isUserSelected
-                                        if (selectedUsers.contains(user)) selectedUsers.remove(user) else selectedUsers.add(
-                                            user,
-                                        )
+                                        viewModel.toggleSelectedUser(user = user)
                                     },
                                 ) {
                                     Row(
@@ -167,14 +200,10 @@ fun BeneficiariesDialog(
                                             modifier = Modifier
                                                 .padding(TextFieldDefaults.contentPaddingWithLabel()),
                                         )
-
-                                        Checkbox(
-                                            checked = isUserSelected,
+                                        DuckCountCheckBox(
+                                            checked = beneficiaryListState.selectedUuids.contains(user.uuid),
                                             onCheckedChange = {
-                                                isUserSelected = !isUserSelected
-                                                if (selectedUsers.contains(user)) selectedUsers.remove(user) else selectedUsers.add(
-                                                    user,
-                                                )
+                                                viewModel.toggleSelectedUser(user = user)
                                             },
                                         )
                                     }
@@ -195,10 +224,10 @@ fun BeneficiariesDialog(
                         .fillMaxWidth()
                         .padding(bottom = Padding.extraLarge),
                     onClick = {
-                        onAddUsers(selectedUsers)
+                        onSelectUsers(viewModel.getAllSelectedUsersUuids())
                         onDismissRequest()
                     },
-                    enabled = selectedUsers.isNotEmpty(),
+                    enabled = beneficiaryListState.selectedUuids.isNotEmpty(),
                     colors = ButtonDefaults.buttonColors()
                         .copy(
                             containerColor = MaterialTheme.colorScheme.primary,

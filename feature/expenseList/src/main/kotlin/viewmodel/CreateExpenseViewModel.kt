@@ -3,6 +3,7 @@ package viewmodel
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.state.ToggleableState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.ExpenseError
@@ -12,8 +13,14 @@ import database.beneficiary.BeneficiaryRepository
 import database.currency.Currency
 import database.expense.Expense
 import database.expense.ExpenseRepository
+import database.user.User
+import database.user.UserRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -25,10 +32,10 @@ import utils.roundAmountWithoutSubunits
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class CreateExpenseViewModel(
     private val expenseRepository: ExpenseRepository,
-    // TODO: add when necessary
-    // private val userRepository: UserRepository,
+    private val userRepository: UserRepository,
     // private val currencyRepository: CurrencyRepository,
     private val beneficiaryRepository: BeneficiaryRepository,
 ) : ViewModel() {
@@ -94,6 +101,81 @@ class CreateExpenseViewModel(
         started = SharingStarted.WhileSubscribed(5000L),
         initialValue = _state.value,
     )
+
+    private var _searchQuery = MutableStateFlow("")
+    var searchQuery by mutableStateOf("")
+        private set
+
+    val usersState: StateFlow<UserListState> = _searchQuery
+        .flatMapLatest { query ->
+            userRepository.getAllFiltered(filter = query)
+        }
+        .map { users ->
+            UserListState(users)
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000L),
+            initialValue = UserListState(),
+        )
+
+    val beneficiaryListState = MutableStateFlow(BeneficiaryListState())
+
+    fun toggleSelectedUser(user: User) {
+        if (isUserSelected(user)) {
+            beneficiaryListState.update {
+                it.copy(selectedUuids = beneficiaryListState.value.selectedUuids.minus(element = user.uuid))
+            }
+        } else {
+            beneficiaryListState.update {
+                it.copy(selectedUuids = beneficiaryListState.value.selectedUuids.plus(element = user.uuid))
+            }
+        }
+        beneficiaryListState.update {
+            it.copy(isAllUsersSelected = beneficiaryListState.value.selectedUuids.size == usersState.value.users.size)
+        }
+    }
+
+    fun isUserSelected(user: User): Boolean {
+        return beneficiaryListState.value.selectedUuids.contains(user.uuid)
+    }
+
+    fun toggleSelectAllUsers() {
+        if (beneficiaryListState.value.isAllUsersSelected) {
+            beneficiaryListState.update {
+                it.copy(
+                    isAllUsersSelected = false,
+                    selectedUuids = emptySet(),
+                )
+            }
+        } else {
+            beneficiaryListState.update {
+                it.copy(
+                    isAllUsersSelected = true,
+                    selectedUuids = usersState.value.users.map { it.uuid }.toSet(),
+                )
+            }
+        }
+    }
+
+    fun getAllSelectedUsersUuids(): List<String> {
+        return usersState.value.users.filter {
+            beneficiaryListState.value.selectedUuids.contains(it.uuid)
+        }.map {
+            it.uuid
+        }
+    }
+
+    fun onSearchQueryChange(query: String) {
+        searchQuery = query
+        _searchQuery.value = query
+    }
+
+    fun clearSearchQuery() {
+        searchQuery = ""
+        _searchQuery.value = ""
+    }
+
 
     @OptIn(ExperimentalUuidApi::class)
     fun createExpense() = viewModelScope.launch {
@@ -182,7 +264,11 @@ class CreateExpenseViewModel(
 
     fun addBeneficiaries(beneficiaries: List<Beneficiary>) {
         _state.update {
-            it.copy(beneficiaries = _state.value.beneficiaries + beneficiaries)
+            it.copy(
+                beneficiaries = _state.value.beneficiaries + beneficiaries.filterNot {
+                    _state.value.beneficiaries.map { beneficiary -> beneficiary.uuid }.contains(it.uuid)
+                },
+            )
         }
     }
 
@@ -225,4 +311,21 @@ data class CreateExpenseState(
     val beneficiaries: List<Beneficiary> = emptyList(),
 ) {
     val error: ExpenseError? = validateExpense(amount, currency, beneficiaries)
+}
+
+data class UserListState(
+    val users: List<User> = emptyList(),
+)
+
+data class BeneficiaryListState(
+    val selectedUuids: Set<String> = emptySet(),
+    val isAllUsersSelected: Boolean = false,
+)
+
+fun BeneficiaryListState.toToggleableState(): ToggleableState {
+    return when {
+        this.isAllUsersSelected -> ToggleableState.On
+        this.selectedUuids.isNotEmpty() -> ToggleableState.Indeterminate
+        else -> ToggleableState.Off
+    }
 }

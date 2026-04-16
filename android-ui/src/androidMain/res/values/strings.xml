@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="checked">Checked</string>
+    <string name="unchecked">Unchecked</string>
+    <string name="indeterminate_checked">Indeterminate Checked</string>
+    <string name="search">Search</string>
+</resources>
