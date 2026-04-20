@@ -21,6 +21,9 @@ kotlin {
             implementation(libs.compose.ui.tooling.preview)
             implementation(libs.androidx.activity.compose)
 
+            // android-ui
+            implementation(project(":android-ui"))
+
             // Navigation
             implementation(libs.androidx.navigation3.ui)
             implementation(libs.androidx.navigation3.runtime)
