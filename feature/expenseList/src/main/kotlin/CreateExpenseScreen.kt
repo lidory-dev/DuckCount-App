@@ -64,7 +64,7 @@ fun CreateExpenseScreen(
         isDialogShown = viewModel.isBeneficiariesDialogShown,
         onDismissRequest = { viewModel.hideBeneficiariesDialog() },
         onSelectUsers = { uuids ->
-            viewModel.addBeneficiaries(
+            viewModel.updateBeneficiaries(
                 // TODO: use real data
                 uuids.map { Beneficiary(expenseUuid = "", userUuid = it, share = "0") },
             )

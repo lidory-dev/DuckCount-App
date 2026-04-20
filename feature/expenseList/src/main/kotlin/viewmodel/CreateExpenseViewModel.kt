@@ -257,15 +257,18 @@ class CreateExpenseViewModel(
     }
 
     fun addBeneficiary(beneficiary: Beneficiary) {
-        _state.update {
-            it.copy(beneficiaries = _state.value.beneficiaries + beneficiary)
-        }
+        if (!_state.value.beneficiaries.contains(beneficiary))
+            _state.update {
+                it.copy(beneficiaries = _state.value.beneficiaries + beneficiary)
+            }
     }
 
-    fun addBeneficiaries(beneficiaries: List<Beneficiary>) {
+    fun updateBeneficiaries(beneficiaries: List<Beneficiary>) {
         _state.update {
             it.copy(
-                beneficiaries = _state.value.beneficiaries + beneficiaries.filterNot {
+                beneficiaries = _state.value.beneficiaries.filter {
+                    beneficiaries.contains(it)
+                } + beneficiaries.filterNot {
                     _state.value.beneficiaries.map { beneficiary -> beneficiary.uuid }.contains(it.uuid)
                 },
             )
