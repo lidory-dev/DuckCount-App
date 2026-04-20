@@ -18,7 +18,9 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import utils.formatAmountWithSubunits
 import utils.getCurrentTimestamp
+import utils.roundAmount
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -113,12 +115,24 @@ class CreateExpenseViewModel(
     }
 
     fun updateAmount(amount: String) {
-        val formattedAmount = amount.replace(',', '.').replace(" ", "")
+        var formattedAmount = amount.replace(',', '.').replace(" ", "")
+
         if (_state.value.currency.hasSubunits) {
-            if (formattedAmount.isBlank() || formattedAmount.matches(Regex("^\\d*\\.?\\d*\$"))) {
-                _state.update { it.copy(amount = formattedAmount) }
+
+            if (formattedAmount.matches(Regex("""^\d*\.?\d*$"""))) {
+
+                if (formattedAmount.isNotBlank()) formattedAmount =
+                    formattedAmount.formatAmountWithSubunits().roundAmount()
+
+                // If the user just removed a fraction part, we remove it from the string
+                if (_state.value.amount.contains('.') && !formattedAmount.contains('.'))
+                    _state.update { it.copy(amount = formattedAmount.dropLast(2)) }
+                else {
+                    _state.update { it.copy(amount = formattedAmount) }
+                }
             }
         } else {
+
             if (amount.isBlank() || amount.matches(Regex("^\\d*\$"))) {
                 _state.update { it.copy(amount = amount) }
             }
