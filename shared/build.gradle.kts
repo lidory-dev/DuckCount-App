@@ -21,7 +21,7 @@ kotlin {
 
     listOf(
         iosArm64(),
-        iosSimulatorArm64()
+        iosSimulatorArm64(),
     ).forEach { iosTarget ->
         iosTarget.binaries.framework {
             baseName = "Shared"
@@ -36,6 +36,9 @@ kotlin {
 
             // Koin
             implementation(libs.koin.android)
+
+            // Ktor engine
+            implementation(libs.ktor.client.cio)
         }
         commonMain.dependencies {
             // Lib-DuckCount
@@ -51,6 +54,13 @@ kotlin {
             // KSafe
             implementation(libs.ksafe)
             implementation(libs.ksafe.compose)
+
+            // Ktor
+            implementation(libs.bundles.ktor)
+        }
+        iosMain.dependencies {
+            // Ktor engine
+            implementation(libs.ktor.client.darwin)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
