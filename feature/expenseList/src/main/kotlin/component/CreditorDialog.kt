@@ -33,8 +33,8 @@ import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
 import org.koin.androidx.compose.koinViewModel
-import viewmodel.UserViewModel
 import app.lidory.duckcount.android.ui.R as SharedR
+import viewmodel.CreateExpenseViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,8 +45,8 @@ fun CreditorDialog(
     modifier: Modifier = Modifier,
     focusManager: FocusManager,
 ) {
-    val viewModel = koinViewModel<UserViewModel>()
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val viewModel = koinViewModel<CreateExpenseViewModel>()
+    val state by viewModel.usersState.collectAsStateWithLifecycle()
 
     val usersList = state.users
 
