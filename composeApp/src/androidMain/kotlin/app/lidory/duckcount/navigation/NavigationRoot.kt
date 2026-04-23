@@ -2,8 +2,6 @@ package app.lidory.duckcount.navigation
 
 import CreateExpenseScreen
 import ExpenseDetailScreen
-import ExpenseListScreen
-import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
@@ -16,11 +14,9 @@ import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
-import app.lidory.duckcount.navigation.key.ContactListScreenKey
 import app.lidory.duckcount.navigation.key.CreateExpenseScreenKey
+import app.lidory.duckcount.navigation.key.DashboardKey
 import app.lidory.duckcount.navigation.key.ExpenseDetailScreenKey
-import app.lidory.duckcount.navigation.key.ExpenseListScreenKey
-import app.lidory.duckcount.navigation.key.GroupListScreenKey
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -43,24 +39,19 @@ fun NavigationRoot(
         sceneStrategy = listDetailStrategy,
         entryProvider = { key ->
             when (key) {
-                is ExpenseListScreenKey -> {
+                is DashboardKey -> {
                     NavEntry(
                         key = key,
-                        metadata = ListDetailSceneStrategy.listPane(
-                            detailPlaceholder = {
-                                Text("Choose an expense to display more information about it.")
-                            },
-                        ),
                     ) {
-                        ExpenseListScreen(
-                            onExpenseClicked = { expenseUuid ->
+                        Dashboard(
+                            navigateToExpenseDetailScreen = { expenseUuid ->
                                 backStack.add(
                                     ExpenseDetailScreenKey(
                                         expenseUuid,
                                     ),
                                 )
                             },
-                            onCreateExpenseClicked = {
+                            navigateToCreateExpenseScreen = {
                                 backStack.add(
                                     CreateExpenseScreenKey(),
                                 )
@@ -80,22 +71,6 @@ fun NavigationRoot(
                             },
                             onBack = dropUnlessResumed { backStack.removeIf { it is ExpenseDetailScreenKey } },
                         )
-                    }
-                }
-
-                is GroupListScreenKey -> {
-                    NavEntry(
-                        key = key,
-                    ) {
-                        Text(key.title())
-                    }
-                }
-
-                is ContactListScreenKey -> {
-                    NavEntry(
-                        key = key,
-                    ) {
-                        Text(key.title())
                     }
                 }
 

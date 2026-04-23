@@ -86,7 +86,12 @@ fun CreditorDialog(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = innerPadding.calculateTopPadding()),
+                    .padding(
+                        top = innerPadding.calculateTopPadding(),
+                        bottom = Padding.medium,
+                        start = Padding.medium,
+                        end = Padding.medium,
+                    ),
                 verticalArrangement = Arrangement.spacedBy(Padding.large),
             ) {
                 DuckCountSearchBar(

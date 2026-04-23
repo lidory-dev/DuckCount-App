@@ -70,7 +70,6 @@ fun CreateExpenseScreen(
 
     Scaffold(
         modifier = Modifier
-            .padding(horizontal = Padding.medium)
             .fillMaxWidth(),
         topBar = {
             TopAppBar(
@@ -94,7 +93,12 @@ fun CreateExpenseScreen(
     ) { innerPadding ->
         Box(
             modifier = Modifier
-                .padding(top = innerPadding.calculateTopPadding(), bottom = Padding.medium)
+                .padding(
+                    top = innerPadding.calculateTopPadding(),
+                    bottom = Padding.medium,
+                    start = Padding.medium,
+                    end = Padding.medium,
+                )
                 .fillMaxSize(),
         ) {
             LazyColumn(

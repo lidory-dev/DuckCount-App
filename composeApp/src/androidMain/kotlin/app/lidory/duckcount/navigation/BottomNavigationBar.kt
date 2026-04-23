@@ -11,7 +11,6 @@ import androidx.navigation3.runtime.NavKey
 import app.lidory.duckcount.navigation.key.ContactListScreenKey
 import app.lidory.duckcount.navigation.key.ExpenseListScreenKey
 import app.lidory.duckcount.navigation.key.GroupListScreenKey
-import app.lidory.duckcount.navigation.key.NavigableTabNavKey
 
 @Composable
 fun BottomNavigationBar(
@@ -32,8 +31,8 @@ fun BottomNavigationBar(
                     )
                 },
                 label = { Text(item.title()) },
-                // Checks if the last navigable tab in the back stack matches the current item.
-                selected = backStack.lastOrNull { it is NavigableTabNavKey } == items[index],
+                // Checks if the last item in the back stack matches the current item.
+                selected = backStack.lastOrNull() == items[index],
                 onClick = { backStack.add(item) },
             )
         }

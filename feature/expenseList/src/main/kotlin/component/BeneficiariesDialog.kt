@@ -94,12 +94,17 @@ fun BeneficiariesDialog(
             },
         ) { innerPadding ->
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        top = innerPadding.calculateTopPadding(),
+                        bottom = Padding.medium,
+                        start = Padding.medium,
+                        end = Padding.medium,
+                    ),
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = innerPadding.calculateTopPadding()),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(Padding.large),
                 ) {
                     DuckCountSearchBar(

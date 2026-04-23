@@ -1,8 +1,10 @@
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -19,25 +21,27 @@ fun ExpenseDetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    Column(
-        modifier = modifier,
-    ) {
-        Text("ExpenseDetailScreen ${state.expenseWithBeneficiaries?.uuid}")
+    Scaffold { innerPadding ->
+        Column(
+            modifier = modifier.padding(innerPadding),
+        ) {
+            Text("ExpenseDetailScreen ${state.expenseWithBeneficiaries?.uuid}")
 
-        LazyColumn {
-            items(state.expenseWithBeneficiaries?.beneficiaries ?: listOf()) {
-                Row {
-                    Text(it.userUuid + " ")
+            LazyColumn {
+                items(state.expenseWithBeneficiaries?.beneficiaries ?: listOf()) {
+                    Row {
+                        Text(it.userUuid + " ")
 
-                    Text(it.share)
+                        Text(it.share)
+                    }
                 }
             }
-        }
 
-        Button(
-            onClick = onBack,
-        ) {
-            Text("Go back to ExpenseListScreen")
+            Button(
+                onClick = onBack,
+            ) {
+                Text("Go back to ExpenseListScreen")
+            }
         }
     }
 }
