@@ -9,6 +9,8 @@ import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import io.ktor.util.network.UnresolvedAddressException
 import kotlinx.serialization.SerializationException
 import util.NetworkError
@@ -35,12 +37,14 @@ class DuckCountClient(
         route: String,
         pathParams: Map<String, String> = emptyMap(),
         body: D,
+        contentType: ContentType = ContentType.Application.Json,
     ): Result<T, NetworkError> {
         return executeMethod(
             method = Method.POST,
             route = route,
             pathParams = pathParams,
             body = body,
+            contentType = contentType,
         )
     }
 
@@ -48,12 +52,14 @@ class DuckCountClient(
         route: String,
         pathParams: Map<String, String> = emptyMap(),
         body: D,
+        contentType: ContentType = ContentType.Application.Json,
     ): Result<T, NetworkError> {
         return executeMethod(
             method = Method.PUT,
             route = route,
             pathParams = pathParams,
             body = body,
+            contentType = contentType,
         )
     }
 
@@ -75,6 +81,7 @@ class DuckCountClient(
         pathParams: Map<String, String> = emptyMap(),
         queryParams: Map<String, String> = hashMapOf(),
         body: D? = null,
+        contentType: ContentType? = null,
     ): Result<T, NetworkError> {
         val routeWithPathParameters = pathParams.entries.fold(initial = route) { accumulator, (key, value) ->
             accumulator.replace(oldValue = ":$key", newValue = value)
@@ -97,6 +104,9 @@ class DuckCountClient(
                         urlString = route,
                     ) {
                         setBody(body)
+                        contentType?.let {
+                            contentType(it)
+                        }
                     }
                 }
 
@@ -105,6 +115,9 @@ class DuckCountClient(
                         urlString = route,
                     ) {
                         setBody(body)
+                        contentType?.let {
+                            contentType(it)
+                        }
                     }
                 }
 
