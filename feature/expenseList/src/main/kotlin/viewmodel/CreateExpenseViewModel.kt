@@ -201,6 +201,10 @@ class CreateExpenseViewModel(
             )
         }
     }
+
+    companion object {
+        const val MAX_DESCRIPTION_LINE = 2000
+    }
 }
 
 data class CreateExpenseState(
