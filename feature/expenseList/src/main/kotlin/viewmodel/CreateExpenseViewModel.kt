@@ -20,7 +20,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import utils.formatAmountWithSubunits
 import utils.getCurrentTimestamp
-import utils.roundAmount
+import utils.roundAmountWithSubunits
+import utils.roundAmountWithoutSubunits
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -115,14 +116,13 @@ class CreateExpenseViewModel(
     }
 
     fun updateAmount(amount: String) {
-        var formattedAmount = amount.replace(',', '.').replace(" ", "")
+        var formattedAmount = amount.formatAmountWithSubunits()
 
-        if (_state.value.currency.hasSubunits) {
-
-            if (formattedAmount.matches(Regex("""^\d*\.?\d*$"""))) {
+        if (formattedAmount.matches(Regex("""^\d*\.?\d*$"""))) {
+            if (_state.value.currency.hasSubunits) {
 
                 if (formattedAmount.isNotBlank()) formattedAmount =
-                    formattedAmount.formatAmountWithSubunits().roundAmount()
+                    formattedAmount.roundAmountWithSubunits()
 
                 // If the user just removed a fraction part, we remove it from the string
                 if (_state.value.amount.contains('.') && !formattedAmount.contains('.'))
@@ -130,11 +130,11 @@ class CreateExpenseViewModel(
                 else {
                     _state.update { it.copy(amount = formattedAmount) }
                 }
-            }
-        } else {
+            } else {
 
-            if (amount.isBlank() || amount.matches(Regex("^\\d*\$"))) {
-                _state.update { it.copy(amount = amount) }
+                if (formattedAmount.isNotBlank()) formattedAmount =
+                    formattedAmount.roundAmountWithoutSubunits()
+                _state.update { it.copy(amount = formattedAmount) }
             }
         }
     }
@@ -143,7 +143,7 @@ class CreateExpenseViewModel(
         if (!hasSubUnit) {
             _state.update {
                 it.copy(
-                    amount = _state.value.amount.substringBefore("."),
+                    amount = _state.value.amount.roundAmountWithoutSubunits(),
                     // TODO: uuid
                     currency = Currency(uuid = "", name = name, symbol = symbol, hasSubunits = hasSubUnit),
                 )

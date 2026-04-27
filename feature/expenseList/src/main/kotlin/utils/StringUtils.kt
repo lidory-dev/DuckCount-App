@@ -11,7 +11,7 @@ fun String.formatAmountWithSubunits(): String {
     return replaced
 }
 
-fun String.roundAmount(): String {
+fun String.roundAmountWithSubunits(): String {
     val trimmed = this.trim()
     val isNegative = trimmed.startsWith("-")
     val unsigned = if (isNegative) trimmed.removePrefix("-") else trimmed
@@ -52,4 +52,34 @@ fun String.roundAmount(): String {
 
     val sign = if (isNegative) "-" else ""
     return "${sign}${finalInt}.${cent1}${cent2}"
+}
+
+fun String.roundAmountWithoutSubunits(): String {
+    val trimmed = this.trim()
+    val isNegative = trimmed.startsWith("-")
+    val unsigned = if (isNegative) trimmed.removePrefix("-") else trimmed
+
+    require(unsigned.matches(Regex("""^\d+(\.\d+)?$"""))) {
+        "Invalid number: '$this'"
+    }
+
+    val dotIndex = unsigned.indexOf('.')
+    val intPart: String
+    val fracPart: String
+
+    if (dotIndex == -1) {
+        return trimmed
+    } else {
+        intPart = unsigned.substring(0, dotIndex)
+        fracPart = unsigned.substring(dotIndex + 1)
+    }
+
+    val finalInt = if (fracPart.first().digitToInt() >= 5) {
+        intPart.toLong() + 1
+    } else {
+        intPart.toLong()
+    }
+
+    val sign = if (isNegative) "-" else ""
+    return "${sign}${finalInt}"
 }
