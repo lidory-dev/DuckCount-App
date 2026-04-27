@@ -16,13 +16,16 @@ import app.lidory.expenselist.R
 fun ExpenseErrorCard(
     error: ExpenseError?,
 ) {
-    if (error != null) {
-        if (error == ExpenseError.SHARES_BELOW_TOTAL_AMOUNT) {
+    when (error) {
+        ExpenseError.SHARES_BELOW_TOTAL_AMOUNT -> {
             ErrorCard(text = stringResource(R.string.shares_below_total_amount))
         }
-        if (error == ExpenseError.SHARES_EXCEED_TOTAL_AMOUNT) {
+
+        ExpenseError.SHARES_EXCEED_TOTAL_AMOUNT -> {
             ErrorCard(text = stringResource(R.string.shares_below_total_amount))
         }
+
+        else -> Unit
     }
 }
 

@@ -78,6 +78,7 @@ fun ExpenseListScreen(
                         amount = expense.amount,
                     )
                 }
+                
                 item {
                     Spacer(modifier = Modifier.padding(bottom = Padding.large))
                 }

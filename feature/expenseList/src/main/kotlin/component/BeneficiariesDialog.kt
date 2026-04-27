@@ -133,6 +133,7 @@ fun BeneficiariesDialog(
                                 key = { user -> user.uuid },
                             ) { user ->
                                 var isUserSelected by remember { mutableStateOf(false) }
+                                
                                 Card(
                                     shape = RoundedCornerShape(size = Padding.large),
                                     modifier = Modifier
@@ -161,6 +162,7 @@ fun BeneficiariesDialog(
                                             modifier = Modifier
                                                 .padding(TextFieldDefaults.contentPaddingWithLabel()),
                                         )
+
                                         Checkbox(
                                             checked = isUserSelected,
                                             onCheckedChange = {
@@ -173,6 +175,7 @@ fun BeneficiariesDialog(
                                     }
                                 }
                             }
+
                             item {
                                 // Spacer to place the last element above the add button
                                 Spacer(modifier = Modifier.padding(ButtonDefaults.MinHeight))
@@ -180,6 +183,7 @@ fun BeneficiariesDialog(
                         }
                     }
                 }
+
                 ElevatedButton(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)

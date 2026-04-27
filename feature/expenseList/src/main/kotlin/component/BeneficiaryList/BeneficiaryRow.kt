@@ -37,6 +37,7 @@ fun BeneficiaryRow(
                 .weight(4f)
                 .padding(Padding.medium),
         )
+        
         DuckCountTextField(
             value = beneficiary.share,
             onValueChange = {

@@ -17,6 +17,7 @@ fun LazyListScope.beneficiaryList(
     item {
         BeneficiaryListHeader(onAddUser = onAddUser)
     }
+    
     item {
         ExpenseErrorCard(expenseError)
     }
