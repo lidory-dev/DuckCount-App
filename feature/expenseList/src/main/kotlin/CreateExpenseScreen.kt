@@ -58,8 +58,8 @@ fun CreateExpenseScreen(
     )
 
     BeneficiariesDialog(
-        isDialogShown = viewModel.isConcernedUsersDialogShown,
-        onDismissRequest = { viewModel.hideConcernedUsersDialog() },
+        isDialogShown = viewModel.isBeneficiariesDialogShown,
+        onDismissRequest = { viewModel.hideBeneficiariesDialog() },
         onAddUsers = { users ->
             viewModel.addBeneficiaries(
                 // TODO: use real data
@@ -179,7 +179,7 @@ fun CreateExpenseScreen(
                         )
                     },
                     onAddUser = {
-                        viewModel.showConcernedUsersDialog()
+                        viewModel.showBeneficiariesDialog()
                         focusManager.clearFocus()
                     },
                     expenseError = expenseState.error,

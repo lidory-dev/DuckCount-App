@@ -25,7 +25,7 @@ fun BeneficiaryListHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
 
-        Text(text = stringResource(R.string.concerned_users))
+        Text(text = stringResource(R.string.beneficiaries))
 
         IconButton(
             onClick = onAddUser,

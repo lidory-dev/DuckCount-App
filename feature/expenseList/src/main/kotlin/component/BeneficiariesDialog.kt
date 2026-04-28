@@ -79,7 +79,7 @@ fun BeneficiariesDialog(
             topBar = {
                 TopAppBar(
                     title = {
-                        Text(text = stringResource(R.string.add_user))
+                        Text(text = stringResource(R.string.add_beneficiaries))
                     },
                     navigationIcon = {
                         IconButton(

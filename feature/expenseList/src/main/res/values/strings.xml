@@ -18,10 +18,10 @@
     <string name="amount_mandatory">An amount is mandatory</string>
 
     <!-- BeneficiariesDialog -->
-    <string name="add_user">Add users</string>
+    <string name="add_beneficiaries">Add beneficiaries</string>
 
     <!-- BeneficiaryList -->
-    <string name="concerned_users">Concerned users</string>
+    <string name="beneficiaries">Beneficiaries</string>
 
     <!-- CreditorDialog -->
     <string name="expense_creditor">Creditor of the expense</string>

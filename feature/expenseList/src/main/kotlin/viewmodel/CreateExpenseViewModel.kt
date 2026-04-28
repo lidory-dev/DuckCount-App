@@ -35,7 +35,7 @@ class CreateExpenseViewModel(
 
     var isCreditorDialogShown by mutableStateOf(false)
 
-    var isConcernedUsersDialogShown by mutableStateOf(false)
+    var isBeneficiariesDialogShown by mutableStateOf(false)
 
     // TODO: use real data
     @OptIn(ExperimentalUuidApi::class)
@@ -58,12 +58,12 @@ class CreateExpenseViewModel(
         isCreditorDialogShown = false
     }
 
-    fun showConcernedUsersDialog() {
-        isConcernedUsersDialogShown = true
+    fun showBeneficiariesDialog() {
+        isBeneficiariesDialogShown = true
     }
 
-    fun hideConcernedUsersDialog() {
-        isConcernedUsersDialogShown = false
+    fun hideBeneficiariesDialog() {
+        isBeneficiariesDialogShown = false
     }
 
     private val _state = MutableStateFlow(
