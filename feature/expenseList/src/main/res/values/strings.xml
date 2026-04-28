@@ -26,9 +26,6 @@
     <!-- CreditorDialog -->
     <string name="select_creditor">Select the creditor</string>
 
-    <!-- CurrencyDropDownMenu -->
-    <string name="currency_mandatory">Currency can\'t be empty</string>
-
     <!-- CreateExpenseScreen -->
     <string name="add_new_expense">Add a new expense</string>
     <string name="expense_title">Expense title</string>
