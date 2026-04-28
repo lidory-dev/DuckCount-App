@@ -24,7 +24,7 @@
     <string name="beneficiaries">Beneficiaries</string>
 
     <!-- CreditorDialog -->
-    <string name="expense_creditor">Creditor of the expense</string>
+    <string name="select_creditor">Select the creditor</string>
 
     <!-- CurrencyDropDownMenu -->
     <string name="currency_mandatory">Currency can\'t be empty</string>

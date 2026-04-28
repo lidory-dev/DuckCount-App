@@ -68,7 +68,7 @@ fun CreditorDialog(
             topBar = {
                 TopAppBar(
                     title = {
-                        Text(text = stringResource(R.string.expense_creditor))
+                        Text(text = stringResource(R.string.select_creditor))
                     },
                     navigationIcon = {
                         IconButton(
