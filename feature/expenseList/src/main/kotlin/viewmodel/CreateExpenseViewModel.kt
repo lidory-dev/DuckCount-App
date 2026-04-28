@@ -50,6 +50,21 @@ class CreateExpenseViewModel(
             Currency(uuid = Uuid.random().toString(), "JPY", "¥", false),
         )
 
+    private fun normalizeAmountInput(raw: String, previous: String): String? {
+        val formatted = raw.formatAmountWithSubunits()
+        if (!formatted.matches(Regex("""^\d*\.?\d*$"""))) return null
+
+        val hasSubunits = _state.value.currency.hasSubunits
+        val rounded = when {
+            formatted.isBlank() -> formatted
+            hasSubunits -> formatted.roundAmountWithSubunits()
+            else -> formatted.roundAmountWithoutSubunits()
+        }
+
+        val droppedFraction = hasSubunits && previous.contains('.') && !rounded.contains('.')
+        return if (droppedFraction) rounded.dropLast(2) else rounded
+    }
+
     fun showCreditorDialog() {
         isCreditorDialogShown = true
     }
@@ -116,45 +131,28 @@ class CreateExpenseViewModel(
     }
 
     fun updateAmount(amount: String) {
-        var formattedAmount = amount.formatAmountWithSubunits()
-
-        if (formattedAmount.matches(Regex("""^\d*\.?\d*$"""))) {
-            if (_state.value.currency.hasSubunits) {
-
-                if (formattedAmount.isNotBlank()) formattedAmount =
-                    formattedAmount.roundAmountWithSubunits()
-
-                // If the user just removed a fraction part, we remove it from the string
-                if (_state.value.amount.contains('.') && !formattedAmount.contains('.'))
-                    _state.update { it.copy(amount = formattedAmount.dropLast(2)) }
-                else {
-                    _state.update { it.copy(amount = formattedAmount) }
-                }
-            } else {
-
-                if (formattedAmount.isNotBlank()) formattedAmount =
-                    formattedAmount.roundAmountWithoutSubunits()
-                _state.update { it.copy(amount = formattedAmount) }
-            }
-        }
+        val newAmount = normalizeAmountInput(raw = amount, previous = _state.value.amount) ?: return
+        _state.update { it.copy(amount = newAmount) }
     }
 
     fun updateCurrency(name: String, symbol: String, hasSubUnit: Boolean) {
-        if (!hasSubUnit) {
-            _state.update {
-                it.copy(
-                    amount = _state.value.amount.roundAmountWithoutSubunits(),
-                    // TODO: uuid
-                    currency = Currency(uuid = "", name = name, symbol = symbol, hasSubunits = hasSubUnit),
-                )
+        // TODO: UUID.
+        val newCurrency = Currency(uuid = "", name = name, symbol = symbol, hasSubunits = hasSubUnit)
+
+        _state.update { state ->
+            val reformat: (String) -> String = { value ->
+                when {
+                    value.isBlank() -> value
+                    hasSubUnit -> value.roundAmountWithSubunits()
+                    else -> value.roundAmountWithoutSubunits()
+                }
             }
-        } else {
-            _state.update {
-                it.copy(
-                    // TODO: uuid
-                    currency = Currency(uuid = "", name = name, symbol = symbol, hasSubunits = hasSubUnit),
-                )
-            }
+
+            state.copy(
+                currency = newCurrency,
+                amount = reformat(state.amount),
+                beneficiaries = state.beneficiaries.map { it.copy(share = reformat(it.share)) },
+            )
         }
     }
 
@@ -189,11 +187,17 @@ class CreateExpenseViewModel(
     }
 
     fun updateBeneficiaryShare(userUuid: String, share: String) {
-        _state.update {
-            it.copy(
-                beneficiaries = _state.value.beneficiaries.map { beneficiary ->
+        val previous = _state.value.beneficiaries
+            .firstOrNull { it.userUuid == userUuid }
+            ?.share
+            ?: return
+        val newShare = normalizeAmountInput(share, previous) ?: return
+
+        _state.update { state ->
+            state.copy(
+                beneficiaries = state.beneficiaries.map { beneficiary ->
                     if (beneficiary.userUuid == userUuid) {
-                        beneficiary.copy(share = share)
+                        beneficiary.copy(share = newShare)
                     } else {
                         beneficiary
                     }
