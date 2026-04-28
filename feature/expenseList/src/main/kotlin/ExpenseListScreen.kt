@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -29,8 +30,12 @@ fun ExpenseListScreen(
     val viewModel = koinViewModel<ExpenseListViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    // The groupBy convert the timestamp on LocalDateTime object during grouping
-    val groupedExpenseList = state.expenses.groupBy { LocalDateTime.parse(it.timestamp) }
+    // The groupBy convert the timestamp on LocalDate object during grouping.
+    val groupedExpenseList = remember(state.expenses) {
+        state.expenses
+            .sortedByDescending { it.timestamp }
+            .groupBy { LocalDateTime.parse(it.timestamp).date }
+    }
 
     LazyColumn(
         modifier = modifier

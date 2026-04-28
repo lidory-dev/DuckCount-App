@@ -18,8 +18,10 @@ import androidx.compose.ui.text.font.FontWeight
 import app.lidory.duckcount.android.ui.constant.Elevation
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
-import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atTime
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
@@ -28,7 +30,7 @@ import kotlin.time.ExperimentalTime
 @Composable
 fun StickyHeaderElevated(
     modifier: Modifier = Modifier,
-    date: LocalDateTime,
+    date: LocalDate,
 ) {
     Box(
         modifier
@@ -38,8 +40,8 @@ fun StickyHeaderElevated(
                     colorStops = arrayOf(
                         0.5f to MaterialTheme.colorScheme.background,
                         1f to Color.Transparent,
-                    )
-                )
+                    ),
+                ),
             ),
     ) {
         ElevatedCard(
@@ -60,8 +62,10 @@ fun StickyHeaderElevated(
 
 @OptIn(ExperimentalTime::class)
 @Composable
-fun FormattedDate(date: LocalDateTime) {
-    val instantDate = date.toInstant(timeZone = TimeZone.currentSystemDefault())
+fun FormattedDate(date: LocalDate) {
+    val instantDate = date
+        .atTime(LocalTime(hour = 0, minute = 0))
+        .toInstant(timeZone = TimeZone.currentSystemDefault())
 
     val dateFormat = if (date.isCurrentYear()) {
         R.string.date_format
@@ -83,7 +87,7 @@ fun FormattedDate(date: LocalDateTime) {
 }
 
 @OptIn(ExperimentalTime::class)
-fun LocalDateTime.isCurrentYear(): Boolean {
+fun LocalDate.isCurrentYear(): Boolean {
     val currentDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
     return this.year == currentDate.year
 }
