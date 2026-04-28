@@ -33,9 +33,9 @@ import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
 import component.AmountTextField
 import component.BeneficiariesDialog
-import component.BeneficiaryList.beneficiaryList
 import component.CreditorDialog
 import component.CreditorSelector
+import component.beneficiaryList.beneficiaryList
 import database.beneficiary.Beneficiary
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.CreateExpenseViewModel

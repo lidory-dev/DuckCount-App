@@ -1,4 +1,4 @@
-package component.BeneficiaryList
+package component.beneficiaryList
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyListScope

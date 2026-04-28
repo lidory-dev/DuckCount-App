@@ -1,4 +1,4 @@
-package component.BeneficiaryList
+package component.beneficiaryList
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row

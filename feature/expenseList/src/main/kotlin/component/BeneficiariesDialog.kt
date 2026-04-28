@@ -88,7 +88,10 @@ fun BeneficiariesDialog(
                                 viewModel.clearSearchQuery()
                             },
                         ) {
-                            Icon(painter = painterResource(R.drawable.ic_arrow_back), contentDescription = "Back")
+                            Icon(
+                                painter = painterResource(R.drawable.ic_arrow_back),
+                                contentDescription = stringResource(R.string.back),
+                            )
                         }
                     },
                 )
@@ -134,7 +137,7 @@ fun BeneficiariesDialog(
                                 key = { user -> user.uuid },
                             ) { user ->
                                 var isUserSelected by remember { mutableStateOf(false) }
-                                
+
                                 Card(
                                     shape = RoundedCornerShape(size = Padding.large),
                                     modifier = Modifier

@@ -1,4 +1,4 @@
-package component.BeneficiaryList
+package component.beneficiaryList
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -30,7 +30,7 @@ fun BeneficiaryListHeader(
         IconButton(
             onClick = onAddUser,
         ) {
-            Icon(painter = painterResource(R.drawable.ic_add), contentDescription = "Add")
+            Icon(painter = painterResource(R.drawable.ic_add), contentDescription = stringResource(R.string.add))
         }
     }
 }
