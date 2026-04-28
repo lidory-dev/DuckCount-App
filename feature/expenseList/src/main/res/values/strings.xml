@@ -38,9 +38,9 @@
     <string name="description_cant_exceed_max">Description too long (%1$s/%2$s)</string>
 
     <!-- ErrorCard -->
-    <string name="shares_below_total_amount">The shares can\'t be lower than the total amount</string>
-    <string name="shares_exceed_total_amount">The shares can\'t be greater than the total amount</string>
+    <string name="shares_below_total_amount">The total of the shares cannot be less than the total amount</string>
+    <string name="shares_exceed_total_amount">The total of the shares cannot be greater than the total amount</string>
     <string name="back">Back</string>
     <string name="exclamation_mark">Exclamation Mark</string>
-    <string name="non_positive_amount_share">The beneficiaries must have a positive share amount</string>
+    <string name="non_positive_amount_share">Every beneficiary must have a share greater than zero</string>
 </resources>
