@@ -36,6 +36,7 @@
     <string name="label_paid_by">Paid by</string>
     <string name="label_description">Description</string>
     <string name="description_cant_exceed_max">Description too long (%1$s/%2$s)</string>
+    <string name="add_expense">Add expense</string>
 
     <!-- ErrorCard -->
     <string name="shares_below_total_amount">The total of the shares cannot be less than the total amount</string>

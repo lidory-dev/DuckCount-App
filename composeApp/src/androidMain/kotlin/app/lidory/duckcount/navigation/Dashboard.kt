@@ -17,6 +17,7 @@ import androidx.navigation3.ui.NavDisplay
 import app.lidory.duckcount.navigation.key.ContactListScreenKey
 import app.lidory.duckcount.navigation.key.ExpenseListScreenKey
 import app.lidory.duckcount.navigation.key.GroupListScreenKey
+import component.AddExpenseFloatingActionButton
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
@@ -29,6 +30,15 @@ fun Dashboard(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        floatingActionButton = {
+            when (backStack.lastOrNull()) {
+                is ExpenseListScreenKey -> {
+                    AddExpenseFloatingActionButton(
+                        onClick = navigateToCreateExpenseScreen,
+                    )
+                }
+            }
+        },
         bottomBar = {
             BottomNavigationBar(
                 backStack = backStack,
@@ -55,7 +65,6 @@ fun Dashboard(
                         ) {
                             ExpenseListScreen(
                                 onExpenseClicked = navigateToExpenseDetailScreen,
-                                onCreateExpenseClicked = navigateToCreateExpenseScreen,
                             )
                         }
                     }
