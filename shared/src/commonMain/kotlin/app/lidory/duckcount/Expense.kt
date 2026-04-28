@@ -24,6 +24,7 @@ fun validateExpense(
         return when (e) {
             is ExpenseException.SharesBelowTotalAmount -> ExpenseError.SHARES_BELOW_TOTAL_AMOUNT
             is ExpenseException.SharesExceedTotalAmount -> ExpenseError.SHARES_EXCEED_TOTAL_AMOUNT
+            is ExpenseException.NonPositiveShare -> ExpenseError.NON_POSITIVE_SHARE
             else -> ExpenseError.OTHER_KNOWN_ERROR
         }
     }

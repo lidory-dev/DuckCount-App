@@ -37,6 +37,13 @@ fun ExpenseErrorCard(
             )
         }
 
+        ExpenseError.NON_POSITIVE_SHARE -> {
+            ErrorCard(
+                text = stringResource(R.string.non_positive_amount_share),
+                modifier = modifier,
+            )
+        }
+
         else -> Unit
     }
 }

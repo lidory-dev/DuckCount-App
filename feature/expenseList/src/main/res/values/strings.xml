@@ -42,4 +42,5 @@
     <string name="shares_exceed_total_amount">The shares can\'t be greater than the total amount</string>
     <string name="back">Back</string>
     <string name="exclamation_mark">Exclamation Mark</string>
+    <string name="non_positive_amount_share">The beneficiaries must have a positive share amount</string>
 </resources>
