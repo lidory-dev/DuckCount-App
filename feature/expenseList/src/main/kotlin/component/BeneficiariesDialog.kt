@@ -21,6 +21,7 @@ import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
@@ -188,12 +189,16 @@ fun BeneficiariesDialog(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .padding(bottom = Padding.medium),
+                        .padding(bottom = Padding.extraLarge),
                     onClick = {
                         onAddUsers(selectedUsers)
                         onDismissRequest()
                     },
                     enabled = selectedUsers.isNotEmpty(),
+                    colors = ButtonDefaults.buttonColors()
+                        .copy(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                        ),
                 ) {
                     Text(
                         modifier = Modifier.padding(Padding.small),
