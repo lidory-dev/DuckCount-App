@@ -202,7 +202,7 @@ fun CreateExpenseScreen(
                     .fillMaxWidth()
                     .padding(bottom = Padding.extraLarge)
                     .align(Alignment.BottomCenter),
-                enabled = expenseState.error == null,
+                enabled = expenseState.error == null && expenseState.title.isNotBlank(),
                 colors = ButtonDefaults.buttonColors()
                     .copy(containerColor = MaterialTheme.colorScheme.primary),
                 onClick = {
