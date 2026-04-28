@@ -1,7 +1,9 @@
 package component.BeneficiaryList
 
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import app.lidory.duckcount.ExpenseError
 import component.ExpenseErrorCard
@@ -16,12 +18,16 @@ fun LazyListScope.beneficiaryList(
 ) {
     item {
         BeneficiaryListHeader(onAddUser = onAddUser)
+
+        if (expenseError != null) {
+            ExpenseErrorCard(
+                error = expenseError,
+                modifier = Modifier
+                    .fillMaxWidth(),
+            )
+        }
     }
     
-    item {
-        ExpenseErrorCard(expenseError)
-    }
-
     items(
         items = beneficiaries,
         key = { beneficiary -> beneficiary.uuid },
