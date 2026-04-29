@@ -1,5 +1,6 @@
 package app.lidory.duckcount.navigation
 
+import ContactListScreen
 import ExpenseListScreen
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -81,7 +82,7 @@ fun Dashboard(
                         NavEntry(
                             key = key,
                         ) {
-                            Text(key.title())
+                            ContactListScreen()
                         }
                     }
 

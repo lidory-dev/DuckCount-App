@@ -86,5 +86,6 @@ dependencies {
     implementation(project(":shared"))
     implementation(project(":lib-duckcount"))
     implementation(project(":feature:expenseList"))
+    implementation(project(":feature:contactList"))
 }
 

@@ -18,6 +18,7 @@ compose-multiplatform = "1.10.1"
 compose-material3 = "1.9.0"
 
 # Navigation
+kotlinxText = "0.4.0"
 nav3Core = "1.0.1"
 lifecycleViewmodelNav3 = "2.10.0"
 kotlinxSerializationCore = "1.10.0"
@@ -77,6 +78,7 @@ kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 koin-android = { group = "io.insert-koin", name = "koin-android", version.ref = "koin" }
 koin-core = { group = "io.insert-koin", name = "koin-core", version.ref = "koin" }
 koin-androidx-compose = { group = "io.insert-koin", name = "koin-androidx-compose", version.ref = "koin" }
+kotlinx-text = { module = "org.jetbrains.kotlinx:kotlinx-text", version.ref = "kotlinxText" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 
 # Room
