@@ -26,4 +26,15 @@ class ContactCallBacksImp(
                 )
             }
     }
+
+    override suspend fun getUser(uuid: String): Flow<User> {
+        return userRepository.get(uuid = uuid)
+            .map { user ->
+                User(
+                    uuid = user.uuid,
+                    username = user.username,
+                    fullName = user.fullName,
+                )
+            }
+    }
 }

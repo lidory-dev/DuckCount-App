@@ -26,6 +26,7 @@ fun Dashboard(
     modifier: Modifier = Modifier,
     navigateToExpenseDetailScreen: (String) -> Unit,
     navigateToCreateExpenseScreen: () -> Unit,
+    navigateToContactDetailScreen: (String) -> Unit,
 ) {
     val backStack = rememberNavBackStack(ExpenseListScreenKey)
 
@@ -82,7 +83,9 @@ fun Dashboard(
                         NavEntry(
                             key = key,
                         ) {
-                            ContactListScreen()
+                            ContactListScreen(
+                                navigateToDetailScreen = navigateToContactDetailScreen,
+                            )
                         }
                     }
 

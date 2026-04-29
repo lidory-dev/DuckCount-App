@@ -34,6 +34,7 @@ import java.text.Normalizer
 
 @Composable
 fun ContactListScreen(
+    navigateToDetailScreen: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewModel = koinViewModel<ContactListViewModel>()
@@ -114,9 +115,7 @@ fun ContactListScreen(
                                 placementSpec = tween(200),
                             )
                             .padding(vertical = Padding.medium),
-                        onClick = {
-                            // TODO: Navigate to contactDetailScreen
-                        },
+                        onClick = { navigateToDetailScreen(user.uuid) },
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
