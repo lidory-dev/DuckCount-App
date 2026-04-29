@@ -18,6 +18,7 @@ import androidx.navigation3.ui.NavDisplay
 import app.lidory.duckcount.navigation.key.ContactListScreenKey
 import app.lidory.duckcount.navigation.key.ExpenseListScreenKey
 import app.lidory.duckcount.navigation.key.GroupListScreenKey
+import component.AddContactFloatingActionButton
 import component.AddExpenseFloatingActionButton
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
@@ -27,6 +28,7 @@ fun Dashboard(
     navigateToExpenseDetailScreen: (String) -> Unit,
     navigateToCreateExpenseScreen: () -> Unit,
     navigateToContactDetailScreen: (String) -> Unit,
+    navigateToCreateContact: () -> Unit,
 ) {
     val backStack = rememberNavBackStack(ExpenseListScreenKey)
 
@@ -37,6 +39,12 @@ fun Dashboard(
                 is ExpenseListScreenKey -> {
                     AddExpenseFloatingActionButton(
                         onClick = navigateToCreateExpenseScreen,
+                    )
+                }
+
+                is ContactListScreenKey -> {
+                    AddContactFloatingActionButton(
+                        onClick = navigateToCreateContact,
                     )
                 }
             }

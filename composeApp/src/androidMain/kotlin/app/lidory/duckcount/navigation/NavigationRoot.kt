@@ -1,6 +1,7 @@
 package app.lidory.duckcount.navigation
 
 import ContactDetailScreen
+import CreateContactScreen
 import CreateExpenseScreen
 import ExpenseDetailScreen
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
@@ -16,6 +17,7 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import app.lidory.duckcount.navigation.key.ContactDetailScreenKey
+import app.lidory.duckcount.navigation.key.CreateContactScreenKey
 import app.lidory.duckcount.navigation.key.CreateExpenseScreenKey
 import app.lidory.duckcount.navigation.key.DashboardKey
 import app.lidory.duckcount.navigation.key.ExpenseDetailScreenKey
@@ -65,6 +67,11 @@ fun NavigationRoot(
                                     ),
                                 )
                             },
+                            navigateToCreateContact = {
+                                backStack.add(
+                                    CreateContactScreenKey(),
+                                )
+                            },
                         )
                     }
                 }
@@ -105,6 +112,16 @@ fun NavigationRoot(
                                 parametersOf(key.userUuid)
                             },
                             onBack = dropUnlessResumed { backStack.removeIf { it is ContactDetailScreenKey } },
+                        )
+                    }
+                }
+
+                is CreateContactScreenKey -> {
+                    NavEntry(
+                        key = key,
+                    ) {
+                        CreateContactScreen(
+                            onBack = dropUnlessResumed { backStack.removeIf { it is CreateContactScreenKey } },
                         )
                     }
                 }
