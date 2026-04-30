@@ -206,7 +206,7 @@ fun BeneficiariesDialog(
                 ) {
                     Text(
                         modifier = Modifier.padding(Padding.small),
-                        text = stringResource(R.string.add),
+                        text = stringResource(SharedR.string.add),
                     )
                 }
             }

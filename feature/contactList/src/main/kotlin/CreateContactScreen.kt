@@ -90,7 +90,7 @@ fun CreateContactScreen(
                     // TODO: Search using the unique username to get user information
                 },
             ) {
-                Text(text = stringResource(SharedR.string.search))
+                Text(text = stringResource(SharedR.string.add))
             }
         }
     }

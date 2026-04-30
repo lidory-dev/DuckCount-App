@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import app.lidory.expenselist.R
+import app.lidory.duckcount.android.ui.R as SharedR
 
 @Composable
 fun AddExpenseFloatingActionButton(
@@ -18,7 +19,7 @@ fun AddExpenseFloatingActionButton(
         onClick = onClick,
     ) {
         Icon(
-            painter = painterResource(R.drawable.ic_add),
+            painter = painterResource(SharedR.drawable.ic_add),
             contentDescription = stringResource(R.string.add_expense),
         )
     }

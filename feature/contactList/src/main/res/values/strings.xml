@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="unresolved_user">Unresolved user</string>
-    <string name="add">Add</string>
     <string name="search_by_username">Search by username</string>
     <string name="add_new_contact">Add a new contact</string>
 </resources>
