@@ -61,8 +61,8 @@ fun CreateContactScreen(
                         onClick = onBack,
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_back),
-                            contentDescription = stringResource(R.string.back),
+                            painter = painterResource(SharedR.drawable.ic_arrow_back),
+                            contentDescription = stringResource(SharedR.string.back),
                         )
                     }
                 },

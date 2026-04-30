@@ -20,6 +20,7 @@ import app.lidory.duckcount.android.ui.constant.Padding
 import component.ProfilePictureCard
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.ContactDetailViewModel
+import app.lidory.duckcount.android.ui.R as SharedR
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,8 +41,8 @@ fun ContactDetailScreen(
                         onClick = onBack,
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_back),
-                            contentDescription = stringResource(R.string.back),
+                            painter = painterResource(SharedR.drawable.ic_arrow_back),
+                            contentDescription = stringResource(SharedR.string.back),
                         )
                     }
                 },

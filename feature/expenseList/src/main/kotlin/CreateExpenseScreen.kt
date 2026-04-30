@@ -39,6 +39,7 @@ import component.beneficiaryList.beneficiaryList
 import database.beneficiary.Beneficiary
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.CreateExpenseViewModel
+import app.lidory.duckcount.android.ui.R as SharedR
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,7 +86,7 @@ fun CreateExpenseScreen(
                         onClick = onBack,
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_arrow_back),
+                            painter = painterResource(SharedR.drawable.ic_arrow_back),
                             contentDescription = stringResource(R.string.back),
                         )
                     }
