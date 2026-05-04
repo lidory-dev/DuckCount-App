@@ -13,4 +13,7 @@ data object GroupListScreenKey : NavigableTabNavKey() {
 
     @Composable
     override fun icon() = painterResource(R.drawable.ic_group)
+
+    override val index: Int
+        get() = 1
 }

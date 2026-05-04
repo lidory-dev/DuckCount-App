@@ -2,6 +2,10 @@ package app.lidory.duckcount.navigation
 
 import ContactListScreen
 import ExpenseListScreen
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -67,6 +71,32 @@ fun Dashboard(
         NavDisplay(
             modifier = modifier.padding(innerPadding),
             backStack = backStack,
+            transitionSpec = {
+                val screenOrder = BottomNavigationBar.items.map { it.toString() }
+
+                val initialIndex = screenOrder.indexOf(initialState.key)
+                val targetIndex = screenOrder.indexOf(targetState.key)
+
+                if (initialIndex < targetIndex) {
+                    slideIntoContainer(
+                        towards = AnimatedContentTransitionScope.SlideDirection.Start,
+                        animationSpec = tween(),
+                    ) togetherWith
+                            slideOutOfContainer(
+                                towards = AnimatedContentTransitionScope.SlideDirection.Start,
+                                animationSpec = tween(),
+                            )
+                } else {
+                    slideIntoContainer(
+                        towards = AnimatedContentTransitionScope.SlideDirection.End,
+                        animationSpec = tween(),
+                    ) togetherWith
+                            slideOutOfContainer(
+                                towards = AnimatedContentTransitionScope.SlideDirection.End,
+                                animationSpec = tween(),
+                            )
+                }
+            },
             entryDecorators = listOf(
                 rememberSaveableStateHolderNavEntryDecorator(),
                 rememberViewModelStoreNavEntryDecorator(),

@@ -13,4 +13,6 @@ abstract class NavigableTabNavKey : NavKey {
 
     @Composable
     abstract fun icon(): Painter
+
+    abstract val index: Int
 }

@@ -13,4 +13,7 @@ data object ExpenseListScreenKey : NavigableTabNavKey() {
 
     @Composable
     override fun icon() = painterResource(R.drawable.ic_receipt_long)
+
+    override val index: Int
+        get() = 0
 }

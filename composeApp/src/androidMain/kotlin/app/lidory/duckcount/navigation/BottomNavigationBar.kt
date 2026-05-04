@@ -11,13 +11,14 @@ import androidx.navigation3.runtime.NavKey
 import app.lidory.duckcount.navigation.key.ContactListScreenKey
 import app.lidory.duckcount.navigation.key.ExpenseListScreenKey
 import app.lidory.duckcount.navigation.key.GroupListScreenKey
+import app.lidory.duckcount.navigation.key.NavigableTabNavKey
 
 @Composable
 fun BottomNavigationBar(
     modifier: Modifier = Modifier,
     backStack: NavBackStack<NavKey>,
 ) {
-    val items = listOf(ExpenseListScreenKey, GroupListScreenKey, ContactListScreenKey)
+    val items = BottomNavigationBar.items
 
     NavigationBar(
         modifier = modifier,
@@ -36,5 +37,13 @@ fun BottomNavigationBar(
                 onClick = { backStack.add(item) },
             )
         }
+    }
+}
+
+data class BottomNavigationBar(
+    val items: NavigableTabNavKey,
+) {
+    companion object {
+        val items = listOf(ExpenseListScreenKey, GroupListScreenKey, ContactListScreenKey)
     }
 }
