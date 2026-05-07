@@ -22,19 +22,16 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
-import org.koin.androidx.compose.koinViewModel
+import database.user.User
 import app.lidory.duckcount.android.ui.R as SharedR
-import viewmodel.CreateExpenseViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,22 +41,21 @@ fun CreditorDialog(
     onSelectedCreditor: (String) -> Unit,
     modifier: Modifier = Modifier,
     focusManager: FocusManager,
+    usersList: List<User>,
+    searchQuery: String,
+    clearSearchQuery: () -> Unit,
+    onSearchQueryChange: (String) -> Unit,
 ) {
-    val viewModel = koinViewModel<CreateExpenseViewModel>()
-    val state by viewModel.usersState.collectAsStateWithLifecycle()
-
-    val usersList = state.users
-
     val listState = rememberLazyListState()
 
-    LaunchedEffect(viewModel.searchQuery) {
+    LaunchedEffect(searchQuery) {
         listState.animateScrollToItem(0)
     }
 
     FullScreenDialog(
         onDismissRequest = {
             onDismissRequest()
-            viewModel.clearSearchQuery()
+            clearSearchQuery()
         },
         modifier = modifier,
         isVisible = isDialogShown,
@@ -75,7 +71,7 @@ fun CreditorDialog(
                         IconButton(
                             onClick = {
                                 onDismissRequest()
-                                viewModel.clearSearchQuery()
+                                clearSearchQuery()
                             },
                         ) {
                             Icon(
@@ -100,8 +96,8 @@ fun CreditorDialog(
             ) {
                 DuckCountSearchBar(
                     modifier = Modifier.fillMaxWidth(),
-                    searchQuery = viewModel.searchQuery,
-                    onSearchChange = { viewModel.onSearchQueryChange(query = it) },
+                    searchQuery = searchQuery,
+                    onSearchChange = { onSearchQueryChange(it) },
                     focusManager = focusManager,
                 )
 

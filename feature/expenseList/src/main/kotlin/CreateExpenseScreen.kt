@@ -39,6 +39,7 @@ import component.beneficiaryList.beneficiaryList
 import database.beneficiary.Beneficiary
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.CreateExpenseViewModel
+import viewmodel.toToggleableState
 import app.lidory.duckcount.android.ui.R as SharedR
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,15 +53,25 @@ fun CreateExpenseScreen(
     val focusManager = LocalFocusManager.current
     val interactionSource = remember { MutableInteractionSource() }
 
+    val userState by viewModel.usersState.collectAsStateWithLifecycle()
+    val beneficiaryListState by viewModel.beneficiaryListState.collectAsStateWithLifecycle()
+
     CreditorDialog(
         isDialogShown = viewModel.isCreditorDialogShown,
         onDismissRequest = { viewModel.hideCreditorDialog() },
         onSelectedCreditor = { viewModel.updateCreditor(creditorUuid = it) },
         focusManager = focusManager,
+        usersList = userState.users,
+        searchQuery = viewModel.searchQuery,
+        clearSearchQuery = {
+            viewModel.clearSearchQuery()
+        },
+        onSearchQueryChange = {
+            viewModel.onSearchQueryChange(it)
+        },
     )
 
     BeneficiariesDialog(
-        viewModel = viewModel,
         isDialogShown = viewModel.isBeneficiariesDialogShown,
         onDismissRequest = { viewModel.hideBeneficiariesDialog() },
         onSelectUsers = { uuids ->
@@ -70,6 +81,14 @@ fun CreateExpenseScreen(
             )
         },
         focusManager = focusManager,
+        usersList = userState.users,
+        searchQuery = viewModel.searchQuery,
+        clearSearchQuery = { viewModel.clearSearchQuery() },
+        onSearchQueryChange = { viewModel.onSearchQueryChange(it) },
+        toggleSelectAllUsers = { viewModel.toggleSelectAllUsers() },
+        toggleSelectedUser = { viewModel.toggleSelectedUser(it) },
+        toggleableListState = beneficiaryListState.toToggleableState(),
+        selectedUuids = beneficiaryListState.selectedUuids,
     )
 
     Scaffold(
