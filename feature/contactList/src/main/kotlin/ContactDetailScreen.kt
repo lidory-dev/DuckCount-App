@@ -56,10 +56,7 @@ fun ContactDetailScreen(
                 .padding(horizontal = Padding.medium),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (state.user != null) {
-                // user is a certified non-null user because state.user is a delegated property
-                val user = state.user!!
-
+            state.user?.let { user ->
                 ProfilePictureCard(
                     modifier = Modifier.fillMaxWidth(.3f),
                     profilePicture = user.profilePicture,
@@ -67,11 +64,8 @@ fun ContactDetailScreen(
                     fullName = user.fullName,
                 )
 
-                Text(text = state.user!!.fullName)
-
-            } else {
-                Text(text = stringResource(R.string.unresolved_user))
-            }
+                Text(text = user.fullName)
+            } ?: Text(text = stringResource(R.string.unresolved_user))
         }
     }
 }
