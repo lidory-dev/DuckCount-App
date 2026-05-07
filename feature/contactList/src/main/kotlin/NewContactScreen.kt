@@ -25,19 +25,19 @@ import app.lidory.contactList.R
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import org.koin.androidx.compose.koinViewModel
-import viewmodel.CreateContactViewModel
+import viewmodel.NewContactViewModel
 import app.lidory.duckcount.android.ui.R as SharedR
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateContactScreen(
+fun NewContactScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val focusManager = LocalFocusManager.current
     val interactionSource = remember { MutableInteractionSource() }
 
-    val viewModel = koinViewModel<CreateContactViewModel>()
+    val viewModel = koinViewModel<NewContactViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     Scaffold(

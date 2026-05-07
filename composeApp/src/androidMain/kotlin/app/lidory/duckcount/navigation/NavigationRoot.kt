@@ -1,9 +1,9 @@
 package app.lidory.duckcount.navigation
 
 import ContactDetailScreen
-import CreateContactScreen
 import CreateExpenseScreen
 import ExpenseDetailScreen
+import NewContactScreen
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
@@ -17,10 +17,10 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import app.lidory.duckcount.navigation.key.ContactDetailScreenKey
-import app.lidory.duckcount.navigation.key.CreateContactScreenKey
 import app.lidory.duckcount.navigation.key.CreateExpenseScreenKey
 import app.lidory.duckcount.navigation.key.DashboardKey
 import app.lidory.duckcount.navigation.key.ExpenseDetailScreenKey
+import app.lidory.duckcount.navigation.key.NewContactScreenKey
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -67,9 +67,9 @@ fun NavigationRoot(
                                     ),
                                 )
                             },
-                            navigateToCreateContact = {
+                            navigateToNewContact = {
                                 backStack.add(
-                                    CreateContactScreenKey(),
+                                    NewContactScreenKey(),
                                 )
                             },
                         )
@@ -116,12 +116,12 @@ fun NavigationRoot(
                     }
                 }
 
-                is CreateContactScreenKey -> {
+                is NewContactScreenKey -> {
                     NavEntry(
                         key = key,
                     ) {
-                        CreateContactScreen(
-                            onBack = dropUnlessResumed { backStack.removeIf { it is CreateContactScreenKey } },
+                        NewContactScreen(
+                            onBack = dropUnlessResumed { backStack.removeIf { it is NewContactScreenKey } },
                         )
                     }
                 }

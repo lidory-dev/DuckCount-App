@@ -28,7 +28,7 @@ fun Dashboard(
     navigateToExpenseDetailScreen: (String) -> Unit,
     navigateToCreateExpenseScreen: () -> Unit,
     navigateToContactDetailScreen: (String) -> Unit,
-    navigateToCreateContact: () -> Unit,
+    navigateToNewContact: () -> Unit,
 ) {
     val backStack = rememberNavBackStack(ExpenseListScreenKey)
 
@@ -44,7 +44,7 @@ fun Dashboard(
 
                 is ContactListScreenKey -> {
                     AddContactFloatingActionButton(
-                        onClick = navigateToCreateContact,
+                        onClick = navigateToNewContact,
                     )
                 }
             }
