@@ -89,7 +89,7 @@ fun ContactListScreen(
             state = listState,
         ) {
             groupedContactList.forEach { (letter, users) ->
-                if (viewModel.searchQuery.isBlank())
+                if (viewModel.searchQuery.isBlank()) {
                     item {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -101,6 +101,7 @@ fun ContactListScreen(
 
                         }
                     }
+                }
 
                 items(
                     items = users,
