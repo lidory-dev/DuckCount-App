@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import model.User
 
@@ -32,6 +33,7 @@ class ContactListViewModel(
         .flatMapLatest { query ->
             contactCallBacks.getFilteredUsers(filter = query)
         }
+        .map { users -> ContactListState(users = users) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000L),
