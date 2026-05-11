@@ -36,8 +36,8 @@ import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
-import app.lidory.duckcount.android.ui.composable.checkbox.DuckCountCheckBox
-import app.lidory.duckcount.android.ui.composable.checkbox.DuckCountTriStateCheckBox
+import app.lidory.duckcount.android.ui.composable.checkbox.DuckCountCheckbox
+import app.lidory.duckcount.android.ui.composable.checkbox.DuckCountTriStateCheckbox
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
@@ -162,7 +162,7 @@ fun BeneficiariesDialog(
                                                     modifier = Modifier.padding(start = Padding.large),
                                                     text = stringResource(R.string.select_all),
                                                 )
-                                                DuckCountTriStateCheckBox(
+                                                DuckCountTriStateCheckbox(
                                                     state = toggleableListState,
                                                     onClick = {
                                                         toggleSelectAllUsers()
@@ -203,7 +203,7 @@ fun BeneficiariesDialog(
                                             modifier = Modifier
                                                 .padding(TextFieldDefaults.contentPaddingWithLabel()),
                                         )
-                                        DuckCountCheckBox(
+                                        DuckCountCheckbox(
                                             checked = selectedUuids.contains(user.uuid),
                                             onCheckedChange = {
                                                 toggleSelectedUser(user)

@@ -16,7 +16,7 @@ import app.lidory.duckcount.android.ui.R
 import app.lidory.duckcount.android.ui.constant.Size
 
 @Composable
-fun DuckCountCheckBox(
+fun DuckCountCheckbox(
     checked: Boolean,
     onCheckedChange: ((Boolean) -> Unit)?,
     modifier: Modifier = Modifier,
@@ -24,14 +24,9 @@ fun DuckCountCheckBox(
     colors: CheckboxColors = CheckboxDefaults.colors(),
     interactionSource: MutableInteractionSource? = null,
 ) {
-    DuckCountTriStateCheckBox(
+    DuckCountTriStateCheckbox(
         state = ToggleableState(checked),
-        onClick =
-            if (onCheckedChange != null) {
-                { onCheckedChange(!checked) }
-            } else {
-                null
-            },
+        onClick = onCheckedChange?.let { { it(!checked) } },
         modifier = modifier,
         enabled = enabled,
         colors = colors,
@@ -40,7 +35,7 @@ fun DuckCountCheckBox(
 }
 
 @Composable
-fun DuckCountTriStateCheckBox(
+fun DuckCountTriStateCheckbox(
     state: ToggleableState,
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
@@ -48,7 +43,6 @@ fun DuckCountTriStateCheckBox(
     colors: CheckboxColors = CheckboxDefaults.colors(),
     interactionSource: MutableInteractionSource? = null,
 ) {
-
     IconButton(
         modifier = modifier.size(Size.small),
         enabled = enabled,
@@ -59,9 +53,7 @@ fun DuckCountTriStateCheckBox(
             disabledContentColor = colors.disabledBorderColor,
         ),
         interactionSource = interactionSource,
-        onClick = {
-            onClick?.invoke()
-        },
+        onClick = { onClick?.invoke() },
     ) {
         when (state) {
             ToggleableState.On ->
