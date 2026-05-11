@@ -19,6 +19,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -119,50 +120,30 @@ class CreateExpenseViewModel(
             initialValue = UserListState(),
         )
 
-    val beneficiaryListState = MutableStateFlow(BeneficiaryListState())
+    private val _selectedUuids = MutableStateFlow<Set<String>>(emptySet())
+    val selectedUuids: StateFlow<Set<String>> = _selectedUuids
+
+    val selectionToggleState: StateFlow<ToggleableState> = combine(
+        _selectedUuids,
+        usersState,
+    ) { selectedUuids, users ->
+        toggleableState(selectedUuids = selectedUuids, totalUsers = users.users.size)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000L),
+        initialValue = ToggleableState.Off,
+    )
 
     fun toggleSelectedUser(user: User) {
-        if (isUserSelected(user)) {
-            beneficiaryListState.update {
-                it.copy(selectedUuids = beneficiaryListState.value.selectedUuids.minus(element = user.uuid))
-            }
-        } else {
-            beneficiaryListState.update {
-                it.copy(selectedUuids = beneficiaryListState.value.selectedUuids.plus(element = user.uuid))
-            }
+        _selectedUuids.update { selected ->
+            if (user.uuid in selected) selected - user.uuid else selected + user.uuid
         }
-        beneficiaryListState.update {
-            it.copy(isAllUsersSelected = beneficiaryListState.value.selectedUuids.size == usersState.value.users.size)
-        }
-    }
-
-    fun isUserSelected(user: User): Boolean {
-        return beneficiaryListState.value.selectedUuids.contains(user.uuid)
     }
 
     fun toggleSelectAllUsers() {
-        if (beneficiaryListState.value.isAllUsersSelected) {
-            beneficiaryListState.update {
-                it.copy(
-                    isAllUsersSelected = false,
-                    selectedUuids = emptySet(),
-                )
-            }
-        } else {
-            beneficiaryListState.update {
-                it.copy(
-                    isAllUsersSelected = true,
-                    selectedUuids = usersState.value.users.map { it.uuid }.toSet(),
-                )
-            }
-        }
-    }
-
-    fun getAllSelectedUsersUuids(): List<String> {
-        return usersState.value.users.filter {
-            beneficiaryListState.value.selectedUuids.contains(it.uuid)
-        }.map {
-            it.uuid
+        val allUuids = usersState.value.users.mapTo(mutableSetOf()) { it.uuid }
+        _selectedUuids.update { selected ->
+            if (selected == allUuids) emptySet() else allUuids
         }
     }
 
@@ -256,21 +237,12 @@ class CreateExpenseViewModel(
         }
     }
 
-    fun addBeneficiary(beneficiary: Beneficiary) {
-        if (!_state.value.beneficiaries.contains(beneficiary))
-            _state.update {
-                it.copy(beneficiaries = _state.value.beneficiaries + beneficiary)
-            }
-    }
-
     fun updateBeneficiaries(beneficiaries: List<Beneficiary>) {
-        _state.update {
-            it.copy(
-                beneficiaries = _state.value.beneficiaries.filter {
-                    beneficiaries.contains(it)
-                } + beneficiaries.filterNot {
-                    _state.value.beneficiaries.map { beneficiary -> beneficiary.uuid }.contains(it.uuid)
-                },
+        _state.update { state ->
+            val existingUuids = state.beneficiaries.map { it.uuid }.toSet()
+            state.copy(
+                beneficiaries = state.beneficiaries.filter { it in beneficiaries } +
+                        beneficiaries.filterNot { it.uuid in existingUuids },
             )
         }
     }
@@ -320,15 +292,11 @@ data class UserListState(
     val users: List<User> = emptyList(),
 )
 
-data class BeneficiaryListState(
-    val selectedUuids: Set<String> = emptySet(),
-    val isAllUsersSelected: Boolean = false,
-)
-
-fun BeneficiaryListState.toToggleableState(): ToggleableState {
-    return when {
-        this.isAllUsersSelected -> ToggleableState.On
-        this.selectedUuids.isNotEmpty() -> ToggleableState.Indeterminate
-        else -> ToggleableState.Off
-    }
+fun toggleableState(
+    selectedUuids: Set<String>,
+    totalUsers: Int,
+): ToggleableState = when {
+    totalUsers > 0 && selectedUuids.size == totalUsers -> ToggleableState.On
+    selectedUuids.isNotEmpty() -> ToggleableState.Indeterminate
+    else -> ToggleableState.Off
 }

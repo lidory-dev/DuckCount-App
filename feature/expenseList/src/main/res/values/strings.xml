@@ -9,7 +9,6 @@
 
     <!-- Global -->
     <string name="no_result">No results</string>
-    <string name="confirm">Confirm</string>
     <string name="edit">Edit</string>
 
     <!-- AmountTextField -->
@@ -17,7 +16,7 @@
     <string name="amount_mandatory">An amount is mandatory</string>
 
     <!-- BeneficiariesDialog -->
-    <string name="add_beneficiaries">Add beneficiaries</string>
+    <string name="select_beneficiaries">Select beneficiaries</string>
 
     <!-- BeneficiaryList -->
     <string name="beneficiaries">Beneficiaries</string>

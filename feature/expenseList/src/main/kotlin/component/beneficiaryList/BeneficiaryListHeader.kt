@@ -2,21 +2,28 @@ package component.beneficiaryList
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import app.lidory.expenselist.R
-import app.lidory.duckcount.android.ui.R as SharedR
+import app.lidory.duckcount.android.ui.R as androidUiR
 
 @Composable
 fun BeneficiaryListHeader(
-    onAddUser: () -> Unit,
+    isBeneficiaryListEmpty: Boolean,
+    onModifyBeneficiaryList: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -25,16 +32,28 @@ fun BeneficiaryListHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-
         Text(text = stringResource(R.string.beneficiaries))
 
-        IconButton(
-            onClick = onAddUser,
+        TextButton(
+            onClick = onModifyBeneficiaryList,
         ) {
+            val iconSize = with(LocalDensity.current) {
+                (LocalTextStyle.current.fontSize * 1.2f).toDp()
+            }
+
+            val iconRes = if (isBeneficiaryListEmpty) androidUiR.drawable.ic_add else R.drawable.ic_edit
+            val labelRes =
+                if (isBeneficiaryListEmpty) androidUiR.string.add else androidUiR.string.modify
+
             Icon(
-                painter = painterResource(SharedR.drawable.ic_add),
-                contentDescription = stringResource(SharedR.string.add),
+                painter = painterResource(iconRes),
+                contentDescription = stringResource(labelRes),
+                modifier = Modifier.size(iconSize),
             )
+
+            Spacer(Modifier.width(4.dp))
+
+            Text(stringResource(labelRes))
         }
     }
 }

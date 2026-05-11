@@ -39,7 +39,6 @@ import component.beneficiaryList.beneficiaryList
 import database.beneficiary.Beneficiary
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.CreateExpenseViewModel
-import viewmodel.toToggleableState
 import app.lidory.duckcount.android.ui.R as SharedR
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,7 +53,8 @@ fun CreateExpenseScreen(
     val interactionSource = remember { MutableInteractionSource() }
 
     val userState by viewModel.usersState.collectAsStateWithLifecycle()
-    val beneficiaryListState by viewModel.beneficiaryListState.collectAsStateWithLifecycle()
+    val selectedUuids by viewModel.selectedUuids.collectAsStateWithLifecycle()
+    val selectionToggleState by viewModel.selectionToggleState.collectAsStateWithLifecycle()
 
     CreditorDialog(
         isDialogShown = viewModel.isCreditorDialogShown,
@@ -87,8 +87,8 @@ fun CreateExpenseScreen(
         onSearchQueryChange = { viewModel.onSearchQueryChange(it) },
         toggleSelectAllUsers = { viewModel.toggleSelectAllUsers() },
         toggleSelectedUser = { viewModel.toggleSelectedUser(it) },
-        toggleableListState = beneficiaryListState.toToggleableState(),
-        selectedUuids = beneficiaryListState.selectedUuids,
+        toggleableListState = selectionToggleState,
+        selectedUuids = selectedUuids,
     )
 
     Scaffold(
@@ -200,7 +200,7 @@ fun CreateExpenseScreen(
                             userUuid = userId, share = share,
                         )
                     },
-                    onAddUser = {
+                    onModifyBeneficiaryList = {
                         viewModel.showBeneficiariesDialog()
                         focusManager.clearFocus()
                     },
@@ -233,7 +233,7 @@ fun CreateExpenseScreen(
             ) {
                 Text(
                     modifier = Modifier.padding(Padding.small),
-                    text = stringResource(R.string.confirm),
+                    text = stringResource(SharedR.string.confirm),
                 )
             }
         }

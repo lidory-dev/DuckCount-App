@@ -12,12 +12,15 @@ import database.beneficiary.Beneficiary
 fun LazyListScope.beneficiaryList(
     beneficiaries: List<Beneficiary>,
     onBeneficiaryAmountChange: (String, String) -> Unit,
-    onAddUser: () -> Unit,
+    onModifyBeneficiaryList: () -> Unit,
     expenseError: ExpenseError?,
     focusManager: FocusManager,
 ) {
     item {
-        BeneficiaryListHeader(onAddUser = onAddUser)
+        BeneficiaryListHeader(
+            isBeneficiaryListEmpty = beneficiaries.isEmpty(),
+            onModifyBeneficiaryList = onModifyBeneficiaryList,
+        )
 
         if (expenseError != null) {
             ExpenseErrorCard(
@@ -27,7 +30,7 @@ fun LazyListScope.beneficiaryList(
             )
         }
     }
-    
+
     items(
         items = beneficiaries,
         key = { beneficiary -> beneficiary.uuid },

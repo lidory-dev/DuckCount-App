@@ -31,7 +31,7 @@ import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.expenselist.R
 import database.user.User
-import app.lidory.duckcount.android.ui.R as SharedR
+import app.lidory.duckcount.android.ui.R as androidUiR
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,7 +75,7 @@ fun CreditorDialog(
                             },
                         ) {
                             Icon(
-                                painter = painterResource(SharedR.drawable.ic_arrow_back),
+                                painter = painterResource(androidUiR.drawable.ic_arrow_back),
                                 contentDescription = stringResource(R.string.back),
                             )
                         }
