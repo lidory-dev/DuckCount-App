@@ -8,6 +8,10 @@ import database.currency.CurrencyRepositoryImpl
 import database.expense.ExpenseRepository
 import database.expense.ExpenseRepositoryImpl
 import database.getRoomDatabase
+import database.group.GroupRepository
+import database.group.GroupRepositoryImpl
+import database.groupMember.GroupMemberRepository
+import database.groupMember.GroupMemberRepositoryImpl
 import database.user.UserRepository
 import database.user.UserRepositoryImpl
 import org.koin.core.module.Module
@@ -22,6 +26,8 @@ val dbModule = module {
     singleOf(::ExpenseRepositoryImpl).bind<ExpenseRepository>()
     singleOf(::CurrencyRepositoryImpl).bind<CurrencyRepository>()
     singleOf(::BeneficiaryRepositoryImpl).bind<BeneficiaryRepository>()
+    singleOf(::GroupRepositoryImpl).bind<GroupRepository>()
+    singleOf(::GroupMemberRepositoryImpl).bind<GroupMemberRepository>()
 
     single { getRoomDatabase(get()) }
 
@@ -29,4 +35,6 @@ val dbModule = module {
     single { get<AppDatabase>().expenseDao }
     single { get<AppDatabase>().currencyDao }
     single { get<AppDatabase>().beneficiaryDao }
+    single { get<AppDatabase>().groupDao }
+    single { get<AppDatabase>().groupMemberDao }
 }

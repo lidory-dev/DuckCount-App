@@ -12,6 +12,10 @@ import database.currency.CurrencyDao
 import database.currency.CurrencyEntity
 import database.expense.ExpenseDao
 import database.expense.ExpenseEntity
+import database.group.GroupDao
+import database.group.GroupEntity
+import database.groupMember.GroupMemberDao
+import database.groupMember.GroupMemberEntity
 import database.user.UserDao
 import database.user.UserEntity
 import eu.anifantakis.lib.ksafe.KSafe
@@ -24,6 +28,8 @@ import eu.anifantakis.lib.ksafe.KSafeWriteMode
         ExpenseEntity::class,
         CurrencyEntity::class,
         BeneficiaryEntity::class,
+        GroupEntity::class,
+        GroupMemberEntity::class,
     ],
     version = 1,
 )
@@ -34,6 +40,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract val expenseDao: ExpenseDao
     abstract val currencyDao: CurrencyDao
     abstract val beneficiaryDao: BeneficiaryDao
+    abstract val groupDao: GroupDao
+    abstract val groupMemberDao: GroupMemberDao
 
     companion object {
         const val DATABASE_NAME = "DuckCount.db"
@@ -61,7 +69,7 @@ fun getDatabasePassword(vault: KSafe): String {
             mode = KSafeWriteMode.Encrypted(
                 protection = KSafeEncryptedProtection.DEFAULT,
                 requireUnlockedDevice = true,
-            )
+            ),
         )
     }
 

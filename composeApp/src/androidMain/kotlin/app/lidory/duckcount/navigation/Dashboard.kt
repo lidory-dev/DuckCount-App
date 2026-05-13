@@ -2,6 +2,7 @@ package app.lidory.duckcount.navigation
 
 import ContactListScreen
 import ExpenseListScreen
+import GroupListScreen
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -20,6 +21,7 @@ import app.lidory.duckcount.navigation.key.ExpenseListScreenKey
 import app.lidory.duckcount.navigation.key.GroupListScreenKey
 import component.AddContactFloatingActionButton
 import component.AddExpenseFloatingActionButton
+import component.AddGroupFloatingActionButton
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
@@ -29,6 +31,7 @@ fun Dashboard(
     navigateToCreateExpenseScreen: () -> Unit,
     navigateToContactDetailScreen: (String) -> Unit,
     navigateToNewContact: () -> Unit,
+    navigateToCreateGroupScreen: () -> Unit,
 ) {
     val backStack = rememberNavBackStack(ExpenseListScreenKey)
 
@@ -39,6 +42,12 @@ fun Dashboard(
                 is ExpenseListScreenKey -> {
                     AddExpenseFloatingActionButton(
                         onClick = navigateToCreateExpenseScreen,
+                    )
+                }
+
+                is GroupListScreenKey -> {
+                    AddGroupFloatingActionButton(
+                        onClick = navigateToCreateGroupScreen,
                     )
                 }
 
@@ -83,7 +92,7 @@ fun Dashboard(
                         NavEntry(
                             key = key,
                         ) {
-                            Text(key.title())
+                            GroupListScreen()
                         }
                     }
 
