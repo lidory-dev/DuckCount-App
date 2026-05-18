@@ -41,7 +41,7 @@ fun BeneficiaryListHeader(
                 (LocalTextStyle.current.fontSize * 1.2f).toDp()
             }
 
-            val iconRes = if (isBeneficiaryListEmpty) androidUiR.drawable.ic_add else R.drawable.ic_edit
+            val iconRes = if (isBeneficiaryListEmpty) androidUiR.drawable.ic_add else androidUiR.drawable.ic_edit
             val labelRes =
                 if (isBeneficiaryListEmpty) androidUiR.string.add else androidUiR.string.modify
 
