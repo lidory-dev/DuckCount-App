@@ -1,4 +1,4 @@
-package component
+package app.lidory.duckcount.android.ui.composable.fullscreendialog
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
