@@ -1,4 +1,4 @@
-package component
+package app.lidory.duckcount.groupList.component
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -34,12 +34,14 @@ fun GroupCard(
                 style = MaterialTheme.typography.titleLarge,
             )
 
-            Text(
-                text = description,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.labelMedium,
-            )
+            if (description.isNotEmpty()) {
+                Text(
+                    text = description,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
         }
     }
 }

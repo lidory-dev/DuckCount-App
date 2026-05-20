@@ -2,7 +2,6 @@ package app.lidory.duckcount.navigation
 
 import ContactDetailScreen
 import CreateExpenseScreen
-import CreateGroupScreen
 import ExpenseDetailScreen
 import NewContactScreen
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
@@ -17,6 +16,7 @@ import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import app.lidory.duckcount.groupList.CreateGroupScreen
 import app.lidory.duckcount.navigation.key.ContactDetailScreenKey
 import app.lidory.duckcount.navigation.key.CreateExpenseScreenKey
 import app.lidory.duckcount.navigation.key.CreateGroupScreenKey

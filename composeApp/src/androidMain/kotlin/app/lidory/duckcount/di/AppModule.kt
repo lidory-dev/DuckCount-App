@@ -1,14 +1,14 @@
 package app.lidory.duckcount.di
 
 import ContactCallBacks
-import GroupListCallBacks
 import app.lidory.duckcount.contactList.ContactCallBacksImp
+import app.lidory.duckcount.groupList.GroupListCallBacks
 import app.lidory.duckcount.groupList.GroupListCallBacksImpl
+import app.lidory.duckcount.groupList.di.groupListModule
 import database.di.dbModule
 import database.di.dbPlatformModule
 import di.contactListModule
 import di.expenseListModule
-import di.groupListModule
 import di.sharedModule
 import networking.di.networkingModule
 import org.koin.core.module.dsl.singleOf

@@ -1,5 +1,8 @@
+package app.lidory.duckcount.groupList
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -7,14 +10,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.R
 import app.lidory.duckcount.android.ui.constant.Padding
-import component.GroupCard
+import app.lidory.duckcount.groupList.component.GroupCard
+import app.lidory.duckcount.groupList.viewmodel.GroupListViewModel
 import org.koin.androidx.compose.koinViewModel
-import viewmodel.GroupListViewModel
 
 
 @Composable
@@ -22,9 +28,7 @@ fun GroupListScreen() {
 
     val viewModel = koinViewModel<GroupListViewModel>()
 
-    // TODO: Replace tempState with real state
-    val state = viewModel.tempState
-    //val state by viewModel.state.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     if (state.groups.isEmpty()) {
         Box(
@@ -43,6 +47,10 @@ fun GroupListScreen() {
                 ),
             verticalArrangement = Arrangement.spacedBy(Padding.medium),
         ) {
+            item {
+                Spacer(modifier = Modifier.padding(Padding.small))
+            }
+
             items(
                 items = state.groups,
                 key = { it.uuid },
@@ -52,6 +60,10 @@ fun GroupListScreen() {
                     description = group.description,
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+
+            item {
+                Spacer(modifier = Modifier.padding(bottom = 80.dp))
             }
         }
     }

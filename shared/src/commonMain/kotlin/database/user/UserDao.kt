@@ -29,7 +29,6 @@ interface UserDao {
     @Query("SELECT * FROM UserEntity WHERE uuid = :uuid")
     fun getUserAsFlow(uuid: String): Flow<UserEntity>
 
-    @Transaction
     @Query("SELECT fullName FROM UserEntity WHERE uuid = :uuid")
     fun getUserFullNameAsFlow(uuid: String): Flow<String>
 }
