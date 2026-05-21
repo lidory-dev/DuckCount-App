@@ -119,11 +119,11 @@ fun CreateGroupScreen(
                 item {
                     DuckCountTextField(
                         value = state.title,
-                        labelName = "Group title",
+                        labelName = stringResource(androidUiR.string.title),
                         onValueChange = { viewModel.updateTitle(title = it) },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         focusManager = focusManager,
-                        error = "A title is mandatory",
+                        error = stringResource(R.string.title_mandatory),
                         isInError = state.title.isBlank(),
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -132,7 +132,7 @@ fun CreateGroupScreen(
                 item {
                     DuckCountTextField(
                         value = state.description,
-                        labelName = "Group description",
+                        labelName = stringResource(androidUiR.string.description),
                         onValueChange = { viewModel.updateDescription(description = it) },
                         singleLine = false,
                         maxLines = 5,
