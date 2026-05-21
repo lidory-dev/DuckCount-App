@@ -35,7 +35,7 @@ import app.lidory.duckcount.groupList.component.groupMemberList.groupMemberList
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.viewmodel.CreateGroupViewModel
 import org.koin.androidx.compose.koinViewModel
-import app.lidory.duckcount.android.ui.R as SharedR
+import app.lidory.duckcount.android.ui.R as androidUiR
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,8 +73,7 @@ fun CreateGroupScreen(
     )
 
     Scaffold(
-        modifier = modifier
-            .fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         topBar = {
             TopAppBar(
                 title = {
@@ -87,8 +86,8 @@ fun CreateGroupScreen(
                         onClick = onBack,
                     ) {
                         Icon(
-                            painter = painterResource(SharedR.drawable.ic_arrow_back),
-                            contentDescription = stringResource(SharedR.string.back),
+                            painter = painterResource(androidUiR.drawable.ic_arrow_back),
+                            contentDescription = stringResource(androidUiR.string.back),
                         )
                     }
                 },
@@ -140,9 +139,9 @@ fun CreateGroupScreen(
                         error = stringResource(
                             R.string.description_cant_exceed_max,
                             state.description.length,
-                            CreateGroupViewModel.Companion.MAX_DESCRIPTION_LINE,
+                            CreateGroupViewModel.MAX_DESCRIPTION_LINE,
                         ),
-                        isInError = state.description.length > CreateGroupViewModel.Companion.MAX_DESCRIPTION_LINE,
+                        isInError = state.description.length > CreateGroupViewModel.MAX_DESCRIPTION_LINE,
                         focusManager = focusManager,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -174,7 +173,7 @@ fun CreateGroupScreen(
             ) {
                 Text(
                     modifier = Modifier.padding(Padding.small),
-                    text = stringResource(SharedR.string.confirm),
+                    text = stringResource(androidUiR.string.confirm),
                 )
             }
         }

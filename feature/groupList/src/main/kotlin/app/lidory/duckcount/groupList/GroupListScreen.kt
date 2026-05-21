@@ -37,7 +37,6 @@ fun GroupListScreen() {
             Text(text = stringResource(R.string.no_groups))
         }
     } else {
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
