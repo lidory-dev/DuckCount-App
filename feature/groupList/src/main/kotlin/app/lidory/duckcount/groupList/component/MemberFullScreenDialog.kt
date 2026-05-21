@@ -2,7 +2,6 @@ package app.lidory.duckcount.groupList.component
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,13 +30,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
 import app.lidory.duckcount.android.ui.composable.checkbox.DuckCountCheckbox
-import app.lidory.duckcount.android.ui.composable.checkbox.DuckCountTriStateCheckbox
+import app.lidory.duckcount.android.ui.composable.checkbox.SelectAllPill
 import app.lidory.duckcount.android.ui.composable.fullscreendialog.FullScreenDialog
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
@@ -144,33 +142,10 @@ fun MemberFullScreenDialog(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.End,
                                     ) {
-                                        Card(
-                                            shape = RoundedCornerShape(Padding.extraLarge),
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(Padding.extraLarge))
-                                                .clickable(
-                                                    onClick = {
-                                                        toggleSelectAllUsers()
-                                                    },
-                                                ),
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.Center,
-                                            ) {
-                                                Text(
-                                                    modifier = Modifier.padding(start = Padding.large),
-                                                    text = stringResource(R.string.select_all),
-                                                )
-
-                                                DuckCountTriStateCheckbox(
-                                                    state = toggleableListState,
-                                                    onClick = {
-                                                        toggleSelectAllUsers()
-                                                    },
-                                                )
-                                            }
-                                        }
+                                        SelectAllPill(
+                                            toggleSelectAllUsers = toggleSelectAllUsers,
+                                            toggleableListState = toggleableListState,
+                                        )
                                     }
                                 }
                             }
