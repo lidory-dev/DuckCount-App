@@ -17,10 +17,8 @@ kotlin {
 }
 
 android {
-    namespace = "app.lidory.duckcount"
-    compileSdk {
-        version = release(36)
-    }
+    namespace = "app.lidory.duckcount.groupList"
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()

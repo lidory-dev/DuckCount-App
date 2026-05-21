@@ -18,7 +18,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import app.lidory.duckcount.R
+import app.lidory.duckcount.groupList.R
 import app.lidory.duckcount.android.ui.R as androidUiR
 
 @Composable

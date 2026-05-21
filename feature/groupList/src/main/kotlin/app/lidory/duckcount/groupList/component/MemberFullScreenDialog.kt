@@ -36,12 +36,12 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
-import app.lidory.duckcount.R
 import app.lidory.duckcount.android.ui.composable.checkbox.DuckCountCheckbox
 import app.lidory.duckcount.android.ui.composable.checkbox.DuckCountTriStateCheckbox
 import app.lidory.duckcount.android.ui.composable.fullscreendialog.FullScreenDialog
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.groupList.R
 import app.lidory.duckcount.groupList.model.User
 import app.lidory.duckcount.android.ui.R as androidUiR
 
