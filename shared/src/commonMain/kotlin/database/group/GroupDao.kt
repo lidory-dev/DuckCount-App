@@ -5,12 +5,22 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
+import database.groupMember.GroupMemberEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface GroupDao {
     @Insert
     suspend fun insert(groupEntity: GroupEntity)
+
+    @Insert
+    suspend fun insertMembers(groupMemberEntities: List<GroupMemberEntity>)
+
+    @Insert
+    suspend fun insertWithMembers(groupWithMembersEntity: GroupWithMembersEntity) {
+        insert(groupEntity = groupWithMembersEntity.group)
+        insertMembers(groupMemberEntities = groupWithMembersEntity.groupMembers)
+    }
 
     @Update
     suspend fun update(groupEntity: GroupEntity)

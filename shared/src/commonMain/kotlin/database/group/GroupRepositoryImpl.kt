@@ -1,5 +1,7 @@
 package database.group
 
+import database.groupMember.GroupMember
+import database.groupMember.toGroupMemberEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -8,6 +10,14 @@ class GroupRepositoryImpl(
 ) : GroupRepository {
     override suspend fun insert(group: Group) {
         groupDao.insert(groupEntity = group.toGroupEntity())
+    }
+
+    override suspend fun insertMembers(groupMember: List<GroupMember>) {
+        groupDao.insertMembers(groupMemberEntities = groupMember.map { it.toGroupMemberEntity() })
+    }
+
+    override suspend fun insertWithMembers(groupWithMembers: GroupWithMembers) {
+        groupDao.insertWithMembers(groupWithMembers.toGroupWithMembersEntity())
     }
 
     override suspend fun update(group: Group) {

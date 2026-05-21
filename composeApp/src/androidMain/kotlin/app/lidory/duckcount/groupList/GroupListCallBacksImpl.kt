@@ -4,8 +4,8 @@ import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.User
 import database.group.GroupRepository
+import database.group.GroupWithMembers
 import database.groupMember.GroupMemberRepository
-import database.groupMember.toGroupMemberEntity
 import database.user.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -52,18 +52,20 @@ class GroupListCallBacksImpl(
             title = title,
             description = description,
         )
-        groupRepository.insert(
-            newGroup,
+        groupRepository.insertWithMembers(
+            groupWithMembers = GroupWithMembers(
+                uuid = newGroup.uuid,
+                title = newGroup.title,
+                description = newGroup.description,
+                groupMembers = members.map { member ->
+                    DBGroupMember(
+                        uuid = member.uuid,
+                        userUuid = member.userUuid,
+                        groupUuid = newGroup.uuid,
+                        isAdmin = member.isAdmin,
+                    )
+                },
+            ),
         )
-        members.onEach { member ->
-            groupMemberRepository.insert(
-                DBGroupMember(
-                    uuid = member.uuid,
-                    userUuid = member.userUuid,
-                    groupUuid = newGroup.uuid,
-                    isAdmin = member.isAdmin,
-                ).toGroupMemberEntity(),
-            )
-        }
     }
 }
