@@ -16,12 +16,12 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import app.lidory.duckcount.groupList.GroupListScreen
+import app.lidory.duckcount.groupList.component.AddGroupFloatingActionButton
 import app.lidory.duckcount.navigation.key.ContactListScreenKey
 import app.lidory.duckcount.navigation.key.ExpenseListScreenKey
 import app.lidory.duckcount.navigation.key.GroupListScreenKey
 import component.AddContactFloatingActionButton
 import component.AddExpenseFloatingActionButton
-import component.AddGroupFloatingActionButton
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
