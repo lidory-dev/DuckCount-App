@@ -30,7 +30,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
-import app.lidory.duckcount.groupList.component.MemberFullScreenDialog
+import app.lidory.duckcount.groupList.component.GroupMemberFullScreenDialog
 import app.lidory.duckcount.groupList.component.groupMemberList.groupMemberList
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.viewmodel.CreateGroupViewModel
@@ -52,7 +52,7 @@ fun CreateGroupScreen(
     val focusManager = LocalFocusManager.current
     val interactionSource = remember { MutableInteractionSource() }
 
-    MemberFullScreenDialog(
+    GroupMemberFullScreenDialog(
         isDialogShown = viewModel.isMemberDialogShown,
         onSelectUsers = { uuids ->
             viewModel.updateMembers(

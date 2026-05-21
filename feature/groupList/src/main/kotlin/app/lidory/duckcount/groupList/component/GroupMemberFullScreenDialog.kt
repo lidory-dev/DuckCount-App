@@ -41,7 +41,7 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MemberFullScreenDialog(
+fun GroupMemberFullScreenDialog(
     modifier: Modifier = Modifier,
     isDialogShown: Boolean,
     onSelectUsers: (List<String>) -> Unit,
