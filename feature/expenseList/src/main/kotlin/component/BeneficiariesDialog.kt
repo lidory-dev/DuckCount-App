@@ -9,14 +9,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -24,7 +21,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,8 +30,8 @@ import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
-import app.lidory.duckcount.android.ui.composable.checkbox.DuckCountCheckbox
 import app.lidory.duckcount.android.ui.composable.checkbox.SelectAllPill
+import app.lidory.duckcount.android.ui.composable.checkbox.UserSelectableCard
 import app.lidory.duckcount.android.ui.composable.fullscreendialog.FullScreenDialog
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
@@ -156,8 +152,7 @@ fun BeneficiariesDialog(
                                 items = usersList,
                                 key = { user -> user.uuid },
                             ) { user ->
-                                Card(
-                                    shape = RoundedCornerShape(size = Padding.large),
+                                UserSelectableCard(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .animateItem(
@@ -165,30 +160,10 @@ fun BeneficiariesDialog(
                                             placementSpec = tween(200),
                                         )
                                         .padding(vertical = Padding.medium),
-                                    onClick = {
-                                        toggleSelectedUser(user)
-                                    },
-                                ) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(TextFieldDefaults.MinHeight),
-                                    ) {
-                                        Text(
-                                            text = user.fullName,
-                                            modifier = Modifier
-                                                .padding(TextFieldDefaults.contentPaddingWithLabel()),
-                                        )
-                                        DuckCountCheckbox(
-                                            checked = selectedUuids.contains(user.uuid),
-                                            onCheckedChange = {
-                                                toggleSelectedUser(user)
-                                            },
-                                        )
-                                    }
-                                }
+                                    toggleSelectedUser = { toggleSelectedUser(user) },
+                                    fullName = user.fullName,
+                                    isChecked = selectedUuids.contains(user.uuid),
+                                )
                             }
 
                             item {
