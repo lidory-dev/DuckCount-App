@@ -15,4 +15,14 @@ abstract class NavigableTabNavKey : NavKey {
     abstract fun icon(): Painter
 
     abstract val index: Int
+
+    companion object {
+        val tabs: List<NavigableTabNavKey> by lazy {
+            listOf(
+                ExpenseListScreenKey,
+                GroupListScreenKey,
+                ContactListScreenKey,
+            )
+        }
+    }
 }

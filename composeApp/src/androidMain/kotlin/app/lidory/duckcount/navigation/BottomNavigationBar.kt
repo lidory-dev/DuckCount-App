@@ -8,9 +8,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
-import app.lidory.duckcount.navigation.key.ContactListScreenKey
-import app.lidory.duckcount.navigation.key.ExpenseListScreenKey
-import app.lidory.duckcount.navigation.key.GroupListScreenKey
 import app.lidory.duckcount.navigation.key.NavigableTabNavKey
 
 @Composable
@@ -18,12 +15,10 @@ fun BottomNavigationBar(
     modifier: Modifier = Modifier,
     backStack: NavBackStack<NavKey>,
 ) {
-    val items = BottomNavigationBar.items
-
     NavigationBar(
         modifier = modifier,
     ) {
-        items.forEachIndexed { index, item ->
+        NavigableTabNavKey.tabs.forEach { item ->
             NavigationBarItem(
                 icon = {
                     Icon(
@@ -33,17 +28,9 @@ fun BottomNavigationBar(
                 },
                 label = { Text(item.title()) },
                 // Checks if the last item in the back stack matches the current item.
-                selected = backStack.lastOrNull() == items[index],
+                selected = backStack.lastOrNull() == item,
                 onClick = { backStack.add(item) },
             )
         }
-    }
-}
-
-data class BottomNavigationBar(
-    val items: NavigableTabNavKey,
-) {
-    companion object {
-        val items = listOf(ExpenseListScreenKey, GroupListScreenKey, ContactListScreenKey)
     }
 }

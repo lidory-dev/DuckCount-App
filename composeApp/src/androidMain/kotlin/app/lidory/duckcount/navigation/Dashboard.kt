@@ -24,6 +24,7 @@ import app.lidory.duckcount.groupList.component.AddGroupFloatingActionButton
 import app.lidory.duckcount.navigation.key.ContactListScreenKey
 import app.lidory.duckcount.navigation.key.ExpenseListScreenKey
 import app.lidory.duckcount.navigation.key.GroupListScreenKey
+import app.lidory.duckcount.navigation.key.NavigableTabNavKey
 import component.AddContactFloatingActionButton
 import component.AddExpenseFloatingActionButton
 
@@ -72,7 +73,7 @@ fun Dashboard(
             modifier = modifier.padding(innerPadding),
             backStack = backStack,
             transitionSpec = {
-                val screenOrder = BottomNavigationBar.items.map { it.toString() }
+                val screenOrder = NavigableTabNavKey.tabs.map { it.toString() }
 
                 val initialIndex = screenOrder.indexOf(initialState.key)
                 val targetIndex = screenOrder.indexOf(targetState.key)
