@@ -73,30 +73,17 @@ fun Dashboard(
             modifier = modifier.padding(innerPadding),
             backStack = backStack,
             transitionSpec = {
-                val screenOrder = NavigableTabNavKey.tabs.map { it.toString() }
+                val tabs = NavigableTabNavKey.tabs.map { it.toString() }
+                val initialIndex = tabs.indexOf(initialState.key)
+                val targetIndex = tabs.indexOf(targetState.key)
 
-                val initialIndex = screenOrder.indexOf(initialState.key)
-                val targetIndex = screenOrder.indexOf(targetState.key)
-
-                if (initialIndex < targetIndex) {
-                    slideIntoContainer(
-                        towards = AnimatedContentTransitionScope.SlideDirection.Start,
-                        animationSpec = tween(),
-                    ) togetherWith
-                            slideOutOfContainer(
-                                towards = AnimatedContentTransitionScope.SlideDirection.Start,
-                                animationSpec = tween(),
-                            )
+                val direction = if (initialIndex < targetIndex) {
+                    AnimatedContentTransitionScope.SlideDirection.Start
                 } else {
-                    slideIntoContainer(
-                        towards = AnimatedContentTransitionScope.SlideDirection.End,
-                        animationSpec = tween(),
-                    ) togetherWith
-                            slideOutOfContainer(
-                                towards = AnimatedContentTransitionScope.SlideDirection.End,
-                                animationSpec = tween(),
-                            )
+                    AnimatedContentTransitionScope.SlideDirection.End
                 }
+
+                slideIntoContainer(direction, tween()) togetherWith slideOutOfContainer(direction, tween())
             },
             entryDecorators = listOf(
                 rememberSaveableStateHolderNavEntryDecorator(),

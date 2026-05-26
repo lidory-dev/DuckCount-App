@@ -13,7 +13,4 @@ data object ContactListScreenKey : NavigableTabNavKey() {
 
     @Composable
     override fun icon() = painterResource(R.drawable.ic_contacts)
-
-    override val index: Int
-        get() = 2
 }
