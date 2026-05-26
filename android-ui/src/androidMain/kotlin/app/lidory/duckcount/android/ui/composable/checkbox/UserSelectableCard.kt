@@ -24,9 +24,7 @@ fun UserSelectableCard(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(size = Padding.large),
-        onClick = {
-            toggleSelectedUser()
-        },
+        onClick = toggleSelectedUser,
     ) {
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,

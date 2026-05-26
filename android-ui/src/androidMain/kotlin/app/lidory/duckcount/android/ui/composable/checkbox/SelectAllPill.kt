@@ -27,9 +27,7 @@ fun SelectAllPill(
         modifier = modifier
             .clip(RoundedCornerShape(Padding.extraLarge))
             .clickable(
-                onClick = {
-                    toggleSelectAllUsers()
-                },
+                onClick = toggleSelectAllUsers,
             ),
     ) {
         Row(
@@ -43,9 +41,7 @@ fun SelectAllPill(
 
             DuckCountTriStateCheckbox(
                 state = toggleableListState,
-                onClick = {
-                    toggleSelectAllUsers()
-                },
+                onClick = toggleSelectAllUsers,
             )
         }
     }
