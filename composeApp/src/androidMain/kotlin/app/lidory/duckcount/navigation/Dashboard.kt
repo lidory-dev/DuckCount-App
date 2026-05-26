@@ -16,8 +16,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.NavDisplay
 import app.lidory.duckcount.groupList.GroupListScreen
 import app.lidory.duckcount.groupList.component.AddGroupFloatingActionButton
@@ -73,16 +75,15 @@ fun Dashboard(
             modifier = modifier.padding(innerPadding),
             backStack = backStack,
             transitionSpec = {
-                val tabs = NavigableTabNavKey.tabs.map { it.toString() }
-                val initialIndex = tabs.indexOf(initialState.key)
-                val targetIndex = tabs.indexOf(targetState.key)
-
-                val direction = if (initialIndex < targetIndex) {
-                    AnimatedContentTransitionScope.SlideDirection.Start
-                } else {
-                    AnimatedContentTransitionScope.SlideDirection.End
-                }
-
+                val direction = getTransitionSpecDirection(initialState, targetState)
+                slideIntoContainer(direction, tween()) togetherWith slideOutOfContainer(direction, tween())
+            },
+            popTransitionSpec = {
+                val direction = getTransitionSpecDirection(initialState, targetState)
+                slideIntoContainer(direction, tween()) togetherWith slideOutOfContainer(direction, tween())
+            },
+            predictivePopTransitionSpec = {
+                val direction = getTransitionSpecDirection(initialState, targetState)
                 slideIntoContainer(direction, tween()) togetherWith slideOutOfContainer(direction, tween())
             },
             entryDecorators = listOf(
@@ -129,4 +130,21 @@ fun Dashboard(
             },
         )
     }
+}
+
+fun getTransitionSpecDirection(
+    initialState: Scene<NavKey>,
+    targetState: Scene<NavKey>,
+): AnimatedContentTransitionScope.SlideDirection {
+    val tabs = NavigableTabNavKey.tabs.map { it.toString() }
+    val initialIndex = tabs.indexOf(initialState.key)
+    val targetIndex = tabs.indexOf(targetState.key)
+
+    val direction = if (initialIndex < targetIndex) {
+        AnimatedContentTransitionScope.SlideDirection.Start
+    } else {
+        AnimatedContentTransitionScope.SlideDirection.End
+    }
+
+    return direction
 }
