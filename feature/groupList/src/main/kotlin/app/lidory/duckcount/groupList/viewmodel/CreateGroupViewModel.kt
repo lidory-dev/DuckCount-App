@@ -13,6 +13,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -25,13 +26,10 @@ class CreateGroupViewModel(
     val groupListCallBacks: GroupListCallBacks,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CreateGroupState())
-
     val state = _state
 
     private var _searchQuery = MutableStateFlow("")
-
-    var searchQuery by mutableStateOf("")
-        private set
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     var isMemberDialogShown by mutableStateOf(false)
 
@@ -72,12 +70,10 @@ class CreateGroupViewModel(
     }
 
     fun clearSearchQuery() {
-        searchQuery = ""
         _searchQuery.value = ""
     }
 
     fun updateSearchQuery(query: String) {
-        searchQuery = query
         _searchQuery.value = query
     }
 

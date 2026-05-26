@@ -48,6 +48,7 @@ fun CreateGroupScreen(
     val userListState by viewModel.usersState.collectAsStateWithLifecycle()
     val selectionToggleState by viewModel.selectionToggleState.collectAsStateWithLifecycle()
     val selectedUuids by viewModel.selectedUuids.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
 
     val focusManager = LocalFocusManager.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -63,7 +64,7 @@ fun CreateGroupScreen(
         },
         onDismissRequest = { viewModel.hideMemberDialog() },
         userList = userListState.users,
-        searchQuery = viewModel.searchQuery,
+        searchQuery = searchQuery,
         clearSearchQuery = { viewModel.clearSearchQuery() },
         onSearchQueryChange = { viewModel.updateSearchQuery(it) },
         toggleSelectAllUsers = { viewModel.toggleSelectAllMembers() },
