@@ -38,6 +38,7 @@ fun Dashboard(
     navigateToContactDetailScreen: (String) -> Unit,
     navigateToNewContact: () -> Unit,
     navigateToCreateGroupScreen: () -> Unit,
+    navigateToGroupDetailScreen: (String) -> Unit,
 ) {
     val backStack = rememberNavBackStack(ExpenseListScreenKey)
 
@@ -110,7 +111,9 @@ fun Dashboard(
                         NavEntry(
                             key = key,
                         ) {
-                            GroupListScreen()
+                            GroupListScreen(
+                                onGroupClicked = navigateToGroupDetailScreen,
+                            )
                         }
                     }
 

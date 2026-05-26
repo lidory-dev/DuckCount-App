@@ -33,4 +33,10 @@ class GroupRepositoryImpl(
             groupEntities.map { it.toGroup() }
         }
     }
+
+    override suspend fun get(uuid: String): Flow<Group> {
+        return groupDao.getAsFlow(uuid).map { groupEntity ->
+            groupEntity.toGroup()
+        }
+    }
 }

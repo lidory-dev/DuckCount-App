@@ -1,5 +1,6 @@
 package app.lidory.duckcount.groupList
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -23,7 +24,9 @@ import org.koin.androidx.compose.koinViewModel
 
 
 @Composable
-fun GroupListScreen() {
+fun GroupListScreen(
+    onGroupClicked: (String) -> Unit,
+) {
 
     val viewModel = koinViewModel<GroupListViewModel>()
 
@@ -56,7 +59,11 @@ fun GroupListScreen() {
                 GroupCard(
                     title = group.title,
                     description = group.description,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            onClick = { onGroupClicked(group.uuid) },
+                        ),
                 )
             }
 

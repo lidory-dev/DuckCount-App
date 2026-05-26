@@ -30,6 +30,17 @@ class GroupListCallBacksImpl(
             }
     }
 
+    override suspend fun getGroup(uuid: String): Flow<Group> {
+        return groupRepository.get(uuid)
+            .map { group ->
+                Group(
+                    uuid = group.uuid,
+                    title = group.title,
+                    description = group.description,
+                )
+            }
+    }
+
     override suspend fun getUsersFiltered(filter: String): Flow<List<User>> {
         return userRepository.getAllFiltered(filter)
             .map { users ->

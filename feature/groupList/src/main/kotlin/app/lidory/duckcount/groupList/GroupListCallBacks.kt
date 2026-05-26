@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.Flow
 interface GroupListCallBacks {
     suspend fun getAllGroups(): Flow<List<Group>>
 
+    suspend fun getGroup(uuid: String): Flow<Group>
+
     suspend fun getUsersFiltered(filter: String): Flow<List<User>>
 
     suspend fun getUserFullName(uuid: String): Flow<String>

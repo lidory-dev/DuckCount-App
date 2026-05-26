@@ -16,4 +16,6 @@ interface GroupRepository {
     suspend fun delete(group: Group)
 
     suspend fun getAll(): Flow<List<Group>>
+
+    suspend fun get(uuid: String): Flow<Group>
 }
