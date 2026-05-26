@@ -133,7 +133,6 @@ fun BeneficiariesDialog(
                                 AnimatedVisibility(
                                     visible = searchQuery.isBlank(),
                                 ) {
-
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth(),

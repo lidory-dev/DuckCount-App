@@ -22,7 +22,7 @@ fun LazyListScope.groupMemberList(
 
     items(
         items = members,
-        key = { member -> member.member.uuid },
+        key = { memberWithFullName -> memberWithFullName.member.uuid },
     ) { memberWithFullName ->
         GroupMemberRow(
             modifier = Modifier

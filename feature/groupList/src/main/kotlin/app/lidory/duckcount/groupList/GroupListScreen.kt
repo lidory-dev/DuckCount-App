@@ -34,7 +34,7 @@ fun GroupListScreen() {
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
-            Text(text = stringResource(R.string.no_groups))
+            Text(text = stringResource(R.string.not_part_of_any_group))
         }
     } else {
         LazyColumn(

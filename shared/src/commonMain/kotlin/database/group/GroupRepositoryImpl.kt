@@ -12,8 +12,8 @@ class GroupRepositoryImpl(
         groupDao.insert(groupEntity = group.toGroupEntity())
     }
 
-    override suspend fun insertMembers(groupMember: List<GroupMember>) {
-        groupDao.insertMembers(groupMemberEntities = groupMember.map { it.toGroupMemberEntity() })
+    override suspend fun insertMembers(groupMembers: List<GroupMember>) {
+        groupDao.insertMembers(groupMemberEntities = groupMembers.map { it.toGroupMemberEntity() })
     }
 
     override suspend fun insertWithMembers(groupWithMembers: GroupWithMembers) {

@@ -7,7 +7,7 @@ interface GroupRepository {
 
     suspend fun insert(group: Group)
 
-    suspend fun insertMembers(groupMember: List<GroupMember>)
+    suspend fun insertMembers(groupMembers: List<GroupMember>)
 
     suspend fun insertWithMembers(groupWithMembers: GroupWithMembers)
 

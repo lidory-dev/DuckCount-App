@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="no_groups">You are not in any groups</string>
+    <string name="not_part_of_any_group">You are not part of any group</string>
     <string name="description_cant_exceed_max">Description too long (%1$s/%2$s)</string>
     <string name="members">Members</string>
     <string name="select_new_members">Select new members</string>
