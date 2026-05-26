@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import database.groupMember.GroupMemberEntity
 import kotlinx.coroutines.flow.Flow
@@ -16,7 +17,7 @@ interface GroupDao {
     @Insert
     suspend fun insertMembers(groupMemberEntities: List<GroupMemberEntity>)
 
-    @Insert
+    @Transaction
     suspend fun insertWithMembers(groupWithMembersEntity: GroupWithMembersEntity) {
         insert(groupEntity = groupWithMembersEntity.group)
         insertMembers(groupMemberEntities = groupWithMembersEntity.groupMembers)
