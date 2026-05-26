@@ -39,7 +39,7 @@ import component.beneficiaryList.beneficiaryList
 import database.beneficiary.Beneficiary
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.CreateExpenseViewModel
-import app.lidory.duckcount.android.ui.R as SharedR
+import app.lidory.duckcount.android.ui.R as androidUiR
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,7 +106,7 @@ fun CreateExpenseScreen(
                         onClick = onBack,
                     ) {
                         Icon(
-                            painter = painterResource(SharedR.drawable.ic_arrow_back),
+                            painter = painterResource(androidUiR.drawable.ic_arrow_back),
                             contentDescription = stringResource(R.string.back),
                         )
                     }
@@ -143,7 +143,7 @@ fun CreateExpenseScreen(
                         onValueChange = { viewModel.updateTitle(title = it) },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         focusManager = focusManager,
-                        error = stringResource(R.string.title_mandatory),
+                        error = stringResource(androidUiR.string.title_mandatory),
                         isInError = expenseState.title.isBlank(),
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -233,7 +233,7 @@ fun CreateExpenseScreen(
             ) {
                 Text(
                     modifier = Modifier.padding(Padding.small),
-                    text = stringResource(SharedR.string.confirm),
+                    text = stringResource(androidUiR.string.confirm),
                 )
             }
         }

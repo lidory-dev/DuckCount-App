@@ -123,7 +123,7 @@ fun CreateGroupScreen(
                         onValueChange = { viewModel.updateTitle(title = it) },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         focusManager = focusManager,
-                        error = stringResource(R.string.title_mandatory),
+                        error = stringResource(androidUiR.string.title_mandatory),
                         isInError = state.title.isBlank(),
                         modifier = Modifier.fillMaxWidth(),
                     )
