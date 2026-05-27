@@ -24,6 +24,7 @@ fun GroupDetailScreen(
     modifier: Modifier = Modifier,
     viewModel: GroupDetailViewModel = koinViewModel(),
     onBack: () -> Unit,
+    expenseListContent: @Composable () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -51,7 +52,7 @@ fun GroupDetailScreen(
         Column(
             modifier = modifier.padding(innerPadding),
         ) {
-            Text("Title of the group")
+            expenseListContent()
         }
     }
 }

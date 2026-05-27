@@ -26,6 +26,18 @@ class ExpenseRepositoryImpl(
         }
     }
 
+    override fun getAllFromGroup(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> {
+        return expenseDao.getAllFromGroupAsFlow(groupUuid).map { expense ->
+            expense.map { it.toExpenseWithBeneficiaries() }
+        }
+    }
+
+    override fun getAllWithoutGroup(): Flow<List<ExpenseWithBeneficiaries>> {
+        return expenseDao.getAllWithoutGroupAsFlow().map { expenseWithBeneficiariesEntities ->
+            expenseWithBeneficiariesEntities.map { it.toExpenseWithBeneficiaries() }
+        }
+    }
+
     override fun getWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries> {
         return expenseDao.getWithBeneficiariesAsFlow(uuid = uuid).map { expenseWithBeneficiariesEntity ->
             expenseWithBeneficiariesEntity.toExpenseWithBeneficiaries()

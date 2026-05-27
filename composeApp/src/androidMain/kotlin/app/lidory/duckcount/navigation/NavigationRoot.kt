@@ -1,8 +1,6 @@
 package app.lidory.duckcount.navigation
 
 import ContactDetailScreen
-import app.lidory.duckcount.expenseList.CreateExpenseScreen
-import app.lidory.duckcount.expenseList.ExpenseDetailScreen
 import NewContactScreen
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
@@ -16,6 +14,10 @@ import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import app.lidory.duckcount.expenseList.CreateExpenseScreen
+import app.lidory.duckcount.expenseList.ExpenseDetailScreen
+import app.lidory.duckcount.expenseList.ExpenseListScreen
+import app.lidory.duckcount.expenseList.viewmodel.expenseListViewModel
 import app.lidory.duckcount.groupList.CreateGroupScreen
 import app.lidory.duckcount.groupList.GroupDetailScreen
 import app.lidory.duckcount.navigation.key.ContactDetailScreenKey
@@ -161,6 +163,12 @@ fun NavigationRoot(
                                 parametersOf(key.groupUuid)
                             },
                             onBack = dropUnlessResumed { backStack.removeIf { it is GroupDetailScreenKey } },
+                            expenseListContent = {
+                                ExpenseListScreen(
+                                    onExpenseClicked = {},
+                                    viewModel = expenseListViewModel(key.groupUuid),
+                                )
+                            },
                         )
                     }
                 }

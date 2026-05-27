@@ -12,6 +12,7 @@ fun Expense.toExpenseEntity() = ExpenseEntity(
     creditorUuid = creditorUuid,
     isRefund = isRefund,
     currency = currency,
+    groupUuid = groupUuid,
 )
 
 
@@ -24,6 +25,7 @@ fun ExpenseEntity.toExpense() = Expense(
     creditorUuid = creditorUuid,
     isRefund = isRefund,
     currency = currency,
+    groupUuid = groupUuid,
 )
 
 fun ExpenseWithBeneficiariesEntity.toExpenseWithBeneficiaries() =
@@ -36,6 +38,7 @@ fun ExpenseWithBeneficiariesEntity.toExpenseWithBeneficiaries() =
         creditorUuid = expense.creditorUuid,
         isRefund = expense.isRefund,
         currency = expense.currency,
+        groupUuid = expense.groupUuid,
         beneficiaries = beneficiaries.map { it.toBeneficiary() },
     )
 
@@ -50,6 +53,7 @@ fun ExpenseWithBeneficiaries.toExpenseWithBeneficiariesEntity() =
             creditorUuid = creditorUuid,
             isRefund = isRefund,
             currency = currency,
+            groupUuid = groupUuid,
         ).toExpenseEntity(),
         beneficiaries = beneficiaries.map { it.toBeneficiaryEntity() },
     )

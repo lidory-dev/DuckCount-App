@@ -25,6 +25,12 @@ interface ExpenseDao {
     @Query("SELECT * FROM ExpenseEntity")
     fun getAllAsFlow(): Flow<List<ExpenseEntity>>
 
+    @Query("SELECT * FROM ExpenseEntity WHERE groupUuid IS :groupUuid")
+    fun getAllFromGroupAsFlow(groupUuid: String?): Flow<List<ExpenseWithBeneficiariesEntity>>
+
+    @Query("SELECT * FROM ExpenseEntity WHERE groupUuid IS NULL")
+    fun getAllWithoutGroupAsFlow(): Flow<List<ExpenseWithBeneficiariesEntity>>
+
     @Transaction
     @Query("SELECT * FROM ExpenseEntity")
     fun getAllWithBeneficiariesAsFlow(): Flow<List<ExpenseWithBeneficiariesEntity>>

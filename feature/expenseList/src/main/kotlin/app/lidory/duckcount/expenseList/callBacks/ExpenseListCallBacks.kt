@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 interface ExpenseListCallBacks {
 
     fun getAllExpenses(): Flow<List<ExpenseWithBeneficiaries>>
-    
+
     suspend fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries>
 
     suspend fun insert(expense: Expense)
@@ -20,4 +20,8 @@ interface ExpenseListCallBacks {
     suspend fun insertBeneficiary(beneficiary: Beneficiary)
 
     fun validateExpense(amount: String, currency: Currency, beneficiaries: List<Beneficiary>): Int?
+
+    fun getAllExpensesWithoutGroup(): Flow<List<ExpenseWithBeneficiaries>>
+
+    fun getAllExpensesFromGroup(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>>
 }

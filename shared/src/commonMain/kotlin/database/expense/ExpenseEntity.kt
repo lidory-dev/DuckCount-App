@@ -14,4 +14,5 @@ data class ExpenseEntity(
     val creditorUuid: String,
     val isRefund: Boolean,
     val currency: Currency,
+    val groupUuid: String? = null,
 )

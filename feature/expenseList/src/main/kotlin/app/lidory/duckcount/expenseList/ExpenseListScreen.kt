@@ -18,8 +18,8 @@ import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.component.ExpenseCard
 import app.lidory.duckcount.expenseList.component.StickyHeaderElevated
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseListViewModel
+import app.lidory.duckcount.expenseList.viewmodel.expenseListViewModel
 import kotlinx.datetime.LocalDateTime
-import org.koin.androidx.compose.koinViewModel
 import kotlin.uuid.ExperimentalUuidApi
 
 // TODO: Add pull-to-refresh.
@@ -28,8 +28,8 @@ import kotlin.uuid.ExperimentalUuidApi
 fun ExpenseListScreen(
     modifier: Modifier = Modifier,
     onExpenseClicked: (String) -> Unit,
+    viewModel: ExpenseListViewModel = expenseListViewModel(),
 ) {
-    val viewModel = koinViewModel<ExpenseListViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     // The groupBy convert the timestamp on LocalDate object during grouping.
