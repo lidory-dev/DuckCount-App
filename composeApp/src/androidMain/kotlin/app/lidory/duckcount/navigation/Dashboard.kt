@@ -1,11 +1,10 @@
 package app.lidory.duckcount.navigation
 
 import ContactListScreen
-import ExpenseListScreen
+import app.lidory.duckcount.expenseList.ExpenseListScreen
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -28,7 +27,7 @@ import app.lidory.duckcount.navigation.key.ExpenseListScreenKey
 import app.lidory.duckcount.navigation.key.GroupListScreenKey
 import app.lidory.duckcount.navigation.key.NavigableTabNavKey
 import component.AddContactFloatingActionButton
-import component.AddExpenseFloatingActionButton
+import app.lidory.duckcount.expenseList.component.AddExpenseFloatingActionButton
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable

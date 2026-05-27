@@ -17,7 +17,7 @@ kotlin {
 }
 
 android {
-    namespace = "app.lidory.expenselist"
+    namespace = "app.lidory.duckcount.expenseList"
     compileSdk {
         version = release(36)
     }
@@ -64,7 +64,4 @@ dependencies {
 
     // UI module
     implementation(project(":android-ui"))
-
-    // Db
-    implementation(project(":shared"))
 }

@@ -1,8 +1,8 @@
 package app.lidory.duckcount.navigation
 
 import ContactDetailScreen
-import CreateExpenseScreen
-import ExpenseDetailScreen
+import app.lidory.duckcount.expenseList.CreateExpenseScreen
+import app.lidory.duckcount.expenseList.ExpenseDetailScreen
 import NewContactScreen
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
