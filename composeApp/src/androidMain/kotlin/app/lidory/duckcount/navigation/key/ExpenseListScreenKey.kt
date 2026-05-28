@@ -5,6 +5,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import app.lidory.duckcount.R
 import kotlinx.serialization.Serializable
+import app.lidory.duckcount.android.ui.R as androidUiR
 
 @Serializable
 data object ExpenseListScreenKey : NavigableTabNavKey() {
@@ -12,5 +13,5 @@ data object ExpenseListScreenKey : NavigableTabNavKey() {
     override fun title() = stringResource(R.string.expenses)
 
     @Composable
-    override fun icon() = painterResource(R.drawable.ic_receipt_long)
+    override fun icon() = painterResource(androidUiR.drawable.ic_receipt_long)
 }
