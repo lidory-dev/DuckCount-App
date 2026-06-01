@@ -6,6 +6,7 @@ import app.lidory.duckcount.expenseList.callBacks.CreateExpenseCallBacks
 import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.Expense
+import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.User
 import database.beneficiary.BeneficiaryRepository
 import database.expense.ExpenseRepository
@@ -17,6 +18,7 @@ import app.lidory.duckcount.validateExpense as validateExpenseShared
 import database.beneficiary.Beneficiary as BeneficiaryDB
 import database.currency.Currency as CurrencyDB
 import database.expense.Expense as ExpenseDB
+import database.expense.ExpenseWithBeneficiaries as ExpenseWithBeneficiariesDB
 
 class CreateExpenseCallBacksImpl(
     private val expenseRepository: ExpenseRepository,
@@ -65,6 +67,34 @@ class CreateExpenseCallBacksImpl(
                 expenseUuid = beneficiary.expenseUuid,
                 userUuid = beneficiary.userUuid,
                 share = beneficiary.share,
+            ),
+        )
+    }
+
+    override suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries) {
+        expenseRepository.insertWithBeneficiaries(
+            expenseWithBeneficiaries = ExpenseWithBeneficiariesDB(
+                uuid = expenseWithBeneficiaries.uuid,
+                title = expenseWithBeneficiaries.title,
+                timestamp = expenseWithBeneficiaries.timestamp,
+                description = expenseWithBeneficiaries.description,
+                amount = expenseWithBeneficiaries.amount,
+                creditorUuid = expenseWithBeneficiaries.creditorUuid,
+                isRefund = expenseWithBeneficiaries.isRefund,
+                currency = CurrencyDB(
+                    uuid = expenseWithBeneficiaries.currency.uuid,
+                    name = expenseWithBeneficiaries.currency.name,
+                    symbol = expenseWithBeneficiaries.currency.symbol,
+                    hasSubunits = expenseWithBeneficiaries.currency.hasSubunits,
+                ),
+                beneficiaries = expenseWithBeneficiaries.beneficiaries.map { beneficiary ->
+                    BeneficiaryDB(
+                        expenseUuid = beneficiary.expenseUuid,
+                        userUuid = beneficiary.userUuid,
+                        share = beneficiary.share,
+                    )
+                },
+                groupUuid = expenseWithBeneficiaries.groupUuid,
             ),
         )
     }

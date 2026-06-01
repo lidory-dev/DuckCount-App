@@ -36,6 +36,7 @@ class ExpenseDetailCallBacksImpl(
                         share = beneficiary.share,
                     )
                 },
+                groupUuid = expenseWithBeneficiaries.groupUuid,
             )
         }
     }

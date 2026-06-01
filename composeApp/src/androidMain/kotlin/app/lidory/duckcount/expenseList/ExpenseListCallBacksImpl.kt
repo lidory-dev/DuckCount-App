@@ -49,6 +49,7 @@ class ExpenseListCallBacksImpl(
                             share = it.share,
                         )
                     },
+                    groupUuid = expenseWithBeneficiaries.groupUuid,
                 )
             }
         }
@@ -78,6 +79,7 @@ class ExpenseListCallBacksImpl(
                         share = it.share,
                     )
                 },
+                groupUuid = expenseWithBeneficiaries.groupUuid,
             )
         }
     }
@@ -189,6 +191,7 @@ class ExpenseListCallBacksImpl(
                             share = it.share,
                         )
                     },
+                    groupUuid = expenseWithBeneficiaries.groupUuid,
                 )
             }
         }
@@ -219,6 +222,7 @@ class ExpenseListCallBacksImpl(
                             share = it.share,
                         )
                     },
+                    groupUuid = expenseWithBeneficiaries.groupUuid,
                 )
             }
         }

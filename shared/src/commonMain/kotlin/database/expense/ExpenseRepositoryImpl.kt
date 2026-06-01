@@ -1,5 +1,7 @@
 package database.expense
 
+import database.beneficiary.Beneficiary
+import database.beneficiary.toBeneficiaryEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -10,6 +12,14 @@ class ExpenseRepositoryImpl(
 
     override suspend fun insert(expense: Expense) {
         expenseDao.insert(expenseEntity = expense.toExpenseEntity())
+    }
+
+    override suspend fun insertBeneficiaries(beneficiaries: List<Beneficiary>) {
+        expenseDao.insertBeneficiaries(beneficiaries = beneficiaries.map { it.toBeneficiaryEntity() })
+    }
+
+    override suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries) {
+        expenseDao.insertWithBeneficiaries(expenseWithBeneficiaries = expenseWithBeneficiaries.toExpenseWithBeneficiariesEntity())
     }
 
     override suspend fun update(expense: Expense) {

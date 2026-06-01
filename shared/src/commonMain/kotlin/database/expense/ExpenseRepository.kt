@@ -1,10 +1,15 @@
 package database.expense
 
+import database.beneficiary.Beneficiary
 import kotlinx.coroutines.flow.Flow
 
 interface ExpenseRepository {
 
     suspend fun insert(expense: Expense)
+
+    suspend fun insertBeneficiaries(beneficiaries: List<Beneficiary>)
+
+    suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries)
 
     suspend fun update(expense: Expense)
 

@@ -13,6 +13,16 @@ interface ExpenseDao {
     @Insert
     suspend fun insert(expenseEntity: ExpenseEntity)
 
+    @Insert
+    suspend fun insertBeneficiaries(beneficiaries: List<BeneficiaryEntity>)
+
+    @Insert
+    @Transaction
+    suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiariesEntity) {
+        insert(expenseEntity = expenseWithBeneficiaries.expense)
+        insertBeneficiaries(beneficiaries = expenseWithBeneficiaries.beneficiaries)
+    }
+
     @Update
     suspend fun update(expenseEntity: ExpenseEntity)
 
@@ -25,9 +35,11 @@ interface ExpenseDao {
     @Query("SELECT * FROM ExpenseEntity")
     fun getAllAsFlow(): Flow<List<ExpenseEntity>>
 
-    @Query("SELECT * FROM ExpenseEntity WHERE groupUuid IS :groupUuid")
-    fun getAllFromGroupAsFlow(groupUuid: String?): Flow<List<ExpenseWithBeneficiariesEntity>>
+    @Transaction
+    @Query("SELECT * FROM ExpenseEntity WHERE groupUuid = :groupUuid")
+    fun getAllFromGroupAsFlow(groupUuid: String): Flow<List<ExpenseWithBeneficiariesEntity>>
 
+    @Transaction
     @Query("SELECT * FROM ExpenseEntity WHERE groupUuid IS NULL")
     fun getAllWithoutGroupAsFlow(): Flow<List<ExpenseWithBeneficiariesEntity>>
 

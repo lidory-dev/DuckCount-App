@@ -9,7 +9,7 @@ import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.expenseList.callBacks.CreateExpenseCallBacks
 import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.Currency
-import app.lidory.duckcount.expenseList.model.Expense
+import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.User
 import app.lidory.duckcount.expenseList.utils.formatAmountWithSubunits
 import app.lidory.duckcount.expenseList.utils.getCurrentTimestamp
@@ -162,10 +162,11 @@ class CreateExpenseViewModel(
 
     @OptIn(ExperimentalUuidApi::class)
     fun createExpense() = viewModelScope.launch {
-        createExpenseCallBacks.insert(
-            expense = Expense(
+        val expenseUuid = Uuid.random().toString()
+        createExpenseCallBacks.insertWithBeneficiaries(
+            expenseWithBeneficiaries = ExpenseWithBeneficiaries(
                 // TODO: get uuid from server
-                uuid = Uuid.random().toString(),
+                uuid = expenseUuid,
                 timestamp = getCurrentTimestamp(),
                 title = _state.value.title,
                 description = _state.value.description,
@@ -173,9 +174,12 @@ class CreateExpenseViewModel(
                 creditorUuid = _state.value.creditorUuid,
                 isRefund = _state.value.isRefund,
                 currency = _state.value.currency,
+                groupUuid = groupUuid,
+                beneficiaries = _state.value.beneficiaries.map {
+                    it.copy(expenseUuid = expenseUuid)
+                },
             ),
         )
-        _state.value.beneficiaries.map { createExpenseCallBacks.insertBeneficiary(beneficiary = it) }
     }
 
     fun getCreditorName() {
