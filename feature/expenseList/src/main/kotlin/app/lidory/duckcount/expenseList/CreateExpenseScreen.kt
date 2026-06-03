@@ -208,11 +208,7 @@ fun CreateExpenseScreen(
                         viewModel.showBeneficiariesDialog()
                         focusManager.clearFocus()
                     },
-                    expenseError =
-                        if (expenseState.beneficiaries.any { it.share.isBlank() })
-                            R.string.non_positive_amount_share
-                        else
-                            expenseState.error,
+                    expenseError = expenseState.error,
                     focusManager = focusManager,
                 )
 

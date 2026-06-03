@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.state.ToggleableState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.lidory.duckcount.expenseList.R
 import app.lidory.duckcount.expenseList.callBacks.CreateExpenseCallBacks
 import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.BeneficiaryUi
@@ -335,7 +336,9 @@ data class CreateExpenseState(
     val beneficiaries: List<Beneficiary> = emptyList(),
     private val validateExpenseCallBack: (String, Currency, List<Beneficiary>) -> Int?,
 ) {
-    val error: Int? = validateExpenseCallBack(amount, currency, beneficiaries)
+    val error: Int? =
+        if (beneficiaries.any { it.share.isBlank() }) R.string.non_positive_amount_share
+        else validateExpenseCallBack(amount, currency, beneficiaries)
 }
 
 data class UserListState(
