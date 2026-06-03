@@ -71,7 +71,8 @@ fun ExpenseListScreen(
                         .padding(horizontal = Padding.medium, vertical = Padding.small),
                     title = expense.title,
                     // TODO: get fullName from userRepository
-                    creditorName = expense.creditorUuid,
+                    creditorName = viewModel.getUserFullName(expense.creditorUuid)
+                        .collectAsStateWithLifecycle("").value,
                     amount = expense.amount,
                 )
             }

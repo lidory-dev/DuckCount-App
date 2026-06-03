@@ -8,10 +8,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.res.stringResource
 import app.lidory.duckcount.expenseList.component.ExpenseErrorCard
-import app.lidory.duckcount.expenseList.model.Beneficiary
+import app.lidory.duckcount.expenseList.model.BeneficiaryUi
 
 fun LazyListScope.beneficiaryList(
-    beneficiaries: List<Beneficiary>,
+    beneficiaries: List<BeneficiaryUi>,
     onBeneficiaryAmountChange: (String, String) -> Unit,
     onModifyBeneficiaryList: () -> Unit,
     @StringRes expenseError: Int?,

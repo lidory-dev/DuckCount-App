@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.expenseList.callBacks.ExpenseListCallBacks
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flatMapLatest
@@ -40,6 +41,10 @@ class ExpenseListViewModel(
         started = SharingStarted.WhileSubscribed(5000L),
         initialValue = _state.value,
     )
+
+    fun getUserFullName(userUuid: String): Flow<String> {
+        return expenseListCallBacks.getUserFullName(userUuid)
+    }
 }
 
 data class ExpenseListScreenState(

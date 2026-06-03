@@ -22,4 +22,6 @@ interface CreateExpenseCallBacks {
     suspend fun insertBeneficiary(beneficiary: Beneficiary)
 
     suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries)
+
+    fun getUserFullName(userUuid: String): Flow<String>
 }

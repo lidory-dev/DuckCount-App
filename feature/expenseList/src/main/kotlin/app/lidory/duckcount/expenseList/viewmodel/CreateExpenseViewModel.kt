@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.expenseList.callBacks.CreateExpenseCallBacks
 import app.lidory.duckcount.expenseList.model.Beneficiary
+import app.lidory.duckcount.expenseList.model.BeneficiaryUi
 import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.User
@@ -16,11 +17,14 @@ import app.lidory.duckcount.expenseList.utils.getCurrentTimestamp
 import app.lidory.duckcount.expenseList.utils.roundAmountWithSubunits
 import app.lidory.duckcount.expenseList.utils.roundAmountWithoutSubunits
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -141,6 +145,42 @@ class CreateExpenseViewModel(
         initialValue = ToggleableState.Off,
     )
 
+    private val beneficiaryNames: Flow<Map<String, String>> =
+        _state
+            .map { state -> state.beneficiaries.map { it.userUuid } }
+            .distinctUntilChanged()
+            .flatMapLatest { userUuids ->
+                if (userUuids.isEmpty()) {
+                    flowOf(emptyMap())
+                } else {
+                    combine(
+                        userUuids.map { uuid ->
+                            createExpenseCallBacks.getUserFullName(uuid)
+                                .map { name -> uuid to name }
+                        },
+                    ) { pairs -> pairs.toMap() }
+                }
+            }
+
+    val displayedBeneficiaries: StateFlow<List<BeneficiaryUi>> =
+        combine(
+            _state.map { it.beneficiaries }.distinctUntilChanged(),
+            beneficiaryNames,
+        ) { beneficiaries, names ->
+            beneficiaries.map { beneficiary ->
+                BeneficiaryUi(
+                    uuid = beneficiary.uuid,
+                    userUuid = beneficiary.userUuid,
+                    share = beneficiary.share,
+                    fullName = names[beneficiary.userUuid] ?: "",
+                )
+            }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000L),
+            initialValue = emptyList(),
+        )
+
     fun toggleSelectedUser(user: User) {
         _selectedUuids.update { selected ->
             if (user.uuid in selected) selected - user.uuid else selected + user.uuid
@@ -188,13 +228,15 @@ class CreateExpenseViewModel(
     }
 
     fun getCreditorName() {
-//         TODO: Use creditorUuid, supposed to be the current connected user
-//         For now we don't have correct creditorUuid so we use a placeholder
-//        userRepository.getFullName(creditorUuid).onEach {
-//            updateCreditorFullName(it)
-//        }
-//            .launchIn(viewModelScope)
-        updateCreditor("Test User")
+        viewModelScope.launch {
+            // TODO: Remove run catching when default user is the current connected user
+            runCatching {
+                createExpenseCallBacks.getUserFullName(_state.value.creditorUuid)
+                    .collect { fullName ->
+                        updateCreditorFullName(fullName)
+                    }
+            }
+        }
     }
 
     fun updateTitle(title: String) {

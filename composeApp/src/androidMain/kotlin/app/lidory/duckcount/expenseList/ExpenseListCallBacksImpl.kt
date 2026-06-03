@@ -240,4 +240,8 @@ class ExpenseListCallBacksImpl(
             }
         }
     }
+
+    override fun getUserFullName(userUuid: String): Flow<String> {
+        return userRepository.getFullName(userUuid)
+    }
 }

@@ -14,12 +14,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
-import app.lidory.duckcount.expenseList.model.Beneficiary
+import app.lidory.duckcount.expenseList.model.BeneficiaryUi
 
 @Composable
 fun BeneficiaryRow(
     onBeneficiaryAmountChange: (String, String) -> Unit,
-    beneficiary: Beneficiary,
+    beneficiary: BeneficiaryUi,
     focusManager: FocusManager,
 ) {
     Row(
@@ -32,7 +32,7 @@ fun BeneficiaryRow(
         Text(
             overflow = TextOverflow.Ellipsis,
             maxLines = 1,
-            text = beneficiary.userUuid,
+            text = beneficiary.fullName,
             modifier = Modifier
                 .weight(4f)
                 .padding(Padding.medium),

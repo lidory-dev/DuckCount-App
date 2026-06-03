@@ -55,11 +55,15 @@ fun CreateExpenseScreen(
     val userState by viewModel.usersState.collectAsStateWithLifecycle()
     val selectedUuids by viewModel.selectedUuids.collectAsStateWithLifecycle()
     val selectionToggleState by viewModel.selectionToggleState.collectAsStateWithLifecycle()
+    val beneficiaries by viewModel.displayedBeneficiaries.collectAsStateWithLifecycle()
 
     CreditorDialog(
         isDialogShown = viewModel.isCreditorDialogShown,
         onDismissRequest = { viewModel.hideCreditorDialog() },
-        onSelectedCreditor = { viewModel.updateCreditor(creditorUuid = it) },
+        onSelectedCreditor = {
+            viewModel.updateCreditor(creditorUuid = it)
+            viewModel.getCreditorName()
+        },
         focusManager = focusManager,
         usersList = userState.users,
         searchQuery = viewModel.searchQuery,
@@ -155,8 +159,7 @@ fun CreateExpenseScreen(
                             viewModel.showCreditorDialog()
                             focusManager.clearFocus()
                         },
-                        // TODO: Use fullName
-                        creditorName = expenseState.creditorUuid,
+                        creditorName = expenseState.creditorFullName,
                         label = stringResource(R.string.label_paid_by),
                     )
                 }
@@ -195,7 +198,7 @@ fun CreateExpenseScreen(
                 }
 
                 beneficiaryList(
-                    beneficiaries = expenseState.beneficiaries,
+                    beneficiaries = beneficiaries,
                     onBeneficiaryAmountChange = { userId, share ->
                         viewModel.updateBeneficiaryShare(
                             userUuid = userId, share = share,
