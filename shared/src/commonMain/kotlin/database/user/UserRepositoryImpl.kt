@@ -41,4 +41,10 @@ class UserRepositoryImpl(
     override fun getFullName(uuid: String): Flow<String> {
         return userDao.getUserFullNameAsFlow(uuid = uuid)
     }
+
+    override fun getAllFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> {
+        return userDao.getAllFromGroupFiltered(filter, groupUuid).map { userEntities ->
+            userEntities.map { it.toUser() }
+        }
+    }
 }

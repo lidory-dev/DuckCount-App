@@ -15,6 +15,8 @@ interface CreateExpenseCallBacks {
 
     fun getAllUsersFiltered(filter: String): Flow<List<User>>
 
+    fun getAllUsersFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>>
+
     suspend fun insert(expense: Expense)
 
     suspend fun insertBeneficiary(beneficiary: Beneficiary)

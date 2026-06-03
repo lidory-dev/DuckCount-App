@@ -54,6 +54,19 @@ class GroupListCallBacksImpl(
             }
     }
 
+    override suspend fun getUsersFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> {
+        return userRepository.getAllFromGroupFiltered(filter, groupUuid)
+            .map { users ->
+                users.map {
+                    User(
+                        uuid = it.uuid,
+                        username = it.username,
+                        fullName = it.fullName,
+                    )
+                }
+            }
+    }
+
     override suspend fun getUserFullName(uuid: String): Flow<String> {
         return userRepository.getFullName(uuid)
     }
@@ -64,7 +77,7 @@ class GroupListCallBacksImpl(
             description = description,
         )
         groupRepository.insertWithMembers(
-            groupWithMembers = GroupWithMembers(
+            groupWithMembers = DBGroupWithMember(
                 uuid = newGroup.uuid,
                 title = newGroup.title,
                 description = newGroup.description,

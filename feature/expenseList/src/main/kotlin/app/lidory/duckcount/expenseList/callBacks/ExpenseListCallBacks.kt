@@ -17,6 +17,8 @@ interface ExpenseListCallBacks {
 
     suspend fun getAllUsersFiltered(filter: String): Flow<List<User>>
 
+    suspend fun getAllUsersFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>>
+
     suspend fun insertBeneficiary(beneficiary: Beneficiary)
 
     fun validateExpense(amount: String, currency: Currency, beneficiaries: List<Beneficiary>): Int?

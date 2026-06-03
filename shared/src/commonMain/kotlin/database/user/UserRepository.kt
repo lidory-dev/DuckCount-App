@@ -17,4 +17,6 @@ interface UserRepository {
     fun get(uuid: String): Flow<User>
 
     fun getFullName(uuid: String): Flow<String>
+
+    fun getAllFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>>
 }

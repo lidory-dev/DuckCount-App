@@ -31,4 +31,13 @@ interface UserDao {
 
     @Query("SELECT fullName FROM UserEntity WHERE uuid = :uuid")
     fun getUserFullNameAsFlow(uuid: String): Flow<String>
+
+    @Query(
+        """SELECT UserEntity.* 
+        FROM UserEntity 
+        INNER JOIN GroupMemberEntity ON UserEntity.uuid = GroupMemberEntity.userUuid 
+        WHERE UserEntity.fullName LIKE '%' ||:filter|| '%' 
+        AND GroupMemberEntity.groupUuid = :groupUuid""",
+    )
+    fun getAllFromGroupFiltered(filter: String, groupUuid: String): Flow<List<UserEntity>>
 }

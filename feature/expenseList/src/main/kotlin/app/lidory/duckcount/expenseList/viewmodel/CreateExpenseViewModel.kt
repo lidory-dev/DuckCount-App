@@ -31,6 +31,7 @@ import kotlin.uuid.Uuid
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CreateExpenseViewModel(
+    private val groupUuid: String? = null,
     private val createExpenseCallBacks: CreateExpenseCallBacks,
 ) : ViewModel() {
 
@@ -111,7 +112,11 @@ class CreateExpenseViewModel(
 
     val usersState: StateFlow<UserListState> = _searchQuery
         .flatMapLatest { query ->
-            createExpenseCallBacks.getAllUsersFiltered(filter = query)
+            if (groupUuid != null) {
+                createExpenseCallBacks.getAllUsersFromGroupFiltered(filter = query, groupUuid = groupUuid)
+            } else {
+                createExpenseCallBacks.getAllUsersFiltered(filter = query)
+            }
         }
         .map { users ->
             UserListState(users)

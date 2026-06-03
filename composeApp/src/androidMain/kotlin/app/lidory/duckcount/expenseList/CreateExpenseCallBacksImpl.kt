@@ -60,6 +60,18 @@ class CreateExpenseCallBacksImpl(
         }
     }
 
+    override fun getAllUsersFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> {
+        return userRepository.getAllFromGroupFiltered(filter = filter, groupUuid = groupUuid).map { users ->
+            users.map { user ->
+                User(
+                    uuid = user.uuid,
+                    username = user.username,
+                    fullName = user.fullName,
+                )
+            }
+        }
+    }
+
     override suspend fun insertBeneficiary(beneficiary: Beneficiary) {
         beneficiaryRepository.insert(
             BeneficiaryDB(
