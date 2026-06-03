@@ -1,5 +1,8 @@
 package database.groupMember
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
 class GroupMemberRepositoryImpl(
     private val groupMemberDao: GroupMemberDao,
 ) : GroupMemberRepository {
@@ -13,6 +16,12 @@ class GroupMemberRepositoryImpl(
 
     override suspend fun delete(groupMemberEntity: GroupMemberEntity) {
         groupMemberDao.delete(groupMemberEntity)
+    }
+
+    override fun getMembersFromGroup(groupUuid: String): Flow<List<GroupMember>> {
+        return groupMemberDao.getMembersFromGroup(groupUuid).map { groupMemberEntities ->
+            groupMemberEntities.map { it.toGroupMember() }
+        }
     }
 
 }

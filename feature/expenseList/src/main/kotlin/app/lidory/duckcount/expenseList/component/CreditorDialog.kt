@@ -128,7 +128,7 @@ fun CreditorDialog(
                                     )
                                     .padding(vertical = Padding.medium),
                                 onClick = {
-                                    onSelectedCreditor(user.fullName)
+                                    onSelectedCreditor(user.uuid)
                                     onDismissRequest()
                                 },
                             ) {

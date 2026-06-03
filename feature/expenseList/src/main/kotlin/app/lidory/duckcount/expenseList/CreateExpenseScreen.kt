@@ -155,6 +155,7 @@ fun CreateExpenseScreen(
                             viewModel.showCreditorDialog()
                             focusManager.clearFocus()
                         },
+                        // TODO: Use fullName
                         creditorName = expenseState.creditorUuid,
                         label = stringResource(R.string.label_paid_by),
                     )

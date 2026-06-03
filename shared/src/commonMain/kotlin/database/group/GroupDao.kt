@@ -37,4 +37,7 @@ interface GroupDao {
 
     @Query("SELECT * FROM GroupEntity WHERE uuid = :uuid")
     fun getAsFlow(uuid: String): Flow<GroupEntity>
+
+    @Query("SELECT * FROM GroupEntity WHERE uuid = :uuid")
+    fun getWithMembers(uuid: String): Flow<GroupWithMembersEntity>
 }

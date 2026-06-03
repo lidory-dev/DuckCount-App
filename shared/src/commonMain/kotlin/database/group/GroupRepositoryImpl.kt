@@ -39,4 +39,10 @@ class GroupRepositoryImpl(
             groupEntity.toGroup()
         }
     }
+
+    override suspend fun getWithMembers(uuid: String): Flow<GroupWithMembers> {
+        return groupDao.getWithMembers(uuid).map { groupWithMembersEntity ->
+            groupWithMembersEntity.toGroupWithMembers()
+        }
+    }
 }

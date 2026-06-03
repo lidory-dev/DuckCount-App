@@ -18,4 +18,6 @@ interface GroupRepository {
     suspend fun getAll(): Flow<List<Group>>
 
     suspend fun get(uuid: String): Flow<Group>
+
+    suspend fun getWithMembers(uuid: String): Flow<GroupWithMembers>
 }

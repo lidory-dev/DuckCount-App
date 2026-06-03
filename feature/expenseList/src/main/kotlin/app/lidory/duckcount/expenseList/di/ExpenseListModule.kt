@@ -15,5 +15,10 @@ val expenseListModule = module {
         )
     }
     viewModelOf(::ExpenseDetailViewModel)
-    viewModelOf(::CreateExpenseViewModel)
+    viewModel { params ->
+        CreateExpenseViewModel(
+            groupUuid = params[0],
+            createExpenseCallBacks = get(),
+        )
+    }
 }

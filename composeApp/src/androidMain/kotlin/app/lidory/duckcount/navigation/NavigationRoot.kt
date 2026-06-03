@@ -19,6 +19,7 @@ import app.lidory.duckcount.expenseList.ExpenseDetailScreen
 import app.lidory.duckcount.expenseList.ExpenseListScreen
 import app.lidory.duckcount.expenseList.viewmodel.expenseListViewModel
 import app.lidory.duckcount.groupList.CreateGroupScreen
+import app.lidory.duckcount.groupList.GroupBalanceScreen
 import app.lidory.duckcount.groupList.GroupDetailScreen
 import app.lidory.duckcount.navigation.key.ContactDetailScreenKey
 import app.lidory.duckcount.navigation.key.CreateExpenseScreenKey
@@ -63,7 +64,7 @@ fun NavigationRoot(
                             },
                             navigateToCreateExpenseScreen = {
                                 backStack.add(
-                                    CreateExpenseScreenKey(),
+                                    CreateExpenseScreenKey(groupUuid = null),
                                 )
                             },
                             navigateToContactDetailScreen = { userUuid ->
@@ -114,7 +115,7 @@ fun NavigationRoot(
                     ) {
                         CreateExpenseScreen(
                             viewModel = koinViewModel {
-                                parametersOf()
+                                parametersOf(key.groupUuid)
                             },
                             onBack = dropUnlessResumed { backStack.removeIf { it is CreateExpenseScreenKey } },
                         )
@@ -163,10 +164,22 @@ fun NavigationRoot(
                                 parametersOf(key.groupUuid)
                             },
                             onBack = dropUnlessResumed { backStack.removeIf { it is GroupDetailScreenKey } },
+                            navigateToCreateExpenseGroup = {
+                                backStack.add(CreateExpenseScreenKey(groupUuid = key.groupUuid))
+                            },
                             expenseListContent = {
                                 ExpenseListScreen(
-                                    onExpenseClicked = {},
+                                    onExpenseClicked = { expenseUuid ->
+                                        backStack.add(ExpenseDetailScreenKey(expenseUuid = expenseUuid))
+                                    },
                                     viewModel = expenseListViewModel(key.groupUuid),
+                                )
+                            },
+                            balanceContent = {
+                                GroupBalanceScreen(
+                                    viewModel = koinViewModel {
+                                        parametersOf(key.groupUuid)
+                                    },
                                 )
                             },
                         )

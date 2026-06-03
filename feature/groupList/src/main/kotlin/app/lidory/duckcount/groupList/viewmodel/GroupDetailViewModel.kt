@@ -2,8 +2,8 @@ package app.lidory.duckcount.groupList.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import app.lidory.duckcount.groupList.GroupListCallBacks
-import app.lidory.duckcount.groupList.model.Group
+import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
+import app.lidory.duckcount.groupList.model.GroupWithMembers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,9 +21,9 @@ class GroupDetailViewModel(
     private val _state = MutableStateFlow(GroupState())
 
     val state: StateFlow<GroupState> = _state.onStart {
-        groupListCallBacks.getGroup(uuid = groupUuid).onEach { group ->
+        groupListCallBacks.getGroupWithMembers(uuid = groupUuid).onEach { groupWithMembers ->
             _state.update {
-                it.copy(group = group)
+                it.copy(groupWithMembers = groupWithMembers)
             }
         }.launchIn(viewModelScope)
     }.stateIn(
@@ -35,5 +35,5 @@ class GroupDetailViewModel(
 }
 
 data class GroupState(
-    val group: Group? = null,
+    val groupWithMembers: GroupWithMembers? = null,
 )

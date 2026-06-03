@@ -5,3 +5,10 @@ data class Group(
     val description: String,
     val title: String,
 )
+
+data class GroupWithMembers(
+    val uuid: String,
+    val description: String,
+    val title: String,
+    val members: List<GroupMember>,
+)

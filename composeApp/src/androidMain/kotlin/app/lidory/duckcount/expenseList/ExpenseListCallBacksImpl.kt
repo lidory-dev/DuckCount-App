@@ -100,6 +100,7 @@ class ExpenseListCallBacksImpl(
                     name = expense.currency.name,
                     hasSubunits = expense.currency.hasSubunits,
                 ),
+                groupUuid = expense.groupUuid,
             ),
         )
     }

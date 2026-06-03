@@ -6,10 +6,10 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.Modifier
 import app.lidory.duckcount.groupList.model.GroupMember
-import app.lidory.duckcount.groupList.viewmodel.MemberWithFullName
+import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 
 fun LazyListScope.groupMemberList(
-    members: List<MemberWithFullName>,
+    members: List<GroupMemberWithFullName>,
     onModifyMemberList: () -> Unit,
     removeMember: (GroupMember) -> Unit,
 ) {

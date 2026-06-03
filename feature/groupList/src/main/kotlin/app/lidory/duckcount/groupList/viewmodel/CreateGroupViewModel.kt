@@ -6,8 +6,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.state.ToggleableState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import app.lidory.duckcount.groupList.GroupListCallBacks
+import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
 import app.lidory.duckcount.groupList.model.GroupMember
+import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import app.lidory.duckcount.groupList.model.User
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -108,7 +109,7 @@ class CreateGroupViewModel(
                 it.copy(
                     members = members.map { member ->
                         val fullName = groupListCallBacks.getUserFullName(member.userUuid)
-                        MemberWithFullName(member, fullName = fullName.first())
+                        GroupMemberWithFullName(member, fullName = fullName.first())
                     },
                 )
             }
@@ -149,12 +150,7 @@ class CreateGroupViewModel(
 data class CreateGroupState(
     val title: String = "",
     val description: String = "",
-    val members: List<MemberWithFullName> = emptyList(),
-)
-
-data class MemberWithFullName(
-    val member: GroupMember,
-    val fullName: String,
+    val members: List<GroupMemberWithFullName> = emptyList(),
 )
 
 data class UserListState(
