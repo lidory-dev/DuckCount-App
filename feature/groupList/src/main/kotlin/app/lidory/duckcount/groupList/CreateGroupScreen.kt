@@ -140,9 +140,9 @@ fun CreateGroupScreen(
                         error = stringResource(
                             R.string.description_cant_exceed_max,
                             state.description.length,
-                            CreateGroupViewModel.MAX_DESCRIPTION_LINE,
+                            CreateGroupViewModel.MAX_DESCRIPTION_LENGTH,
                         ),
-                        isInError = state.description.length > CreateGroupViewModel.MAX_DESCRIPTION_LINE,
+                        isInError = state.description.length > CreateGroupViewModel.MAX_DESCRIPTION_LENGTH,
                         focusManager = focusManager,
                         modifier = Modifier.fillMaxWidth(),
                     )

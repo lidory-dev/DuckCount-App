@@ -34,6 +34,8 @@ class CreateExpenseViewModel(
     private val createExpenseCallBacks: CreateExpenseCallBacks,
 ) : ViewModel() {
 
+    val maxDescriptionLength: Int = createExpenseCallBacks.maxDescriptionLength
+
     var isCreditorDialogShown by mutableStateOf(false)
 
     var isBeneficiariesDialogShown by mutableStateOf(false)
@@ -266,9 +268,6 @@ class CreateExpenseViewModel(
         }
     }
 
-    companion object {
-        const val MAX_DESCRIPTION_LINE = 2000
-    }
 }
 
 data class CreateExpenseState(

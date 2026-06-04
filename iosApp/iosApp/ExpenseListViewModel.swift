@@ -19,38 +19,51 @@ class ExpenseListViewModel: ObservableObject {
     static let currentUserUuid = "00000000-0000-0000-0000-000000000001"
 
     private var cancellable: Cancellable?
+
     private let expenseRepository: Shared.ExpenseRepository
     private let beneficiaryRepository: Shared.BeneficiaryRepository
+    private let userRepository: Shared.UserRepository
 
     private static let timestampFormatter: DateFormatter = {
         let formatter = DateFormatter()
+
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
         formatter.locale = Locale(identifier: "en_US_POSIX")
+
         return formatter
     }()
 
     private static let displayFormatterCurrentYear: DateFormatter = {
         let formatter = DateFormatter()
+
         formatter.dateFormat = "EEEE dd MMMM"
+
         return formatter
     }()
 
     private static let displayFormatterWithYear: DateFormatter = {
         let formatter = DateFormatter()
+
         formatter.dateFormat = "EEEE dd MMMM yyyy"
+
         return formatter
     }()
 
     private static let groupKeyFormatter: DateFormatter = {
         let formatter = DateFormatter()
+
         formatter.dateFormat = "yyyy-MM-dd"
+
         return formatter
     }()
 
     init() {
         let helper = KoinHelper()
+
         self.expenseRepository = helper.getExpenseRepository()
         self.beneficiaryRepository = helper.getBeneficiaryRepository()
+        self.userRepository = helper.getUserRepository()
+
         observeExpenses()
     }
 
@@ -124,7 +137,12 @@ class ExpenseListViewModel: ObservableObject {
             } else {
                 displayDate = key
             }
-            return ExpenseGroup(id: key, displayDate: displayDate, expenses: expenses)
+
+            let sortedExpenses = expenses.sorted {
+                $0.timestamp > $1.timestamp
+            }
+
+            return ExpenseGroup(id: key, displayDate: displayDate, expenses: sortedExpenses)
         }
     }
 
@@ -135,6 +153,20 @@ class ExpenseListViewModel: ObservableObject {
             "00000000-0000-0000-0000-000000000003",
             "00000000-0000-0000-0000-000000000004",
         ]
+
+        let demoUsers: [(uuid: String, username: String, fullName: String)] = [
+            (Self.currentUserUuid, "test", "Test User"),
+            (otherUserUuids[0], "alice", "Alice Martin"),
+            (otherUserUuids[1], "bob", "Bob Johnson"),
+            (otherUserUuids[2], "charlie", "Charlie Davis"),
+        ]
+
+        for user in demoUsers {
+            userRepository.insert(
+                user: Shared.User(uuid: user.uuid, username: user.username, fullName: user.fullName)
+            ) { _ in
+            }
+        }
 
         let titles = ["Groceries", "Coffee", "Lunch", "Dinner", "Gas", "Movie tickets", "Books", "Taxi", "Hotel", "Flight"]
         let descriptions = ["Weekly shopping", "Morning coffee", "Team lunch", "Birthday dinner", "Road trip", "Date night", "Study material", "Airport transfer", "Business trip", "Vacation"]

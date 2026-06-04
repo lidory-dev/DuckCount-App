@@ -4,6 +4,7 @@ public struct ExpenseListView: View {
     private let sections: [ExpenseSection]
     private let isLoading: Bool
     private let onCreateRandomExpenses: (() -> Void)?
+    private let onCreateExpense: (() -> Void)?
 
     @State private var selectedExpense: Expense?
     @State private var navigationPath = NavigationPath()
@@ -11,11 +12,13 @@ public struct ExpenseListView: View {
     public init(
         sections: [ExpenseSection] = [],
         isLoading: Bool = false,
-        onCreateRandomExpenses: (() -> Void)? = nil
+        onCreateRandomExpenses: (() -> Void)? = nil,
+        onCreateExpense: (() -> Void)? = nil
     ) {
         self.sections = sections
         self.isLoading = isLoading
-        self.onCreateRandomExpenses = onCreateRandomExpenses
+        self.onCreateRandomExpenses = onCreateRandomExpenses // TODO: Remove this.
+        self.onCreateExpense = onCreateExpense
     }
 
     private var isBigScreen: Bool {
@@ -26,6 +29,10 @@ public struct ExpenseListView: View {
         if isBigScreen {
             NavigationSplitView {
                 listContent
+                    .navigationTitle("Expenses")
+                    .toolbar {
+                        createExpenseToolbarItem
+                    }
             } detail: {
                 if let expense = selectedExpense {
                     ExpenseDetailView(expense: expense)
@@ -37,9 +44,26 @@ public struct ExpenseListView: View {
         } else {
             NavigationStack(path: $navigationPath) {
                 listContent
-                    .navigationDestination(for: Expense.self) { expense in
-                        ExpenseDetailView(expense: expense)
-                    }
+                .navigationTitle("Expenses")
+                .navigationBarTitleDisplayMode(.large)
+                .toolbar {
+                    createExpenseToolbarItem
+                }
+                .navigationDestination(for: Expense.self) { expense in
+                    ExpenseDetailView(expense: expense)
+                }
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var createExpenseToolbarItem: some ToolbarContent {
+        if let onCreateExpense {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: onCreateExpense) {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("New Expense")
             }
         }
     }

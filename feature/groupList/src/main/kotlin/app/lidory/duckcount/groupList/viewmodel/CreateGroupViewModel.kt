@@ -142,7 +142,7 @@ class CreateGroupViewModel(
     }
 
     companion object {
-        const val MAX_DESCRIPTION_LINE = 2000
+        const val MAX_DESCRIPTION_LENGTH = 2000
     }
 }
 

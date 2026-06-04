@@ -1,6 +1,7 @@
 package app.lidory.duckcount.expenseList
 
 import app.lidory.duckcount.ExpenseError
+import app.lidory.duckcount.MAX_DESCRIPTION_LENGTH
 import app.lidory.duckcount.expenseList.callBacks.CreateExpenseCallBacks
 import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.Currency
@@ -23,6 +24,7 @@ class CreateExpenseCallBacksImpl(
     private val beneficiaryRepository: BeneficiaryRepository,
 ) : CreateExpenseCallBacks {
 
+    override val maxDescriptionLength: Int = MAX_DESCRIPTION_LENGTH
 
     override suspend fun insert(expense: Expense) {
         expenseRepository.insert(
