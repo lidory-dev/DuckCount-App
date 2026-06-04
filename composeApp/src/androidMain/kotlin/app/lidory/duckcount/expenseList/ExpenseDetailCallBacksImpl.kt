@@ -12,32 +12,34 @@ class ExpenseDetailCallBacksImpl(
     private val expenseRepository: ExpenseRepository,
 ) : ExpenseDetailCallBacks {
 
-    override fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries> {
+    override fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries?> {
         return expenseRepository.getWithBeneficiaries(uuid = uuid).map { expenseWithBeneficiaries ->
-            ExpenseWithBeneficiaries(
-                uuid = expenseWithBeneficiaries.uuid,
-                timestamp = expenseWithBeneficiaries.timestamp,
-                title = expenseWithBeneficiaries.title,
-                description = expenseWithBeneficiaries.description,
-                amount = expenseWithBeneficiaries.amount,
-                creditorUuid = expenseWithBeneficiaries.creditorUuid,
-                isRefund = expenseWithBeneficiaries.isRefund,
-                currency = Currency(
-                    uuid = expenseWithBeneficiaries.currency.uuid,
-                    name = expenseWithBeneficiaries.currency.name,
-                    symbol = expenseWithBeneficiaries.currency.symbol,
-                    hasSubunits = expenseWithBeneficiaries.currency.hasSubunits,
-                ),
-                beneficiaries = expenseWithBeneficiaries.beneficiaries.map { beneficiary ->
-                    Beneficiary(
-                        uuid = beneficiary.uuid,
-                        expenseUuid = beneficiary.expenseUuid,
-                        userUuid = beneficiary.userUuid,
-                        share = beneficiary.share,
-                    )
-                },
-                groupUuid = expenseWithBeneficiaries.groupUuid,
-            )
+            expenseWithBeneficiaries?.let {
+                ExpenseWithBeneficiaries(
+                    uuid = it.uuid,
+                    timestamp = it.timestamp,
+                    title = it.title,
+                    description = it.description,
+                    amount = it.amount,
+                    creditorUuid = it.creditorUuid,
+                    isRefund = it.isRefund,
+                    currency = Currency(
+                        uuid = it.currency.uuid,
+                        name = it.currency.name,
+                        symbol = it.currency.symbol,
+                        hasSubunits = it.currency.hasSubunits,
+                    ),
+                    beneficiaries = it.beneficiaries.map { beneficiary ->
+                        Beneficiary(
+                            uuid = beneficiary.uuid,
+                            expenseUuid = beneficiary.expenseUuid,
+                            userUuid = beneficiary.userUuid,
+                            share = beneficiary.share,
+                        )
+                    },
+                    groupUuid = it.groupUuid,
+                )
+            }
         }
     }
 

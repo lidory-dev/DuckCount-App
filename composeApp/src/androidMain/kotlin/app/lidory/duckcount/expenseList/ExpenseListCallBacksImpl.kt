@@ -11,6 +11,7 @@ import database.beneficiary.BeneficiaryRepository
 import database.expense.ExpenseRepository
 import database.user.UserRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import app.lidory.duckcount.expenseList.R as expenseListR
 import app.lidory.duckcount.validateExpense as validateExpenseShared
@@ -56,7 +57,7 @@ class ExpenseListCallBacksImpl(
     }
 
     override suspend fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries> {
-        return expenseRepository.getWithBeneficiaries(uuid = uuid).map { expenseWithBeneficiaries ->
+        return expenseRepository.getWithBeneficiaries(uuid = uuid).filterNotNull().map { expenseWithBeneficiaries ->
             ExpenseWithBeneficiaries(
                 uuid = expenseWithBeneficiaries.uuid,
                 timestamp = expenseWithBeneficiaries.timestamp,

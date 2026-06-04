@@ -13,6 +13,7 @@ import database.beneficiary.BeneficiaryRepository
 import database.expense.ExpenseRepository
 import database.user.UserRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import app.lidory.duckcount.expenseList.R as expenseListR
 import app.lidory.duckcount.validateExpense as validateExpenseShared
@@ -162,7 +163,7 @@ class CreateExpenseCallBacksImpl(
     }
 
     override fun getExpenseWithBeneficiaries(expenseUuid: String): Flow<ExpenseWithBeneficiaries> {
-        return expenseRepository.getWithBeneficiaries(expenseUuid).map { expenseWithBeneficiaries ->
+        return expenseRepository.getWithBeneficiaries(expenseUuid).filterNotNull().map { expenseWithBeneficiaries ->
             ExpenseWithBeneficiaries(
                 uuid = expenseWithBeneficiaries.uuid,
                 timestamp = expenseWithBeneficiaries.timestamp,

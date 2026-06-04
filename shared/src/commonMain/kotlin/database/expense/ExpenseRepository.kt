@@ -25,5 +25,5 @@ interface ExpenseRepository {
 
     fun getAllWithoutGroup(): Flow<List<ExpenseWithBeneficiaries>>
 
-    fun getWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries>
+    fun getWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries?>
 }

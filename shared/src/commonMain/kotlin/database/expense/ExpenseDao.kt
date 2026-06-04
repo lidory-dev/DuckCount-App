@@ -63,5 +63,5 @@ interface ExpenseDao {
 
     @Transaction
     @Query("SELECT * FROM ExpenseEntity WHERE uuid = :uuid")
-    fun getWithBeneficiariesAsFlow(uuid: String): Flow<ExpenseWithBeneficiariesEntity>
+    fun getWithBeneficiariesAsFlow(uuid: String): Flow<ExpenseWithBeneficiariesEntity?>
 }

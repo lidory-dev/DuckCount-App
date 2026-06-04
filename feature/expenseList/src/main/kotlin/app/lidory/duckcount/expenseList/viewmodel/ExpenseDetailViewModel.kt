@@ -5,11 +5,14 @@ import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.expenseList.callBacks.ExpenseDetailCallBacks
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -17,6 +20,9 @@ class ExpenseDetailViewModel(
     private val expenseUuid: String,
     private val expenseDetailCallBacks: ExpenseDetailCallBacks,
 ) : ViewModel() {
+
+    private val _navigateBack = Channel<Unit>(Channel.BUFFERED)
+    val navigateBack: Flow<Unit> = _navigateBack.receiveAsFlow()
 
     private val _state = MutableStateFlow(ExpenseScreenState())
 
@@ -37,6 +43,7 @@ class ExpenseDetailViewModel(
     fun deleteExpense() {
         viewModelScope.launch {
             expenseDetailCallBacks.deleteExpense(expenseUuid)
+            _navigateBack.send(Unit)
         }
     }
 }

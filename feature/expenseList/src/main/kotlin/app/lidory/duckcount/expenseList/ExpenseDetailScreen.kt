@@ -9,6 +9,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -23,6 +24,10 @@ fun ExpenseDetailScreen(
     navigateToEditExpense: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        viewModel.navigateBack.collect { onBack() }
+    }
 
     Scaffold { innerPadding ->
         Column(
@@ -47,10 +52,7 @@ fun ExpenseDetailScreen(
             }
 
             Button(
-                onClick = {
-                    onBack()
-                    viewModel.deleteExpense()
-                },
+                onClick = viewModel::deleteExpense,
             ) {
                 Text("Delete")
             }

@@ -56,9 +56,9 @@ class ExpenseRepositoryImpl(
         }
     }
 
-    override fun getWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries> {
+    override fun getWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries?> {
         return expenseDao.getWithBeneficiariesAsFlow(uuid = uuid).map { expenseWithBeneficiariesEntity ->
-            expenseWithBeneficiariesEntity.toExpenseWithBeneficiaries()
+            expenseWithBeneficiariesEntity?.toExpenseWithBeneficiaries()
         }
     }
 }
