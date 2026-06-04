@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import database.beneficiary.BeneficiaryEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -25,6 +26,16 @@ interface ExpenseDao {
 
     @Update
     suspend fun update(expenseEntity: ExpenseEntity)
+
+    @Upsert
+    suspend fun updateBeneficiaries(beneficiaries: List<BeneficiaryEntity>)
+
+    @Update
+    @Transaction
+    suspend fun updateWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiariesEntity) {
+        update(expenseEntity = expenseWithBeneficiaries.expense)
+        updateBeneficiaries(beneficiaries = expenseWithBeneficiaries.beneficiaries)
+    }
 
     @Delete
     suspend fun delete(expenseEntity: ExpenseEntity)

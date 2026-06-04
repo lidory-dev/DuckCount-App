@@ -26,6 +26,10 @@ class ExpenseRepositoryImpl(
         expenseDao.update(expenseEntity = expense.toExpenseEntity())
     }
 
+    override suspend fun updateWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries) {
+        expenseDao.updateWithBeneficiaries(expenseWithBeneficiaries = expenseWithBeneficiaries.toExpenseWithBeneficiariesEntity())
+    }
+
     override suspend fun delete(expense: Expense) {
         expenseDao.delete(expenseEntity = expense.toExpenseEntity())
     }

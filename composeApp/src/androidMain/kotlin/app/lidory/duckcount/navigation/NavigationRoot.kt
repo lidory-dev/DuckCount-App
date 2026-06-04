@@ -60,16 +60,17 @@ fun NavigationRoot(
                         key = key,
                     ) {
                         Dashboard(
-                            navigateToExpenseDetailScreen = { expenseUuid ->
+                            navigateToExpenseDetailScreen = { expenseUuid, groupUuid ->
                                 backStack.add(
                                     ExpenseDetailScreenKey(
-                                        expenseUuid,
+                                        groupUuid = groupUuid,
+                                        expenseUuid = expenseUuid,
                                     ),
                                 )
                             },
                             navigateToCreateExpenseScreen = {
                                 backStack.add(
-                                    CreateExpenseScreenKey(groupUuid = null),
+                                    CreateExpenseScreenKey(groupUuid = null, expenseUuid = null),
                                 )
                             },
                             navigateToContactDetailScreen = { userUuid ->
@@ -110,6 +111,14 @@ fun NavigationRoot(
                                 parametersOf(key.expenseUuid)
                             },
                             onBack = dropUnlessResumed { backStack.removeIf { it is ExpenseDetailScreenKey } },
+                            navigateToEditExpense = {
+                                backStack.add(
+                                    CreateExpenseScreenKey(
+                                        groupUuid = key.groupUuid,
+                                        expenseUuid = key.expenseUuid,
+                                    ),
+                                )
+                            },
                         )
                     }
                 }
@@ -120,7 +129,7 @@ fun NavigationRoot(
                     ) {
                         CreateExpenseScreen(
                             viewModel = koinViewModel {
-                                parametersOf(key.groupUuid)
+                                parametersOf(key.groupUuid, key.expenseUuid)
                             },
                             onBack = dropUnlessResumed { backStack.removeIf { it is CreateExpenseScreenKey } },
                         )
@@ -187,12 +196,22 @@ fun NavigationRoot(
                             },
                             onBack = dropUnlessResumed { backStack.removeIf { it is GroupDetailScreenKey } },
                             navigateToCreateGroupExpense = {
-                                backStack.add(CreateExpenseScreenKey(groupUuid = key.groupUuid))
+                                backStack.add(
+                                    CreateExpenseScreenKey(
+                                        groupUuid = key.groupUuid,
+                                        expenseUuid = null,
+                                    ),
+                                )
                             },
                             expenseListContent = {
                                 ExpenseListScreen(
-                                    onExpenseClicked = { expenseUuid ->
-                                        backStack.add(ExpenseDetailScreenKey(expenseUuid = expenseUuid))
+                                    onExpenseClicked = { expenseUuid, groupUuid ->
+                                        backStack.add(
+                                            ExpenseDetailScreenKey(
+                                                expenseUuid = expenseUuid,
+                                                groupUuid = groupUuid,
+                                            ),
+                                        )
                                     },
                                     viewModel = expenseListViewModel(key.groupUuid),
                                 )

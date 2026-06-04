@@ -102,7 +102,8 @@ fun CreateExpenseScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = stringResource(R.string.add_new_expense),
+                        text = if (viewModel.isNewExpense()) stringResource(R.string.add_new_expense) else
+                            stringResource(R.string.edit_en_expense),
                     )
                 },
                 navigationIcon = {
@@ -238,7 +239,10 @@ fun CreateExpenseScreen(
                 colors = ButtonDefaults.buttonColors()
                     .copy(containerColor = MaterialTheme.colorScheme.primary),
                 onClick = {
-                    viewModel.createExpense()
+                    if (viewModel.isNewExpense())
+                        viewModel.createExpense()
+                    else
+                        viewModel.updateExpense()
                     onBack()
                 },
             ) {

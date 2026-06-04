@@ -27,7 +27,7 @@ import kotlin.uuid.ExperimentalUuidApi
 @Composable
 fun ExpenseListScreen(
     modifier: Modifier = Modifier,
-    onExpenseClicked: (String) -> Unit,
+    onExpenseClicked: (String, String?) -> Unit,
     viewModel: ExpenseListViewModel = expenseListViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -66,7 +66,7 @@ fun ExpenseListScreen(
                 ExpenseCard(
                     modifier = Modifier
                         .clickable(
-                            onClick = dropUnlessResumed { onExpenseClicked(expense.uuid) },
+                            onClick = dropUnlessResumed { onExpenseClicked(expense.uuid, expense.groupUuid) },
                         )
                         .padding(horizontal = Padding.medium, vertical = Padding.small),
                     title = expense.title,

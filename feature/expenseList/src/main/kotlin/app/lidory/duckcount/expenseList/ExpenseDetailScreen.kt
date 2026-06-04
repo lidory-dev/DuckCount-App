@@ -20,6 +20,7 @@ fun ExpenseDetailScreen(
     modifier: Modifier = Modifier,
     viewModel: ExpenseDetailViewModel = koinViewModel(),
     onBack: () -> Unit,
+    navigateToEditExpense: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -37,6 +38,12 @@ fun ExpenseDetailScreen(
                         Text(it.share)
                     }
                 }
+            }
+
+            Button(
+                onClick = navigateToEditExpense,
+            ) {
+                Text("Edit")
             }
 
             Button(

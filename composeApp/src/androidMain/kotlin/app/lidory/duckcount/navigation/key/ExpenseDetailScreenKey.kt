@@ -4,4 +4,4 @@ import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class ExpenseDetailScreenKey(val expenseUuid: String) : NavKey
+data class ExpenseDetailScreenKey(val groupUuid: String?, val expenseUuid: String) : NavKey

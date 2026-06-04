@@ -4,7 +4,6 @@ import app.lidory.duckcount.expenseList.viewmodel.CreateExpenseViewModel
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseDetailViewModel
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseListViewModel
 import org.koin.core.module.dsl.viewModel
-import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 
 val expenseListModule = module {
@@ -14,10 +13,16 @@ val expenseListModule = module {
             expenseListCallBacks = get(),
         )
     }
-    viewModelOf(::ExpenseDetailViewModel)
+    viewModel { params ->
+        ExpenseDetailViewModel(
+            expenseUuid = params[0],
+            expenseDetailCallBacks = get(),
+        )
+    }
     viewModel { params ->
         CreateExpenseViewModel(
             groupUuid = params[0],
+            expenseUuid = params[1],
             createExpenseCallBacks = get(),
         )
     }

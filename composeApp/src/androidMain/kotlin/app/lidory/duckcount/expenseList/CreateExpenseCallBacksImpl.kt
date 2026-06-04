@@ -160,4 +160,62 @@ class CreateExpenseCallBacksImpl(
     override fun getUserFullName(userUuid: String): Flow<String?> {
         return userRepository.getFullName(userUuid)
     }
+
+    override fun getExpenseWithBeneficiaries(expenseUuid: String): Flow<ExpenseWithBeneficiaries> {
+        return expenseRepository.getWithBeneficiaries(expenseUuid).map { expenseWithBeneficiaries ->
+            ExpenseWithBeneficiaries(
+                uuid = expenseWithBeneficiaries.uuid,
+                timestamp = expenseWithBeneficiaries.timestamp,
+                title = expenseWithBeneficiaries.title,
+                description = expenseWithBeneficiaries.description,
+                amount = expenseWithBeneficiaries.amount,
+                creditorUuid = expenseWithBeneficiaries.creditorUuid,
+                isRefund = expenseWithBeneficiaries.isRefund,
+                currency = Currency(
+                    uuid = expenseWithBeneficiaries.currency.uuid,
+                    name = expenseWithBeneficiaries.currency.name,
+                    symbol = expenseWithBeneficiaries.currency.symbol,
+                    hasSubunits = expenseWithBeneficiaries.currency.hasSubunits,
+                ),
+                beneficiaries = expenseWithBeneficiaries.beneficiaries.map { beneficiary ->
+                    Beneficiary(
+                        uuid = beneficiary.uuid,
+                        expenseUuid = beneficiary.expenseUuid,
+                        userUuid = beneficiary.userUuid,
+                        share = beneficiary.share,
+                    )
+                },
+                groupUuid = expenseWithBeneficiaries.groupUuid,
+            )
+        }
+    }
+
+    override suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries) {
+        expenseRepository.updateWithBeneficiaries(
+            expenseWithBeneficiaries = ExpenseWithBeneficiariesDB(
+                uuid = expenseWithBeneficiaries.uuid,
+                title = expenseWithBeneficiaries.title,
+                timestamp = expenseWithBeneficiaries.timestamp,
+                description = expenseWithBeneficiaries.description,
+                amount = expenseWithBeneficiaries.amount,
+                creditorUuid = expenseWithBeneficiaries.creditorUuid,
+                isRefund = expenseWithBeneficiaries.isRefund,
+                currency = CurrencyDB(
+                    uuid = expenseWithBeneficiaries.currency.uuid,
+                    name = expenseWithBeneficiaries.currency.name,
+                    symbol = expenseWithBeneficiaries.currency.symbol,
+                    hasSubunits = expenseWithBeneficiaries.currency.hasSubunits,
+                ),
+                beneficiaries = expenseWithBeneficiaries.beneficiaries.map { beneficiary ->
+                    BeneficiaryDB(
+                        uuid = beneficiary.uuid,
+                        expenseUuid = beneficiary.expenseUuid,
+                        userUuid = beneficiary.userUuid,
+                        share = beneficiary.share,
+                    )
+                },
+                groupUuid = expenseWithBeneficiaries.groupUuid,
+            ),
+        )
+    }
 }

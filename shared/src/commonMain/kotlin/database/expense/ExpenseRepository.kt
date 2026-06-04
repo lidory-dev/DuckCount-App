@@ -13,6 +13,8 @@ interface ExpenseRepository {
 
     suspend fun update(expense: Expense)
 
+    suspend fun updateWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries)
+
     suspend fun delete(expense: Expense)
 
     fun getAll(): Flow<List<ExpenseWithBeneficiaries>>

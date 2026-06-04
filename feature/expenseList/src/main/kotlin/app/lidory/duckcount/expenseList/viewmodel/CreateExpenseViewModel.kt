@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -37,9 +38,11 @@ import kotlin.uuid.Uuid
 @OptIn(ExperimentalCoroutinesApi::class)
 class CreateExpenseViewModel(
     private val groupUuid: String? = null,
+    private val expenseUuid: String? = null,
     private val createExpenseCallBacks: CreateExpenseCallBacks,
 ) : ViewModel() {
 
+    private val _expenseUuid = MutableStateFlow(expenseUuid)
     val maxTitleLength: Int = createExpenseCallBacks.maxTitleLength
     val maxDescriptionLength: Int = createExpenseCallBacks.maxDescriptionLength
 
@@ -104,8 +107,19 @@ class CreateExpenseViewModel(
         ),
     )
     val state = _state.onStart {
-        getCreditorName()
         updateCurrency(currencies.first().name, currencies.first().symbol, currencies.first().hasSubunits)
+        if (expenseUuid != null) {
+            val expense = createExpenseCallBacks.getExpenseWithBeneficiaries(expenseUuid).first()
+            updateTitle(expense.title)
+            updateCreditor(expense.creditorUuid)
+            updateAmount(expense.amount)
+            updateCurrency(expense.currency.name, expense.currency.symbol, expense.currency.hasSubunits)
+            updateDescription(expense.description)
+            updateBeneficiaries(expense.beneficiaries)
+            expense.beneficiaries.forEach {
+                updateBeneficiaryShare(it.userUuid, it.share)
+            }
+        }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000L),
@@ -231,6 +245,27 @@ class CreateExpenseViewModel(
         )
     }
 
+    fun updateExpense() = viewModelScope.launch {
+        expenseUuid?.let {
+            createExpenseCallBacks.updateExpenseWithBeneficiaries(
+                expenseWithBeneficiaries = ExpenseWithBeneficiaries(
+                    uuid = expenseUuid,
+                    timestamp = getCurrentTimestamp(),
+                    title = _state.value.title,
+                    description = _state.value.description,
+                    amount = _state.value.amount,
+                    creditorUuid = _state.value.creditorUuid,
+                    isRefund = _state.value.isRefund,
+                    currency = _state.value.currency,
+                    groupUuid = groupUuid,
+                    beneficiaries = _state.value.beneficiaries.map {
+                        it.copy(expenseUuid = expenseUuid)
+                    },
+                ),
+            )
+        }
+    }
+
     fun getCreditorName() {
         viewModelScope.launch {
             createExpenseCallBacks.getUserFullName(_state.value.creditorUuid)
@@ -284,6 +319,7 @@ class CreateExpenseViewModel(
         _state.update {
             it.copy(creditorUuid = creditorUuid)
         }
+        getCreditorName()
     }
 
     fun updateCreditorFullName(creditorFullName: String) {
@@ -294,12 +330,13 @@ class CreateExpenseViewModel(
 
     fun updateBeneficiaries(beneficiaries: List<Beneficiary>) {
         _state.update { state ->
-            val existingUuids = state.beneficiaries.map { it.uuid }.toSet()
+            val existingUuids = state.beneficiaries.map { it.userUuid }.toSet()
             state.copy(
-                beneficiaries = state.beneficiaries.filter { it in beneficiaries } +
-                        beneficiaries.filterNot { it.uuid in existingUuids },
+                beneficiaries = state.beneficiaries.filter { it.userUuid in beneficiaries.map { beneficiary -> beneficiary.userUuid } } +
+                        beneficiaries.filterNot { it.userUuid in existingUuids },
             )
         }
+        _selectedUuids.update { _state.value.beneficiaries.map { it.userUuid }.toSet() }
     }
 
     fun updateBeneficiaryShare(userUuid: String, share: String) {
@@ -322,6 +359,7 @@ class CreateExpenseViewModel(
         }
     }
 
+    fun isNewExpense() = _expenseUuid.value == null
 }
 
 data class CreateExpenseState(
