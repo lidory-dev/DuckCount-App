@@ -40,4 +40,8 @@ class ExpenseDetailCallBacksImpl(
             )
         }
     }
+
+    override suspend fun deleteExpense(expenseUuid: String) {
+        expenseRepository.deleteFromUuid(expenseUuid)
+    }
 }

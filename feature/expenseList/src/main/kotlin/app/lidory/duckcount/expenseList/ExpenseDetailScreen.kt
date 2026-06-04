@@ -47,6 +47,15 @@ fun ExpenseDetailScreen(
             }
 
             Button(
+                onClick = {
+                    onBack()
+                    viewModel.deleteExpense()
+                },
+            ) {
+                Text("Delete")
+            }
+
+            Button(
                 onClick = onBack,
             ) {
                 Text("Go back to ExpenseListScreen")

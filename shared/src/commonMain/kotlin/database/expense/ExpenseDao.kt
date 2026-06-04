@@ -40,6 +40,9 @@ interface ExpenseDao {
     @Delete
     suspend fun delete(expenseEntity: ExpenseEntity)
 
+    @Query("DELETE FROM ExpenseEntity WHERE uuid = :expenseUuid")
+    suspend fun deleteByUuid(expenseUuid: String)
+
     @Query("SELECT count(*) FROM ExpenseEntity")
     suspend fun count(): Int
 

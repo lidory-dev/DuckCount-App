@@ -34,6 +34,10 @@ class ExpenseRepositoryImpl(
         expenseDao.delete(expenseEntity = expense.toExpenseEntity())
     }
 
+    override suspend fun deleteFromUuid(expenseUuid: String) {
+        expenseDao.deleteByUuid(expenseUuid)
+    }
+
     override fun getAll(): Flow<List<ExpenseWithBeneficiaries>> {
         return expenseDao.getAllWithBeneficiariesAsFlow().map { expensesWithBeneficiariesEntities ->
             expensesWithBeneficiariesEntities.map { it.toExpenseWithBeneficiaries() }

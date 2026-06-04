@@ -11,10 +11,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 class ExpenseDetailViewModel(
-    expenseUuid: String,
-    expenseDetailCallBacks: ExpenseDetailCallBacks,
+    private val expenseUuid: String,
+    private val expenseDetailCallBacks: ExpenseDetailCallBacks,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ExpenseScreenState())
@@ -32,6 +33,12 @@ class ExpenseDetailViewModel(
             started = SharingStarted.WhileSubscribed(5000L),
             initialValue = ExpenseScreenState(),
         )
+
+    fun deleteExpense() {
+        viewModelScope.launch {
+            expenseDetailCallBacks.deleteExpense(expenseUuid)
+        }
+    }
 }
 
 data class ExpenseScreenState(
