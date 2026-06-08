@@ -12,4 +12,5 @@ data class Expense(
     val isRefund: Boolean,
     val currency: Currency,
     val groupUuid: String? = null,
+    val isActive: Boolean = true,
 )

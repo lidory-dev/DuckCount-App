@@ -13,5 +13,6 @@ data class ExpenseWithBeneficiaries(
     val isRefund: Boolean,
     val currency: Currency,
     val groupUuid: String? = null,
+    val isActive: Boolean = true,
     val beneficiaries: List<Beneficiary>,
 )
