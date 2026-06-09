@@ -1,4 +1,4 @@
-package util
+package app.lidory.duckcount.android.ui.composable.profilepicture
 
 import androidx.compose.ui.graphics.Color
 import kotlin.math.absoluteValue

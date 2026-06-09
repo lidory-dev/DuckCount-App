@@ -1,4 +1,4 @@
-package component
+package app.lidory.duckcount.android.ui.composable.profilepicture
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -20,7 +20,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import app.lidory.duckcount.android.ui.constant.Padding
-import util.getColorsForContact
 
 @Composable
 fun ProfilePictureCard(

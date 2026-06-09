@@ -16,8 +16,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.contactList.R
+import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.constant.Padding
-import component.ProfilePictureCard
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.ContactDetailViewModel
 import app.lidory.duckcount.android.ui.R as SharedR

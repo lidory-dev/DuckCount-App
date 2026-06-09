@@ -2,6 +2,7 @@ package app.lidory.duckcount.groupList.component.groupMembersDetail
 
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -13,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 
@@ -47,15 +49,15 @@ fun LazyListScope.groupMemberDetail(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = Padding.large)
                     .height(TextFieldDefaults.MinHeight),
             ) {
-//                ProfilePictureCard(
-//                    modifier = Modifier.fillMaxHeight(),
-//                    profilePicture = user.profilePicture,
-//                    uuid = user.uuid,
-//                    fullName = user.fullName,
-//                )
+                ProfilePictureCard(
+                    modifier = Modifier.fillMaxHeight(),
+                    // TODO: use profile picture
+                    profilePicture = null,
+                    uuid = member.member.userUuid,
+                    fullName = member.fullName,
+                )
 
                 Text(
                     text = member.fullName,
