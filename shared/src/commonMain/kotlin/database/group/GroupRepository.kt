@@ -13,6 +13,10 @@ interface GroupRepository {
 
     suspend fun update(group: Group)
 
+    suspend fun updateWithMembers(groupWithMembers: GroupWithMembers)
+
+    suspend fun removeGroupMember(userUuid: String, groupUuid: String)
+
     suspend fun delete(group: Group)
 
     suspend fun getAll(): Flow<List<Group>>

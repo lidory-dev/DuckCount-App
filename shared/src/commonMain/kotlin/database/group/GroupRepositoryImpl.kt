@@ -24,6 +24,14 @@ class GroupRepositoryImpl(
         groupDao.update(groupEntity = group.toGroupEntity())
     }
 
+    override suspend fun updateWithMembers(groupWithMembers: GroupWithMembers) {
+        groupDao.updateWithMembers(groupWithMembers.toGroupWithMembersEntity())
+    }
+
+    override suspend fun removeGroupMember(userUuid: String, groupUuid: String) {
+        groupDao.removeGroupMember(userUuid, groupUuid)
+    }
+
     override suspend fun delete(group: Group) {
         groupDao.delete(groupEntity = group.toGroupEntity())
     }

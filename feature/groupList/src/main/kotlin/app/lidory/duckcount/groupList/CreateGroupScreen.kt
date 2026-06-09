@@ -42,8 +42,8 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 fun CreateGroupScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    viewModel: CreateGroupViewModel = koinViewModel(),
 ) {
-    val viewModel = koinViewModel<CreateGroupViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val userListState by viewModel.usersState.collectAsStateWithLifecycle()
     val selectionToggleState by viewModel.selectionToggleState.collectAsStateWithLifecycle()
@@ -79,7 +79,10 @@ fun CreateGroupScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = stringResource(R.string.create_a_group),
+                        text = if (viewModel.groupUuid != null)
+                            stringResource(R.string.edit_a_group)
+                        else
+                            stringResource(R.string.create_a_group),
                     )
                 },
                 navigationIcon = {
@@ -169,7 +172,11 @@ fun CreateGroupScreen(
                 colors = ButtonDefaults.buttonColors()
                     .copy(containerColor = MaterialTheme.colorScheme.primary),
                 onClick = {
-                    viewModel.createGroup()
+                    if (viewModel.groupUuid != null) {
+                        viewModel.updateGroup()
+                    } else {
+                        viewModel.createGroup()
+                    }
                     onBack()
                 },
             ) {

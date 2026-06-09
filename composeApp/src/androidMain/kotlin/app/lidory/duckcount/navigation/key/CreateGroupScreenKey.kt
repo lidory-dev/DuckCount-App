@@ -4,4 +4,4 @@ import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 
 @Serializable
-class CreateGroupScreenKey() : NavKey
+class CreateGroupScreenKey(val groupUuid: String?) : NavKey

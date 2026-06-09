@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
+import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.User
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,15 +20,28 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class CreateGroupViewModel(
+    val groupUuid: String?,
     val groupListCallBacks: GroupListCallBacks,
 ) : ViewModel() {
     private val _state = MutableStateFlow(CreateGroupState())
-    val state = _state
+    val state = _state.onStart {
+        if (groupUuid != null) {
+            val group = groupListCallBacks.getGroupWithMembers(groupUuid).first()
+            updateTitle(group.title)
+            updateDescription(group.description)
+            updateMembers(group.members)
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000L),
+        initialValue = _state.value,
+    )
 
     private var _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -133,15 +147,18 @@ class CreateGroupViewModel(
 
     fun updateMembers(members: List<GroupMember>) {
         viewModelScope.launch {
+            val existingUuids = state.value.members.map { it.member.userUuid }.toSet()
             _state.update {
                 it.copy(
-                    members = members.map { member ->
-                        // TODO: Show that the username was not found?
-                        val fullName = groupListCallBacks.getUserFullName(member.userUuid).first() ?: member.userUuid
-                        GroupMemberWithFullName(member, fullName = fullName)
-                    },
+                    members = state.value.members.filter { memberWithFullName -> memberWithFullName.member.userUuid in members.map { member -> member.userUuid } } +
+                            members.filterNot { member -> member.userUuid in existingUuids }.map { member ->
+                                val fullName = groupListCallBacks.getUserFullName(member.userUuid).first() ?: member.userUuid
+		                        GroupMemberWithFullName(member, fullName = fullName)
+                            },
                 )
             }
+
+            _selectedUuids.update { _state.value.members.map { it.member.userUuid }.toSet() }
         }
     }
 
@@ -165,6 +182,21 @@ class CreateGroupViewModel(
                     userUuid = groupListCallBacks.getAuthenticatedUserUuid() ?: "",
                     groupUuid = "",
                     isAdmin = true,
+                ),
+            )
+        }
+    }
+
+    fun updateGroup() = viewModelScope.launch {
+        groupUuid?.let {
+            groupListCallBacks.updateGroup(
+                GroupWithMembers(
+                    uuid = groupUuid,
+                    title = state.value.title,
+                    description = state.value.description,
+                    members = state.value.members.map {
+                        it.member.copy(groupUuid = groupUuid)
+                    },
                 ),
             )
         }

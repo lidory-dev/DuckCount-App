@@ -113,5 +113,22 @@ class GroupListCallBacksImpl(
 
     override fun getAuthenticatedUserUuid(): String? {
         return authenticationUtils.getAuthenticatedUserUuid()
+	
+	override suspend fun updateGroup(groupWithMembers: GroupWithMembers) {
+        groupRepository.updateWithMembers(
+            groupWithMembers = DBGroupWithMembers(
+                uuid = groupWithMembers.uuid,
+                title = groupWithMembers.title,
+                description = groupWithMembers.description,
+                groupMembers = groupWithMembers.members.map { member ->
+                    DBGroupMember(
+                        uuid = member.uuid,
+                        userUuid = member.userUuid,
+                        groupUuid = groupWithMembers.uuid,
+                        isAdmin = member.isAdmin,
+                    )
+                },
+            ),
+        )
     }
 }

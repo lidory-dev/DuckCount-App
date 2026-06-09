@@ -7,4 +7,9 @@
     <string name="create_a_group">Create a group</string>
     <string name="expenses">Expenses</string>
     <string name="balance">Balance</string>
+    <string name="edit_a_group">Edit a group</string>
+    <string name="group_size">%1$d members</string>
+    <string name="remove_from_the_group">Remove from the group</string>
+    <string name="more_options">More options</string>
+    <string name="group_settings">Group settings</string>
 </resources>

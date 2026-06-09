@@ -25,12 +25,14 @@ import app.lidory.duckcount.expenseList.viewmodel.expenseListViewModel
 import app.lidory.duckcount.groupList.CreateGroupScreen
 import app.lidory.duckcount.groupList.GroupBalanceScreen
 import app.lidory.duckcount.groupList.GroupDetailScreen
+import app.lidory.duckcount.groupList.GroupSettingsScreen
 import app.lidory.duckcount.navigation.key.ContactDetailScreenKey
 import app.lidory.duckcount.navigation.key.CreateExpenseScreenKey
 import app.lidory.duckcount.navigation.key.CreateGroupScreenKey
 import app.lidory.duckcount.navigation.key.DashboardKey
 import app.lidory.duckcount.navigation.key.ExpenseDetailScreenKey
 import app.lidory.duckcount.navigation.key.GroupDetailScreenKey
+import app.lidory.duckcount.navigation.key.GroupSettingsScreenKey
 import app.lidory.duckcount.navigation.key.NewContactScreenKey
 import navigation.key.OnBoardingScreenKey
 import org.koin.androidx.compose.koinViewModel
@@ -87,7 +89,9 @@ fun NavigationRoot(
                             },
                             navigateToCreateGroupScreen = {
                                 backStack.add(
-                                    CreateGroupScreenKey(),
+                                    CreateGroupScreenKey(
+                                        groupUuid = null,
+                                    ),
                                 )
                             },
                             navigateToGroupDetailScreen = { groupUuid ->
@@ -181,6 +185,9 @@ fun NavigationRoot(
                         key = key,
                     ) {
                         CreateGroupScreen(
+                            viewModel = koinViewModel {
+                                parametersOf(key.groupUuid)
+                            },
                             onBack = dropUnlessResumed { backStack.removeIf { it is CreateGroupScreenKey } },
                         )
                     }
@@ -203,6 +210,9 @@ fun NavigationRoot(
                                     ),
                                 )
                             },
+                            navigateToGroupSettings = {
+                                backStack.add(GroupSettingsScreenKey(key.groupUuid))
+                            },
                             expenseListContent = {
                                 ExpenseListScreen(
                                     onExpenseClicked = { expenseUuid, groupUuid ->
@@ -224,6 +234,20 @@ fun NavigationRoot(
                                     isAppInDarkTheme = isAppInDarkTheme(),
                                 )
                             },
+                        )
+                    }
+                }
+
+                is GroupSettingsScreenKey -> {
+                    NavEntry(
+                        key = key,
+                    ) {
+                        GroupSettingsScreen(
+                            viewModel = koinViewModel {
+                                parametersOf(key.groupUuid)
+                            },
+                            onBack = { backStack.removeIf { it is GroupSettingsScreenKey } },
+                            navigateToEditGroup = { backStack.add(CreateGroupScreenKey(key.groupUuid)) },
                         )
                     }
                 }

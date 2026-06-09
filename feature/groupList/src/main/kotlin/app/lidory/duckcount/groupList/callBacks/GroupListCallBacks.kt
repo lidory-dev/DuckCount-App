@@ -22,4 +22,6 @@ interface GroupListCallBacks {
     suspend fun createGroup(title: String, description: String, members: List<GroupMember>)
 
     fun getAuthenticatedUserUuid(): String?
+
+    suspend fun updateGroup(groupWithMembers: GroupWithMembers)
 }

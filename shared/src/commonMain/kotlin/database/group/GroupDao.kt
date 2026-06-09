@@ -6,8 +6,10 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import database.groupMember.GroupMemberEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 @Dao
 interface GroupDao {
@@ -26,8 +28,29 @@ interface GroupDao {
     @Update
     suspend fun update(groupEntity: GroupEntity)
 
+    @Upsert
+    suspend fun updateMembers(members: List<GroupMemberEntity>)
+
+    @Update
+    @Transaction
+    suspend fun updateWithMembers(groupWithMembers: GroupWithMembersEntity) {
+        update(groupWithMembers.group)
+
+        val oldUser = getWithMembers(groupWithMembers.group.uuid).first().groupMembers
+        val userToRemove = oldUser - groupWithMembers.groupMembers.toSet()
+
+        updateMembers(groupWithMembers.groupMembers)
+        deleteMembers(groupMembers = userToRemove)
+    }
+
+    @Query("DELETE FROM GroupMemberEntity WHERE groupUuid = :groupUuid AND userUuid = :userUuid")
+    suspend fun removeGroupMember(userUuid: String, groupUuid: String)
+
     @Delete
     suspend fun delete(groupEntity: GroupEntity)
+
+    @Delete
+    suspend fun deleteMembers(groupMembers: List<GroupMemberEntity>)
 
     @Query("SELECT count(*) FROM GroupEntity")
     suspend fun count(): Int
