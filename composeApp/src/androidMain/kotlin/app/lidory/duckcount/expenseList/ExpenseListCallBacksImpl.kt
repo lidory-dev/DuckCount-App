@@ -51,6 +51,7 @@ class ExpenseListCallBacksImpl(
                         )
                     },
                     groupUuid = expenseWithBeneficiaries.groupUuid,
+                    isActive = expenseWithBeneficiaries.isActive,
                 )
             }
         }
@@ -81,6 +82,7 @@ class ExpenseListCallBacksImpl(
                     )
                 },
                 groupUuid = expenseWithBeneficiaries.groupUuid,
+                isActive = expenseWithBeneficiaries.isActive,
             )
         }
     }
@@ -211,6 +213,7 @@ class ExpenseListCallBacksImpl(
                         )
                     },
                     groupUuid = expenseWithBeneficiaries.groupUuid,
+                    isActive = expenseWithBeneficiaries.isActive,
                 )
             }
         }
@@ -242,6 +245,7 @@ class ExpenseListCallBacksImpl(
                         )
                     },
                     groupUuid = expenseWithBeneficiaries.groupUuid,
+                    isActive = expenseWithBeneficiaries.isActive,
                 )
             }
         }

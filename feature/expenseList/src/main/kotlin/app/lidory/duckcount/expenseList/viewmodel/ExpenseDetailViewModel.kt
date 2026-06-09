@@ -46,6 +46,12 @@ class ExpenseDetailViewModel(
             _navigateBack.send(Unit)
         }
     }
+
+    fun enableExpense() {
+        viewModelScope.launch {
+            expenseDetailCallBacks.enableExpense(expenseUuid)
+        }
+    }
 }
 
 data class ExpenseScreenState(

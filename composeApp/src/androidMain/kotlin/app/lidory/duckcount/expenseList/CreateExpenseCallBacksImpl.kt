@@ -187,6 +187,7 @@ class CreateExpenseCallBacksImpl(
                     )
                 },
                 groupUuid = expenseWithBeneficiaries.groupUuid,
+                isActive = expenseWithBeneficiaries.isActive,
             )
         }
     }

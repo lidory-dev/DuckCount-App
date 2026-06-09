@@ -38,6 +38,7 @@ class ExpenseDetailCallBacksImpl(
                         )
                     },
                     groupUuid = it.groupUuid,
+                    isActive = it.isActive,
                 )
             }
         }
@@ -45,5 +46,9 @@ class ExpenseDetailCallBacksImpl(
 
     override suspend fun deleteExpense(expenseUuid: String) {
         expenseRepository.deleteFromUuid(expenseUuid)
+    }
+
+    override suspend fun enableExpense(expenseUuid: String) {
+        expenseRepository.enableFromUuid(expenseUuid)
     }
 }

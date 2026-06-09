@@ -241,6 +241,7 @@ class CreateExpenseViewModel(
                 beneficiaries = _state.value.beneficiaries.map {
                     it.copy(expenseUuid = expenseUuid)
                 },
+                isActive = _state.value.isActive,
             ),
         )
     }
@@ -261,6 +262,7 @@ class CreateExpenseViewModel(
                     beneficiaries = _state.value.beneficiaries.map {
                         it.copy(expenseUuid = expenseUuid)
                     },
+                    isActive = _state.value.isActive,
                 ),
             )
         }
@@ -374,6 +376,7 @@ data class CreateExpenseState(
     // TODO: adapt
     val currency: Currency = Currency("", "", "", false),
     val beneficiaries: List<Beneficiary> = emptyList(),
+    val isActive: Boolean = false,
     private val validateExpenseCallBack: (String, Currency, List<Beneficiary>) -> Int?,
 ) {
     val error: Int? =

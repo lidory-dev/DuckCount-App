@@ -14,10 +14,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import app.lidory.duckcount.android.ui.constant.Elevation
 import app.lidory.duckcount.android.ui.constant.Padding
@@ -29,9 +31,11 @@ fun ExpenseCard(
     title: String,
     creditorName: String,
     amount: String,
+    active: Boolean,
 ) {
     ElevatedCard(
         modifier = modifier
+            .alpha(if (active) 1f else 0.6f)
             .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondary,
@@ -55,16 +59,19 @@ fun ExpenseCard(
                     text = title,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        textDecoration = if (active) TextDecoration.None else TextDecoration.LineThrough,
+                    ),
                 )
 
-                Text(
-                    text = stringResource(id = R.string.paid_by, creditorName, amount),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontStyle = FontStyle.Italic,
-                )
+                if (active)
+                    Text(
+                        text = stringResource(id = R.string.paid_by, creditorName, amount),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontStyle = FontStyle.Italic,
+                    )
             }
             //TODO: Change with beneficiary amount and real data
             val role = ExpenseStatus.BENEFICIARY

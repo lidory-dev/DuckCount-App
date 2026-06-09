@@ -19,9 +19,13 @@ interface ExpenseRepository {
 
     suspend fun deleteFromUuid(expenseUuid: String)
 
+    suspend fun enableFromUuid(expenseUuid: String)
+
     fun getAll(): Flow<List<ExpenseWithBeneficiaries>>
 
     fun getAllFromGroup(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>>
+
+    fun getAllActiveFromGroup(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>>
 
     fun getAllWithoutGroup(): Flow<List<ExpenseWithBeneficiaries>>
 

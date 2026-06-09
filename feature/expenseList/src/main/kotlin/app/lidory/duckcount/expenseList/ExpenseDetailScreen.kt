@@ -45,16 +45,24 @@ fun ExpenseDetailScreen(
                 }
             }
 
-            Button(
-                onClick = navigateToEditExpense,
-            ) {
-                Text("Edit")
-            }
+            if (state.expenseWithBeneficiaries?.isActive ?: false) {
+                Button(
+                    onClick = navigateToEditExpense,
+                ) {
+                    Text("Edit")
+                }
 
-            Button(
-                onClick = viewModel::deleteExpense,
-            ) {
-                Text("Delete")
+                Button(
+                    onClick = viewModel::deleteExpense,
+                ) {
+                    Text("Delete")
+                }
+            } else {
+                Button(
+                    onClick = viewModel::enableExpense,
+                ) {
+                    Text("Reactivate")
+                }
             }
 
             Button(

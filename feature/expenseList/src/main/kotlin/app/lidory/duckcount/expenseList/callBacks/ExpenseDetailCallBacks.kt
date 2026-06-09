@@ -7,4 +7,6 @@ interface ExpenseDetailCallBacks {
     fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries?>
 
     suspend fun deleteExpense(expenseUuid: String)
+
+    suspend fun enableExpense(expenseUuid: String)
 }
