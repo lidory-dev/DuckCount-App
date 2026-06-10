@@ -2,6 +2,8 @@ package app.lidory.duckcount.navigation
 
 import ContactListScreen
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +36,8 @@ import component.AddContactFloatingActionButton
 fun Dashboard(
     modifier: Modifier = Modifier,
     navigateToExpenseDetailScreen: (String, String?) -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     navigateToCreateExpenseScreen: () -> Unit,
     navigateToContactDetailScreen: (String) -> Unit,
     navigateToNewContact: () -> Unit,
@@ -113,6 +117,8 @@ fun Dashboard(
                         ) {
                             GroupListScreen(
                                 onGroupClicked = navigateToGroupDetailScreen,
+                                animatedVisibilityScope = animatedVisibilityScope,
+                                sharedTransitionScope = sharedTransitionScope,
                             )
                         }
                     }

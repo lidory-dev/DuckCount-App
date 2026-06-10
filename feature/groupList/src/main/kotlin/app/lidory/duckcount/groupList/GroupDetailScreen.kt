@@ -1,6 +1,8 @@
 package app.lidory.duckcount.groupList
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -46,6 +48,8 @@ fun GroupDetailScreen(
     navigateToGroupSettings: () -> Unit,
     expenseListContent: @Composable () -> Unit,
     balanceContent: @Composable () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -68,19 +72,30 @@ fun GroupDetailScreen(
                                 .padding(Padding.small)
                                 .fillMaxWidth(),
                         ) {
-                            Text(
-                                text = it.title,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                style = MaterialTheme.typography.titleLarge,
-                            )
-                            if (it.description.isNotBlank())
+                            with(sharedTransitionScope) {
                                 Text(
-                                    text = it.description,
+                                    modifier = Modifier.sharedBounds(
+                                        sharedContentState = rememberSharedContentState(key = "group_title_${state.groupWithMembers?.uuid}"),
+                                        animatedVisibilityScope = animatedVisibilityScope,
+                                    ),
+                                    text = it.title,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.titleLarge,
                                 )
+
+                                if (it.description.isNotBlank())
+                                    Text(
+                                        modifier = Modifier.sharedBounds(
+                                            sharedContentState = rememberSharedContentState(key = "group_description_${state.groupWithMembers?.uuid}"),
+                                            animatedVisibilityScope = animatedVisibilityScope,
+                                        ),
+                                        text = it.description,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        style = MaterialTheme.typography.labelMedium,
+                                    )
+                            }
                         }
                     }
                 },

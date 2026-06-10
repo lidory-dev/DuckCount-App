@@ -1,5 +1,7 @@
 package app.lidory.duckcount.groupList
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +28,8 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun GroupListScreen(
     onGroupClicked: (String) -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
 ) {
 
     val viewModel = koinViewModel<GroupListViewModel>()
@@ -64,6 +68,9 @@ fun GroupListScreen(
                         .clickable(
                             onClick = { onGroupClicked(group.uuid) },
                         ),
+                    groupUuid = group.uuid,
+                    animatedVisibilityScope = animatedVisibilityScope,
+                    sharedTransitionScope = sharedTransitionScope,
                 )
             }
 

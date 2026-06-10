@@ -1,5 +1,7 @@
 package app.lidory.duckcount.groupList
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -36,6 +38,8 @@ fun GroupSettingsScreen(
     navigateToEditGroup: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: GroupSettingsViewModel = koinViewModel(),
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val bottomSheetState = rememberModalBottomSheetState()
@@ -81,14 +85,25 @@ fun GroupSettingsScreen(
                         .padding(Padding.extraLarge),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text(
-                        text = state.groupWithMembers?.title ?: "",
-                        style = MaterialTheme.typography.headlineLarge,
-                    )
-                    Text(
-                        text = state.groupWithMembers?.description ?: "",
-                        style = MaterialTheme.typography.titleLarge,
-                    )
+                    with(sharedTransitionScope) {
+                        Text(
+                            modifier = Modifier.sharedBounds(
+                                sharedContentState = rememberSharedContentState(key = "group_title_${state.groupWithMembers?.uuid}"),
+                                animatedVisibilityScope = animatedVisibilityScope,
+                            ),
+                            text = state.groupWithMembers?.title ?: "",
+                            style = MaterialTheme.typography.headlineLarge,
+                        )
+
+                        Text(
+                            modifier = Modifier.sharedBounds(
+                                sharedContentState = rememberSharedContentState(key = "group_description_${state.groupWithMembers?.uuid}"),
+                                animatedVisibilityScope = animatedVisibilityScope,
+                            ),
+                            text = state.groupWithMembers?.description ?: "",
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                    }
                 }
             }
 

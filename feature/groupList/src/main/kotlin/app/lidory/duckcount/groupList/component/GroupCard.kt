@@ -1,5 +1,7 @@
 package app.lidory.duckcount.groupList.component
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +19,9 @@ fun GroupCard(
     title: String,
     description: String,
     modifier: Modifier = Modifier,
+    groupUuid: String,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
 ) {
     ElevatedCard(
         modifier = modifier,
@@ -27,20 +32,30 @@ fun GroupCard(
                 .padding(all = Padding.large),
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(
-                text = title,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.titleLarge,
-            )
-
-            if (description.isNotEmpty()) {
+            with(sharedTransitionScope) {
                 Text(
-                    text = description,
+                    modifier = Modifier.sharedBounds(
+                        sharedContentState = rememberSharedContentState(key = "group_title_$groupUuid"),
+                        animatedVisibilityScope = animatedVisibilityScope,
+                    ),
+                    text = title,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.titleLarge,
                 )
+
+                if (description.isNotEmpty()) {
+                    Text(
+                        modifier = Modifier.sharedBounds(
+                            sharedContentState = rememberSharedContentState(key = "group_description_$groupUuid"),
+                            animatedVisibilityScope = animatedVisibilityScope,
+                        ),
+                        text = description,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
             }
         }
     }
