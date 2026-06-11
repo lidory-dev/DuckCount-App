@@ -23,6 +23,7 @@ fun GroupPager(
     tabs: List<Tab>,
     expenseListContent: @Composable () -> Unit,
     balanceContent: @Composable () -> Unit,
+    debtContent: @Composable () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
 
@@ -55,6 +56,7 @@ fun GroupPager(
         when (page) {
             0 -> expenseListContent()
             1 -> balanceContent()
+            2 -> debtContent()
         }
     }
 }

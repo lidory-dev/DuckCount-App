@@ -28,6 +28,7 @@ import app.lidory.duckcount.groupList.CreateOrEditGroupScreen
 import app.lidory.duckcount.groupList.GroupBalanceScreen
 import app.lidory.duckcount.groupList.GroupDetailScreen
 import app.lidory.duckcount.groupList.GroupSettingsScreen
+import app.lidory.duckcount.groupList.GroupTransactionsScreen
 import app.lidory.duckcount.navigation.key.ContactDetailScreenKey
 import app.lidory.duckcount.navigation.key.CreateExpenseScreenKey
 import app.lidory.duckcount.navigation.key.CreateGroupScreenKey
@@ -260,6 +261,13 @@ fun NavigationRoot(
                                             parametersOf(key.groupUuid)
                                         },
                                         isAppInDarkTheme = isAppInDarkTheme(),
+                                    )
+                                },
+                                debtContent = {
+                                    GroupTransactionsScreen(
+                                        viewModel = koinViewModel {
+                                            parametersOf(key.groupUuid)
+                                        },
                                     )
                                 },
                                 animatedVisibilityScope = LocalNavAnimatedContentScope.current,

@@ -10,6 +10,15 @@
     <string name="edit_group">Edit group</string>
     <string name="group_size">%1$d members</string>
     <string name="remove_from_the_group">Remove from the group</string>
-    <string name="more_options">More options</string>
     <string name="group_settings">Group settings</string>
+    <string name="transactions">Transactions</string>
+    <string name="more_options">More options</string>
+    <string name="confirm_refund">Confirm refund</string>
+    <string name="debts">Debts</string>
+    <string name="refund">Refund</string>
+    <string name="expand">expand</string>
+    <string name="refund_owned">You owes %1$s %2$s</string>
+    <string name="debt_owned">%1$s owes you %2$s</string>
+    <string name="no_transactions">There are no pending transactions</string>
+    <string name="no_refund">You don\'t have any refund</string>
 </resources>

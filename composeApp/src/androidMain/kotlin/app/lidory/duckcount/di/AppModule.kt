@@ -13,9 +13,11 @@ import app.lidory.duckcount.expenseList.callBacks.ExpenseDetailCallBacks
 import app.lidory.duckcount.expenseList.callBacks.ExpenseListCallBacks
 import app.lidory.duckcount.expenseList.di.expenseListModule
 import app.lidory.duckcount.groupList.GroupBalanceCallBacksImpl
+import app.lidory.duckcount.groupList.GroupDebtCallBacksImpl
 import app.lidory.duckcount.groupList.GroupListCallBacksImpl
 import app.lidory.duckcount.groupList.GroupSettingsCallBacksImpl
 import app.lidory.duckcount.groupList.callBacks.GroupBalanceCallBacks
+import app.lidory.duckcount.groupList.callBacks.GroupDebtCallBacks
 import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
 import app.lidory.duckcount.groupList.callBacks.GroupSettingsCallBacks
 import app.lidory.duckcount.groupList.di.groupListModule
@@ -50,6 +52,7 @@ val groupCallBacks = module {
     singleOf(::GroupListCallBacksImpl).bind<GroupListCallBacks>()
     singleOf(::GroupBalanceCallBacksImpl).bind<GroupBalanceCallBacks>()
     singleOf(::GroupSettingsCallBacksImpl).bind<GroupSettingsCallBacks>()
+    singleOf(::GroupDebtCallBacksImpl).bind<GroupDebtCallBacks>()
 }
 
 val expenseListCallBacks = module {

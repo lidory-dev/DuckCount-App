@@ -2,16 +2,15 @@ package app.lidory.duckcount
 
 import database.domain.ExpenseWithBeneficiaries
 import database.domain.GroupMember
+import uniffi.lib_duckcount.Transaction
 import uniffi.lib_duckcount.Beneficiary as uniffiBeneficiary
 import uniffi.lib_duckcount.Currency as uniffiCurrency
 import uniffi.lib_duckcount.Expense as uniffiExpense
 import uniffi.lib_duckcount.Group as uniffiGroup
 
-fun calculateNetDebtsPerUser(
-    members: List<GroupMember>,
-    expenses: List<ExpenseWithBeneficiaries>,
-): Map<String, String> {
-    val group = uniffiGroup(
+
+fun createGroup(members: List<GroupMember>, expenses: List<ExpenseWithBeneficiaries>): uniffiGroup {
+    return uniffiGroup(
         currency = uniffiCurrency(
             // TODO: Use currency of the group
             name = "EUR", symbol = "€", hasSubUnit = true,
@@ -35,6 +34,15 @@ fun calculateNetDebtsPerUser(
             )
         },
     )
+}
 
-    return group.calculateNetDebtsPerUser()
+fun calculateNetDebtsPerUser(
+    members: List<GroupMember>,
+    expenses: List<ExpenseWithBeneficiaries>,
+): Map<String, String> {
+    return createGroup(members, expenses).calculateNetDebtsPerUser()
+}
+
+fun getTransactionFromGroup(members: List<GroupMember>, expenses: List<ExpenseWithBeneficiaries>): List<Transaction> {
+    return createGroup(members, expenses).calculateTransactionsToEquilibrate()
 }
