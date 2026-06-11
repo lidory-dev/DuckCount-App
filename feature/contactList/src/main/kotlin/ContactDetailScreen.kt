@@ -1,3 +1,5 @@
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,6 +28,8 @@ import app.lidory.duckcount.android.ui.R as SharedR
 @Composable
 fun ContactDetailScreen(
     onBack: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     modifier: Modifier = Modifier,
     viewModel: ContactDetailViewModel = koinViewModel(),
 ) {
@@ -57,14 +61,27 @@ fun ContactDetailScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             state.user?.let { user ->
-                ProfilePictureCard(
-                    modifier = Modifier.fillMaxWidth(.3f),
-                    profilePicture = user.profilePicture,
-                    uuid = user.uuid,
-                    fullName = user.fullName,
-                )
+                with(sharedTransitionScope) {
+                    ProfilePictureCard(
+                        modifier = Modifier
+                            .fillMaxWidth(.3f)
+                            .sharedElement(
+                                sharedContentState = rememberSharedContentState(key = "profile_picture_${user.uuid}"),
+                                animatedVisibilityScope = animatedVisibilityScope,
+                            ),
+                        profilePicture = user.profilePicture,
+                        uuid = user.uuid,
+                        fullName = user.fullName,
+                    )
 
-                Text(text = user.fullName)
+                    Text(
+                        modifier = Modifier.sharedBounds(
+                            sharedContentState = rememberSharedContentState(key = "full_name_${user.uuid}"),
+                            animatedVisibilityScope = animatedVisibilityScope,
+                        ),
+                        text = user.fullName,
+                    )
+                }
             } ?: Text(text = stringResource(R.string.unresolved_user))
         }
     }

@@ -1,3 +1,5 @@
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -36,6 +38,8 @@ import java.text.Normalizer
 fun ContactListScreen(
     navigateToDetailScreen: (String) -> Unit,
     modifier: Modifier = Modifier,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
 ) {
     val viewModel = koinViewModel<ContactListViewModel>()
     val state by viewModel.usersState.collectAsStateWithLifecycle()
@@ -124,16 +128,27 @@ fun ContactListScreen(
                                 .fillMaxWidth()
                                 .height(TextFieldDefaults.MinHeight),
                         ) {
-                            ProfilePictureCard(
-                                modifier = Modifier.fillMaxHeight(),
-                                profilePicture = user.profilePicture,
-                                uuid = user.uuid,
-                                fullName = user.fullName,
-                            )
+                            with(sharedTransitionScope) {
+                                ProfilePictureCard(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .sharedElement(
+                                            sharedContentState = rememberSharedContentState(key = "profile_picture_${user.uuid}"),
+                                            animatedVisibilityScope = animatedVisibilityScope,
+                                        ),
+                                    profilePicture = user.profilePicture,
+                                    uuid = user.uuid,
+                                    fullName = user.fullName,
+                                )
 
-                            Text(
-                                text = user.fullName,
-                            )
+                                Text(
+                                    modifier = Modifier.sharedBounds(
+                                        sharedContentState = rememberSharedContentState(key = "full_name_${user.uuid}"),
+                                        animatedVisibilityScope = animatedVisibilityScope,
+                                    ),
+                                    text = user.fullName,
+                                )
+                            }
                         }
                     }
                 }

@@ -154,6 +154,8 @@ fun NavigationRoot(
                                     parametersOf(key.userUuid)
                                 },
                                 onBack = dropUnlessResumed { backStack.removeIf { it is ContactDetailScreenKey } },
+                                animatedVisibilityScope = LocalNavAnimatedContentScope.current,
+                                sharedTransitionScope = this@SharedTransitionLayout,
                             )
                         }
                     }

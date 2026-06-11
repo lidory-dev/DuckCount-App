@@ -35,9 +35,9 @@ import component.AddContactFloatingActionButton
 @Composable
 fun Dashboard(
     modifier: Modifier = Modifier,
-    navigateToExpenseDetailScreen: (String, String?) -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
+    navigateToExpenseDetailScreen: (String, String?) -> Unit,
     navigateToCreateExpenseScreen: () -> Unit,
     navigateToContactDetailScreen: (String) -> Unit,
     navigateToNewContact: () -> Unit,
@@ -129,6 +129,8 @@ fun Dashboard(
                         ) {
                             ContactListScreen(
                                 navigateToDetailScreen = navigateToContactDetailScreen,
+                                animatedVisibilityScope = animatedVisibilityScope,
+                                sharedTransitionScope = sharedTransitionScope,
                             )
                         }
                     }
