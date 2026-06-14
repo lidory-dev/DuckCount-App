@@ -29,7 +29,7 @@ fun BottomNavigationBar(
                 label = { Text(item.title()) },
                 // Checks if the last item in the back stack matches the current item.
                 selected = backStack.lastOrNull() == item,
-                onClick = { backStack.add(item) },
+                onClick = { if (backStack.lastOrNull() != item) backStack.add(item) },
             )
         }
     }
