@@ -24,7 +24,8 @@ fun GroupBalanceScreen(
     LazyColumn(
         modifier = modifier,
     ) {
-        val membersWithBalanceSorted = state.members.sortedByDescending { it.balance }.filter { it.balance != "0" }
+        val membersWithBalanceSorted =
+            state.members.sortedByDescending { it.balance.toDouble() }.filter { it.balance != "0" }
         items(
             items = membersWithBalanceSorted,
             key = { it.member.member.uuid },
