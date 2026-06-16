@@ -13,6 +13,7 @@ import authenticationUtils.clearPendingRegistration
 import authenticationUtils.setHasPasswordBeenChecked
 import authenticationUtils.setPendingRegistration
 import authenticationUtils.setTokens
+import authenticationUtils.setUserUuid
 import database.user.User
 import database.user.UserRepository
 import networking.DuckCountClient
@@ -106,7 +107,7 @@ class AuthenticationCallBacksImpl(
                     val longLivedToken = body.getString("long_lived_token")
 
                     // The server carries the new user's UUID in the short-lived token's `sub`.
-                    val uuid = shortLivedToken.jwtClaim()
+                    val uuid = shortLivedToken.jwtClaim(claim = "sub")
                         ?: run {
                             Log.e(TAG, "registration: could not read uuid from short-lived token")
                             return AuthOutcome.Failure(AuthError.UNKNOWN)
@@ -116,6 +117,8 @@ class AuthenticationCallBacksImpl(
                         shortLivedToken = shortLivedToken,
                         longLivedToken = longLivedToken,
                     )
+
+                    setUserUuid(uuid)
 
                     AuthOutcome.Success(uuid)
                 }
@@ -174,10 +177,17 @@ class AuthenticationCallBacksImpl(
             return when (finishResult) {
                 is Result.Success -> {
                     val body = JSONObject(finishResult.data)
-                    setTokens(
-                        shortLivedToken = body.getString("short_lived_token"),
-                        longLivedToken = body.getString("long_lived_token"),
-                    )
+                    val shortLivedToken = body.getString("short_lived_token")
+                    val longLivedToken = body.getString("long_lived_token")
+
+                    setTokens(shortLivedToken = shortLivedToken, longLivedToken = longLivedToken)
+
+                    // The server carries the user's UUID in the short-lived token's `sub`.
+                    val uuid = shortLivedToken.jwtClaim(claim = "sub")
+                    uuid?.let {
+                        setUserUuid(uuid)
+                    } ?: Log.e(TAG, "login: could not read uuid from short-lived token")
+
                     AuthOutcome.Success(Unit)
                 }
 
