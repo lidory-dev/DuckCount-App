@@ -6,17 +6,15 @@ import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.User
 import database.group.GroupRepository
-import database.groupMember.GroupMemberRepository
 import database.user.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import database.group.Group as DBGroup
-import database.group.GroupWithMembers as DBGroupWithMember
+import database.group.GroupWithMembers as DBGroupWithMembers
 import database.groupMember.GroupMember as DBGroupMember
 
 class GroupListCallBacksImpl(
     val groupRepository: GroupRepository,
-    val groupMemberRepository: GroupMemberRepository,
     val userRepository: UserRepository,
 ) : GroupListCallBacks {
     override suspend fun getAllGroups(): Flow<List<Group>> {
@@ -97,7 +95,7 @@ class GroupListCallBacksImpl(
             description = description,
         )
         groupRepository.insertWithMembers(
-            groupWithMembers = DBGroupWithMember(
+            groupWithMembers = DBGroupWithMembers(
                 uuid = newGroup.uuid,
                 title = newGroup.title,
                 description = newGroup.description,

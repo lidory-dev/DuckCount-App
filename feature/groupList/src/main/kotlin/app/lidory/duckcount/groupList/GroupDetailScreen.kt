@@ -36,7 +36,7 @@ fun GroupDetailScreen(
     modifier: Modifier = Modifier,
     viewModel: GroupDetailViewModel = koinViewModel(),
     onBack: () -> Unit,
-    navigateToCreateExpenseGroup: () -> Unit,
+    navigateToCreateGroupExpense: () -> Unit,
     expenseListContent: @Composable () -> Unit,
     balanceContent: @Composable () -> Unit,
 ) {
@@ -87,7 +87,7 @@ fun GroupDetailScreen(
                 exit = fadeOut() + scaleOut(),
             ) {
                 FloatingActionButton(
-                    onClick = navigateToCreateExpenseGroup,
+                    onClick = navigateToCreateGroupExpense,
                 ) {
                     Icon(
                         painter = painterResource(androidUiR.drawable.ic_add),

@@ -165,7 +165,7 @@ fun NavigationRoot(
                                 parametersOf(key.groupUuid)
                             },
                             onBack = dropUnlessResumed { backStack.removeIf { it is GroupDetailScreenKey } },
-                            navigateToCreateExpenseGroup = {
+                            navigateToCreateGroupExpense = {
                                 backStack.add(CreateExpenseScreenKey(groupUuid = key.groupUuid))
                             },
                             expenseListContent = {
