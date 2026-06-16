@@ -171,7 +171,7 @@ public struct CreateExpenseView<ViewModel: CreateExpenseFormState>: View {
         viewModel.error == nil
             && !viewModel.title.trimmingCharacters(in: .whitespaces).isEmpty
             && (1...viewModel.maxTitleLength) ~= viewModel.title.count
-            && (1...viewModel.maxDescriptionLength) ~= viewModel.description.count
+            && (0...viewModel.maxDescriptionLength) ~= viewModel.description.count
             && !viewModel.amount.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
