@@ -11,6 +11,8 @@ interface CreateExpenseCallBacks {
 
     val maxDescriptionLength: Int
 
+    val maxTitleLength: Int
+
     fun validateExpense(amount: String, currency: Currency, beneficiaries: List<Beneficiary>): Int?
 
     fun getAllUsersFiltered(filter: String): Flow<List<User>>

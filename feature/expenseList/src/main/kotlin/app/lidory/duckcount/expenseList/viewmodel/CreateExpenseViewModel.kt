@@ -41,6 +41,7 @@ class CreateExpenseViewModel(
 ) : ViewModel() {
 
     val maxDescriptionLength: Int = createExpenseCallBacks.maxDescriptionLength
+    val maxTitleLength: Int = createExpenseCallBacks.maxTitleLength
 
     var isCreditorDialogShown by mutableStateOf(false)
 

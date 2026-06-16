@@ -27,6 +27,7 @@ class CreateExpenseViewModel: ObservableObject, CreateExpenseFormState {
     ]
 
     let maxDescriptionLength: Int = Int(ExpenseLimitsKt.MAX_DESCRIPTION_LENGTH)
+    let maxTitleLength: Int = Int(ExpenseLimitsKt.MAX_TITLE_LENGTH)
 
     static let placeholderCreditor = ExpenseList.User(
         id: "00000000-0000-0000-0000-000000000001",

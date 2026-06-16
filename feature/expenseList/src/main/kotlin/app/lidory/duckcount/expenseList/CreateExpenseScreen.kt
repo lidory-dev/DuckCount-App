@@ -147,8 +147,16 @@ fun CreateExpenseScreen(
                         onValueChange = { viewModel.updateTitle(title = it) },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         focusManager = focusManager,
-                        error = stringResource(androidUiR.string.title_mandatory),
-                        isInError = expenseState.title.isBlank(),
+                        error =
+                            if (expenseState.title.isBlank())
+                                stringResource(androidUiR.string.title_mandatory)
+                            else
+                                stringResource(
+                                    R.string.title_cant_exceed_max,
+                                    expenseState.title.length,
+                                    viewModel.maxTitleLength,
+                                ),
+                        isInError = expenseState.title.length !in (1..viewModel.maxTitleLength),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -223,7 +231,8 @@ fun CreateExpenseScreen(
                     .fillMaxWidth()
                     .padding(bottom = Padding.extraLarge)
                     .align(Alignment.BottomCenter),
-                enabled = expenseState.error == null && expenseState.title.isNotBlank(),
+                enabled = expenseState.error == null
+                        && expenseState.title.length in (1..viewModel.maxTitleLength),
                 colors = ButtonDefaults.buttonColors()
                     .copy(containerColor = MaterialTheme.colorScheme.primary),
                 onClick = {

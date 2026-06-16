@@ -12,6 +12,7 @@ public protocol CreateExpenseFormState: ObservableObject {
     var users: [User] { get }
     var searchQuery: String { get set }
     var maxDescriptionLength: Int { get }
+    var maxTitleLength: Int { get }
 
     func updateAmount(_ raw: String)
     func selectCurrency(_ currency: Currency)

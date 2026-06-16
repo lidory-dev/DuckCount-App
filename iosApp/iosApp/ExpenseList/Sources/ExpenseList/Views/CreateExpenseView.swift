@@ -18,9 +18,24 @@ public struct CreateExpenseView<ViewModel: CreateExpenseFormState>: View {
     public var body: some View {
         NavigationStack {
             Form {
-                Section("Title") {
+                Section {
                     TextField("Mandatory", text: $viewModel.title)
                         .textInputAutocapitalization(.sentences)
+                } header: {
+                    Text("Title")
+                } footer: {
+                    HStack {
+                        Spacer()
+                        Text("\(viewModel.title.count) / \(viewModel.maxTitleLength)")
+                            .monospacedDigit()
+                            .foregroundStyle(
+                                viewModel.title.count > viewModel.maxTitleLength
+                                    ? Color.red
+                                    : Color.secondary
+                            )
+                            .contentTransition(.numericText())
+                            .animation(.snappy, value: viewModel.title.count)
+                    }
                 }
 
                 Section("Paid by") {
@@ -155,6 +170,7 @@ public struct CreateExpenseView<ViewModel: CreateExpenseFormState>: View {
     private var canSave: Bool {
         viewModel.error == nil
             && !viewModel.title.trimmingCharacters(in: .whitespaces).isEmpty
+            && (1...viewModel.maxTitleLength) ~= viewModel.title.count
             && !viewModel.amount.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
