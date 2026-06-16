@@ -1,21 +1,21 @@
 package networking
 
+// dev/emulator on debug, production on release — see apiBaseUrl + shared/build.gradle.kts.
+private val baseUrl = apiBaseUrl
+
 object DuckCountRoutes {
 
-    const val HOST = "10.0.2.2:60000"
-    private const val BASE_URL = "http://$HOST"
-
     object Auth {
-        private const val AUTH_BASE_URL = "$BASE_URL/auth"
+        private val authBaseUrl = "$baseUrl/auth"
 
-        const val REGISTRATIONS = "$AUTH_BASE_URL/registrations"
+        val REGISTRATIONS = "$authBaseUrl/registrations"
 
-        const val SESSIONS = "$AUTH_BASE_URL/sessions"
+        val SESSIONS = "$authBaseUrl/sessions"
 
-        const val TOKEN = "$AUTH_BASE_URL/token"
+        val TOKEN = "$authBaseUrl/token"
     }
 
     object Vault {
-        const val VAULT_BASE_URL = "$BASE_URL/vault"
+        val VAULT_BASE_URL = "$baseUrl/vault"
     }
 }

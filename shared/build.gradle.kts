@@ -78,6 +78,20 @@ android {
     defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()
     }
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    buildTypes {
+        // API_BASE_URL is read in androidMain via BuildConfig (see networking/ApiConfig.android.kt).
+        getByName("debug") {
+            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:60000\"")
+        }
+        getByName("release") {
+            buildConfigField("String", "API_BASE_URL", "\"https://api.duckcount.app\"")
+        }
+    }
 }
 
 dependencies {

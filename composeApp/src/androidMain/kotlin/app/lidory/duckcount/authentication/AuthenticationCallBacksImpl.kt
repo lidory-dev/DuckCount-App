@@ -4,6 +4,9 @@ import AuthError
 import AuthOutcome
 import AuthenticationCallBacks
 import PendingProfile
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Log
 import authenticationUtils.PendingRegistration
 import authenticationUtils.clearPendingRegistration
@@ -28,6 +31,7 @@ private const val TAG = "AuthCallBacks"
 
 class AuthenticationCallBacksImpl(
     val userRepository: UserRepository,
+    private val context: Context,
 ) : AuthenticationCallBacks {
 
     override suspend fun passwordLeakAmount(password: String): AuthOutcome<Int> {
@@ -237,29 +241,46 @@ class AuthenticationCallBacksImpl(
     override suspend fun isLoggedIn(): Boolean =
         getLongLivedToken()?.isNotBlank() ?: false
 
+    /**
+     * Maps a transport-level [NetworkError] to a user-facing [AuthError]. The "couldn't connect"
+     * case ([NetworkError.UNREACHABLE]) is resolved against real device connectivity, so airplane
+     * mode reads as "no internet" even when the base URL is a bare IP (no DNS step to fail on).
+     */
+    private fun NetworkError.toAuthError(): AuthError = when (this) {
+        NetworkError.NO_INTERNET -> AuthError.NO_INTERNET
+        NetworkError.UNREACHABLE -> if (isOnline()) AuthError.UNREACHABLE else AuthError.NO_INTERNET
+        NetworkError.CONFLICT -> AuthError.USERNAME_TAKEN
+        // OPAQUE login hides user existence: both "unknown user" (404) and "unauthorized" read as
+        // invalid credentials to the user.
+        NetworkError.UNAUTHORIZED,
+        NetworkError.NOT_FOUND,
+            -> AuthError.INVALID_CREDENTIALS
+
+        NetworkError.REQUEST_TIMEOUT -> AuthError.TIMEOUT
+        NetworkError.SERVER_ERROR -> AuthError.SERVER_ERROR
+        NetworkError.BAD_REQUEST,
+        NetworkError.PAYLOAD_TOO_LARGE,
+        NetworkError.UNPROCESSABLE_ENTITY,
+        NetworkError.TOO_MANY_REQUESTS,
+        NetworkError.SERIALIZATION,
+        NetworkError.UNKNOWN,
+            -> AuthError.UNKNOWN
+    }
+
+    /** True if the device currently has a network with internet capability. */
+    private fun isOnline(): Boolean {
+        val connectivityManager =
+            context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+
+        val capabilities = connectivityManager.activeNetwork
+            ?.let(connectivityManager::getNetworkCapabilities)
+
+        return capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    }
+
     companion object {
         // Placeholder until MLS is implemented client-side.
         private const val PLACEHOLDER_PUBLIC_KEY = "public_key"
     }
 }
 
-private fun NetworkError.toAuthError(): AuthError = when (this) {
-    NetworkError.NO_INTERNET -> AuthError.NO_INTERNET
-    NetworkError.UNREACHABLE -> AuthError.UNREACHABLE
-    NetworkError.CONFLICT -> AuthError.USERNAME_TAKEN
-    // OPAQUE login hides user existence: both "unknown user" (404) and "unauthorized" read as
-    // invalid credentials to the user.
-    NetworkError.UNAUTHORIZED,
-    NetworkError.NOT_FOUND,
-        -> AuthError.INVALID_CREDENTIALS
-
-    NetworkError.REQUEST_TIMEOUT -> AuthError.TIMEOUT
-    NetworkError.SERVER_ERROR -> AuthError.SERVER_ERROR
-    NetworkError.BAD_REQUEST,
-    NetworkError.PAYLOAD_TOO_LARGE,
-    NetworkError.UNPROCESSABLE_ENTITY,
-    NetworkError.TOO_MANY_REQUESTS,
-    NetworkError.SERIALIZATION,
-    NetworkError.UNKNOWN,
-        -> AuthError.UNKNOWN
-}
