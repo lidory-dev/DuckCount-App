@@ -30,7 +30,7 @@ interface UserDao {
     fun getUserAsFlow(uuid: String): Flow<UserEntity>
 
     @Query("SELECT fullName FROM UserEntity WHERE uuid = :uuid")
-    fun getUserFullNameAsFlow(uuid: String): Flow<String>
+    fun getUserFullNameAsFlow(uuid: String): Flow<String?>
 
     @Query(
         """SELECT UserEntity.* 

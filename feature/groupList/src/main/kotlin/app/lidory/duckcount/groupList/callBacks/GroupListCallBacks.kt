@@ -17,7 +17,7 @@ interface GroupListCallBacks {
 
     suspend fun getUsersFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>>
 
-    suspend fun getUserFullName(uuid: String): Flow<String>
+    suspend fun getUserFullName(uuid: String): Flow<String?>
 
     suspend fun createGroup(title: String, description: String, members: List<GroupMember>)
 }

@@ -87,7 +87,7 @@ class GroupListCallBacksImpl(
             }
     }
 
-    override suspend fun getUserFullName(uuid: String): Flow<String> {
+    override suspend fun getUserFullName(uuid: String): Flow<String?> {
         return userRepository.getFullName(uuid)
     }
 

@@ -28,7 +28,8 @@ class GroupBalanceViewModel(
                     members = groupMembersWithFullName.map { memberWithFullName ->
                         GroupMemberWithBalance(
                             member = memberWithFullName,
-                            balance = debts[memberWithFullName.member.userUuid] ?: "",
+                            balance = debts[memberWithFullName.member.userUuid]
+                                ?: memberWithFullName.member.userUuid, // TODO: Show that the username was not found?
                         )
                     },
                 )

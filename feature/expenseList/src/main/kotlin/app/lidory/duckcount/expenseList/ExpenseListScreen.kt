@@ -70,9 +70,9 @@ fun ExpenseListScreen(
                         )
                         .padding(horizontal = Padding.medium, vertical = Padding.small),
                     title = expense.title,
-                    // TODO: get fullName from userRepository
                     creditorName = viewModel.getUserFullName(expense.creditorUuid)
-                        .collectAsStateWithLifecycle("").value,
+                        .collectAsStateWithLifecycle("").value
+                        ?: expense.creditorUuid, // TODO: Show that the username was not found?
                     amount = expense.amount,
                 )
             }

@@ -17,7 +17,6 @@ interface ExpenseDao {
     @Insert
     suspend fun insertBeneficiaries(beneficiaries: List<BeneficiaryEntity>)
 
-    @Insert
     @Transaction
     suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiariesEntity) {
         insert(expenseEntity = expenseWithBeneficiaries.expense)

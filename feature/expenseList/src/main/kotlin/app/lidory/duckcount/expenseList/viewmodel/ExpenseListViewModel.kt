@@ -42,7 +42,7 @@ class ExpenseListViewModel(
         initialValue = _state.value,
     )
 
-    fun getUserFullName(userUuid: String): Flow<String> {
+    fun getUserFullName(userUuid: String): Flow<String?> {
         return expenseListCallBacks.getUserFullName(userUuid)
     }
 }

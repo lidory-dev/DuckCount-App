@@ -108,8 +108,9 @@ class CreateGroupViewModel(
             _state.update {
                 it.copy(
                     members = members.map { member ->
-                        val fullName = groupListCallBacks.getUserFullName(member.userUuid)
-                        GroupMemberWithFullName(member, fullName = fullName.first())
+                        // TODO: Show that the username was not found?
+                        val fullName = groupListCallBacks.getUserFullName(member.userUuid).first() ?: member.userUuid
+                        GroupMemberWithFullName(member, fullName = fullName)
                     },
                 )
             }

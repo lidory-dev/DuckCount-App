@@ -41,9 +41,8 @@ class GroupBalanceCallBacksImpl(
                         groupUuid = groupMember.groupUuid,
                         isAdmin = groupMember.isAdmin,
                     ),
-                    // TODO: remove the check of isAdmin when the admin user is correctly inserted (see CreateGroupViewModel)
-                    fullName = if (!groupMember.isAdmin)
-                        userRepository.getFullName(groupMember.userUuid).first() else "",
+                    // TODO: Show that the username was not found?
+                    fullName = userRepository.getFullName(groupMember.userUuid).first() ?: groupMember.userUuid,
                 )
             }
         }

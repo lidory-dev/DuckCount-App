@@ -156,8 +156,10 @@ class CreateExpenseViewModel(
                 } else {
                     combine(
                         userUuids.map { uuid ->
-                            createExpenseCallBacks.getUserFullName(uuid)
-                                .map { name -> uuid to name }
+                            createExpenseCallBacks.getUserFullName(uuid).map { name ->
+                                // TODO: Show that the username was not found?
+                                name?.let { uuid to name } ?: (uuid to uuid)
+                            }
                         },
                     ) { pairs -> pairs.toMap() }
                 }
@@ -173,7 +175,7 @@ class CreateExpenseViewModel(
                     uuid = beneficiary.uuid,
                     userUuid = beneficiary.userUuid,
                     share = beneficiary.share,
-                    fullName = names[beneficiary.userUuid] ?: "",
+                    fullName = names[beneficiary.userUuid] ?: beneficiary.userUuid,
                 )
             }
         }.stateIn(
@@ -230,13 +232,12 @@ class CreateExpenseViewModel(
 
     fun getCreditorName() {
         viewModelScope.launch {
-            // TODO: Remove run catching when default user is the current connected user
-            runCatching {
-                createExpenseCallBacks.getUserFullName(_state.value.creditorUuid)
-                    .collect { fullName ->
-                        updateCreditorFullName(fullName)
-                    }
-            }
+            createExpenseCallBacks.getUserFullName(_state.value.creditorUuid)
+                .collect {
+                    // TODO: Show that the username was not found?
+                    val fullName = it ?: _state.value.creditorUuid
+                    updateCreditorFullName(fullName)
+                }
         }
     }
 
