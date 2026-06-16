@@ -29,7 +29,7 @@
     <string name="expense_title">Expense title</string>
     <string name="label_paid_by">Paid by</string>
     <string name="label_description">Description</string>
-    <string name="description_cant_exceed_max">Description too long (%1$s/%2$s)</string>
+    <string name="description_too_long">Description too long (%1$d/%2$d)</string>
     <string name="add_expense">Add expense</string>
 
     <!-- ErrorCard -->
@@ -38,5 +38,5 @@
     <string name="back">Back</string>
     <string name="exclamation_mark">Exclamation Mark</string>
     <string name="non_positive_amount_share">Every beneficiary must have a share greater than zero</string>
-    <string name="title_cant_exceed_max">Title too long (%1$d/%2$d)</string>
+    <string name="title_too_long">Title too long (%1$d/%2$d)</string>
 </resources>

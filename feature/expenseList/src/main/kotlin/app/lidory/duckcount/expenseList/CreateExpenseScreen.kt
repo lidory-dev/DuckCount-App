@@ -152,7 +152,7 @@ fun CreateExpenseScreen(
                                 stringResource(androidUiR.string.title_mandatory)
                             else
                                 stringResource(
-                                    R.string.title_cant_exceed_max,
+                                    R.string.title_too_long,
                                     expenseState.title.length,
                                     viewModel.maxTitleLength,
                                 ),
@@ -196,7 +196,7 @@ fun CreateExpenseScreen(
                         singleLine = false,
                         maxLines = 5,
                         error = stringResource(
-                            R.string.description_cant_exceed_max, expenseState.description.length,
+                            R.string.description_too_long, expenseState.description.length,
                             viewModel.maxDescriptionLength,
                         ),
                         isInError = expenseState.description.length > viewModel.maxDescriptionLength,

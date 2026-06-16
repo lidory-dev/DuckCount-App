@@ -26,8 +26,8 @@ class CreateExpenseViewModel: ObservableObject, CreateExpenseFormState {
         ExpenseList.Currency(id: "JPY", name: "JPY", symbol: "¥", hasSubunits: false),
     ]
 
-    let maxDescriptionLength: Int = Int(ExpenseLimitsKt.MAX_DESCRIPTION_LENGTH)
     let maxTitleLength: Int = Int(ExpenseLimitsKt.MAX_TITLE_LENGTH)
+    let maxDescriptionLength: Int = Int(ExpenseLimitsKt.MAX_DESCRIPTION_LENGTH)
 
     static let placeholderCreditor = ExpenseList.User(
         id: "00000000-0000-0000-0000-000000000001",

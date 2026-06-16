@@ -9,9 +9,9 @@ import kotlinx.coroutines.flow.Flow
 
 interface CreateExpenseCallBacks {
 
-    val maxDescriptionLength: Int
-
     val maxTitleLength: Int
+
+    val maxDescriptionLength: Int
 
     fun validateExpense(amount: String, currency: Currency, beneficiaries: List<Beneficiary>): Int?
 

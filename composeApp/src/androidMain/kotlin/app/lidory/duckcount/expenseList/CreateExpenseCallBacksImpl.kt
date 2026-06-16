@@ -27,9 +27,9 @@ class CreateExpenseCallBacksImpl(
     private val beneficiaryRepository: BeneficiaryRepository,
 ) : CreateExpenseCallBacks {
 
-    override val maxDescriptionLength: Int = MAX_DESCRIPTION_LENGTH
-
     override val maxTitleLength: Int = MAX_TITLE_LENGTH
+
+    override val maxDescriptionLength: Int = MAX_DESCRIPTION_LENGTH
 
     override suspend fun insert(expense: Expense) {
         expenseRepository.insert(
