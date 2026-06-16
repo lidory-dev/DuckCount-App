@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,13 +20,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.android.ui.constant.Padding
-import kotlin.math.absoluteValue
+import java.math.BigDecimal
 
 @Composable
 fun BalanceGraphItem(
     fullName: String,
-    debt: String,
-    maxAmount: Double,
+    debt: BigDecimal,
+    maxAmount: BigDecimal,
+    isAppInDarkTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val elements: List<@Composable RowScope.() -> Unit> = listOf(
@@ -35,51 +35,56 @@ fun BalanceGraphItem(
             Text(
                 modifier = Modifier.weight(1f),
                 fullName = fullName,
-                debt = debt.toDouble(),
+                debt = debt,
             )
         },
         {
             Bar(
                 modifier = Modifier.weight(1f),
                 maxAmount = maxAmount,
-                amount = debt.toDouble(),
+                amount = debt,
+                isAppInDarkTheme = isAppInDarkTheme,
             )
         },
     )
+
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        debt.toIntOrNull()?.let { debt ->
-            if (debt < 0) {
-                elements.reversed().forEach { it() }
-            } else {
-                elements.forEach { it() }
-            }
+        if (debt < BigDecimal.ZERO) {
+            elements.reversed().forEach { it() }
+        } else {
+            elements.forEach { it() }
         }
+
     }
 }
 
 @Composable
 fun Bar(
-    maxAmount: Double,
-    amount: Double,
+    maxAmount: BigDecimal,
+    amount: BigDecimal,
+    isAppInDarkTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val spec = BarSpec.fromAmount(amount = amount)
+    val spec = BarSpec.fromAmount(amount = amount, isAppInDarkTheme = isAppInDarkTheme)
+
     BoxWithConstraints(
         modifier = modifier,
         contentAlignment = spec.alignment,
     ) {
         val barWidth: Dp =
-            ((amount.absoluteValue * this.maxWidth.value) / maxAmount.absoluteValue).toInt().dp
+            ((amount.abs() * this.maxWidth.value.toBigDecimal()) / maxAmount.abs()).toInt().dp
+
         Box(
             modifier = Modifier
                 .width(barWidth)
                 .height(40.dp)
                 .background(color = spec.color, shape = spec.shape),
         )
+
         // TODO: Add currency
         Text(
             modifier = Modifier.padding(horizontal = Padding.medium),
@@ -92,13 +97,13 @@ fun Bar(
 
 @Composable
 fun Text(
-    debt: Double,
+    debt: BigDecimal,
     fullName: String,
     modifier: Modifier = Modifier,
 ) {
     Box(
         modifier = modifier.padding(horizontal = Padding.medium),
-        contentAlignment = if (debt < 0) {
+        contentAlignment = if (debt < BigDecimal.ZERO) {
             Alignment.CenterStart
         } else {
             Alignment.CenterEnd
@@ -119,16 +124,16 @@ data class BarSpec(
 ) {
     companion object {
         @Composable
-        fun fromAmount(amount: Double): BarSpec =
-            if (amount < 0) {
+        fun fromAmount(amount: BigDecimal, isAppInDarkTheme: Boolean): BarSpec =
+            if (amount < BigDecimal.ZERO) {
                 BarSpec(
-                    color = MaterialTheme.colorScheme.error,
+                    color = if (isAppInDarkTheme) Color(0xFF890401) else Color(0xFFFBA5A2),
                     alignment = Alignment.CenterEnd,
                     shape = RoundedCornerShape(topStart = Padding.medium, bottomStart = Padding.medium),
                 )
             } else {
                 BarSpec(
-                    color = MaterialTheme.colorScheme.primaryContainer,
+                    color = if (isAppInDarkTheme) Color(0xFF0A4401) else Color(0xFFAECCA2),
                     alignment = Alignment.CenterStart,
                     shape = RoundedCornerShape(topEnd = Padding.medium, bottomEnd = Padding.medium),
                 )

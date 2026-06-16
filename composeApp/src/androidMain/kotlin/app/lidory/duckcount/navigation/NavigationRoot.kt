@@ -14,6 +14,7 @@ import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import app.lidory.duckcount.android.ui.theme.isAppInDarkTheme
 import app.lidory.duckcount.expenseList.CreateExpenseScreen
 import app.lidory.duckcount.expenseList.ExpenseDetailScreen
 import app.lidory.duckcount.expenseList.ExpenseListScreen
@@ -180,6 +181,7 @@ fun NavigationRoot(
                                     viewModel = koinViewModel {
                                         parametersOf(key.groupUuid)
                                     },
+                                    isAppInDarkTheme = isAppInDarkTheme(),
                                 )
                             },
                         )
