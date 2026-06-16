@@ -70,48 +70,51 @@ class ExpenseListViewModel: ObservableObject {
     private func observeExpenses() {
         let flow = expenseRepository.getAll()
 
-        cancellable = FlowCollectorKt.collect(flow, onEach: { [weak self] value in
-            guard let self else {
-                return
-            }
-            guard let kotlinExpenses = value as? [Shared.ExpenseWithBeneficiaries] else {
-                return
-            }
-
-            let swiftExpenses = kotlinExpenses.map { kotlinExpense -> SwiftExpense in
-                let beneficiaryUuids = Set(kotlinExpense.beneficiaries.map {
-                    $0.userUuid
-                })
-                let status: ExpenseStatus
-                if kotlinExpense.creditorUuid == Self.currentUserUuid {
-                    status = .creditor
-                } else if beneficiaryUuids.contains(Self.currentUserUuid) {
-                    status = .beneficiary
-                } else {
-                    status = .neutral
+        cancellable = FlowCollectorKt.collect(
+            flow,
+            onEach: { [weak self] value in
+                guard let self else {
+                    return
+                }
+                guard let kotlinExpenses = value as? [Shared.ExpenseWithBeneficiaries] else {
+                    return
                 }
 
-                return SwiftExpense(
-                    id: kotlinExpense.uuid,
-                    timestamp: kotlinExpense.timestamp,
-                    title: kotlinExpense.title,
-                    description: kotlinExpense.description_,
-                    amount: kotlinExpense.amount,
-                    creditorUuid: kotlinExpense.creditorUuid,
-                    isRefund: kotlinExpense.isRefund,
-                    currency: Currency(
-                        id: kotlinExpense.currency.uuid,
-                        name: kotlinExpense.currency.name,
-                        symbol: kotlinExpense.currency.symbol,
-                        hasSubunits: kotlinExpense.currency.hasSubunits
-                    ),
-                    status: status
-                )
-            }
+                let swiftExpenses = kotlinExpenses.map { kotlinExpense -> SwiftExpense in
+                    let beneficiaryUuids = Set(
+                        kotlinExpense.beneficiaries.map {
+                            $0.userUuid
+                        })
+                    let status: ExpenseStatus
+                    if kotlinExpense.creditorUuid == Self.currentUserUuid {
+                        status = .creditor
+                    } else if beneficiaryUuids.contains(Self.currentUserUuid) {
+                        status = .beneficiary
+                    } else {
+                        status = .neutral
+                    }
 
-            self.groupedExpenses = Self.groupByDate(expenses: swiftExpenses)
-            self.isLoading = false
-        }, onCompletion: { _ in })
+                    return SwiftExpense(
+                        id: kotlinExpense.uuid,
+                        timestamp: kotlinExpense.timestamp,
+                        title: kotlinExpense.title,
+                        description: kotlinExpense.description_,
+                        amount: kotlinExpense.amount,
+                        creditorUuid: kotlinExpense.creditorUuid,
+                        isRefund: kotlinExpense.isRefund,
+                        currency: Currency(
+                            id: kotlinExpense.currency.uuid,
+                            name: kotlinExpense.currency.name,
+                            symbol: kotlinExpense.currency.symbol,
+                            hasSubunits: kotlinExpense.currency.hasSubunits
+                        ),
+                        status: status
+                    )
+                }
+
+                self.groupedExpenses = Self.groupByDate(expenses: swiftExpenses)
+                self.isLoading = false
+            }, onCompletion: { _ in })
     }
 
     private static func groupByDate(expenses: [SwiftExpense]) -> [ExpenseGroup] {
@@ -124,26 +127,27 @@ class ExpenseListViewModel: ObservableObject {
 
         let currentYear = Calendar.current.component(.year, from: Date())
 
-        return grouped
-        .sorted {
-            $0.key > $1.key
-        }
-        .map { key, expenses in
-            let displayDate: String
-            if let date = groupKeyFormatter.date(from: key) {
-                let year = Calendar.current.component(.year, from: date)
-                let formatter = year == currentYear ? displayFormatterCurrentYear : displayFormatterWithYear
-                displayDate = formatter.string(from: date)
-            } else {
-                displayDate = key
+        return
+            grouped
+            .sorted {
+                $0.key > $1.key
             }
+            .map { key, expenses in
+                let displayDate: String
+                if let date = groupKeyFormatter.date(from: key) {
+                    let year = Calendar.current.component(.year, from: date)
+                    let formatter = year == currentYear ? displayFormatterCurrentYear : displayFormatterWithYear
+                    displayDate = formatter.string(from: date)
+                } else {
+                    displayDate = key
+                }
 
-            let sortedExpenses = expenses.sorted {
-                $0.timestamp > $1.timestamp
+                let sortedExpenses = expenses.sorted {
+                    $0.timestamp > $1.timestamp
+                }
+
+                return ExpenseGroup(id: key, displayDate: displayDate, expenses: sortedExpenses)
             }
-
-            return ExpenseGroup(id: key, displayDate: displayDate, expenses: sortedExpenses)
-        }
     }
 
     func createRandomExpenses() {
@@ -190,21 +194,22 @@ class ExpenseListViewModel: ObservableObject {
             var beneficiaryUserUuids: [String]
 
             switch i % 3 {
-            case 0: // creditor
+            case 0:  // creditor
                 creditorUuid = Self.currentUserUuid
                 beneficiaryUserUuids = Array(otherUserUuids.prefix(Int.random(in: 1...otherUserUuids.count)))
-            case 1: // beneficiary
+            case 1:  // beneficiary
                 creditorUuid = otherUserUuids[i % otherUserUuids.count]
                 beneficiaryUserUuids = [Self.currentUserUuid]
                 if Bool.random() {
                     beneficiaryUserUuids.append(otherUserUuids[(i + 1) % otherUserUuids.count])
                 }
-            default: // neutral
+            default:  // neutral
                 creditorUuid = otherUserUuids[i % otherUserUuids.count]
-                beneficiaryUserUuids = Array(otherUserUuids.filter {
-                    $0 != creditorUuid
-                }
-                                             .prefix(2))
+                beneficiaryUserUuids = Array(
+                    otherUserUuids.filter {
+                        $0 != creditorUuid
+                    }
+                    .prefix(2))
             }
 
             let expenseUuid = UUID().uuidString
@@ -221,7 +226,8 @@ class ExpenseListViewModel: ObservableObject {
                     name: currencyNames[currencyIndex],
                     symbol: symbols[currencyIndex],
                     hasSubunits: true
-                )
+                ),
+                groupUuid: nil
             )
 
             // TODO: Make sure that the beneficiaries are valid before inserting the expense in the database.
