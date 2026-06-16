@@ -5,7 +5,7 @@ import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import kotlinx.coroutines.flow.Flow
 
 interface GroupBalanceCallBacks {
-    suspend fun getGroupDebt(groupUuid: String, groupMembers: List<GroupMember>): Map<String, String>
+    suspend fun getNetDebtsPerUser(groupUuid: String, groupMembers: List<GroupMember>): Map<String, String>
 
     fun getAllMembers(groupUuid: String): Flow<List<GroupMemberWithFullName>>
 }

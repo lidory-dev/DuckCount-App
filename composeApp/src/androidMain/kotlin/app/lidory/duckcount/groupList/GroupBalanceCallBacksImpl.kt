@@ -1,5 +1,6 @@
 package app.lidory.duckcount.groupList
 
+import app.lidory.duckcount.calculateNetDebtsPerUser
 import app.lidory.duckcount.groupList.callBacks.GroupBalanceCallBacks
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
@@ -17,8 +18,8 @@ class GroupBalanceCallBacksImpl(
     private val expenseRepository: ExpenseRepository,
 ) : GroupBalanceCallBacks {
 
-    override suspend fun getGroupDebt(groupUuid: String, groupMembers: List<GroupMember>): Map<String, String> {
-        return getDeptFromGroup(
+    override suspend fun getNetDebtsPerUser(groupUuid: String, groupMembers: List<GroupMember>): Map<String, String> {
+        return calculateNetDebtsPerUser(
             members = groupMembers.map { groupMember ->
                 DBGroupMember(
                     uuid = groupMember.uuid,

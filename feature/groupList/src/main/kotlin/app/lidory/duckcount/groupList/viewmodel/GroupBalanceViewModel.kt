@@ -22,7 +22,10 @@ class GroupBalanceViewModel(
     val state: StateFlow<MembersWithBalanceState> = _state.onStart {
         groupBalanceCallBacks.getAllMembers(groupUuid).onEach { groupMembersWithFullName ->
             val debts =
-                groupBalanceCallBacks.getGroupDebt(groupUuid = groupUuid, groupMembersWithFullName.map { it.member })
+                groupBalanceCallBacks.getNetDebtsPerUser(
+                    groupUuid = groupUuid,
+                    groupMembersWithFullName.map { it.member },
+                )
             _state.update {
                 it.copy(
                     members = groupMembersWithFullName.map { memberWithFullName ->
