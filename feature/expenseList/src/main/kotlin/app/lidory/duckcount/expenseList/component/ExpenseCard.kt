@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import app.lidory.duckcount.android.ui.constant.Elevation
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.R
+import app.lidory.duckcount.expenseList.model.ExpenseStatus
 
 @Composable
 fun ExpenseCard(
@@ -31,6 +32,7 @@ fun ExpenseCard(
     title: String,
     creditorName: String,
     amount: String,
+    role: ExpenseStatus,
     isActive: Boolean,
 ) {
     ElevatedCard(
@@ -75,9 +77,6 @@ fun ExpenseCard(
                 )
             }
 
-            //TODO: Change with beneficiary amount and real data
-            val role = ExpenseStatus.BENEFICIARY
-
             if (role != ExpenseStatus.NEUTRAL) {
                 Spacer(
                     modifier = Modifier.weight(.1f),
@@ -98,38 +97,20 @@ fun ExpenseCard(
 
 @Composable
 fun ExpenseAmount(modifier: Modifier = Modifier, amount: String, role: ExpenseStatus, isActive: Boolean) {
-    //TODO: Add parameter with real data
-
-    // role is defined temporary on BENEFICIARY waiting the real data
-    val amountDisplay = if (role != ExpenseStatus.NEUTRAL) amount else ""
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = "${role.labelAmount} $amountDisplay",
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = role.color,
-            style = MaterialTheme.typography.titleLarge.copy(
-                textDecoration = if (isActive) TextDecoration.None else TextDecoration.LineThrough,
-            ),
-        )
-    }
-}
-
-enum class ExpenseStatus(val labelAmount: String, val color: Color) {
-    BENEFICIARY(
-        labelAmount = "+",
-        color = Color(0xff5ccb5f),
-    ),
-    CREDITOR(
-        labelAmount = "-",
-        color = Color(0xffe63946),
-    ),
-    NEUTRAL(
-        labelAmount = "",
-        color = Color.LightGray,
-    )
+    if (role != ExpenseStatus.NEUTRAL)
+        Row(
+            modifier = modifier,
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "${role.labelAmount} $amount",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = role.color,
+                style = MaterialTheme.typography.titleLarge.copy(
+                	textDecoration = if (isActive) TextDecoration.None else TextDecoration.LineThrough,
+            	),
+            )
+        }
 }

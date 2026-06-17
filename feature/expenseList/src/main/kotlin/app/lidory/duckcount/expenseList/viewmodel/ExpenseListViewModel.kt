@@ -30,7 +30,12 @@ class ExpenseListViewModel(
         } else {
             expenseListCallBacks.getAllExpensesFromGroup(uuid)
         }
-            .map { expenses -> ExpenseListScreenState(expenses = expenses) }
+            .map { expenses ->
+                ExpenseListScreenState(
+                    expenses = expenses,
+                    connectedUserUuid = expenseListCallBacks.getConnectedUserUuid() ?: "",
+                )
+            }
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5000L),
@@ -50,6 +55,7 @@ class ExpenseListViewModel(
 data class ExpenseListScreenState(
     val isLoading: Boolean = false,
     val expenses: List<ExpenseWithBeneficiaries> = emptyList(),
+    val connectedUserUuid: String = "",
 )
 
 @Composable

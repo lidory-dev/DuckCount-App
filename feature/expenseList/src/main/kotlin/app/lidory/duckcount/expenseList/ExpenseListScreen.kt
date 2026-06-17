@@ -17,6 +17,7 @@ import androidx.lifecycle.compose.dropUnlessResumed
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.component.ExpenseCard
 import app.lidory.duckcount.expenseList.component.StickyHeaderElevated
+import app.lidory.duckcount.expenseList.model.ExpenseStatus
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseListViewModel
 import app.lidory.duckcount.expenseList.viewmodel.expenseListViewModel
 import kotlinx.datetime.LocalDateTime
@@ -62,7 +63,7 @@ fun ExpenseListScreen(
                 key = { expense -> expense.uuid },
             ) { expense ->
 
-                // We navigate when clicking on an expense, so we need to safeguard the onClick with dropUnlessResumed.
+                // We navigate when clicking on an expense, so we need to safeguard the onClick with dropUnlessResumed
                 ExpenseCard(
                     modifier = Modifier
                         .clickable(
@@ -74,6 +75,13 @@ fun ExpenseListScreen(
                         .collectAsStateWithLifecycle("").value
                         ?: expense.creditorUuid, // TODO: Show that the username was not found?
                     amount = expense.amount,
+                    role = when (state.connectedUserUuid) {
+                        expense.creditorUuid -> ExpenseStatus.CREDITOR
+
+                        in expense.beneficiaries.map { it.userUuid } -> ExpenseStatus.BENEFICIARY
+
+                        else -> ExpenseStatus.NEUTRAL
+                    },
                     isActive = !expense.isDeleted,
                 )
             }

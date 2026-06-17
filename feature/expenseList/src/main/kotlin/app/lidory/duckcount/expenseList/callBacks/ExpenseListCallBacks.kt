@@ -26,4 +26,6 @@ interface ExpenseListCallBacks {
     fun getAllExpensesFromGroup(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>>
 
     fun getUserFullName(userUuid: String): Flow<String?>
+
+    suspend fun getConnectedUserUuid(): String?
 }
