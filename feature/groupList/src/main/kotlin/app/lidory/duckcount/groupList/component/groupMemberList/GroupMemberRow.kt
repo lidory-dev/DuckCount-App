@@ -26,6 +26,7 @@ fun GroupMemberRow(
     memberFullName: String,
     removeMember: (GroupMember) -> Unit,
     modifier: Modifier = Modifier,
+    isRemovable: Boolean = true,
 ) {
     Card(
         shape = RoundedCornerShape(size = Padding.large),
@@ -44,10 +45,12 @@ fun GroupMemberRow(
                     .padding(TextFieldDefaults.contentPaddingWithLabel()),
             )
 
-            IconButton(
-                onClick = { removeMember(member) },
-            ) {
-                Icon(painter = painterResource(R.drawable.ic_close), stringResource(R.string.remove))
+            if (isRemovable) {
+                IconButton(
+                    onClick = { removeMember(member) },
+                ) {
+                    Icon(painter = painterResource(R.drawable.ic_close), stringResource(R.string.remove))
+                }
             }
         }
     }

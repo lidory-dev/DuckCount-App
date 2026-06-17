@@ -37,6 +37,32 @@ class CreateGroupViewModel(
     private val _selectedUuids = MutableStateFlow<Set<String>>(emptySet())
     val selectedUuids: StateFlow<Set<String>> = _selectedUuids
 
+    init {
+        loadAuthenticatedMember()
+    }
+
+    private fun loadAuthenticatedMember() {
+        val authenticatedUserUuid = groupListCallBacks.getAuthenticatedUserUuid() ?: return
+
+        viewModelScope.launch {
+            val fullName = groupListCallBacks.getUserFullName(authenticatedUserUuid).first()
+                ?: authenticatedUserUuid
+
+            _state.update {
+                it.copy(
+                    authenticatedMember = GroupMemberWithFullName(
+                        member = GroupMember(
+                            userUuid = authenticatedUserUuid,
+                            groupUuid = "",
+                            isAdmin = true,
+                        ),
+                        fullName = fullName,
+                    ),
+                )
+            }
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val usersState: StateFlow<UserListState> = _searchQuery
         .flatMapLatest { query ->
@@ -153,6 +179,7 @@ data class CreateGroupState(
     val title: String = "",
     val description: String = "",
     val members: List<GroupMemberWithFullName> = emptyList(),
+    val authenticatedMember: GroupMemberWithFullName? = null,
 )
 
 data class UserListState(

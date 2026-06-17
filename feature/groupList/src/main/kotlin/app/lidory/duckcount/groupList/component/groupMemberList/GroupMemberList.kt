@@ -12,12 +12,25 @@ fun LazyListScope.groupMemberList(
     members: List<GroupMemberWithFullName>,
     onModifyMemberList: () -> Unit,
     removeMember: (GroupMember) -> Unit,
+    authenticatedMember: GroupMemberWithFullName? = null,
 ) {
     item {
         GroupMemberHeader(
             isMemberListEmpty = members.isEmpty(),
             onModifyMemberList = onModifyMemberList,
         )
+    }
+
+    authenticatedMember?.let { memberWithFullName ->
+        item(key = memberWithFullName.member.uuid) {
+            GroupMemberRow(
+                modifier = Modifier.fillMaxWidth(),
+                member = memberWithFullName.member,
+                memberFullName = memberWithFullName.fullName,
+                removeMember = {},
+                isRemovable = false,
+            )
+        }
     }
 
     items(

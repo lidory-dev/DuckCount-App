@@ -150,6 +150,7 @@ fun CreateGroupScreen(
 
                 groupMemberList(
                     members = state.members,
+                    authenticatedMember = state.authenticatedMember,
                     onModifyMemberList = {
                         viewModel.showMemberDialog()
                     },
