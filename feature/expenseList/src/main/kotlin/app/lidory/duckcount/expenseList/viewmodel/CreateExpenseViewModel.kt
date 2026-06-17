@@ -102,7 +102,7 @@ class CreateExpenseViewModel(
         ),
     )
     val state = _state.onStart {
-        updateCreditor(creditorUuid = createExpenseCallBacks.getConnectedUserUuid() ?: "")
+        updateCreditor(creditorUuid = createExpenseCallBacks.getAuthenticatedUserUuid() ?: "")
 
         getCreditorName()
 

@@ -41,7 +41,7 @@ class CreateGroupViewModel(
     val usersState: StateFlow<UserListState> = _searchQuery
         .flatMapLatest { query ->
             groupListCallBacks.getUsersFiltered(filter = query).map {
-                it.filterNot { user -> user.uuid == groupListCallBacks.getConnectedUserUuid() }
+                it.filterNot { user -> user.uuid == groupListCallBacks.getAuthenticatedUserUuid() }
             }
         }
         .map { users ->
@@ -136,7 +136,7 @@ class CreateGroupViewModel(
                 title = state.value.title,
                 description = state.value.description,
                 members = state.value.members.map { it.member } + GroupMember(
-                    userUuid = groupListCallBacks.getConnectedUserUuid() ?: "",
+                    userUuid = groupListCallBacks.getAuthenticatedUserUuid() ?: "",
                     groupUuid = "",
                     isAdmin = true,
                 ),

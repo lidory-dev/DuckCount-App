@@ -6,5 +6,5 @@ interface ContactCallBacks {
 
     suspend fun getUser(uuid: String): Flow<User>
 
-    suspend fun getConnectedUserUuid(): String?
+    fun getAuthenticatedUserUuid(): String?
 }

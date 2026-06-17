@@ -27,5 +27,5 @@ interface ExpenseListCallBacks {
 
     fun getUserFullName(userUuid: String): Flow<String?>
 
-    suspend fun getConnectedUserUuid(): String?
+    fun getAuthenticatedUserUuid(): String?
 }

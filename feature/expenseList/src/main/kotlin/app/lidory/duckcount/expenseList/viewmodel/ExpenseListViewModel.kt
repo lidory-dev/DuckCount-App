@@ -33,7 +33,7 @@ class ExpenseListViewModel(
             .map { expenses ->
                 ExpenseListScreenState(
                     expenses = expenses,
-                    connectedUserUuid = expenseListCallBacks.getConnectedUserUuid() ?: "",
+                    connectedUserUuid = expenseListCallBacks.getAuthenticatedUserUuid() ?: "",
                 )
             }
             .stateIn(

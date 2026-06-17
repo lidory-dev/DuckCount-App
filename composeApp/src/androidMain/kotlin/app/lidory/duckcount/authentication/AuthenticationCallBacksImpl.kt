@@ -10,10 +10,10 @@ import android.net.NetworkCapabilities
 import android.util.Log
 import authenticationUtils.PendingRegistration
 import authenticationUtils.clearPendingRegistration
+import authenticationUtils.setAuthenticatedUserUuid
 import authenticationUtils.setHasPasswordBeenChecked
 import authenticationUtils.setPendingRegistration
 import authenticationUtils.setTokens
-import authenticationUtils.setUserUuid
 import database.user.User
 import database.user.UserRepository
 import networking.DuckCountClient
@@ -118,7 +118,7 @@ class AuthenticationCallBacksImpl(
                         longLivedToken = longLivedToken,
                     )
 
-                    setUserUuid(uuid)
+                    setAuthenticatedUserUuid(uuid)
 
                     AuthOutcome.Success(uuid)
                 }
@@ -185,7 +185,7 @@ class AuthenticationCallBacksImpl(
                     // The server carries the user's UUID in the short-lived token's `sub`.
                     val uuid = shortLivedToken.jwtClaim(claim = "sub")
                     uuid?.let {
-                        setUserUuid(uuid)
+                        setAuthenticatedUserUuid(uuid)
                     } ?: Log.e(TAG, "login: could not read uuid from short-lived token")
 
                     AuthOutcome.Success(Unit)

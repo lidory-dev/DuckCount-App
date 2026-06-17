@@ -13,7 +13,7 @@ const val USER_UUID = "userUuid"
  *
  * Set when registration or login finishes.
  */
-fun setUserUuid(uuid: String) {
+fun setAuthenticatedUserUuid(uuid: String) {
     val vault: KSafe = getKoin().get(named("vault"))
 
     vault.putDirect(
@@ -26,8 +26,8 @@ fun setUserUuid(uuid: String) {
     )
 }
 
-suspend fun getUserUuid(): String? {
+fun getAuthenticatedUserUuid(): String? {
     val vault: KSafe = getKoin().get(named("vault"))
 
-    return vault.get(key = USER_UUID, defaultValue = null)
+    return vault.getDirect(key = USER_UUID, defaultValue = null)
 }

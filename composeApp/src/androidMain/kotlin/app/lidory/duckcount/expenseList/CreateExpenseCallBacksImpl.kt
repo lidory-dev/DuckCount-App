@@ -8,7 +8,6 @@ import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.Expense
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.User
-import authenticationUtils.getUserUuid
 import database.beneficiary.BeneficiaryRepository
 import database.expense.ExpenseRepository
 import database.user.UserRepository
@@ -63,7 +62,7 @@ class CreateExpenseCallBacksImpl(
         expenseRepository.updateWithBeneficiaries(expenseWithBeneficiaries.toDb())
     }
 
-	override suspend fun getConnectedUserUuid(): String? {
-        return getUserUuid()
+    override fun getAuthenticatedUserUuid(): String? {
+        return authenticationUtils.getAuthenticatedUserUuid()
     }
 }
