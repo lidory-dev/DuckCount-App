@@ -149,6 +149,10 @@ class CreateExpenseCallBacksImpl(
                 expenseListR.string.non_positive_amount_share
             }
 
+            ExpenseError.NO_BENEFICIARIES -> {
+                expenseListR.string.no_beneficiaries
+            }
+
             else -> null
         }
     }

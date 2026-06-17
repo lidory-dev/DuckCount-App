@@ -232,8 +232,9 @@ fun CreateExpenseScreen(
                     .padding(bottom = Padding.extraLarge)
                     .align(Alignment.BottomCenter),
                 enabled = expenseState.error == null
+                        && expenseState.amount.isNotBlank()
                         && expenseState.title.length in (1..viewModel.maxTitleLength)
-                        && expenseState.description.length in (1..viewModel.maxDescriptionLength),
+                        && expenseState.description.length in (0..viewModel.maxDescriptionLength),
                 colors = ButtonDefaults.buttonColors()
                     .copy(containerColor = MaterialTheme.colorScheme.primary),
                 onClick = {
@@ -249,4 +250,3 @@ fun CreateExpenseScreen(
         }
     }
 }
-

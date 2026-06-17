@@ -33,6 +33,7 @@
     <string name="add_expense">Add expense</string>
 
     <!-- ErrorCard -->
+    <string name="no_beneficiaries">An expense must have at least one beneficiary</string>
     <string name="shares_below_total_amount">The total of the shares cannot be less than the total amount</string>
     <string name="shares_exceed_total_amount">The total of the shares cannot be greater than the total amount</string>
     <string name="back">Back</string>

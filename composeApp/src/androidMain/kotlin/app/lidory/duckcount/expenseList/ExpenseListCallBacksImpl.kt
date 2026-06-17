@@ -158,24 +158,29 @@ class ExpenseListCallBacksImpl(
                 )
             },
         )
-        when (error) {
+
+        return when (error) {
             ExpenseError.SHARES_BELOW_TOTAL_AMOUNT -> {
-                return expenseListR.string.shares_below_total_amount
+                expenseListR.string.shares_below_total_amount
             }
 
             ExpenseError.SHARES_EXCEED_TOTAL_AMOUNT -> {
-                return expenseListR.string.shares_exceed_total_amount
+                expenseListR.string.shares_exceed_total_amount
             }
 
             ExpenseError.NON_POSITIVE_SHARE -> {
-                return expenseListR.string.non_positive_amount_share
+                expenseListR.string.non_positive_amount_share
             }
 
             ExpenseError.SHARES_EMPTY -> {
-                return expenseListR.string.non_positive_amount_share
+                expenseListR.string.non_positive_amount_share
             }
 
-            else -> return null
+            ExpenseError.NO_BENEFICIARIES -> {
+                expenseListR.string.no_beneficiaries
+            }
+
+            else -> null
         }
     }
 
