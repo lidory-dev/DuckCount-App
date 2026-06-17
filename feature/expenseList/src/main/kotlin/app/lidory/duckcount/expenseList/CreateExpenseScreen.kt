@@ -103,7 +103,7 @@ fun CreateExpenseScreen(
                 title = {
                     Text(
                         text = if (viewModel.isNewExpense()) stringResource(R.string.add_new_expense) else
-                            stringResource(R.string.edit_en_expense),
+                            stringResource(R.string.edit_expense),
                     )
                 },
                 navigationIcon = {

@@ -39,6 +39,6 @@
     <string name="back">Back</string>
     <string name="exclamation_mark">Exclamation Mark</string>
     <string name="non_positive_amount_share">Every beneficiary must have a share greater than zero</string>
-    <string name="edit_en_expense">Edit en expense</string>
+    <string name="edit_expense">Edit expense</string>
     <string name="title_too_long">Title too long (%1$d/%2$d)</string>
 </resources>
