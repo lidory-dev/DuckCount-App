@@ -20,4 +20,6 @@ interface GroupListCallBacks {
     suspend fun getUserFullName(uuid: String): Flow<String?>
 
     suspend fun createGroup(title: String, description: String, members: List<GroupMember>)
+
+    suspend fun getConnectedUserUuid(): String?
 }

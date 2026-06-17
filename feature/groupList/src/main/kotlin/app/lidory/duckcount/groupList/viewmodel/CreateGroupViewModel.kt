@@ -40,7 +40,9 @@ class CreateGroupViewModel(
     @OptIn(ExperimentalCoroutinesApi::class)
     val usersState: StateFlow<UserListState> = _searchQuery
         .flatMapLatest { query ->
-            groupListCallBacks.getUsersFiltered(filter = query)
+            groupListCallBacks.getUsersFiltered(filter = query).map {
+                it.filterNot { user -> user.uuid == groupListCallBacks.getConnectedUserUuid() }
+            }
         }
         .map { users ->
             UserListState(users)
@@ -134,8 +136,7 @@ class CreateGroupViewModel(
                 title = state.value.title,
                 description = state.value.description,
                 members = state.value.members.map { it.member } + GroupMember(
-                    // TODO: Use connected user uuid
-                    userUuid = "",
+                    userUuid = groupListCallBacks.getConnectedUserUuid() ?: "",
                     groupUuid = "",
                     isAdmin = true,
                 ),

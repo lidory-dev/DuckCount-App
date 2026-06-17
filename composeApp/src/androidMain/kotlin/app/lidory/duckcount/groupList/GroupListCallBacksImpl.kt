@@ -5,6 +5,7 @@ import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.User
+import authenticationUtils.getUserUuid
 import database.group.GroupRepository
 import database.user.UserRepository
 import kotlinx.coroutines.flow.Flow
@@ -109,5 +110,9 @@ class GroupListCallBacksImpl(
                 },
             ),
         )
+    }
+
+    override suspend fun getConnectedUserUuid(): String? {
+        return getUserUuid()
     }
 }
