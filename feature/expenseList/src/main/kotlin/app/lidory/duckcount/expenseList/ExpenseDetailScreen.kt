@@ -25,6 +25,9 @@ fun ExpenseDetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
+    // Subscribe once (keyed on Unit, so it survives recomposition) to the ViewModel's
+    // one-shot navigateBack events and forward them to navigation. The ViewModel emits
+    // this after deleting an expense, since there is no detail left to show.
     LaunchedEffect(Unit) {
         viewModel.navigateBack.collect { onBack() }
     }
