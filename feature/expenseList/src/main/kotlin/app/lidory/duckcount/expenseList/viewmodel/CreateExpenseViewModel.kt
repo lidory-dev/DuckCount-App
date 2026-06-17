@@ -108,8 +108,10 @@ class CreateExpenseViewModel(
     )
     val state = _state.onStart {
         updateCurrency(currencies.first().name, currencies.first().symbol, currencies.first().hasSubunits)
-        if (expenseUuid != null) {
-            val expense = createExpenseCallBacks.getExpenseWithBeneficiaries(expenseUuid).first()
+
+        expenseUuid?.let { uuid ->
+            val expense = createExpenseCallBacks.getExpenseWithBeneficiaries(expenseUuid = uuid).first()
+
             updateTitle(expense.title)
             updateCreditor(expense.creditorUuid)
             updateAmount(expense.amount)

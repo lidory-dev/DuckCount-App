@@ -49,9 +49,6 @@ interface ExpenseDao {
     @Query("SELECT count(*) FROM ExpenseEntity WHERE isDeleted = false")
     suspend fun count(): Int
 
-    @Query("SELECT * FROM ExpenseEntity WHERE isDeleted = false")
-    fun getAllAsFlow(): Flow<List<ExpenseEntity>>
-
     @Transaction
     @Query("SELECT * FROM ExpenseEntity WHERE groupUuid = :groupUuid")
     fun getAllFromGroupAsFlow(groupUuid: String): Flow<List<ExpenseWithBeneficiariesEntity>>

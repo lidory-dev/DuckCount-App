@@ -19,10 +19,6 @@ class ExpenseListCallBacksImpl(
     private val beneficiaryRepository: BeneficiaryRepository,
 ) : ExpenseListCallBacks {
 
-    override fun getAllExpenses(): Flow<List<ExpenseWithBeneficiaries>> {
-        return expenseRepository.getAll().map { expenses -> expenses.map { it.toModel() } }
-    }
-
     override suspend fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries> {
         return expenseRepository.getWithBeneficiaries(uuid = uuid).filterNotNull().map { it.toModel() }
     }
