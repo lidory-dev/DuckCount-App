@@ -1,6 +1,7 @@
 package app.lidory.duckcount.contactList
 
 import ContactCallBacks
+import authenticationUtils.getUserUuid
 import database.user.UserRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -34,5 +35,9 @@ class ContactCallBacksImp(
                     fullName = user.fullName,
                 )
             }
+    }
+
+    override suspend fun getConnectedUserUuid(): String? {
+        return getUserUuid()
     }
 }

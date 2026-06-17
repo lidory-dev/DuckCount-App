@@ -31,7 +31,9 @@ class ContactListViewModel(
 
     val usersState: StateFlow<ContactListState> = _searchQuery
         .flatMapLatest { query ->
-            contactCallBacks.getFilteredUsers(filter = query)
+            contactCallBacks.getFilteredUsers(filter = query).map {
+                it.filterNot { user -> user.uuid == contactCallBacks.getConnectedUserUuid() }
+            }
         }
         .map { users -> ContactListState(users = users) }
         .stateIn(
