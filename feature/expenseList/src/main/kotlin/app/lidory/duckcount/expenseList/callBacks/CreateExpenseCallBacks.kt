@@ -30,4 +30,6 @@ interface CreateExpenseCallBacks {
     fun getExpenseWithBeneficiaries(expenseUuid: String): Flow<ExpenseWithBeneficiaries>
 
     suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries)
+    
+	suspend fun getConnectedUserUuid(): String?
 }

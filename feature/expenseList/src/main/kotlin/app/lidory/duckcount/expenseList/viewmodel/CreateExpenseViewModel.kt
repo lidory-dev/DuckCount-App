@@ -50,10 +50,6 @@ class CreateExpenseViewModel(
 
     var isBeneficiariesDialogShown by mutableStateOf(false)
 
-    // TODO: use real data
-    @OptIn(ExperimentalUuidApi::class)
-    val creditorUuid: String = Uuid.random().toString()
-
     // TODO: remove when currencyRepository is implemented
     @OptIn(ExperimentalUuidApi::class)
     val currencies =
@@ -96,7 +92,6 @@ class CreateExpenseViewModel(
 
     private val _state = MutableStateFlow(
         CreateExpenseState(
-            creditorUuid = creditorUuid,
             validateExpenseCallBack = { amount, currency, beneficiaries ->
                 createExpenseCallBacks.validateExpense(
                     amount = amount,
@@ -107,6 +102,10 @@ class CreateExpenseViewModel(
         ),
     )
     val state = _state.onStart {
+        updateCreditor(creditorUuid = createExpenseCallBacks.getConnectedUserUuid() ?: "")
+
+        getCreditorName()
+
         updateCurrency(currencies.first().name, currencies.first().symbol, currencies.first().hasSubunits)
 
         expenseUuid?.let { uuid ->
@@ -372,7 +371,6 @@ data class CreateExpenseState(
     val description: String = "",
     val amount: String = "",
     val creditorUuid: String = "",
-    // TODO: use the current connected user full name
     val creditorFullName: String = "",
     val isRefund: Boolean = false,
     // TODO: adapt
