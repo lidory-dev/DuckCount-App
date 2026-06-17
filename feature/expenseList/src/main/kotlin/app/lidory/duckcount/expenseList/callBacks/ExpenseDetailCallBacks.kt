@@ -8,5 +8,5 @@ interface ExpenseDetailCallBacks {
 
     suspend fun deleteExpense(expenseUuid: String)
 
-    suspend fun enableExpense(expenseUuid: String)
+    suspend fun restoreExpense(expenseUuid: String)
 }

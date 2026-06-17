@@ -47,9 +47,9 @@ class ExpenseDetailViewModel(
         }
     }
 
-    fun enableExpense() {
+    fun restoreExpense() {
         viewModelScope.launch {
-            expenseDetailCallBacks.enableExpense(expenseUuid)
+            expenseDetailCallBacks.restoreExpense(expenseUuid)
         }
     }
 }

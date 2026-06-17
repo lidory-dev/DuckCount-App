@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "5e1f9f28828e364df0d5d915095bef18",
+    "identityHash": "264cced414a480c9cce34cce43c54816",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -36,7 +36,7 @@
       },
       {
         "tableName": "ExpenseEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `timestamp` TEXT NOT NULL, `description` TEXT NOT NULL, `amount` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `isRefund` INTEGER NOT NULL, `currency` TEXT NOT NULL, `groupUuid` TEXT, `isActive` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `timestamp` TEXT NOT NULL, `description` TEXT NOT NULL, `amount` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `isRefund` INTEGER NOT NULL, `currency` TEXT NOT NULL, `groupUuid` TEXT, `isDeleted` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
         "fields": [
           {
             "fieldPath": "uuid",
@@ -92,8 +92,8 @@
             "affinity": "TEXT"
           },
           {
-            "fieldPath": "isActive",
-            "columnName": "isActive",
+            "fieldPath": "isDeleted",
+            "columnName": "isDeleted",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -246,7 +246,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5e1f9f28828e364df0d5d915095bef18')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '264cced414a480c9cce34cce43c54816')"
     ]
   }
 }

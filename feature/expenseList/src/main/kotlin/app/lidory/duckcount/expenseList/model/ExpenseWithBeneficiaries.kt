@@ -11,5 +11,5 @@ data class ExpenseWithBeneficiaries(
     val currency: Currency,
     val beneficiaries: List<Beneficiary>,
     val groupUuid: String?,
-    val isActive: Boolean,
+    val isDeleted: Boolean,
 )

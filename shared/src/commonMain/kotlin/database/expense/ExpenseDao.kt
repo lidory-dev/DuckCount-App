@@ -40,16 +40,16 @@ interface ExpenseDao {
     @Delete
     suspend fun delete(expenseEntity: ExpenseEntity)
 
-    @Query("UPDATE ExpenseEntity SET isActive = false WHERE uuid = :expenseUuid")
-    suspend fun deleteByUuid(expenseUuid: String)
+    @Query("UPDATE ExpenseEntity SET isDeleted = true WHERE uuid = :expenseUuid")
+    suspend fun delete(expenseUuid: String)
 
-    @Query("UPDATE ExpenseEntity SET isActive = true WHERE uuid = :expenseUuid")
-    suspend fun enableByUuid(expenseUuid: String)
+    @Query("UPDATE ExpenseEntity SET isDeleted = false WHERE uuid = :expenseUuid")
+    suspend fun restore(expenseUuid: String)
 
-    @Query("SELECT count(*) FROM ExpenseEntity WHERE isActive = true")
+    @Query("SELECT count(*) FROM ExpenseEntity WHERE isDeleted = false")
     suspend fun count(): Int
 
-    @Query("SELECT * FROM ExpenseEntity WHERE isActive = true")
+    @Query("SELECT * FROM ExpenseEntity WHERE isDeleted = false")
     fun getAllAsFlow(): Flow<List<ExpenseEntity>>
 
     @Transaction
@@ -57,15 +57,15 @@ interface ExpenseDao {
     fun getAllFromGroupAsFlow(groupUuid: String): Flow<List<ExpenseWithBeneficiariesEntity>>
 
     @Transaction
-    @Query("SELECT * FROM ExpenseEntity WHERE groupUuid = :groupUuid AND isActive = true")
-    fun getAllActiveFromGroupAsFlow(groupUuid: String): Flow<List<ExpenseWithBeneficiariesEntity>>
+    @Query("SELECT * FROM ExpenseEntity WHERE groupUuid = :groupUuid AND isDeleted = false")
+    fun getAllFromGroupWithoutDeletedOnesAsFlow(groupUuid: String): Flow<List<ExpenseWithBeneficiariesEntity>>
 
     @Transaction
     @Query("SELECT * FROM ExpenseEntity WHERE groupUuid IS NULL")
     fun getAllWithoutGroupAsFlow(): Flow<List<ExpenseWithBeneficiariesEntity>>
 
     @Transaction
-    @Query("SELECT * FROM ExpenseEntity WHERE isActive = true")
+    @Query("SELECT * FROM ExpenseEntity WHERE isDeleted = false")
     fun getAllWithBeneficiariesAsFlow(): Flow<List<ExpenseWithBeneficiariesEntity>>
 
     @Transaction

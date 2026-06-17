@@ -74,7 +74,7 @@ fun ExpenseListScreen(
                         .collectAsStateWithLifecycle("").value
                         ?: expense.creditorUuid, // TODO: Show that the username was not found?
                     amount = expense.amount,
-                    active = expense.isActive,
+                    active = !expense.isDeleted,
                 )
             }
 

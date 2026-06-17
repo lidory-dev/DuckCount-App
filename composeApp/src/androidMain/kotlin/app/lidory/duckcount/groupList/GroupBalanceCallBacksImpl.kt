@@ -28,7 +28,7 @@ class GroupBalanceCallBacksImpl(
                     isAdmin = groupMember.isAdmin,
                 )
             },
-            expenses = expenseRepository.getAllActiveFromGroup(groupUuid = groupUuid).first(),
+            expenses = expenseRepository.getAllFromGroupWithoutDeletedOnes(groupUuid = groupUuid).first(),
         )
     }
 

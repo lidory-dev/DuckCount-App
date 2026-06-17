@@ -15,5 +15,5 @@ data class ExpenseEntity(
     val isRefund: Boolean,
     val currency: Currency,
     val groupUuid: String? = null,
-    val isActive: Boolean = true,
+    val isDeleted: Boolean = false,
 )

@@ -34,12 +34,12 @@ class ExpenseRepositoryImpl(
         expenseDao.delete(expenseEntity = expense.toExpenseEntity())
     }
 
-    override suspend fun deleteFromUuid(expenseUuid: String) {
-        expenseDao.deleteByUuid(expenseUuid)
+    override suspend fun delete(expenseUuid: String) {
+        expenseDao.delete(expenseUuid)
     }
 
-    override suspend fun enableFromUuid(expenseUuid: String) {
-        expenseDao.enableByUuid(expenseUuid)
+    override suspend fun restore(expenseUuid: String) {
+        expenseDao.restore(expenseUuid)
     }
 
     override fun getAll(): Flow<List<ExpenseWithBeneficiaries>> {
@@ -54,8 +54,8 @@ class ExpenseRepositoryImpl(
         }
     }
 
-    override fun getAllActiveFromGroup(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> {
-        return expenseDao.getAllActiveFromGroupAsFlow(groupUuid).map { expense ->
+    override fun getAllFromGroupWithoutDeletedOnes(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> {
+        return expenseDao.getAllFromGroupWithoutDeletedOnesAsFlow(groupUuid).map { expense ->
             expense.map { it.toExpenseWithBeneficiaries() }
         }
     }

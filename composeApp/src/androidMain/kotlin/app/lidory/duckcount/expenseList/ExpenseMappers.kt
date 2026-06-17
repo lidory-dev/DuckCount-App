@@ -75,7 +75,7 @@ fun ExpenseWithBeneficiariesDB.toModel(): ExpenseWithBeneficiaries = ExpenseWith
     currency = currency.toModel(),
     beneficiaries = beneficiaries.map { it.toModel() },
     groupUuid = groupUuid,
-    isActive = isActive,
+    isDeleted = isDeleted,
 )
 
 fun ExpenseWithBeneficiaries.toDb(): ExpenseWithBeneficiariesDB = ExpenseWithBeneficiariesDB(

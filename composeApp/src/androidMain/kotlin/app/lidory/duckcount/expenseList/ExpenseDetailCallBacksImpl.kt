@@ -15,10 +15,10 @@ class ExpenseDetailCallBacksImpl(
     }
 
     override suspend fun deleteExpense(expenseUuid: String) {
-        expenseRepository.deleteFromUuid(expenseUuid)
+        expenseRepository.delete(expenseUuid)
     }
 
-    override suspend fun enableExpense(expenseUuid: String) {
-        expenseRepository.enableFromUuid(expenseUuid)
+    override suspend fun restoreExpense(expenseUuid: String) {
+        expenseRepository.restore(expenseUuid)
     }
 }
