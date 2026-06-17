@@ -31,11 +31,11 @@ fun ExpenseCard(
     title: String,
     creditorName: String,
     amount: String,
-    active: Boolean,
+    isActive: Boolean,
 ) {
     ElevatedCard(
         modifier = modifier
-            .alpha(if (active) 1f else 0.6f)
+            .alpha(if (isActive) 1f else 0.75f)
             .fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondary,
@@ -60,19 +60,21 @@ fun ExpenseCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.titleLarge.copy(
-                        textDecoration = if (active) TextDecoration.None else TextDecoration.LineThrough,
+                        textDecoration = if (isActive) TextDecoration.None else TextDecoration.LineThrough,
                     ),
                 )
 
-                if (active)
-                    Text(
-                        text = stringResource(id = R.string.paid_by, creditorName, amount),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontStyle = FontStyle.Italic,
-                    )
+                Text(
+                    text = stringResource(id = R.string.paid_by, creditorName, amount),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        textDecoration = if (isActive) TextDecoration.None else TextDecoration.LineThrough,
+                    ),
+                    fontStyle = FontStyle.Italic,
+                )
             }
+
             //TODO: Change with beneficiary amount and real data
             val role = ExpenseStatus.BENEFICIARY
 
@@ -80,12 +82,14 @@ fun ExpenseCard(
                 Spacer(
                     modifier = Modifier.weight(.1f),
                 )
+
                 val screenWidth = LocalWindowInfo.current.containerDpSize.width
                 ExpenseAmount(
                     modifier = Modifier
                         .widthIn(max = screenWidth / 3),
                     amount = amount,
                     role = role,
+                    isActive = isActive,
                 )
             }
         }
@@ -93,7 +97,7 @@ fun ExpenseCard(
 }
 
 @Composable
-fun ExpenseAmount(modifier: Modifier = Modifier, amount: String, role: ExpenseStatus) {
+fun ExpenseAmount(modifier: Modifier = Modifier, amount: String, role: ExpenseStatus, isActive: Boolean) {
     //TODO: Add parameter with real data
 
     // role is defined temporary on BENEFICIARY waiting the real data
@@ -108,7 +112,9 @@ fun ExpenseAmount(modifier: Modifier = Modifier, amount: String, role: ExpenseSt
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             color = role.color,
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleLarge.copy(
+                textDecoration = if (isActive) TextDecoration.None else TextDecoration.LineThrough,
+            ),
         )
     }
 }
