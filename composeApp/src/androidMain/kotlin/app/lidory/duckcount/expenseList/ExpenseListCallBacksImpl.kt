@@ -1,6 +1,5 @@
 package app.lidory.duckcount.expenseList
 
-import app.lidory.duckcount.ExpenseError
 import app.lidory.duckcount.expenseList.callBacks.ExpenseListCallBacks
 import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.Currency
@@ -13,11 +12,6 @@ import database.user.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
-import app.lidory.duckcount.expenseList.R as expenseListR
-import app.lidory.duckcount.validateExpense as validateExpenseShared
-import database.beneficiary.Beneficiary as BeneficiaryDB
-import database.currency.Currency as CurrencyDB
-import database.expense.Expense as ExpenseDB
 
 class ExpenseListCallBacksImpl(
     private val expenseRepository: ExpenseRepository,
@@ -26,229 +20,40 @@ class ExpenseListCallBacksImpl(
 ) : ExpenseListCallBacks {
 
     override fun getAllExpenses(): Flow<List<ExpenseWithBeneficiaries>> {
-        return expenseRepository.getAll().map { expensesWithBeneficiaries ->
-            expensesWithBeneficiaries.map { expenseWithBeneficiaries ->
-                ExpenseWithBeneficiaries(
-                    uuid = expenseWithBeneficiaries.uuid,
-                    timestamp = expenseWithBeneficiaries.timestamp,
-                    title = expenseWithBeneficiaries.title,
-                    description = expenseWithBeneficiaries.description,
-                    amount = expenseWithBeneficiaries.amount,
-                    creditorUuid = expenseWithBeneficiaries.creditorUuid,
-                    isRefund = expenseWithBeneficiaries.isRefund,
-                    currency = Currency(
-                        uuid = expenseWithBeneficiaries.currency.uuid,
-                        name = expenseWithBeneficiaries.currency.name,
-                        symbol = expenseWithBeneficiaries.currency.symbol,
-                        hasSubunits = expenseWithBeneficiaries.currency.hasSubunits,
-                    ),
-                    beneficiaries = expenseWithBeneficiaries.beneficiaries.map {
-                        Beneficiary(
-                            uuid = it.uuid,
-                            expenseUuid = it.expenseUuid,
-                            userUuid = it.userUuid,
-                            share = it.share,
-                        )
-                    },
-                    groupUuid = expenseWithBeneficiaries.groupUuid,
-                    isActive = expenseWithBeneficiaries.isActive,
-                )
-            }
-        }
+        return expenseRepository.getAll().map { expenses -> expenses.map { it.toModel() } }
     }
 
     override suspend fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries> {
-        return expenseRepository.getWithBeneficiaries(uuid = uuid).filterNotNull().map { expenseWithBeneficiaries ->
-            ExpenseWithBeneficiaries(
-                uuid = expenseWithBeneficiaries.uuid,
-                timestamp = expenseWithBeneficiaries.timestamp,
-                title = expenseWithBeneficiaries.title,
-                description = expenseWithBeneficiaries.description,
-                amount = expenseWithBeneficiaries.amount,
-                creditorUuid = expenseWithBeneficiaries.creditorUuid,
-                isRefund = expenseWithBeneficiaries.isRefund,
-                currency = Currency(
-                    uuid = expenseWithBeneficiaries.currency.uuid,
-                    name = expenseWithBeneficiaries.currency.name,
-                    symbol = expenseWithBeneficiaries.currency.symbol,
-                    hasSubunits = expenseWithBeneficiaries.currency.hasSubunits,
-                ),
-                beneficiaries = expenseWithBeneficiaries.beneficiaries.map {
-                    Beneficiary(
-                        uuid = it.uuid,
-                        expenseUuid = it.expenseUuid,
-                        userUuid = it.userUuid,
-                        share = it.share,
-                    )
-                },
-                groupUuid = expenseWithBeneficiaries.groupUuid,
-                isActive = expenseWithBeneficiaries.isActive,
-            )
-        }
+        return expenseRepository.getWithBeneficiaries(uuid = uuid).filterNotNull().map { it.toModel() }
     }
 
     override suspend fun insert(expense: Expense) {
-        expenseRepository.insert(
-            ExpenseDB(
-                uuid = expense.uuid,
-                timestamp = expense.timestamp,
-                title = expense.title,
-                description = expense.description,
-                amount = expense.amount,
-                creditorUuid = expense.creditorUuid,
-                isRefund = expense.isRefund,
-                currency = CurrencyDB(
-                    uuid = expense.currency.uuid,
-                    symbol = expense.currency.symbol,
-                    name = expense.currency.name,
-                    hasSubunits = expense.currency.hasSubunits,
-                ),
-                groupUuid = expense.groupUuid,
-            ),
-        )
+        expenseRepository.insert(expense.toDb())
     }
 
     override suspend fun getAllUsersFiltered(filter: String): Flow<List<User>> {
-        return userRepository.getAllFiltered(filter).map { users ->
-            users.map {
-                User(
-                    uuid = it.uuid,
-                    username = it.username,
-                    fullName = it.fullName,
-                )
-            }
-        }
+        return userRepository.getAllFiltered(filter).map { users -> users.map { it.toModel() } }
     }
 
     override suspend fun getAllUsersFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> {
-        return userRepository.getAllFromGroupFiltered(filter, groupUuid).map { users ->
-            users.map {
-                User(
-                    uuid = it.uuid,
-                    username = it.username,
-                    fullName = it.fullName,
-                )
-            }
-        }
+        return userRepository.getAllFromGroupFiltered(filter, groupUuid)
+            .map { users -> users.map { it.toModel() } }
     }
 
     override suspend fun insertBeneficiary(beneficiary: Beneficiary) {
-        beneficiaryRepository.insert(
-            BeneficiaryDB(
-                uuid = beneficiary.uuid,
-                expenseUuid = beneficiary.expenseUuid,
-                userUuid = beneficiary.userUuid,
-                share = beneficiary.share,
-            ),
-        )
+        beneficiaryRepository.insert(beneficiary.toDb())
     }
 
     override fun validateExpense(amount: String, currency: Currency, beneficiaries: List<Beneficiary>): Int? {
-        val error = validateExpenseShared(
-            amount,
-            CurrencyDB(
-                uuid = currency.uuid,
-                name = currency.name,
-                symbol = currency.symbol,
-                hasSubunits = currency.hasSubunits,
-            ),
-            beneficiaries = beneficiaries.map { beneficiary ->
-                BeneficiaryDB(
-                    uuid = beneficiary.uuid,
-                    expenseUuid = beneficiary.expenseUuid,
-                    userUuid = beneficiary.userUuid,
-                    share = beneficiary.share,
-                )
-            },
-        )
-
-        return when (error) {
-            ExpenseError.SHARES_BELOW_TOTAL_AMOUNT -> {
-                expenseListR.string.shares_below_total_amount
-            }
-
-            ExpenseError.SHARES_EXCEED_TOTAL_AMOUNT -> {
-                expenseListR.string.shares_exceed_total_amount
-            }
-
-            ExpenseError.NON_POSITIVE_SHARE -> {
-                expenseListR.string.non_positive_amount_share
-            }
-
-            ExpenseError.SHARES_EMPTY -> {
-                expenseListR.string.non_positive_amount_share
-            }
-
-            ExpenseError.NO_BENEFICIARIES -> {
-                expenseListR.string.no_beneficiaries
-            }
-
-            else -> null
-        }
+        return validateExpenseToMessageRes(amount, currency, beneficiaries)
     }
 
     override fun getAllExpensesWithoutGroup(): Flow<List<ExpenseWithBeneficiaries>> {
-        return expenseRepository.getAllWithoutGroup().map { expensesWithBeneficiaries ->
-            expensesWithBeneficiaries.map { expenseWithBeneficiaries ->
-                ExpenseWithBeneficiaries(
-                    uuid = expenseWithBeneficiaries.uuid,
-                    timestamp = expenseWithBeneficiaries.timestamp,
-                    title = expenseWithBeneficiaries.title,
-                    description = expenseWithBeneficiaries.description,
-                    amount = expenseWithBeneficiaries.amount,
-                    creditorUuid = expenseWithBeneficiaries.creditorUuid,
-                    isRefund = expenseWithBeneficiaries.isRefund,
-                    currency = Currency(
-                        uuid = expenseWithBeneficiaries.currency.uuid,
-                        name = expenseWithBeneficiaries.currency.name,
-                        symbol = expenseWithBeneficiaries.currency.symbol,
-                        hasSubunits = expenseWithBeneficiaries.currency.hasSubunits,
-                    ),
-                    beneficiaries = expenseWithBeneficiaries.beneficiaries.map {
-                        Beneficiary(
-                            uuid = it.uuid,
-                            expenseUuid = it.expenseUuid,
-                            userUuid = it.userUuid,
-                            share = it.share,
-                        )
-                    },
-                    groupUuid = expenseWithBeneficiaries.groupUuid,
-                    isActive = expenseWithBeneficiaries.isActive,
-                )
-            }
-        }
+        return expenseRepository.getAllWithoutGroup().map { expenses -> expenses.map { it.toModel() } }
     }
 
     override fun getAllExpensesFromGroup(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> {
-        return expenseRepository.getAllFromGroup(groupUuid).map { expensesWithBeneficiaries ->
-            expensesWithBeneficiaries.map { expenseWithBeneficiaries ->
-                ExpenseWithBeneficiaries(
-                    uuid = expenseWithBeneficiaries.uuid,
-                    timestamp = expenseWithBeneficiaries.timestamp,
-                    title = expenseWithBeneficiaries.title,
-                    description = expenseWithBeneficiaries.description,
-                    amount = expenseWithBeneficiaries.amount,
-                    creditorUuid = expenseWithBeneficiaries.creditorUuid,
-                    isRefund = expenseWithBeneficiaries.isRefund,
-                    currency = Currency(
-                        uuid = expenseWithBeneficiaries.currency.uuid,
-                        name = expenseWithBeneficiaries.currency.name,
-                        symbol = expenseWithBeneficiaries.currency.symbol,
-                        hasSubunits = expenseWithBeneficiaries.currency.hasSubunits,
-                    ),
-                    beneficiaries = expenseWithBeneficiaries.beneficiaries.map {
-                        Beneficiary(
-                            uuid = it.uuid,
-                            expenseUuid = it.expenseUuid,
-                            userUuid = it.userUuid,
-                            share = it.share,
-                        )
-                    },
-                    groupUuid = expenseWithBeneficiaries.groupUuid,
-                    isActive = expenseWithBeneficiaries.isActive,
-                )
-            }
-        }
+        return expenseRepository.getAllFromGroup(groupUuid).map { expenses -> expenses.map { it.toModel() } }
     }
 
     override fun getUserFullName(userUuid: String): Flow<String?> {
