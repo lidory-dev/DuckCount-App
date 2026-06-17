@@ -170,7 +170,8 @@ class CreateExpenseViewModel: ObservableObject, CreateExpenseFormState {
             creditorUuid: creditorUuid,
             isRefund: false,
             currency: kotlinCurrency,
-            groupUuid: nil
+            groupUuid: nil,
+            isDeleted: false
         )
 
         expenseRepository.insert(expense: kotlinExpense) { _ in

@@ -227,7 +227,8 @@ class ExpenseListViewModel: ObservableObject {
                     symbol: symbols[currencyIndex],
                     hasSubunits: true
                 ),
-                groupUuid: nil
+                groupUuid: nil,
+                isDeleted: false
             )
 
             // TODO: Make sure that the beneficiaries are valid before inserting the expense in the database.
