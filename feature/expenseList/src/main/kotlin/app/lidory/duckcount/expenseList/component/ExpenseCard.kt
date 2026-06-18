@@ -1,6 +1,5 @@
 package app.lidory.duckcount.expenseList.component
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,7 +14,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
@@ -31,7 +29,9 @@ fun ExpenseCard(
     modifier: Modifier = Modifier,
     title: String,
     creditorName: String,
-    amount: String,
+    totalAmount: String,
+    currencySymbol: String,
+    personalShare: String,
     role: ExpenseStatus,
     isActive: Boolean,
 ) {
@@ -67,7 +67,7 @@ fun ExpenseCard(
                 )
 
                 Text(
-                    text = stringResource(id = R.string.paid_by, creditorName, amount),
+                    text = stringResource(id = R.string.paid_by, creditorName),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.labelMedium.copy(
@@ -77,40 +77,20 @@ fun ExpenseCard(
                 )
             }
 
-            if (role != ExpenseStatus.NEUTRAL) {
-                Spacer(
-                    modifier = Modifier.weight(.1f),
-                )
+            Spacer(
+                modifier = Modifier.weight(.1f),
+            )
 
-                val screenWidth = LocalWindowInfo.current.containerDpSize.width
-                ExpenseAmount(
-                    modifier = Modifier
-                        .widthIn(max = screenWidth / 3),
-                    amount = amount,
-                    role = role,
-                    isActive = isActive,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun ExpenseAmount(modifier: Modifier = Modifier, amount: String, role: ExpenseStatus, isActive: Boolean) {
-    if (role != ExpenseStatus.NEUTRAL)
-        Row(
-            modifier = modifier,
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "${role.labelAmount} $amount",
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = role.color,
-                style = MaterialTheme.typography.titleLarge.copy(
-                	textDecoration = if (isActive) TextDecoration.None else TextDecoration.LineThrough,
-            	),
+            val screenWidth = LocalWindowInfo.current.containerDpSize.width
+            ExpenseAmount(
+                modifier = Modifier
+                    .widthIn(max = screenWidth / 3),
+                totalAmount = totalAmount,
+                role = role,
+                isActive = isActive,
+                personalShare = personalShare,
+                currencySymbol = currencySymbol,
             )
         }
+    }
 }

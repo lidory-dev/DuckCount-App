@@ -74,7 +74,19 @@ fun ExpenseListScreen(
                     creditorName = viewModel.getUserFullName(expense.creditorUuid)
                         .collectAsStateWithLifecycle("").value
                         ?: expense.creditorUuid, // TODO: Show that the username was not found?
-                    amount = expense.amount,
+                    totalAmount = expense.amount,
+                    currencySymbol = expense.currency.symbol,
+                    personalShare = when (state.connectedUserUuid) {
+                        expense.creditorUuid ->
+                            expense.beneficiaries
+                                .filterNot { it.userUuid == state.connectedUserUuid }
+                                .sumOf { it.share.toBigDecimal() }.toString()
+
+                        in expense.beneficiaries.map { it.userUuid } ->
+                            expense.beneficiaries.find { it.userUuid == state.connectedUserUuid }?.share ?: ""
+
+                        else -> ""
+                    },
                     role = when (state.connectedUserUuid) {
                         expense.creditorUuid -> ExpenseStatus.CREDITOR
 
