@@ -8,13 +8,10 @@ import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -22,6 +19,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ExpenseDetailViewModel(
     private val expenseUuid: String,
     private val expenseDetailCallBacks: ExpenseDetailCallBacks,
@@ -30,20 +28,67 @@ class ExpenseDetailViewModel(
     private val _navigateBack = Channel<Unit>(Channel.BUFFERED)
     val navigateBack: Flow<Unit> = _navigateBack.receiveAsFlow()
 
-    private val _state = MutableStateFlow(ExpenseScreenState())
+    private val expense: StateFlow<ExpenseWithBeneficiaries?> =
+        expenseDetailCallBacks.getExpenseWithBeneficiaries(uuid = expenseUuid)
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000L),
+                initialValue = null,
+            )
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val state: StateFlow<ExpenseScreenState> = _state
-        .flatMapLatest {
-            expenseDetailCallBacks.getExpenseWithBeneficiaries(uuid = expenseUuid)
+    private val creditorName: Flow<String> =
+        expense
+            .map { it?.creditorUuid }
+            .distinctUntilChanged()
+            .flatMapLatest { uuid ->
+                if (uuid == null) flowOf("")
+                else expenseDetailCallBacks.getUserFullName(uuid).map { it ?: "" }
+            }
+
+    private val beneficiaryNames: Flow<Map<String, String?>> =
+        expense
+            .map { it?.beneficiaries?.map { beneficiary -> beneficiary.userUuid } ?: emptyList() }
+            .distinctUntilChanged()
+            .flatMapLatest { userUuids ->
+                if (userUuids.isEmpty()) flowOf(emptyMap())
+                else combine(
+                    userUuids.map { uuid ->
+                        expenseDetailCallBacks.getUserFullName(uuid).map { name -> uuid to name }
+                    },
+                ) { pairs -> pairs.toMap() }
+            }
+
+    private val beneficiaries: Flow<List<BeneficiaryUi>> =
+        combine(
+            expense.map { it?.beneficiaries.orEmpty() }.distinctUntilChanged(),
+            beneficiaryNames,
+        ) { list, names ->
+            list.map { beneficiary ->
+                BeneficiaryUi(
+                    uuid = beneficiary.uuid,
+                    userUuid = beneficiary.userUuid,
+                    share = beneficiary.share,
+                    fullName = names[beneficiary.userUuid] ?: "",
+                    isShareFixed = beneficiary.isShareFixed,
+                )
+            }
         }
-        .map { expenses ->
-            ExpenseScreenState(expenseWithBeneficiaries = expenses)
-        }
-        .stateIn(
+
+    val state: StateFlow<ExpenseScreenState> =
+        combine(expense, creditorName, beneficiaries) { expenseValue, creditor, beneficiaryUis ->
+            if (expenseValue == null) {
+                ExpenseScreenState.Loading
+            } else {
+                ExpenseScreenState.Content(
+                    expenseWithBeneficiaries = expenseValue,
+                    creditorFullName = creditor,
+                    beneficiaries = beneficiaryUis,
+                )
+            }
+        }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000L),
-            initialValue = ExpenseScreenState(),
+            initialValue = ExpenseScreenState.Loading,
         )
 
     fun deleteExpense() {
@@ -59,62 +104,15 @@ class ExpenseDetailViewModel(
         }
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val beneficiaryNames: Flow<Map<String, String?>> =
-        state
-            .map { state -> state.expenseWithBeneficiaries?.beneficiaries?.map { it.userUuid } ?: emptyList() }
-            .distinctUntilChanged()
-            .flatMapLatest { userUuids ->
-                if (userUuids.isEmpty()) {
-                    flowOf(emptyMap())
-                } else {
-                    combine(
-                        userUuids.map { uuid ->
-                            expenseDetailCallBacks.getUserFullName(uuid)
-                                .map { name -> uuid to name }
-                        },
-                    ) { pairs -> pairs.toMap() }
-                }
-            }
-
-    val displayedBeneficiaries: StateFlow<List<BeneficiaryUi>> =
-        combine(
-            state.map { it.expenseWithBeneficiaries?.beneficiaries }.distinctUntilChanged(),
-            beneficiaryNames,
-        ) { beneficiaries, names ->
-            beneficiaries?.map { beneficiary ->
-                BeneficiaryUi(
-                    uuid = beneficiary.uuid,
-                    userUuid = beneficiary.userUuid,
-                    share = beneficiary.share,
-                    fullName = names[beneficiary.userUuid] ?: "",
-                )
-            } ?: emptyList()
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000L),
-            initialValue = emptyList(),
-        )
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val displayedCreditor: StateFlow<String?> =
-        state
-            .map { it.expenseWithBeneficiaries?.creditorUuid }
-            .filterNotNull()
-            .flatMapLatest { uuid ->
-                expenseDetailCallBacks.getUserFullName(uuid)
-                    .catch { emit("") }
-            }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5000L),
-                initialValue = "",
-            )
-
     fun getUserFullName(userUuid: String): Flow<String?> = expenseDetailCallBacks.getUserFullName(userUuid)
 }
 
-data class ExpenseScreenState(
-    val isLoading: Boolean = false,
-    val expenseWithBeneficiaries: ExpenseWithBeneficiaries? = null, // TODO.
-)
+sealed interface ExpenseScreenState {
+    data object Loading : ExpenseScreenState
+    data object NotFound : ExpenseScreenState
+    data class Content(
+        val expenseWithBeneficiaries: ExpenseWithBeneficiaries,
+        val creditorFullName: String,
+        val beneficiaries: List<BeneficiaryUi>,
+    ) : ExpenseScreenState
+}

@@ -163,7 +163,7 @@ fun CreateExpenseScreen(
                             focusManager.clearFocus()
                         },
                         creditorName = expenseState.creditorFullName,
-                        label = stringResource(R.string.label_paid_by),
+                        label = stringResource(R.string.paid_by),
                     )
                 }
 
