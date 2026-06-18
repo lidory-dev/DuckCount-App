@@ -47,4 +47,7 @@
     <string name="date">%1$s, %2$s</string>
     <string name="creditor_paid">%1$s paid a total of %2$s %3$s</string>
     <string name="beneficiary_has_to_pay">%1$s has to pay %2$s %3$s</string>
+    <string name="more_options">More options</string>
+    <string name="restore">Restore</string>
+    <string name="delete">Delete</string>
 </resources>

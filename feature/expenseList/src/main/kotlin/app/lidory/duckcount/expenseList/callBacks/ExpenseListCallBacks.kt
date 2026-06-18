@@ -9,8 +9,6 @@ import kotlinx.coroutines.flow.Flow
 
 interface ExpenseListCallBacks {
 
-    fun getAllExpenses(): Flow<List<ExpenseWithBeneficiaries>>
-    
     suspend fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries>
 
     suspend fun insert(expense: Expense)

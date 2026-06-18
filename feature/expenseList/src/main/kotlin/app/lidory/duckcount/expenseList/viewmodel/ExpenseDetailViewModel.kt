@@ -58,8 +58,9 @@ class ExpenseDetailViewModel(
             expenseDetailCallBacks.restoreExpense(expenseUuid)
         }
     }
+
     @OptIn(ExperimentalCoroutinesApi::class)
-    private val beneficiaryNames: Flow<Map<String, String>> =
+    private val beneficiaryNames: Flow<Map<String, String?>> =
         state
             .map { state -> state.expenseWithBeneficiaries?.beneficiaries?.map { it.userUuid } ?: emptyList() }
             .distinctUntilChanged()
@@ -96,7 +97,7 @@ class ExpenseDetailViewModel(
         )
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val displayedCreditor: StateFlow<String> =
+    val displayedCreditor: StateFlow<String?> =
         state
             .map { it.expenseWithBeneficiaries?.creditorUuid }
             .filterNotNull()
@@ -110,7 +111,7 @@ class ExpenseDetailViewModel(
                 initialValue = "",
             )
 
-    fun getUserFullName(userUuid: String): Flow<String> = expenseDetailCallBacks.getUserFullName(userUuid)
+    fun getUserFullName(userUuid: String): Flow<String?> = expenseDetailCallBacks.getUserFullName(userUuid)
 }
 
 data class ExpenseScreenState(

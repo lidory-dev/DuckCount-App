@@ -3,7 +3,6 @@ package app.lidory.duckcount.expenseList
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,10 +35,13 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.dropUnlessResumed
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.component.CreditorCard
+import app.lidory.duckcount.expenseList.component.ExpenseDetailActionDropDownMenu
 import app.lidory.duckcount.expenseList.extensions.formatDate
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseDetailViewModel
 import kotlinx.datetime.LocalDateTime
@@ -89,6 +91,14 @@ fun ExpenseDetailScreen(
                         Icon(painter = painterResource(androidUiR.drawable.ic_arrow_back), contentDescription = "Back")
                     }
                 },
+                actions = {
+                    ExpenseDetailActionDropDownMenu(
+                        isDeleted = state.expenseWithBeneficiaries?.isDeleted ?: false,
+                        restore = viewModel::restoreExpense,
+                        delete = viewModel::deleteExpense,
+                        edit = dropUnlessResumed { navigateToEditExpense() },
+                    )
+                },
             )
         },
     ) { innerPadding ->
@@ -103,7 +113,7 @@ fun ExpenseDetailScreen(
             item {
                 CreditorCard(
                     modifier = Modifier.fillMaxWidth(),
-                    fullName = creditorFullName,
+                    fullName = creditorFullName ?: "",
                     amount = state.expenseWithBeneficiaries?.amount ?: "0",
                     currency = state.expenseWithBeneficiaries?.currency?.symbol ?: "",
                 )
@@ -111,12 +121,22 @@ fun ExpenseDetailScreen(
                 Text(
                     text = state.expenseWithBeneficiaries?.title ?: "",
                     style = MaterialTheme.typography.headlineSmall,
+                    textDecoration =
+                        if (state.expenseWithBeneficiaries?.isDeleted ?: false)
+                            TextDecoration.LineThrough
+                        else
+                            null,
                 )
 
                 if (!state.expenseWithBeneficiaries?.description.isNullOrBlank())
                     Text(
                         text = state.expenseWithBeneficiaries?.description ?: "",
                         style = MaterialTheme.typography.bodyMedium,
+                        textDecoration =
+                            if (state.expenseWithBeneficiaries?.isDeleted ?: false)
+                                TextDecoration.LineThrough
+                            else
+                                null,
                     )
 
                 Text(
@@ -181,32 +201,6 @@ fun ExpenseDetailScreen(
                         Text(text = "${beneficiary.share} ${state.expenseWithBeneficiaries?.currency?.symbol ?: ""}")
                     }
                 }
-            }
-
-            if (state.expenseWithBeneficiaries?.isDeleted ?: false) {
-                Button(
-                    onClick = viewModel::restoreExpense,
-                ) {
-                    Text("Restore")
-                }
-            } else {
-                Button(
-                    onClick = navigateToEditExpense,
-                ) {
-                    Text("Edit")
-                }
-
-                Button(
-                    onClick = viewModel::deleteExpense,
-                ) {
-                    Text("Delete")
-                }
-            }
-
-            Button(
-                onClick = onBack,
-            ) {
-                Text("Go back to ExpenseListScreen")
             }
         }
     }

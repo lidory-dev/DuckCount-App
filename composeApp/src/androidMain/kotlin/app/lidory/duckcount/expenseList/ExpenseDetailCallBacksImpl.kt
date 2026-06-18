@@ -16,10 +16,10 @@ class ExpenseDetailCallBacksImpl(
         return expenseRepository.getWithBeneficiaries(uuid = uuid).map { it?.toModel() }
     }
 
-    override fun getUserFullName(userUuid: String): Flow<String> {
+    override fun getUserFullName(userUuid: String): Flow<String?> {
         return userRepository.getFullName(userUuid)
     }
-}
+
     override suspend fun deleteExpense(expenseUuid: String) {
         expenseRepository.delete(expenseUuid)
     }
