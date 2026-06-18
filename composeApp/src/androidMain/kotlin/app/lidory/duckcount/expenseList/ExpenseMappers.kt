@@ -13,6 +13,7 @@ import database.currency.Currency as CurrencyDB
 import database.expense.Expense as ExpenseDB
 import database.expense.ExpenseWithBeneficiaries as ExpenseWithBeneficiariesDB
 import database.user.User as UserDB
+import uniffi.lib_duckcount.Currency as CurrencyUniffi
 
 // Mapping between the :shared database models (database.*) and the feature-module
 // models (expenseList.model.*). composeApp is the only layer that sees both, so the
@@ -30,6 +31,12 @@ fun Currency.toDb(): CurrencyDB = CurrencyDB(
     name = name,
     symbol = symbol,
     hasSubunits = hasSubunits,
+)
+
+fun Currency.toUniffi(): CurrencyUniffi = CurrencyUniffi(
+    name = name,
+    symbol = symbol,
+    hasSubUnit = hasSubunits,
 )
 
 fun BeneficiaryDB.toModel(): Beneficiary = Beneficiary(

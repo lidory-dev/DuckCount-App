@@ -17,6 +17,7 @@ import app.lidory.duckcount.expenseList.utils.formatAmountWithSubunits
 import app.lidory.duckcount.expenseList.utils.getCurrentTimestamp
 import app.lidory.duckcount.expenseList.utils.roundAmountWithSubunits
 import app.lidory.duckcount.expenseList.utils.roundAmountWithoutSubunits
+import app.lidory.duckcount.expenseList.utils.toValidNumber
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -70,7 +71,7 @@ class CreateExpenseViewModel(
             else -> formatted.roundAmountWithoutSubunits()
         }
 
-        val droppedFraction = hasSubunits && previous.contains('.') && !rounded.contains('.')
+        val droppedFraction = hasSubunits && previous.contains('.') && !rounded.contains('.') && rounded.length > 2
         return if (droppedFraction) rounded.dropLast(2) else rounded
     }
 
@@ -192,6 +193,7 @@ class CreateExpenseViewModel(
                     userUuid = beneficiary.userUuid,
                     share = beneficiary.share,
                     fullName = names[beneficiary.userUuid] ?: beneficiary.userUuid,
+                    fixedShare = beneficiary.fixedShare,
                 )
             }
         }.stateIn(
@@ -333,10 +335,8 @@ class CreateExpenseViewModel(
 
     fun updateBeneficiaries(beneficiaries: List<Beneficiary>) {
         _state.update { state ->
-            val existingUuids = state.beneficiaries.map { it.userUuid }.toSet()
             state.copy(
-                beneficiaries = state.beneficiaries.filter { it.userUuid in beneficiaries.map { beneficiary -> beneficiary.userUuid } } +
-                        beneficiaries.filterNot { it.userUuid in existingUuids },
+                beneficiaries = beneficiaries,
             )
         }
         _selectedUuids.update { _state.value.beneficiaries.map { it.userUuid }.toSet() }
@@ -363,6 +363,53 @@ class CreateExpenseViewModel(
     }
 
     fun isNewExpense() = _expenseUuid.value == null
+
+    fun getCalculatedShares(
+        amount: String,
+        currency: Currency,
+        beneficiaryUserUuids: List<String>,
+        fixedUuid: Map<String, String>,
+    ): List<Beneficiary> {
+        return createExpenseCallBacks.getCalculatedShares(
+            amount = amount.toValidNumber(),
+            currency = currency,
+            beneficiaryUserUuids = beneficiaryUserUuids,
+            fixedUuid = fixedUuid,
+            expenseUuid = _expenseUuid.value ?: "",
+        ).map { beneficiary ->
+            if (beneficiary.userUuid in fixedUuid)
+                beneficiary.copy(fixedShare = true)
+            else
+                beneficiary
+        }
+    }
+
+    fun calculateShares() {
+        val beneficiaries = getCalculatedShares(
+            amount = _state.value.amount.toValidNumber(),
+            currency = _state.value.currency,
+            beneficiaryUserUuids = _state.value.beneficiaries.map { it.userUuid },
+            fixedUuid = _state.value.beneficiaries
+                .filter { it.fixedShare }
+                .associate { it.userUuid to (it.share.toValidNumber()) },
+        )
+        beneficiaries.forEach {
+            updateBeneficiaryShare(it.userUuid, it.share)
+        }
+    }
+
+    fun fixBeneficiary(userUuid: String) {
+        _state.update {
+            it.copy(
+                beneficiaries = it.beneficiaries.map { beneficiary ->
+                    if (beneficiary.userUuid == userUuid)
+                        beneficiary.copy(fixedShare = true)
+                    else
+                        beneficiary
+                },
+            )
+        }
+    }
 }
 
 data class CreateExpenseState(

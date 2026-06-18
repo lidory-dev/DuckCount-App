@@ -3,6 +3,7 @@ package app.lidory.duckcount
 import uniffi.lib_duckcount.Beneficiary
 import uniffi.lib_duckcount.Currency
 import uniffi.lib_duckcount.ExpenseException
+import uniffi.lib_duckcount.computeBeneficiaries
 import uniffi.lib_duckcount.validateExpense
 
 fun validateExpense(
@@ -15,7 +16,7 @@ fun validateExpense(
             amount = amount,
             currency = Currency(name = currency.name, symbol = currency.symbol, hasSubUnit = currency.hasSubunits),
             beneficiaries = beneficiaries.map { beneficiary ->
-                Beneficiary(userId = beneficiary.userUuid, share = beneficiary.share)
+                Beneficiary(userUuid = beneficiary.userUuid, share = beneficiary.share)
             },
         )
         return null
@@ -29,4 +30,19 @@ fun validateExpense(
             else -> ExpenseError.OTHER_KNOWN_ERROR
         }
     }
+}
+
+fun getBeneficiariesShares(
+    amount: String,
+    currency: Currency,
+    beneficiaryUserUuids: List<String>,
+    fixedShares: Map<String, String>,
+): List<Beneficiary> {
+    val res = computeBeneficiaries(
+        amount = amount,
+        currency = currency,
+        beneficiaryUserUuids = beneficiaryUserUuids,
+        fixedShares = fixedShares,
+    )
+    return res
 }

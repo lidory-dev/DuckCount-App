@@ -30,7 +30,7 @@ fun AmountTextField(
     amountValue: String,
     currencyValue: String,
     currencies: List<Currency>,
-    onExpenseValueChange: (String) -> Unit,
+    onAmountValueChange: (String) -> Unit,
     onCurrencyValueChange: (String, String, Boolean) -> Unit,
     modifier: Modifier = Modifier,
     focusManager: FocusManager,
@@ -57,7 +57,7 @@ fun AmountTextField(
                 },
             innerModifier = Modifier
                 .fillMaxWidth(.75f),
-            onValueChange = onExpenseValueChange,
+            onValueChange = onAmountValueChange,
             keyboardOptions = KeyboardOptions.Default.copy(
                 keyboardType = KeyboardType.Number,
             ),

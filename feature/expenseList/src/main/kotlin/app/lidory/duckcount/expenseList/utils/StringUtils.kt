@@ -18,7 +18,7 @@ fun String.formatAmountWithSubunits(): String {
 private fun String.roundTo(scale: Int): String {
     val trimmed = this.trim()
 
-    require(trimmed.matches(Regex("""^-?\d+(\.\d+)?$"""))) {
+    require(trimmed.matches(Regex("""^-?\d*(\.\d+)?$"""))) {
         "Invalid number: '$this'"
     }
 
@@ -32,3 +32,9 @@ private fun String.roundTo(scale: Int): String {
 
 fun String.roundAmountWithSubunits(): String = roundTo(2)
 fun String.roundAmountWithoutSubunits(): String = roundTo(0)
+
+fun String.toValidNumber(): String {
+    return if (this.isBlank()) "0"
+    else if (this.first() == '.') "0$this"
+    else this
+}

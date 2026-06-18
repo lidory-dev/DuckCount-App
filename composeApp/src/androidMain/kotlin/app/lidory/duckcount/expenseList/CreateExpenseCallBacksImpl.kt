@@ -8,6 +8,7 @@ import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.Expense
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.User
+import app.lidory.duckcount.getBeneficiariesShares
 import database.beneficiary.BeneficiaryRepository
 import database.expense.ExpenseRepository
 import database.user.UserRepository
@@ -64,5 +65,26 @@ class CreateExpenseCallBacksImpl(
 
     override fun getAuthenticatedUserUuid(): String? {
         return authenticationUtils.getAuthenticatedUserUuid()
+    }
+
+    override fun getCalculatedShares(
+        amount: String,
+        currency: Currency,
+        beneficiaryUserUuids: List<String>,
+        fixedUuid: Map<String, String>,
+        expenseUuid: String,
+    ): List<Beneficiary> {
+        return getBeneficiariesShares(
+            amount = amount,
+            currency = currency.toUniffi(),
+            beneficiaryUserUuids = beneficiaryUserUuids,
+            fixedShares = fixedUuid,
+        ).map {
+            Beneficiary(
+                expenseUuid = expenseUuid,
+                userUuid = it.userUuid,
+                share = it.share,
+            )
+        }
     }
 }

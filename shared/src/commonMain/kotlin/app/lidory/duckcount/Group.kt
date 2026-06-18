@@ -16,10 +16,10 @@ fun calculateNetDebtsPerUser(
             // TODO: Use currency of the group
             name = "EUR", symbol = "€", hasSubUnit = true,
         ),
-        usersId = members.map { it.userUuid },
+        usersUuid = members.map { it.userUuid },
         expenses = expenses.map { expense ->
             uniffiExpense(
-                creditorId = expense.creditorUuid,
+                creditorUuid = expense.creditorUuid,
                 amount = expense.amount,
                 currency = uniffiCurrency(
                     name = expense.currency.name,
@@ -28,7 +28,7 @@ fun calculateNetDebtsPerUser(
                 ),
                 beneficiaries = expense.beneficiaries.map {
                     uniffiBeneficiary(
-                        userId = it.userUuid,
+                        userUuid = it.userUuid,
                         share = it.share,
                     )
                 },

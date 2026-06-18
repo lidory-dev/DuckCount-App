@@ -36,7 +36,6 @@ import app.lidory.duckcount.expenseList.component.BeneficiariesDialog
 import app.lidory.duckcount.expenseList.component.CreditorDialog
 import app.lidory.duckcount.expenseList.component.CreditorSelector
 import app.lidory.duckcount.expenseList.component.beneficiaryList.beneficiaryList
-import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.viewmodel.CreateExpenseViewModel
 import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
@@ -79,9 +78,22 @@ fun CreateExpenseScreen(
         isDialogShown = viewModel.isBeneficiariesDialogShown,
         onDismissRequest = { viewModel.hideBeneficiariesDialog() },
         onSelectUsers = { uuids ->
+            val beneficiaries = viewModel.getCalculatedShares(
+                amount = expenseState.amount.ifBlank { "0" },
+                currency = expenseState.currency,
+                beneficiaryUserUuids = uuids,
+                fixedUuid = expenseState.beneficiaries
+                    .filter { it.fixedShare && it.userUuid in uuids }
+                    .associate { it.userUuid to (it.share) },
+            )
+
             viewModel.updateBeneficiaries(
-                // TODO: use real data
-                uuids.map { Beneficiary(expenseUuid = "", userUuid = it, share = "0") },
+                beneficiaries.map { beneficiary ->
+                    if (beneficiary.userUuid in expenseState.beneficiaries.filter { it.fixedShare }.map { it.userUuid })
+                        beneficiary.copy(fixedShare = true)
+                    else
+                        beneficiary
+                },
             )
         },
         focusManager = focusManager,
@@ -178,8 +190,9 @@ fun CreateExpenseScreen(
                         amountValue = expenseState.amount,
                         currencyValue = expenseState.currency.symbol,
                         currencies = viewModel.currencies,
-                        onExpenseValueChange = { amount ->
+                        onAmountValueChange = { amount ->
                             viewModel.updateAmount(amount)
+                            viewModel.calculateShares()
                         },
                         onCurrencyValueChange = { name, symbol, hasSubUnit ->
                             viewModel.updateCurrency(name, symbol, hasSubUnit)
@@ -208,10 +221,12 @@ fun CreateExpenseScreen(
 
                 beneficiaryList(
                     beneficiaries = beneficiaries,
-                    onBeneficiaryAmountChange = { userId, share ->
+                    onBeneficiaryAmountChange = { userUuid, share ->
                         viewModel.updateBeneficiaryShare(
-                            userUuid = userId, share = share,
+                            userUuid = userUuid, share = share,
                         )
+                        viewModel.fixBeneficiary(userUuid)
+                        viewModel.calculateShares()
                     },
                     onModifyBeneficiaryList = {
                         viewModel.showBeneficiariesDialog()
@@ -219,6 +234,18 @@ fun CreateExpenseScreen(
                     },
                     expenseError = expenseState.error,
                     focusManager = focusManager,
+                    unfixUser = { userUuid ->
+                        viewModel.updateBeneficiaries(
+                            expenseState.beneficiaries.map { beneficiary ->
+                                if (beneficiary.userUuid == userUuid) {
+                                    beneficiary.copy(fixedShare = false)
+                                } else {
+                                    beneficiary
+                                }
+                            },
+                        )
+                        viewModel.calculateShares()
+                    },
                 )
 
                 item {

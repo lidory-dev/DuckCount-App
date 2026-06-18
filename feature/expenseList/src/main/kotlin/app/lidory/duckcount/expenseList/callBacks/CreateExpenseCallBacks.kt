@@ -32,4 +32,12 @@ interface CreateExpenseCallBacks {
     suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries)
 
     fun getAuthenticatedUserUuid(): String?
+
+    fun getCalculatedShares(
+        amount: String,
+        currency: Currency,
+        beneficiaryUserUuids: List<String>,
+        fixedUuid: Map<String, String>,
+        expenseUuid: String,
+    ): List<Beneficiary>
 }
