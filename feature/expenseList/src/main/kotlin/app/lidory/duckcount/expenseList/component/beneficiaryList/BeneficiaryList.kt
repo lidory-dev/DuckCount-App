@@ -12,6 +12,7 @@ import app.lidory.duckcount.expenseList.model.BeneficiaryUi
 
 fun LazyListScope.beneficiaryList(
     beneficiaries: List<BeneficiaryUi>,
+    currencySymbol: String,
     onBeneficiaryAmountChange: (String, String) -> Unit,
     onModifyBeneficiaryList: () -> Unit,
     @StringRes expenseError: Int?,
@@ -39,6 +40,7 @@ fun LazyListScope.beneficiaryList(
     ) { beneficiary ->
         BeneficiaryRow(
             beneficiary = beneficiary,
+            currencySymbol = currencySymbol,
             onBeneficiaryAmountChange = onBeneficiaryAmountChange,
             focusManager = focusManager,
             unfixAmount = {

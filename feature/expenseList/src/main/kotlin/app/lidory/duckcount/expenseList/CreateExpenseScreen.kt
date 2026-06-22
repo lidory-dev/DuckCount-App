@@ -221,6 +221,7 @@ fun CreateExpenseScreen(
 
                 beneficiaryList(
                     beneficiaries = beneficiaries,
+                    currencySymbol = expenseState.currency.symbol,
                     onBeneficiaryAmountChange = { userUuid, share ->
                         viewModel.updateBeneficiaryShare(
                             userUuid = userUuid, share = share,

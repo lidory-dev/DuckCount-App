@@ -22,11 +22,13 @@ import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.R
 import app.lidory.duckcount.expenseList.model.BeneficiaryUi
+import app.lidory.duckcount.expenseList.utils.CurrencySymbolTransformation
 
 @Composable
 fun BeneficiaryRow(
     onBeneficiaryAmountChange: (String, String) -> Unit,
     beneficiary: BeneficiaryUi,
+    currencySymbol: String,
     focusManager: FocusManager,
     unfixAmount: () -> Unit,
 ) {
@@ -69,6 +71,7 @@ fun BeneficiaryRow(
                         )
                     }
             },
+            visualTransformation = CurrencySymbolTransformation(currencySymbol),
         )
     }
 }
