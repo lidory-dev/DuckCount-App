@@ -3,7 +3,9 @@ package app.lidory.duckcount.groupList
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.component.groupMembersDetail.GroupMemberBottomSheet
@@ -95,13 +98,15 @@ fun GroupSettingsScreen(
                             style = MaterialTheme.typography.headlineLarge,
                         )
 
+                        Spacer(modifier = Modifier.height(12.dp))
+
                         Text(
                             modifier = Modifier.sharedBounds(
                                 sharedContentState = rememberSharedContentState(key = "group_description_${state.groupWithMembers?.uuid}"),
                                 animatedVisibilityScope = animatedVisibilityScope,
                             ),
                             text = state.groupWithMembers?.description ?: "",
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                 }
