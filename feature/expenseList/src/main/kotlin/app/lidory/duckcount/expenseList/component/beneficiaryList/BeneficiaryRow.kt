@@ -22,7 +22,6 @@ import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.R
 import app.lidory.duckcount.expenseList.model.BeneficiaryUi
-import app.lidory.duckcount.expenseList.utils.CurrencySymbolTransformation
 
 @Composable
 fun BeneficiaryRow(
@@ -39,39 +38,55 @@ fun BeneficiaryRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            overflow = TextOverflow.Ellipsis,
-            maxLines = 1,
-            text = beneficiary.fullName,
-            modifier = Modifier
-                .weight(2f)
-                .padding(Padding.medium),
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(.7f),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                overflow = TextOverflow.Ellipsis,
+                maxLines = 1,
+                text = beneficiary.fullName,
+                modifier = Modifier
+                    .padding(Padding.medium),
+            )
+            if (beneficiary.fixedShare)
+                IconButton(
+                    onClick = unfixAmount,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_undo),
+                        contentDescription = stringResource(R.string.unfix),
+                    )
+                }
+        }
 
-        DuckCountTextField(
-            value = beneficiary.share,
-            onValueChange = {
-                onBeneficiaryAmountChange(
-                    beneficiary.userUuid, it,
-                )
-            },
-            keyboardOptions = KeyboardOptions.Default.copy(
-                keyboardType = KeyboardType.Number,
-            ),
-            focusManager = focusManager,
-            modifier = Modifier.weight(1f),
-            trailingIcon = {
-                if (beneficiary.fixedShare)
-                    IconButton(
-                        onClick = unfixAmount,
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_refresh),
-                            contentDescription = stringResource(R.string.unfix),
-                        )
-                    }
-            },
-            visualTransformation = CurrencySymbolTransformation(currencySymbol),
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DuckCountTextField(
+                value = beneficiary.share,
+                onValueChange = {
+                    onBeneficiaryAmountChange(
+                        beneficiary.userUuid, it,
+                    )
+                },
+                keyboardOptions = KeyboardOptions.Default.copy(
+                    keyboardType = KeyboardType.Number,
+                ),
+                focusManager = focusManager,
+                modifier = Modifier.fillMaxWidth(.75f),
+            )
+
+            Text(
+                overflow = TextOverflow.Ellipsis,
+                maxLines = 1,
+                text = currencySymbol,
+                modifier = Modifier
+                    .padding(Padding.medium),
+            )
+        }
     }
 }
