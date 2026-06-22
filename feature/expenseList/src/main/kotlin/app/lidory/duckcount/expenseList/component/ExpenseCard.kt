@@ -31,7 +31,7 @@ fun ExpenseCard(
     creditorName: String,
     totalAmount: String,
     currencySymbol: String,
-    personalShare: String,
+    personalShare: String?,
     role: ExpenseStatus,
     isActive: Boolean,
 ) {

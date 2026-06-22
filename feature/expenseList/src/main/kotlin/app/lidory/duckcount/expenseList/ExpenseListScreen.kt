@@ -62,6 +62,26 @@ fun ExpenseListScreen(
                 items = expenses,
                 key = { expense -> expense.uuid },
             ) { expense ->
+                val role = when {
+                    expense.creditorUuid == state.connectedUserUuid -> ExpenseStatus.CREDITOR
+                    expense.beneficiaries.any { it.userUuid == state.connectedUserUuid } -> ExpenseStatus.BENEFICIARY
+                    else -> ExpenseStatus.NEUTRAL
+                }
+
+                val personalShare = when (role) {
+                    ExpenseStatus.CREDITOR ->
+                        expense.beneficiaries
+                            .filterNot { it.userUuid == state.connectedUserUuid }
+                            .sumOf { it.share.toBigDecimal() }
+                            .toString()
+
+                    ExpenseStatus.BENEFICIARY ->
+                        expense.beneficiaries
+                            .first { it.userUuid == state.connectedUserUuid }
+                            .share
+
+                    ExpenseStatus.NEUTRAL -> null
+                }
 
                 // We navigate when clicking on an expense, so we need to safeguard the onClick with dropUnlessResumed
                 ExpenseCard(
@@ -76,24 +96,8 @@ fun ExpenseListScreen(
                         ?: expense.creditorUuid, // TODO: Show that the username was not found?
                     totalAmount = expense.amount,
                     currencySymbol = expense.currency.symbol,
-                    personalShare = when (state.connectedUserUuid) {
-                        expense.creditorUuid ->
-                            expense.beneficiaries
-                                .filterNot { it.userUuid == state.connectedUserUuid }
-                                .sumOf { it.share.toBigDecimal() }.toString()
-
-                        in expense.beneficiaries.map { it.userUuid } ->
-                            expense.beneficiaries.find { it.userUuid == state.connectedUserUuid }?.share ?: ""
-
-                        else -> ""
-                    },
-                    role = when (state.connectedUserUuid) {
-                        expense.creditorUuid -> ExpenseStatus.CREDITOR
-
-                        in expense.beneficiaries.map { it.userUuid } -> ExpenseStatus.BENEFICIARY
-
-                        else -> ExpenseStatus.NEUTRAL
-                    },
+                    personalShare = personalShare,
+                    role = role,
                     isActive = !expense.isDeleted,
                 )
             }

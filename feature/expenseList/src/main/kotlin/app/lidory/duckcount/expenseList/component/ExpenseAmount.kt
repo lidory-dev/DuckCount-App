@@ -17,8 +17,8 @@ fun ExpenseAmount(
     totalAmount: String,
     currencySymbol: String,
     role: ExpenseStatus,
+    personalShare: String?,
     isActive: Boolean,
-    personalShare: String,
 ) {
     Column(
         modifier = modifier,
@@ -35,7 +35,7 @@ fun ExpenseAmount(
             ),
         )
 
-        if (role != ExpenseStatus.NEUTRAL)
+        personalShare?.let {
             Text(
                 // TODO: adapt order if the currency has to be before (ex: 20€ / $20)
                 text = "${role.labelAmount} $personalShare$currencySymbol",
@@ -46,5 +46,6 @@ fun ExpenseAmount(
                     textDecoration = if (isActive) TextDecoration.None else TextDecoration.LineThrough,
                 ),
             )
+        }
     }
 }
