@@ -77,25 +77,7 @@ fun CreateExpenseScreen(
     BeneficiariesDialog(
         isDialogShown = viewModel.isBeneficiariesDialogShown,
         onDismissRequest = { viewModel.hideBeneficiariesDialog() },
-        onSelectUsers = { uuids ->
-            val beneficiaries = viewModel.getCalculatedShares(
-                amount = expenseState.amount.ifBlank { "0" },
-                currency = expenseState.currency,
-                beneficiaryUserUuids = uuids,
-                fixedUuid = expenseState.beneficiaries
-                    .filter { it.fixedShare && it.userUuid in uuids }
-                    .associate { it.userUuid to (it.share) },
-            )
-
-            viewModel.updateBeneficiaries(
-                beneficiaries.map { beneficiary ->
-                    if (beneficiary.userUuid in expenseState.beneficiaries.filter { it.fixedShare }.map { it.userUuid })
-                        beneficiary.copy(fixedShare = true)
-                    else
-                        beneficiary
-                },
-            )
-        },
+        onSelectUsers = { uuids -> viewModel.onBeneficiariesSelected(uuids) },
         focusManager = focusManager,
         usersList = userState.users,
         searchQuery = viewModel.searchQuery,

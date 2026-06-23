@@ -368,13 +368,33 @@ class CreateExpenseViewModel(
 
     fun isNewExpense() = _expenseUuid.value == null
 
-    fun getCalculatedShares(
+    fun onBeneficiariesSelected(uuids: Set<String>) {
+        val fixedBeneficiaries = _state.value.beneficiaries.filter { it.fixedShare }
+        val fixedShareUuids = fixedBeneficiaries.mapTo(mutableSetOf()) { it.userUuid }
+
+        val beneficiaries = computeBeneficiaries(
+            amount = _state.value.amount.ifBlank { "0" },
+            currency = _state.value.currency,
+            beneficiaryUserUuids = uuids.toList(),
+            fixedUuid = fixedBeneficiaries
+                .filter { it.userUuid in uuids }
+                .associate { it.userUuid to it.share },
+        )
+
+        updateBeneficiaries(
+            beneficiaries.map { beneficiary ->
+                if (beneficiary.userUuid in fixedShareUuids) beneficiary.copy(fixedShare = true) else beneficiary
+            },
+        )
+    }
+
+    fun computeBeneficiaries(
         amount: String,
         currency: Currency,
         beneficiaryUserUuids: List<String>,
         fixedUuid: Map<String, String>,
     ): List<Beneficiary> {
-        return createExpenseCallBacks.getCalculatedShares(
+        return createExpenseCallBacks.computeBeneficiaries(
             amount = amount.toValidNumber(),
             currency = currency,
             beneficiaryUserUuids = beneficiaryUserUuids,
@@ -389,7 +409,7 @@ class CreateExpenseViewModel(
     }
 
     fun calculateShares() {
-        val beneficiaries = getCalculatedShares(
+        val beneficiaries = computeBeneficiaries(
             amount = _state.value.amount.toValidNumber(),
             currency = _state.value.currency,
             beneficiaryUserUuids = _state.value.beneficiaries.map { it.userUuid },
@@ -397,6 +417,7 @@ class CreateExpenseViewModel(
                 .filter { it.fixedShare }
                 .associate { it.userUuid to (it.share.toValidNumber()) },
         )
+
         beneficiaries.forEach {
             updateBeneficiaryShare(it.userUuid, it.share)
         }

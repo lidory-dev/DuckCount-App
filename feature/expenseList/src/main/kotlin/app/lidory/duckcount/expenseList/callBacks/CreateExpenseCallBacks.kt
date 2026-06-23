@@ -33,7 +33,7 @@ interface CreateExpenseCallBacks {
 
     fun getAuthenticatedUserUuid(): String?
 
-    fun getCalculatedShares(
+    fun computeBeneficiaries(
         amount: String,
         currency: Currency,
         beneficiaryUserUuids: List<String>,

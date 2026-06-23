@@ -2,13 +2,13 @@ package app.lidory.duckcount.expenseList
 
 import app.lidory.duckcount.MAX_DESCRIPTION_LENGTH
 import app.lidory.duckcount.MAX_TITLE_LENGTH
+import app.lidory.duckcount.computeBeneficiaries
 import app.lidory.duckcount.expenseList.callBacks.CreateExpenseCallBacks
 import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.Expense
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.User
-import app.lidory.duckcount.getBeneficiariesShares
 import database.beneficiary.BeneficiaryRepository
 import database.expense.ExpenseRepository
 import database.user.UserRepository
@@ -67,14 +67,14 @@ class CreateExpenseCallBacksImpl(
         return authenticationUtils.getAuthenticatedUserUuid()
     }
 
-    override fun getCalculatedShares(
+    override fun computeBeneficiaries(
         amount: String,
         currency: Currency,
         beneficiaryUserUuids: List<String>,
         fixedUuid: Map<String, String>,
         expenseUuid: String,
     ): List<Beneficiary> {
-        return getBeneficiariesShares(
+        return computeBeneficiaries(
             amount = amount,
             currency = currency.toUniffi(),
             beneficiaryUserUuids = beneficiaryUserUuids,

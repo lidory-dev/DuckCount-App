@@ -32,17 +32,16 @@ fun validateExpense(
     }
 }
 
-fun getBeneficiariesShares(
+fun computeBeneficiaries(
     amount: String,
     currency: Currency,
     beneficiaryUserUuids: List<String>,
     fixedShares: Map<String, String>,
 ): List<Beneficiary> {
-    val res = computeBeneficiaries(
+    return computeBeneficiaries(
         amount = amount,
         currency = currency,
         beneficiaryUserUuids = beneficiaryUserUuids,
         fixedShares = fixedShares,
     )
-    return res
 }

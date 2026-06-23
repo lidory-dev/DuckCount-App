@@ -44,7 +44,7 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 fun BeneficiariesDialog(
     isDialogShown: Boolean,
     onDismissRequest: () -> Unit,
-    onSelectUsers: (List<String>) -> Unit,
+    onSelectUsers: (Set<String>) -> Unit,
     modifier: Modifier = Modifier,
     focusManager: FocusManager,
     usersList: List<User>,
@@ -179,7 +179,7 @@ fun BeneficiariesDialog(
                         .fillMaxWidth()
                         .padding(bottom = Padding.extraLarge),
                     onClick = {
-                        onSelectUsers(selectedUuids.toList())
+                        onSelectUsers(selectedUuids)
                         onDismissRequest()
                     },
                     colors = ButtonDefaults.buttonColors()
