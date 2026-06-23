@@ -17,7 +17,7 @@ fun LazyListScope.beneficiaryList(
     onModifyBeneficiaryList: () -> Unit,
     @StringRes expenseError: Int?,
     focusManager: FocusManager,
-    unfixUser: (String) -> Unit,
+    removeUserFixedShare: (String) -> Unit,
 ) {
     item {
         BeneficiaryListHeader(
@@ -43,8 +43,8 @@ fun LazyListScope.beneficiaryList(
             currencySymbol = currencySymbol,
             onBeneficiaryAmountChange = onBeneficiaryAmountChange,
             focusManager = focusManager,
-            unfixAmount = {
-                unfixUser(beneficiary.userUuid)
+            removeFixedShare = {
+                removeUserFixedShare(beneficiary.userUuid)
             },
         )
     }

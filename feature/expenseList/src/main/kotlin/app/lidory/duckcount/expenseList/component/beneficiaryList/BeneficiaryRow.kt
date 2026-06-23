@@ -29,7 +29,7 @@ fun BeneficiaryRow(
     beneficiary: BeneficiaryUi,
     currencySymbol: String,
     focusManager: FocusManager,
-    unfixAmount: () -> Unit,
+    removeFixedShare: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -50,13 +50,14 @@ fun BeneficiaryRow(
                 modifier = Modifier
                     .padding(Padding.medium),
             )
+
             if (beneficiary.fixedShare)
                 IconButton(
-                    onClick = unfixAmount,
+                    onClick = removeFixedShare,
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_undo),
-                        contentDescription = stringResource(R.string.unfix),
+                        contentDescription = stringResource(R.string.remove_fixed_share),
                     )
                 }
         }

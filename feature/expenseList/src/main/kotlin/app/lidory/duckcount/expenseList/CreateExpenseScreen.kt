@@ -217,7 +217,7 @@ fun CreateExpenseScreen(
                     },
                     expenseError = expenseState.error,
                     focusManager = focusManager,
-                    unfixUser = { userUuid ->
+                    removeUserFixedShare = { userUuid ->
                         viewModel.updateBeneficiaries(
                             expenseState.beneficiaries.map { beneficiary ->
                                 if (beneficiary.userUuid == userUuid) {
