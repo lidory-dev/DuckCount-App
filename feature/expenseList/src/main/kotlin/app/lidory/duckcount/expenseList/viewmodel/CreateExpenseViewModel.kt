@@ -198,7 +198,7 @@ class CreateExpenseViewModel(
                     userUuid = beneficiary.userUuid,
                     share = beneficiary.share,
                     fullName = names[beneficiary.userUuid] ?: beneficiary.userUuid,
-                    fixedShare = beneficiary.fixedShare,
+                    isShareFixed = beneficiary.isShareFixed,
                 )
             }
         }.stateIn(
@@ -373,7 +373,7 @@ class CreateExpenseViewModel(
         updateBeneficiaries(
             _state.value.beneficiaries.map { beneficiary ->
                 if (beneficiary.userUuid == userUuid) {
-                    beneficiary.copy(fixedShare = false)
+                    beneficiary.copy(isShareFixed = false)
                 } else {
                     beneficiary
                 }
@@ -384,7 +384,7 @@ class CreateExpenseViewModel(
     }
 
     fun onBeneficiariesSelected(uuids: Set<String>) {
-        val fixedBeneficiaries = _state.value.beneficiaries.filter { it.fixedShare }
+        val fixedBeneficiaries = _state.value.beneficiaries.filter { it.isShareFixed }
         val fixedShareUuids = fixedBeneficiaries.mapTo(mutableSetOf()) { it.userUuid }
 
         val beneficiaries = computeBeneficiaries(
@@ -398,7 +398,7 @@ class CreateExpenseViewModel(
 
         updateBeneficiaries(
             beneficiaries.map { beneficiary ->
-                if (beneficiary.userUuid in fixedShareUuids) beneficiary.copy(fixedShare = true) else beneficiary
+                if (beneficiary.userUuid in fixedShareUuids) beneficiary.copy(isShareFixed = true) else beneficiary
             },
         )
     }
@@ -417,7 +417,7 @@ class CreateExpenseViewModel(
             expenseUuid = _expenseUuid.value ?: "",
         ).map { beneficiary ->
             if (beneficiary.userUuid in fixedUuid)
-                beneficiary.copy(fixedShare = true)
+                beneficiary.copy(isShareFixed = true)
             else
                 beneficiary
         }
@@ -429,7 +429,7 @@ class CreateExpenseViewModel(
             currency = _state.value.currency,
             beneficiaryUserUuids = _state.value.beneficiaries.map { it.userUuid },
             fixedUuid = _state.value.beneficiaries
-                .filter { it.fixedShare }
+                .filter { it.isShareFixed }
                 .associate { it.userUuid to (it.share.toValidNumber()) },
         )
 
@@ -443,7 +443,7 @@ class CreateExpenseViewModel(
             it.copy(
                 beneficiaries = it.beneficiaries.map { beneficiary ->
                     if (beneficiary.userUuid == userUuid)
-                        beneficiary.copy(fixedShare = true)
+                        beneficiary.copy(isShareFixed = true)
                     else
                         beneficiary
                 },

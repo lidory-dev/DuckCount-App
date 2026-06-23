@@ -52,7 +52,7 @@ fun BeneficiaryRow(
                     .padding(Padding.medium),
             )
 
-            if (beneficiary.fixedShare)
+            if (beneficiary.isShareFixed) {
                 IconButton(
                     onClick = removeFixedShare,
                 ) {
@@ -61,6 +61,7 @@ fun BeneficiaryRow(
                         contentDescription = stringResource(R.string.remove_fixed_share),
                     )
                 }
+            }
         }
 
         Row(

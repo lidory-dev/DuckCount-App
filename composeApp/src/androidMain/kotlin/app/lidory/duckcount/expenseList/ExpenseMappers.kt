@@ -44,6 +44,7 @@ fun BeneficiaryDB.toModel(): Beneficiary = Beneficiary(
     expenseUuid = expenseUuid,
     userUuid = userUuid,
     share = share,
+    isShareFixed = isShareFixed,
 )
 
 fun Beneficiary.toDb(): BeneficiaryDB = BeneficiaryDB(
@@ -51,6 +52,7 @@ fun Beneficiary.toDb(): BeneficiaryDB = BeneficiaryDB(
     expenseUuid = expenseUuid,
     userUuid = userUuid,
     share = share,
+    isShareFixed = isShareFixed,
 )
 
 fun UserDB.toModel(): User = User(

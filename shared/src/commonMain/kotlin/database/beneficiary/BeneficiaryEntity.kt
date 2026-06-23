@@ -9,4 +9,5 @@ data class BeneficiaryEntity(
     val expenseUuid: String,
     val userUuid: String,
     val share: String,
+    val isShareFixed: Boolean,
 )

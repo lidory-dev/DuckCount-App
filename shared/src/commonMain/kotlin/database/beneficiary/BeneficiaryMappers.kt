@@ -5,6 +5,7 @@ fun BeneficiaryEntity.toBeneficiary() = Beneficiary(
     expenseUuid = expenseUuid,
     userUuid = userUuid,
     share = share,
+    isShareFixed = isShareFixed,
 )
 
 fun Beneficiary.toBeneficiaryEntity() = BeneficiaryEntity(
@@ -12,4 +13,5 @@ fun Beneficiary.toBeneficiaryEntity() = BeneficiaryEntity(
     expenseUuid = expenseUuid,
     userUuid = userUuid,
     share = share,
+    isShareFixed = isShareFixed,
 )

@@ -5,5 +5,5 @@ data class BeneficiaryUi(
     val userUuid: String,
     val share: String,
     val fullName: String,
-    val fixedShare: Boolean,
+    val isShareFixed: Boolean,
 )

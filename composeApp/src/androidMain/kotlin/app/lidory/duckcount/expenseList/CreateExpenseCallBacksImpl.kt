@@ -84,6 +84,7 @@ class CreateExpenseCallBacksImpl(
                 expenseUuid = expenseUuid,
                 userUuid = it.userUuid,
                 share = it.share,
+                isShareFixed = false,
             )
         }
     }

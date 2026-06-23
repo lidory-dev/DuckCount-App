@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "264cced414a480c9cce34cce43c54816",
+    "identityHash": "399022fcc7aadf3e68c33bea6f553255",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -143,7 +143,7 @@
       },
       {
         "tableName": "BeneficiaryEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `expenseUuid` TEXT NOT NULL, `userUuid` TEXT NOT NULL, `share` TEXT NOT NULL, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `expenseUuid` TEXT NOT NULL, `userUuid` TEXT NOT NULL, `share` TEXT NOT NULL, `isShareFixed` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
         "fields": [
           {
             "fieldPath": "uuid",
@@ -167,6 +167,12 @@
             "fieldPath": "share",
             "columnName": "share",
             "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isShareFixed",
+            "columnName": "isShareFixed",
+            "affinity": "INTEGER",
             "notNull": true
           }
         ],
@@ -246,7 +252,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '264cced414a480c9cce34cce43c54816')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '399022fcc7aadf3e68c33bea6f553255')"
     ]
   }
 }
