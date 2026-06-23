@@ -38,7 +38,9 @@ fun App() {
                 )
 
                 NavigationRoot(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background),
                     backStack = backStack,
                     resumeRegistration = (state as? Startup.ResumeRegistration)?.pending,
                 )
