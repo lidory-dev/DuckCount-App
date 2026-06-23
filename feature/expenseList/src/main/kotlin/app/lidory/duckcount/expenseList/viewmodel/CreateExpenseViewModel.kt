@@ -71,12 +71,13 @@ class CreateExpenseViewModel(
             else -> formatted.roundAmountWithoutSubunits()
         }
 
-        val droppedFraction =
+        val droppedDecimalSeparator =
             hasSubunits
                     && previous.contains('.')
                     && !rounded.contains('.')
-                    && rounded.takeLast(2) == previous.takeLast(2)
-        return if (droppedFraction) rounded.dropLast(2) else rounded
+                    && previous.replace(".", "") == rounded
+
+        return if (droppedDecimalSeparator) rounded.dropLast(2) else rounded
     }
 
     fun showCreditorDialog() {

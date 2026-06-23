@@ -4,13 +4,18 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 
 fun String.formatAmountWithSubunits(): String {
-    val replaced = this.replace(',', '.').replace(" ", "")
+    val replaced = this
+        .replace(',', '.')
+        .filter { it.isDigit() || it == '.' }
+
     val dotIndex = replaced.indexOf('.')
 
     if (dotIndex == -1) return replaced
 
     val intPart = replaced.take(dotIndex)
-    val fracPart = replaced.substring(dotIndex + 1).take(3).padEnd(2, '0')
+    val fracPart = replaced.substring(dotIndex + 1)
+        .take(3)
+        .padEnd(2, '0')
 
     return "$intPart.$fracPart"
 }
