@@ -48,6 +48,7 @@ fun BeneficiaryRow(
                 maxLines = 1,
                 text = beneficiary.fullName,
                 modifier = Modifier
+                    .weight(1f, fill = false)
                     .padding(Padding.medium),
             )
 
