@@ -1,13 +1,9 @@
 package app.lidory.duckcount.groupList
 
 import app.lidory.duckcount.groupList.model.Beneficiary
-import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
-import app.lidory.duckcount.groupList.model.GroupMember
 import database.domain.Beneficiary as DBBeneficiary
-import database.domain.Currency as DBCurrency
 import database.domain.ExpenseWithBeneficiaries as DBExpenseWithBeneficiaries
-import database.domain.GroupMember as DBGroupMember
 
 fun DBExpenseWithBeneficiaries.toGroupListModel(): ExpenseWithBeneficiaries {
     return ExpenseWithBeneficiaries(
@@ -41,24 +37,6 @@ fun ExpenseWithBeneficiaries.toDb(): DBExpenseWithBeneficiaries {
     )
 }
 
-fun DBCurrency.toGroupListModel(): Currency {
-    return Currency(
-        uuid = uuid,
-        name = name,
-        symbol = symbol,
-        hasSubunits = hasSubunits,
-    )
-}
-
-fun Currency.toDb(): DBCurrency {
-    return DBCurrency(
-        uuid = uuid,
-        name = name,
-        symbol = symbol,
-        hasSubunits = hasSubunits,
-    )
-}
-
 fun DBBeneficiary.toGroupListModel(): Beneficiary {
     return Beneficiary(
         uuid = uuid,
@@ -76,13 +54,5 @@ fun Beneficiary.toDb(): DBBeneficiary {
         userUuid = userUuid,
         share = share,
         isShareFixed = isShareFixed,
-    )
-}
-
-fun GroupMember.toDb(): DBGroupMember {
-    return DBGroupMember(
-        userUuid = userUuid,
-        groupUuid = groupUuid,
-        isAdmin = isAdmin,
     )
 }

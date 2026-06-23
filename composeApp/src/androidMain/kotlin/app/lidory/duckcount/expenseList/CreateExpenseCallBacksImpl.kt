@@ -37,12 +37,12 @@ class CreateExpenseCallBacksImpl(
     }
 
     override fun getAllUsersFiltered(filter: String): Flow<List<User>> {
-        return userRepository.getAllFiltered(filter).map { users -> users.map { it.toModel() } }
+        return userRepository.getAllFiltered(filter).map { users -> users.map { it.toExpenseListModel() } }
     }
 
     override fun getAllUsersFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> {
         return userRepository.getAllFromGroupFiltered(filter = filter, groupUuid = groupUuid)
-            .map { users -> users.map { it.toModel() } }
+            .map { users -> users.map { it.toExpenseListModel() } }
     }
 
     override suspend fun insertBeneficiary(beneficiary: Beneficiary) {
@@ -74,7 +74,7 @@ class CreateExpenseCallBacksImpl(
     }
 
     override fun getExpenseWithBeneficiaries(expenseUuid: String): Flow<ExpenseWithBeneficiaries> {
-        return expenseRepository.getWithBeneficiaries(expenseUuid).filterNotNull().map { it.toModel() }
+        return expenseRepository.getWithBeneficiaries(expenseUuid).filterNotNull().map { it.toExpenseListModel() }
     }
 
     override suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseWriteError? {
@@ -119,6 +119,6 @@ class CreateExpenseCallBacksImpl(
     }
 
     override suspend fun getGroupCurrency(groupUuid: String): Flow<Currency> {
-        return groupRepository.get(groupUuid).map { it.currency.toModel() }
+        return groupRepository.get(groupUuid).map { it.currency.toExpenseListModel() }
     }
 }

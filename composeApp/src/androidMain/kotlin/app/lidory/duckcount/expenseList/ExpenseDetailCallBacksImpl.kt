@@ -18,7 +18,7 @@ class ExpenseDetailCallBacksImpl(
 ) : ExpenseDetailCallBacks {
 
     override fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries?> {
-        return expenseRepository.getWithBeneficiaries(uuid = uuid).map { it?.toModel() }
+        return expenseRepository.getWithBeneficiaries(uuid = uuid).map { it?.toExpenseListModel() }
     }
 
     override fun getUserFullName(userUuid: String): Flow<String?> {

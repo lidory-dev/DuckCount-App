@@ -53,7 +53,7 @@ fun NetworkError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError = whe
 // models (expenseList.model.*). composeApp is the only layer that sees both, so the
 // conversions live here rather than in :shared or the feature module.
 
-fun CurrencyDB.toModel(): Currency = Currency(
+fun CurrencyDB.toExpenseListModel(): Currency = Currency(
     uuid = uuid,
     name = name,
     symbol = symbol,
@@ -73,7 +73,7 @@ fun Currency.toUniffi(): CurrencyUniffi = CurrencyUniffi(
     hasSubUnit = hasSubunits,
 )
 
-fun BeneficiaryDB.toModel(): Beneficiary = Beneficiary(
+fun BeneficiaryDB.toExpenseListModel(): Beneficiary = Beneficiary(
     uuid = uuid,
     expenseUuid = expenseUuid,
     userUuid = userUuid,
@@ -89,7 +89,7 @@ fun Beneficiary.toDb(): BeneficiaryDB = BeneficiaryDB(
     isShareFixed = isShareFixed,
 )
 
-fun UserDB.toModel(): User = User(
+fun UserDB.toExpenseListModel(): User = User(
     uuid = uuid,
     username = username,
     fullName = fullName,
@@ -107,7 +107,7 @@ fun Expense.toDb(): ExpenseDB = ExpenseDB(
     groupUuid = groupUuid,
 )
 
-fun ExpenseWithBeneficiariesDB.toModel(): ExpenseWithBeneficiaries = ExpenseWithBeneficiaries(
+fun ExpenseWithBeneficiariesDB.toExpenseListModel(): ExpenseWithBeneficiaries = ExpenseWithBeneficiaries(
     uuid = uuid,
     timestamp = timestamp,
     title = title,
@@ -115,8 +115,8 @@ fun ExpenseWithBeneficiariesDB.toModel(): ExpenseWithBeneficiaries = ExpenseWith
     amount = amount,
     creditorUuid = creditorUuid,
     isSettlement = isSettlement,
-    currency = currency.toModel(),
-    beneficiaries = beneficiaries.map { it.toModel() },
+    currency = currency.toExpenseListModel(),
+    beneficiaries = beneficiaries.map { it.toExpenseListModel() },
     groupUuid = groupUuid,
     isDeleted = isDeleted,
 )

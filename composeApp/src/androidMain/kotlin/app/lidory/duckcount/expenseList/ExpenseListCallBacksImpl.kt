@@ -23,11 +23,11 @@ class ExpenseListCallBacksImpl(
 
     override fun getOneTimeExpensesPaged(): Flow<PagingData<ExpenseWithBeneficiaries>> {
         return expenseRepository.getOneTimeExpensesPaged()
-            .map { pagingData -> pagingData.pagingMap { it.toModel() } }
+            .map { pagingData -> pagingData.pagingMap { it.toExpenseListModel() } }
     }
 
     override suspend fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries> {
-        return expenseRepository.getWithBeneficiaries(uuid = uuid).filterNotNull().map { it.toModel() }
+        return expenseRepository.getWithBeneficiaries(uuid = uuid).filterNotNull().map { it.toExpenseListModel() }
     }
 
     override suspend fun insert(expense: Expense) {
@@ -35,12 +35,12 @@ class ExpenseListCallBacksImpl(
     }
 
     override suspend fun getAllUsersFiltered(filter: String): Flow<List<User>> {
-        return userRepository.getAllFiltered(filter).map { users -> users.map { it.toModel() } }
+        return userRepository.getAllFiltered(filter).map { users -> users.map { it.toExpenseListModel() } }
     }
 
     override suspend fun getAllUsersFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> {
         return userRepository.getAllFromGroupFiltered(filter, groupUuid)
-            .map { users -> users.map { it.toModel() } }
+            .map { users -> users.map { it.toExpenseListModel() } }
     }
 
     override suspend fun insertBeneficiary(beneficiary: Beneficiary) {
@@ -52,11 +52,11 @@ class ExpenseListCallBacksImpl(
     }
 
     override fun getAllExpensesWithoutGroup(): Flow<List<ExpenseWithBeneficiaries>> {
-        return expenseRepository.getAllWithoutGroup().map { expenses -> expenses.map { it.toModel() } }
+        return expenseRepository.getAllWithoutGroup().map { expenses -> expenses.map { it.toExpenseListModel() } }
     }
 
     override fun getAllExpensesFromGroup(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> {
-        return expenseRepository.getAllFromGroup(groupUuid).map { expenses -> expenses.map { it.toModel() } }
+        return expenseRepository.getAllFromGroup(groupUuid).map { expenses -> expenses.map { it.toExpenseListModel() } }
     }
 
     override fun getUserFullName(userUuid: String): Flow<String?> {
