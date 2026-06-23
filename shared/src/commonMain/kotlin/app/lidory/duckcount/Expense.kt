@@ -38,10 +38,23 @@ fun computeBeneficiaries(
     beneficiaryUserUuids: List<String>,
     fixedShares: Map<String, String>,
 ): List<Beneficiary> {
-    return computeBeneficiaries(
-        amount = amount,
-        currency = currency,
-        beneficiaryUserUuids = beneficiaryUserUuids,
-        fixedShares = fixedShares,
-    )
+    return try {
+        computeBeneficiaries(
+            amount = amount,
+            currency = currency,
+            beneficiaryUserUuids = beneficiaryUserUuids,
+            fixedShares = fixedShares,
+        )
+    } catch (_: ExpenseException) {
+        // Shares can't be computed yet (e.g. a blank/invalid amount or shares that
+        // don't add up while the user is still editing). Don't crash: keep the
+        // selected beneficiaries with their fixed shares so the UI stays intact,
+        // and let a later valid input recompute the shares.
+        beneficiaryUserUuids.map { userUuid ->
+            Beneficiary(
+                userUuid = userUuid,
+                share = fixedShares[userUuid] ?: "",
+            )
+        }
+    }
 }
