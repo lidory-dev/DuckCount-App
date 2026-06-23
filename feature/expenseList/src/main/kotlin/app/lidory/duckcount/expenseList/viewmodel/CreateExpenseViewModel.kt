@@ -369,6 +369,20 @@ class CreateExpenseViewModel(
 
     fun isNewExpense() = _expenseUuid.value == null
 
+    fun removeBeneficiaryFixedShare(userUuid: String) {
+        updateBeneficiaries(
+            _state.value.beneficiaries.map { beneficiary ->
+                if (beneficiary.userUuid == userUuid) {
+                    beneficiary.copy(fixedShare = false)
+                } else {
+                    beneficiary
+                }
+            },
+        )
+
+        calculateShares()
+    }
+
     fun onBeneficiariesSelected(uuids: Set<String>) {
         val fixedBeneficiaries = _state.value.beneficiaries.filter { it.fixedShare }
         val fixedShareUuids = fixedBeneficiaries.mapTo(mutableSetOf()) { it.userUuid }
@@ -424,7 +438,7 @@ class CreateExpenseViewModel(
         }
     }
 
-    fun fixBeneficiary(userUuid: String) {
+    fun setBeneficiaryFixedShare(userUuid: String) {
         _state.update {
             it.copy(
                 beneficiaries = it.beneficiaries.map { beneficiary ->

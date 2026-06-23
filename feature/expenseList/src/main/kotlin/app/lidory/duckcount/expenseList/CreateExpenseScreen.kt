@@ -206,9 +206,10 @@ fun CreateExpenseScreen(
                     currencySymbol = expenseState.currency.symbol,
                     onBeneficiaryAmountChange = { userUuid, share ->
                         viewModel.updateBeneficiaryShare(
-                            userUuid = userUuid, share = share,
+                            userUuid = userUuid,
+                            share = share,
                         )
-                        viewModel.fixBeneficiary(userUuid)
+                        viewModel.setBeneficiaryFixedShare(userUuid)
                         viewModel.calculateShares()
                     },
                     onModifyBeneficiaryList = {
@@ -217,17 +218,8 @@ fun CreateExpenseScreen(
                     },
                     expenseError = expenseState.error,
                     focusManager = focusManager,
-                    removeUserFixedShare = { userUuid ->
-                        viewModel.updateBeneficiaries(
-                            expenseState.beneficiaries.map { beneficiary ->
-                                if (beneficiary.userUuid == userUuid) {
-                                    beneficiary.copy(fixedShare = false)
-                                } else {
-                                    beneficiary
-                                }
-                            },
-                        )
-                        viewModel.calculateShares()
+                    removeBeneficiaryFixedShare = { userUuid ->
+                        viewModel.removeBeneficiaryFixedShare(userUuid = userUuid)
                     },
                 )
 
