@@ -13,6 +13,7 @@ import app.lidory.duckcount.expenseList.model.User
 import app.lidory.duckcount.networking.NetworkConnectivity
 import database.data.repository.BeneficiaryRepository
 import database.data.repository.ExpenseRepository
+import database.data.repository.GroupRepository
 import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
@@ -24,6 +25,7 @@ class CreateExpenseCallBacksImpl(
     private val userRepository: UserRepository,
     private val beneficiaryRepository: BeneficiaryRepository,
     private val networkConnectivity: NetworkConnectivity,
+    private val groupRepository: GroupRepository,
 ) : CreateExpenseCallBacks {
 
     override val maxTitleLength: Int = MAX_TITLE_LENGTH
@@ -114,5 +116,9 @@ class CreateExpenseCallBacksImpl(
                 isShareFixed = false,
             )
         }
+    }
+
+    override suspend fun getGroupCurrency(groupUuid: String): Flow<Currency> {
+        return groupRepository.get(groupUuid).map { it.currency.toModel() }
     }
 }

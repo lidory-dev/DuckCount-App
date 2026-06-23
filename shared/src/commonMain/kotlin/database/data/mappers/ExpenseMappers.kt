@@ -28,6 +28,8 @@ fun fakeTitle(): String = "Fake Title"
 
 fun fakeDescription(): String = "Fake Description"
 
+fun fakeCurrency(): Currency = DEFAULT_CURRENCY
+
 private fun fakeAmount(): String = "100.00"
 // ---------------------------------------------------------------------------
 

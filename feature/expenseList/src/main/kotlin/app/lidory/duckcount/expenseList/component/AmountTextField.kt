@@ -3,6 +3,7 @@ package app.lidory.duckcount.expenseList.component
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -35,6 +36,7 @@ fun AmountTextField(
     onCurrencyValueChange: (String, String, Boolean) -> Unit,
     modifier: Modifier = Modifier,
     focusManager: FocusManager,
+    groupUuid: String?,
 ) {
     var textFieldHeightPx by remember { mutableIntStateOf(0) }
     val localDensity = LocalDensity.current
@@ -70,16 +72,31 @@ fun AmountTextField(
 
         Spacer(modifier = Modifier.padding(Padding.small))
 
-        CurrencyDropDownMenu(
-            currency = currencyValue,
-            currencies = currencies,
-            enabled = enabled,
-            onValueChange = onCurrencyValueChange,
-            focusManager = focusManager,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(textFieldHeightDp)
-                .animateContentSize(),
-        )
+        groupUuid?.let {
+            DuckCountTextField(
+                value = currencyValue,
+                onValueChange = { },
+                readOnly = true,
+                enabled = false,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .height(textFieldHeightDp)
+                    .animateContentSize(),
+                focusManager = focusManager,
+                labelName = null,
+            )
+        } ?: run {
+            CurrencyDropDownMenu(
+                currency = currencyValue,
+                currencies = currencies,
+                enabled = enabled,
+                onValueChange = onCurrencyValueChange,
+                focusManager = focusManager,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(textFieldHeightDp)
+                    .animateContentSize(),
+            )
+        }
     }
 }

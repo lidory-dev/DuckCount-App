@@ -19,4 +19,5 @@
     <string name="owes_you">%1$s owes you %2$s</string>
     <string name="you_are_all_settled_up">You’re all settled up</string>
     <string name="everything_is_balanced">Everything is balanced</string>
+    <string name="currency">Currency</string>
 </resources>

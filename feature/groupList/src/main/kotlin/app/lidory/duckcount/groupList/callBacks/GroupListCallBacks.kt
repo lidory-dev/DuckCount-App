@@ -1,5 +1,6 @@
 package app.lidory.duckcount.groupList.callBacks
 
+import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
@@ -24,7 +25,7 @@ interface GroupListCallBacks {
 
     fun getUserFullName(uuid: String): Flow<String?>
 
-    suspend fun createGroup(title: String, description: String, members: List<GroupMember>)
+    suspend fun createGroup(title: String, description: String, currency: Currency, members: List<GroupMember>)
 
     fun getAuthenticatedUserUuid(): String?
 

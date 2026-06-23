@@ -7,6 +7,7 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
+import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import app.lidory.duckcount.groupList.model.GroupWithMembers
@@ -27,11 +28,23 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 class CreateGroupViewModel(
     val groupUuid: String?,
     val groupListCallBacks: GroupListCallBacks,
 ) : ViewModel() {
+
+    // TODO: remove when currencyRepository is implemented
+    @OptIn(ExperimentalUuidApi::class)
+    val currencies =
+        listOf(
+            Currency(uuid = Uuid.random().toString(), "EUR", "€", true),
+            Currency(uuid = Uuid.random().toString(), "USD", "$", true),
+            Currency(uuid = Uuid.random().toString(), "JPY", "¥", false),
+        )
+
     private val _state = MutableStateFlow(CreateGroupState())
     val state = _state.onStart {
         groupUuid?.let { uuid ->
@@ -40,8 +53,10 @@ class CreateGroupViewModel(
             updateTitle(group.title)
             updateDescription(group.description)
             updateMembers(group.members)
+            updateCurrency(group.currency.name, group.currency.symbol, group.currency.hasSubunits)
         } ?: run {
             loadAuthenticatedMember()
+            updateCurrency(currencies.first().name, currencies.first().symbol, currencies.first().hasSubunits)
         }
     }.stateIn(
         scope = viewModelScope,
@@ -178,6 +193,7 @@ class CreateGroupViewModel(
                 title = state.value.title,
                 description = state.value.description,
                 members = state.value.members.map { it.member },
+                currency = state.value.currency,
             )
         }
     }
@@ -192,6 +208,17 @@ class CreateGroupViewModel(
                     members = state.value.members.map {
                         it.member.copy(groupUuid = groupUuid)
                     },
+                    currency = state.value.currency,
+                ),
+            )
+        }
+    }
+
+    fun updateCurrency(name: String, symbol: String, hasSubUnits: Boolean) {
+        _state.update {
+            it.copy(
+                currency = Currency(
+                    name = name, symbol = symbol, hasSubunits = hasSubUnits,
                 ),
             )
         }
@@ -215,6 +242,7 @@ class CreateGroupViewModel(
 data class CreateGroupState(
     val title: String = "",
     val description: String = "",
+    val currency: Currency = Currency("", "", "", false),
     val members: List<GroupMemberWithFullName> = emptyList(),
     val authenticatedUserUuid: String? = null,
 )

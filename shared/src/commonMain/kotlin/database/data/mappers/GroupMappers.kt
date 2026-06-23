@@ -11,6 +11,7 @@ fun GroupDto.toGroupWithMembersEntity() = GroupWithMembersEntity(
         uuid = uuid,
         title = fakeTitle(),
         description = fakeDescription(),
+        currency = fakeCurrency(),
     ).toGroupEntity(),
     groupMembers = members.map {
         it.toGroupMemberEntity(groupUuid = uuid)
@@ -21,12 +22,14 @@ fun Group.toGroupEntity() = GroupEntity(
     uuid = uuid,
     description = description,
     title = title,
+    currency = currency,
 )
 
 fun GroupEntity.toGroup() = Group(
     uuid = uuid,
     description = description,
     title = title,
+    currency = currency,
 )
 
 fun GroupWithMembers.toGroupWithMembersEntity() = GroupWithMembersEntity(
@@ -34,6 +37,7 @@ fun GroupWithMembers.toGroupWithMembersEntity() = GroupWithMembersEntity(
         uuid = uuid,
         title = title,
         description = description,
+        currency = currency,
     ).toGroupEntity(),
     groupMembers = groupMembers.map { it.toGroupMemberEntity() },
 )
@@ -42,5 +46,6 @@ fun GroupWithMembersEntity.toGroupWithMembers() = GroupWithMembers(
     uuid = group.uuid,
     title = group.title,
     description = group.description,
+    currency = group.currency,
     groupMembers = groupMembers.map { it.toGroupMember() },
 )

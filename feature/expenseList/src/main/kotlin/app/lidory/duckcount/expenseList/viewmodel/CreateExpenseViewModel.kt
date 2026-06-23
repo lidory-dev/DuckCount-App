@@ -132,7 +132,12 @@ class CreateExpenseViewModel(
 
         getCreditorName()
 
-        updateCurrency(currencies.first().name, currencies.first().symbol, currencies.first().hasSubunits)
+        groupUuid?.let {
+            val groupCurrency = createExpenseCallBacks.getGroupCurrency(groupUuid = it).first()
+            updateCurrency(groupCurrency.name, groupCurrency.symbol, groupCurrency.hasSubunits)
+        } ?: run {
+            updateCurrency(currencies.first().name, currencies.first().symbol, currencies.first().hasSubunits)
+        }
 
         expenseUuid?.let { uuid ->
             val expense = createExpenseCallBacks.getExpenseWithBeneficiaries(expenseUuid = uuid).first()
@@ -348,15 +353,15 @@ class CreateExpenseViewModel(
         _state.update { it.copy(amount = newAmount) }
     }
 
-    fun updateCurrency(name: String, symbol: String, hasSubUnit: Boolean) {
+    fun updateCurrency(name: String, symbol: String, hasSubUnits: Boolean) {
         // TODO: UUID.
-        val newCurrency = Currency(uuid = "", name = name, symbol = symbol, hasSubunits = hasSubUnit)
+        val newCurrency = Currency(uuid = "", name = name, symbol = symbol, hasSubunits = hasSubUnits)
 
         _state.update { state ->
             val reformat: (String) -> String = { value ->
                 when {
                     value.isBlank() -> value
-                    hasSubUnit -> value.roundAmountWithSubunits()
+                    hasSubUnits -> value.roundAmountWithSubunits()
                     else -> value.roundAmountWithoutSubunits()
                 }
             }
@@ -500,6 +505,8 @@ class CreateExpenseViewModel(
             )
         }
     }
+
+    fun getExpenseGroupUuid() = groupUuid
 }
 
 data class CreateExpenseState(

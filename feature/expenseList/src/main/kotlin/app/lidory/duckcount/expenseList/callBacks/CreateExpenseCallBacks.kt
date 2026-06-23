@@ -43,4 +43,6 @@ interface CreateExpenseCallBacks {
         fixedUuid: Map<String, String>,
         expenseUuid: String,
     ): List<Beneficiary>
+
+    suspend fun getGroupCurrency(groupUuid: String): Flow<Currency>
 }

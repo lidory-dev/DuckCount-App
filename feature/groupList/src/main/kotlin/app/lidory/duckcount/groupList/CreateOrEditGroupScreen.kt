@@ -30,6 +30,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.groupList.component.CurrencyDropDownMenu
 import app.lidory.duckcount.groupList.component.GroupMemberFullScreenDialog
 import app.lidory.duckcount.groupList.component.groupMemberList.groupMemberList
 import app.lidory.duckcount.groupList.model.GroupMember
@@ -131,6 +132,19 @@ fun CreateOrEditGroupScreen(
                         isInError = state.title.isBlank(),
                         modifier = Modifier.fillMaxWidth(),
                     )
+                }
+
+                // TODO: When editing a group we need to change to currency of every group expense with the correct currency conversion
+                viewModel.groupUuid ?: run {
+                    item {
+                        CurrencyDropDownMenu(
+                            currency = state.currency.name,
+                            currencies = viewModel.currencies,
+                            onValueChange = { name, symbol, hasSubUnits ->
+                                viewModel.updateCurrency(name, symbol, hasSubUnits)
+                            },
+                        )
+                    }
                 }
 
                 item {

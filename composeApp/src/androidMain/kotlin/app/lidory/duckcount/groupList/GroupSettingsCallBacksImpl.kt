@@ -22,6 +22,7 @@ class GroupSettingsCallBacksImpl(
                 uuid = groupWithMembers.uuid,
                 title = groupWithMembers.title,
                 description = groupWithMembers.description,
+                currency = groupWithMembers.currency.toGroupListModel(),
                 members = groupWithMembers.groupMembers.map { groupMember ->
                     GroupMember(
                         userUuid = groupMember.userUuid,

@@ -223,6 +223,7 @@ fun CreateExpenseScreen(
                             focusManager.clearFocus()
                         },
                         focusManager = focusManager,
+                        groupUuid = viewModel.getExpenseGroupUuid(),
                     )
                 }
 

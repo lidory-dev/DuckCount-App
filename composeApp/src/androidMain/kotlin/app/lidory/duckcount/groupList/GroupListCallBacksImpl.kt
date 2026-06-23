@@ -3,6 +3,7 @@ package app.lidory.duckcount.groupList
 import app.lidory.duckcount.GroupLimits.MAX_DESCRIPTION_LENGTH
 import app.lidory.duckcount.GroupLimits.MAX_TITLE_LENGTH
 import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
+import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
@@ -27,12 +28,8 @@ class GroupListCallBacksImpl(
     override fun getAllGroups(): Flow<List<Group>> {
         return groupRepository.getAll()
             .map { groups ->
-                groups.map {
-                    Group(
-                        uuid = it.uuid,
-                        description = it.description,
-                        title = it.title,
-                    )
+                groups.map { group ->
+                    group.toGroupListModel()
                 }
             }
     }
@@ -40,40 +37,21 @@ class GroupListCallBacksImpl(
     override fun getGroup(uuid: String): Flow<Group> {
         return groupRepository.get(uuid)
             .map { group ->
-                Group(
-                    uuid = group.uuid,
-                    title = group.title,
-                    description = group.description,
-                )
+                group.toGroupListModel()
             }
     }
 
     override fun getGroupWithMembers(uuid: String): Flow<GroupWithMembers> {
         return groupRepository.getWithMembers(uuid).map { groupWithMembers ->
-            GroupWithMembers(
-                uuid = groupWithMembers.uuid,
-                title = groupWithMembers.title,
-                description = groupWithMembers.description,
-                members = groupWithMembers.groupMembers.map { groupMember ->
-                    GroupMember(
-                        userUuid = groupMember.userUuid,
-                        groupUuid = groupMember.groupUuid,
-                        isAdmin = groupMember.isAdmin,
-                    )
-                },
-            )
+            groupWithMembers.toGroupListModel()
         }
     }
 
     override fun getUsersFiltered(filter: String): Flow<List<User>> {
         return userRepository.getAllFiltered(filter)
             .map { users ->
-                users.map {
-                    User(
-                        uuid = it.uuid,
-                        username = it.username,
-                        fullName = it.fullName,
-                    )
+                users.map { user ->
+                    user.toGroupListModel()
                 }
             }
     }
@@ -81,12 +59,8 @@ class GroupListCallBacksImpl(
     override fun getUsersFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> {
         return userRepository.getAllFromGroupFiltered(filter, groupUuid)
             .map { users ->
-                users.map {
-                    User(
-                        uuid = it.uuid,
-                        username = it.username,
-                        fullName = it.fullName,
-                    )
+                users.map { user ->
+                    user.toGroupListModel()
                 }
             }
     }
@@ -95,22 +69,27 @@ class GroupListCallBacksImpl(
         return userRepository.getFullName(uuid)
     }
 
-    override suspend fun createGroup(title: String, description: String, members: List<GroupMember>) {
+    override suspend fun createGroup(
+        title: String,
+        description: String,
+        currency: Currency,
+        members: List<GroupMember>,
+    ) {
         val newGroup = DBGroup(
             title = title,
             description = description,
+            currency = currency.toDb(),
         )
         groupRepository.insertWithMembers(
             groupWithMembers = DBGroupWithMembers(
                 uuid = newGroup.uuid,
                 title = newGroup.title,
                 description = newGroup.description,
+                currency = newGroup.currency,
                 groupMembers = members.map { member ->
-                    DBGroupMember(
-                        userUuid = member.userUuid,
+                    member.copy(
                         groupUuid = newGroup.uuid,
-                        isAdmin = member.isAdmin,
-                    )
+                    ).toDb()
                 },
             ),
         )
@@ -126,12 +105,11 @@ class GroupListCallBacksImpl(
                 uuid = groupWithMembers.uuid,
                 title = groupWithMembers.title,
                 description = groupWithMembers.description,
+                currency = groupWithMembers.currency.toDb(),
                 groupMembers = groupWithMembers.members.map { member ->
-                    DBGroupMember(
-                        userUuid = member.userUuid,
+                    member.copy(
                         groupUuid = groupWithMembers.uuid,
-                        isAdmin = member.isAdmin,
-                    )
+                    ).toDb()
                 },
             ),
         )
