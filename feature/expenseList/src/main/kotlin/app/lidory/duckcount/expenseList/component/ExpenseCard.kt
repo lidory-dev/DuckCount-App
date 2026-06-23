@@ -67,7 +67,7 @@ fun ExpenseCard(
                 )
 
                 Text(
-                    text = stringResource(id = R.string.paid_by, creditorName),
+                    text = stringResource(id = R.string.paid_by_creditor, creditorName),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.labelMedium.copy(

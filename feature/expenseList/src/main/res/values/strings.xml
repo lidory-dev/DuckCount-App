@@ -5,7 +5,8 @@
     <string name="beneficiary">Beneficiary</string>
     <string name="creditor">Creditor</string>
     <string name="neutral">Neutral</string>
-    <string name="paid_by">Paid by %1$s</string>
+    <string name="paid_by">Paid by</string>
+    <string name="paid_by_creditor">Paid by %1$s</string>
 
     <!-- Global -->
     <string name="no_result">No results</string>
@@ -27,7 +28,6 @@
     <!-- app.lidory.duckcount.expenseList.CreateExpenseScreen -->
     <string name="add_new_expense">Add a new expense</string>
     <string name="expense_title">Expense title</string>
-    <string name="label_paid_by">Paid by</string>
     <string name="label_description">Description</string>
     <string name="description_too_long">Description too long (%1$d/%2$d)</string>
     <string name="add_expense">Add expense</string>
