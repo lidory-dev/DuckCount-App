@@ -22,7 +22,6 @@ fun GroupMemberBottomSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-
     ModalBottomSheet(
         modifier = modifier,
         onDismissRequest = onDismissRequest,

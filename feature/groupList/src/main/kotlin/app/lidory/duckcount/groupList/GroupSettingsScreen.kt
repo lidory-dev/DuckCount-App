@@ -115,8 +115,14 @@ fun GroupSettingsScreen(
             groupMemberDetail(
                 members = state.membersWithFullName,
                 openBottomSheet = { userUuid ->
-                    showBottomSheet = true
-                    bottomSheetUserUuid = userUuid
+                    // TODO: Remove this admin check when the BottomSheet will have more than just
+                    //       an option to remove the user from the group.
+                    state.membersWithFullName.find { it.member.userUuid == userUuid }?.let {
+                        if (!it.member.isAdmin) {
+                            showBottomSheet = true
+                            bottomSheetUserUuid = userUuid
+                        }
+                    }
                 },
             )
         }
