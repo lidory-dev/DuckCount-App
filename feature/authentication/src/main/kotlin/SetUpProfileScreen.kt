@@ -33,6 +33,7 @@ import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.authentication.R
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.UserInformationViewModel
+import app.lidory.duckcount.android.ui.R as androidUiR
 
 @Composable
 fun SetUpProfileScreen(
@@ -109,12 +110,12 @@ fun SetUpProfileScreen(
                     onValueChange = { viewModel.updateFullName(it) },
                     focusManager = focusManager,
                     singleLine = true,
-                    labelName = stringResource(R.string.full_name),
+                    labelName = stringResource(androidUiR.string.full_name),
                     keyboardOptions = KeyboardOptions(
                         imeAction = ImeAction.Next,
                     ),
                     isInError = state.fullName.isBlank(),
-                    error = stringResource(R.string.required),
+                    error = stringResource(androidUiR.string.required),
                 )
 
                 Spacer(modifier = Modifier.height(32.dp))

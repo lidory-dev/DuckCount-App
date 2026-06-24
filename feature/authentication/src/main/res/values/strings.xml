@@ -11,7 +11,6 @@
     <string name="error_password_blank">Your password can’t be empty</string>
     <string name="error_password_short">Your password must have at least %1$s characters</string>
     <string name="error_password_leaked">Your password has been leaked</string>
-    <string name="full_name">Full Name</string>
     <string name="noted">Noted</string>
     <string name="watch_out">Watch out!</string>
     <string name="password_leak_times">The password you are using has been leaked on the web %1$d times and hackers can already use it to get into your accounts.</string>
@@ -24,7 +23,6 @@
     <string name="set_up_your_profile_title">Set up your profile</string>
     <string name="set_up_your_profile_description">Visible to your contacts and group members. Everything is end-to-end encrypted, which means we can’t see your profile — only the people you choose to share it with.</string>
     <string name="done">Done</string>
-    <string name="required">Required</string>
     <string name="phone_number_field">Phone Number (optional)</string>
     <string name="bank_detail_field">Bank detail (optional)</string>
     <string name="login">Login</string>

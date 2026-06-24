@@ -11,4 +11,6 @@
     <string name="select_all">Select all</string>
     <string name="title_mandatory">A title is mandatory</string>
     <string name="edit">Edit</string>
+    <string name="full_name">Full Name</string>
+    <string name="required">Required</string>
 </resources>
