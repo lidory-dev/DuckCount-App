@@ -80,7 +80,7 @@ fun CreateGroupScreen(
                 title = {
                     Text(
                         text = if (viewModel.groupUuid != null)
-                            stringResource(R.string.edit_a_group)
+                            stringResource(R.string.edit_group)
                         else
                             stringResource(R.string.create_a_group),
                     )
