@@ -36,6 +36,18 @@ fun setTokens(shortLivedToken: String, longLivedToken: String) {
     )
 }
 
+fun clearTokens() {
+    val vault: KSafe = getKoin().get(named("vault"))
+
+    vault.deleteDirect(
+        key = Token.SHORT_LIVED_TOKEN,
+    )
+
+    vault.deleteDirect(
+        key = Token.LONG_LIVED_TOKEN,
+    )
+}
+
 suspend fun getShortLivedToken(): String? {
     val vault: KSafe = getKoin().get(named("vault"))
 

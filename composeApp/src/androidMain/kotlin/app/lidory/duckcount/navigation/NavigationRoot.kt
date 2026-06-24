@@ -36,6 +36,8 @@ import app.lidory.duckcount.navigation.key.ExpenseDetailScreenKey
 import app.lidory.duckcount.navigation.key.GroupDetailScreenKey
 import app.lidory.duckcount.navigation.key.GroupSettingsScreenKey
 import app.lidory.duckcount.navigation.key.NewContactScreenKey
+import app.lidory.duckcount.settings.SettingsFlow
+import app.lidory.duckcount.settings.navigation.key.SettingsFlowKey
 import navigation.key.OnBoardingScreenKey
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -105,6 +107,25 @@ fun NavigationRoot(
                                             groupUuid,
                                         ),
                                     )
+                                },
+                                navigateToSettingsScreen = {
+                                    backStack.add(SettingsFlowKey)
+                                },
+                            )
+                        }
+                    }
+
+                    is SettingsFlowKey -> {
+                        NavEntry(
+                            key = key,
+                        ) {
+                            SettingsFlow(
+                                onBack = {
+                                    backStack.removeIf { it is SettingsFlowKey }
+                                },
+                                onLogout = {
+                                    backStack.add(OnBoardingScreenKey)
+                                    backStack.removeIf { it !is OnBoardingScreenKey }
                                 },
                             )
                         }

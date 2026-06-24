@@ -19,6 +19,9 @@ import app.lidory.duckcount.groupList.callBacks.GroupBalanceCallBacks
 import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
 import app.lidory.duckcount.groupList.callBacks.GroupSettingsCallBacks
 import app.lidory.duckcount.groupList.di.groupListModule
+import app.lidory.duckcount.settings.SettingsCallBacks
+import app.lidory.duckcount.settings.SettingsCallBacksImpl
+import app.lidory.duckcount.settings.di.settingsModule
 import database.di.dbModule
 import database.di.dbPlatformModule
 import di.authenticationModule
@@ -53,6 +56,10 @@ val expenseListCallBacks = module {
     singleOf(::CreateExpenseCallBacksImpl).bind<CreateExpenseCallBacks>()
 }
 
+val settingsCallBacks = module {
+    singleOf(::SettingsCallBacksImpl).bind<SettingsCallBacks>()
+}
+
 val appModule = listOf(
     appViewModelModule,
     sharedModule,
@@ -67,4 +74,6 @@ val appModule = listOf(
     groupListModule,
     groupCallBacks,
     expenseListCallBacks,
+    settingsModule,
+    settingsCallBacks,
 )

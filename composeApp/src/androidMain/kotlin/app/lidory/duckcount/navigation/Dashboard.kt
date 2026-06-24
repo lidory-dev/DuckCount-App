@@ -21,6 +21,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.NavDisplay
+import app.lidory.duckcount.R
 import app.lidory.duckcount.expenseList.ExpenseListScreen
 import app.lidory.duckcount.expenseList.component.AddExpenseFloatingActionButton
 import app.lidory.duckcount.groupList.GroupListScreen
@@ -43,6 +44,7 @@ fun Dashboard(
     navigateToNewContact: () -> Unit,
     navigateToCreateGroupScreen: () -> Unit,
     navigateToGroupDetailScreen: (String) -> Unit,
+    navigateToSettingsScreen: () -> Unit,
 ) {
     val backStack = rememberNavBackStack(ExpenseListScreenKey)
 
@@ -68,6 +70,12 @@ fun Dashboard(
                     )
                 }
             }
+        },
+        topBar = {
+            TopDuckCountBar(
+                title = R.string.app_name,
+                navigateToSettingsScreen = navigateToSettingsScreen,
+            )
         },
         bottomBar = {
             BottomNavigationBar(

@@ -40,4 +40,7 @@ interface UserDao {
         AND GroupMemberEntity.groupUuid = :groupUuid""",
     )
     fun getAllFromGroupFiltered(filter: String, groupUuid: String): Flow<List<UserEntity>>
+
+    @Query("UPDATE UserEntity SET fullName = :fullName WHERE uuid = :userUuid")
+    suspend fun updateFullName(userUuid: String, fullName: String)
 }

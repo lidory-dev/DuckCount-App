@@ -47,4 +47,8 @@ class UserRepositoryImpl(
             userEntities.map { it.toUser() }
         }
     }
+
+    override suspend fun updateFullName(userUuid: String, fullName: String) {
+        userDao.updateFullName(userUuid, fullName)
+    }
 }

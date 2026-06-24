@@ -5,4 +5,5 @@
     <string name="groups">Groups</string>
     <string name="on_boarding_title">Share your expenses, not your data.</string>
     <string name="on_boarding_description">Split bills with your group in seconds. The amounts and what they’re for stay encrypted — we can’t read them.</string>
+    <string name="settings">Settings</string>
 </resources>

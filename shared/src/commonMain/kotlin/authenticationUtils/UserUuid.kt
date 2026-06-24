@@ -26,6 +26,14 @@ fun setAuthenticatedUserUuid(uuid: String) {
     )
 }
 
+fun clearAuthenticatedUserUuid() {
+    val vault: KSafe = getKoin().get(named("vault"))
+
+    vault.deleteDirect(
+        key = USER_UUID,
+    )
+}
+
 fun getAuthenticatedUserUuid(): String? {
     val vault: KSafe = getKoin().get(named("vault"))
 

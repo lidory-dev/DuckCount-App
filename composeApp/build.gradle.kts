@@ -89,5 +89,6 @@ dependencies {
     implementation(project(":feature:authentication"))
     implementation(project(":feature:contactList"))
     implementation(project(":feature:groupList"))
+    implementation(project(":feature:settings"))
 }
 

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="licences">Licences</string>
+    <string name="account">Account</string>
+    <string name="change_fullName">Change full name</string>
+    <string name="change_username">Change username</string>
+    <string name="change_password">Change password</string>
+    <string name="logout">Log out</string>
+</resources>

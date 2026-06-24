@@ -19,4 +19,6 @@ interface UserRepository {
     fun getFullName(uuid: String): Flow<String?>
 
     fun getAllFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>>
+
+    suspend fun updateFullName(userUuid: String, fullName: String)
 }
