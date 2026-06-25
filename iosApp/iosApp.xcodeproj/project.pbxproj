@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A11C710B2ED5EF2400CC845E /* ExpenseList in Frameworks */ = {isa = PBXBuildFile; productRef = A11C710A2ED5EF2400CC845E /* ExpenseList */; };
+		CA17C0A12ED5EF2400CC845E /* ContactList in Frameworks */ = {isa = PBXBuildFile; productRef = CA17C0A22ED5EF2400CC845E /* ContactList */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -18,6 +19,7 @@
 		79EE22C28C748E450BCF7B31 /* Exceptions for "iosApp" folder in "iosApp" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				ContactList,
 				ExpenseList,
 				Info.plist,
 			);
@@ -47,6 +49,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A11C710B2ED5EF2400CC845E /* ExpenseList in Frameworks */,
+				CA17C0A12ED5EF2400CC845E /* ContactList in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -124,6 +127,7 @@
 			name = iosApp;
 			packageProductDependencies = (
 				A11C710A2ED5EF2400CC845E /* ExpenseList */,
+				CA17C0A22ED5EF2400CC845E /* ContactList */,
 			);
 			productName = iosApp;
 			productReference = 0E1729D1EFD855FAB38C8E9C /* DuckCount.app */;
@@ -417,6 +421,10 @@
 		A11C710A2ED5EF2400CC845E /* ExpenseList */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ExpenseList;
+		};
+		CA17C0A22ED5EF2400CC845E /* ContactList */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ContactList;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

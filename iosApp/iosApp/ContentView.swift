@@ -23,8 +23,7 @@ struct ContentView: View {
             }
 
             Tab("Contacts", systemImage: "person.3.fill", value: .contactList) {
-                // TODO:
-                Color.blue.ignoresSafeArea()
+                ContactListScreen()
             }
         }
     }

@@ -240,7 +240,8 @@ class ExpenseListViewModel: ObservableObject {
                     uuid: UUID().uuidString,
                     expenseUuid: expenseUuid,
                     userUuid: userUuid,
-                    share: share
+                    share: share,
+                    isShareFixed: false
                 )
                 beneficiaryRepository.insert(beneficiary: beneficiary) { _ in
                 }

@@ -17,7 +17,7 @@ public struct ExpenseListView: View {
     ) {
         self.sections = sections
         self.isLoading = isLoading
-        self.onCreateRandomExpenses = onCreateRandomExpenses // TODO: Remove this.
+        self.onCreateRandomExpenses = onCreateRandomExpenses  // TODO: Remove this.
         self.onCreateExpense = onCreateExpense
     }
 
@@ -30,6 +30,7 @@ public struct ExpenseListView: View {
             NavigationSplitView {
                 listContent
                     .navigationTitle("Expenses")
+                    .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         createExpenseToolbarItem
                     }
@@ -44,14 +45,14 @@ public struct ExpenseListView: View {
         } else {
             NavigationStack(path: $navigationPath) {
                 listContent
-                .navigationTitle("Expenses")
-                .navigationBarTitleDisplayMode(.large)
-                .toolbar {
-                    createExpenseToolbarItem
-                }
-                .navigationDestination(for: Expense.self) { expense in
-                    ExpenseDetailView(expense: expense)
-                }
+                    .navigationTitle("Expenses")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        createExpenseToolbarItem
+                    }
+                    .navigationDestination(for: Expense.self) { expense in
+                        ExpenseDetailView(expense: expense)
+                    }
             }
         }
     }
@@ -126,7 +127,7 @@ public struct ExpenseListView: View {
                 id: "2024-01-14",
                 displayDate: "Sunday 14 January 2024",
                 expenses: [
-                    Expense(id: "3", title: "Groceries", amount: "85.00", currency: Currency(id: "1", name: "Dollar", symbol: "$"), status: .neutral),
+                    Expense(id: "3", title: "Groceries", amount: "85.00", currency: Currency(id: "1", name: "Dollar", symbol: "$"), status: .neutral)
                 ]
             ),
         ]
