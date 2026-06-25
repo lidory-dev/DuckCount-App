@@ -6,4 +6,5 @@
     <string name="change_username">Change username</string>
     <string name="change_password">Change password</string>
     <string name="logout">Log out</string>
+    <string name="change_fullName_description">Visible to your contacts and group members. Everything is end-to-end encrypted, which means we can’t see your profile — only the people you choose to share it with.</string>
 </resources>

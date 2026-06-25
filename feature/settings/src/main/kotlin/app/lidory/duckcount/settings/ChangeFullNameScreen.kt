@@ -3,7 +3,7 @@ package app.lidory.duckcount.settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,10 +25,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
+import app.lidory.duckcount.android.ui.constant.FontSize
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.settings.viewmodel.ChangeFullNameViewModel
 import org.koin.androidx.compose.koinViewModel
@@ -66,42 +68,74 @@ fun ChangeFullNameScreen(
     ) { innerPadding ->
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxHeight()
                 .padding(innerPadding)
-                .padding(horizontal = Padding.medium),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(horizontal = Padding.extraLarge),
             verticalArrangement = Arrangement.Center,
         ) {
-            DuckCountTextField(
-                modifier = Modifier
-                    .semantics {
-                        contentType = ContentType.PersonFullName
-                    }
-                    .fillMaxWidth(),
-                value = state.fullName,
-                onValueChange = { viewModel.updateFullName(it) },
-                focusManager = focusManager,
-                singleLine = true,
-                labelName = stringResource(androidUiR.string.full_name),
-                keyboardOptions = KeyboardOptions(
-                    imeAction = ImeAction.Done,
-                ),
-                isInError = state.fullName.isBlank(),
-                error = stringResource(androidUiR.string.required),
-            )
+            Spacer(modifier = Modifier.weight(1f))
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.change_fullName),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = FontSize.large,
+                    lineHeight = FontSize.title,
+                )
 
-            Button(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    viewModel.confirmChangeFullName()
-                    onBack()
-                },
-                enabled = state.fullName.isNotBlank(),
-            ) {
-                Text(text = stringResource(androidUiR.string.confirm))
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = stringResource(R.string.change_fullName_description),
+                    modifier = Modifier.padding(top = Padding.large),
+                    fontWeight = FontWeight.Normal,
+                    fontSize = FontSize.medium,
+                    lineHeight = FontSize.medium * 1.2f,
+                )
             }
+
+            Spacer(modifier = Modifier.weight(.3f))
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                DuckCountTextField(
+                    modifier = Modifier
+                        .semantics {
+                            contentType = ContentType.PersonFullName
+                        }
+                        .fillMaxWidth(),
+                    value = state.fullName,
+                    onValueChange = { viewModel.updateFullName(it) },
+                    focusManager = focusManager,
+                    singleLine = true,
+                    labelName = stringResource(androidUiR.string.full_name),
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Done,
+                    ),
+                    isInError = state.fullName.isBlank(),
+                    error = stringResource(androidUiR.string.required),
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        viewModel.confirmChangeFullName()
+                        onBack()
+                    },
+                    enabled = state.fullName.isNotBlank(),
+                ) {
+                    Text(text = stringResource(androidUiR.string.confirm))
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(1.5f))
         }
     }
 }
