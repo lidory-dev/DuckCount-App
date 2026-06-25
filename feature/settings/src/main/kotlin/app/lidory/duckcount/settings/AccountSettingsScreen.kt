@@ -3,14 +3,18 @@ package app.lidory.duckcount.settings
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -30,8 +34,38 @@ fun AccountSettingsScreen(
 ) {
     val viewModel: AccountSettingsViewModel = koinViewModel()
 
+    val openLogOutDialog = remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         viewModel.navigateBack.collect { onLogout() }
+    }
+
+    when {
+        openLogOutDialog.value -> {
+            AlertDialog(
+                onDismissRequest = { openLogOutDialog.value = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            openLogOutDialog.value = false
+                            viewModel.logOut()
+                            onLogout()
+                        },
+                    ) {
+                        Text(text = stringResource(R.string.logout))
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { openLogOutDialog.value = false },
+                    ) {
+                        Text(text = stringResource(androidUiR.string.cancel))
+                    }
+                },
+                title = { Text(text = stringResource(R.string.logout)) },
+                text = { Text(text = stringResource(R.string.logout_confirmation)) },
+            )
+        }
     }
 
     Scaffold(
@@ -78,10 +112,7 @@ fun AccountSettingsScreen(
             item {
                 ButtonLine(
                     text = R.string.logout,
-                    onClick = {
-                        viewModel.logOut()
-                        onLogout()
-                    },
+                    onClick = { openLogOutDialog.value = !openLogOutDialog.value },
                 )
             }
         }
