@@ -38,7 +38,7 @@ fun ExpenseAmount(
         personalShare?.let {
             Text(
                 // TODO: adapt order if the currency has to be before (ex: 20€ / $20)
-                text = "${role.labelAmount} $personalShare$currencySymbol",
+                text = "${role.labelAmount} $personalShare $currencySymbol",
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = role.color,

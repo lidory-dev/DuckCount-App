@@ -90,7 +90,7 @@ fun UserAmountCard(
             }
 
             // TODO: The currency symbol might be before the amount.
-            Text(text = "$amount${currency.symbol}")
+            Text(text = "$amount ${currency.symbol}")
         }
     }
 }
