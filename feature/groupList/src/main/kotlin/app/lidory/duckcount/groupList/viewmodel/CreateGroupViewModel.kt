@@ -40,6 +40,8 @@ class CreateGroupViewModel(
             updateTitle(group.title)
             updateDescription(group.description)
             updateMembers(group.members)
+        } ?: run {
+            loadAuthenticatedMember()
         }
     }.stateIn(
         scope = viewModelScope,
@@ -175,11 +177,7 @@ class CreateGroupViewModel(
             groupListCallBacks.createGroup(
                 title = state.value.title,
                 description = state.value.description,
-                members = state.value.members.map { it.member } + GroupMember(
-                    userUuid = groupListCallBacks.getAuthenticatedUserUuid() ?: "",
-                    groupUuid = "",
-                    isAdmin = true,
-                ),
+                members = state.value.members.map { it.member },
             )
         }
     }
@@ -194,6 +192,20 @@ class CreateGroupViewModel(
                     members = state.value.members.map {
                         it.member.copy(groupUuid = groupUuid)
                     },
+                ),
+            )
+        }
+    }
+
+    private fun loadAuthenticatedMember() {
+        val authenticatedUserUuid = getAuthenticatedUserUuid() ?: ""
+
+        viewModelScope.launch {
+            updateMembers(
+                _state.value.members.map { it.member } + GroupMember(
+                    userUuid = authenticatedUserUuid,
+                    groupUuid = "",
+                    isAdmin = true,
                 ),
             )
         }
