@@ -39,7 +39,7 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateGroupScreen(
+fun CreateOrEditGroupScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: CreateGroupViewModel = koinViewModel(),

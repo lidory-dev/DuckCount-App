@@ -24,7 +24,7 @@ import app.lidory.duckcount.expenseList.CreateExpenseScreen
 import app.lidory.duckcount.expenseList.ExpenseDetailScreen
 import app.lidory.duckcount.expenseList.ExpenseListScreen
 import app.lidory.duckcount.expenseList.viewmodel.expenseListViewModel
-import app.lidory.duckcount.groupList.CreateGroupScreen
+import app.lidory.duckcount.groupList.CreateOrEditGroupScreen
 import app.lidory.duckcount.groupList.GroupBalanceScreen
 import app.lidory.duckcount.groupList.GroupDetailScreen
 import app.lidory.duckcount.groupList.GroupSettingsScreen
@@ -189,7 +189,7 @@ fun NavigationRoot(
                         NavEntry(
                             key = key,
                         ) {
-                            CreateGroupScreen(
+                            CreateOrEditGroupScreen(
                                 viewModel = koinViewModel {
                                     parametersOf(key.groupUuid)
                                 },
