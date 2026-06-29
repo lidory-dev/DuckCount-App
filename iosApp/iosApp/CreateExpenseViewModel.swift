@@ -244,7 +244,7 @@ class CreateExpenseViewModel: ObservableObject, CreateExpenseFormState {
                 expenseUuid: "",
                 userUuid: draft.userUuid,
                 share: draft.share,
-                isShareFixed: false
+                isShareFixed: false  // TODO: Use automatic calculation of shares.
             )
         }
 
