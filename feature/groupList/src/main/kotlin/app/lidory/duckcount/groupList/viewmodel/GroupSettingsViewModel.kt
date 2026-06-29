@@ -48,6 +48,10 @@ class GroupSettingsViewModel(
         initialValue = GroupSettingsState(),
     )
 
+    fun getAuthenticatedUserUuid(): String? {
+        return groupSettingsCallBacks.getAuthenticatedUserUuid()
+    }
+
     fun removeGroupMember(userUuid: String) {
         viewModelScope.launch {
             groupSettingsCallBacks.removeGroupMember(userUuid, groupUuid)

@@ -1,7 +1,7 @@
 package app.lidory.duckcount.expenseList
 
-import app.lidory.duckcount.MAX_DESCRIPTION_LENGTH
-import app.lidory.duckcount.MAX_TITLE_LENGTH
+import app.lidory.duckcount.ExpenseLimits.MAX_DESCRIPTION_LENGTH
+import app.lidory.duckcount.ExpenseLimits.MAX_TITLE_LENGTH
 import app.lidory.duckcount.computeBeneficiaries
 import app.lidory.duckcount.expenseList.callBacks.CreateExpenseCallBacks
 import app.lidory.duckcount.expenseList.model.Beneficiary

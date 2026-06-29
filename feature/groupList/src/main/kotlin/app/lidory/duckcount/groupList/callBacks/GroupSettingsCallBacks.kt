@@ -4,6 +4,8 @@ import app.lidory.duckcount.groupList.model.GroupWithMembers
 import kotlinx.coroutines.flow.Flow
 
 interface GroupSettingsCallBacks {
+    fun getAuthenticatedUserUuid(): String?
+
     suspend fun getGroupWithMembers(groupUuid: String): Flow<GroupWithMembers>
 
     fun getUserFullName(userUuid: String): Flow<String?>

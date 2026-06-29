@@ -1,5 +1,7 @@
 package app.lidory.duckcount.groupList
 
+import app.lidory.duckcount.GroupLimits.MAX_DESCRIPTION_LENGTH
+import app.lidory.duckcount.GroupLimits.MAX_TITLE_LENGTH
 import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
 import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupMember
@@ -17,6 +19,11 @@ class GroupListCallBacksImpl(
     val groupRepository: GroupRepository,
     val userRepository: UserRepository,
 ) : GroupListCallBacks {
+
+    override val maxTitleLength: Int = MAX_TITLE_LENGTH
+
+    override val maxDescriptionLength: Int = MAX_DESCRIPTION_LENGTH
+
     override suspend fun getAllGroups(): Flow<List<Group>> {
         return groupRepository.getAll()
             .map { groups ->

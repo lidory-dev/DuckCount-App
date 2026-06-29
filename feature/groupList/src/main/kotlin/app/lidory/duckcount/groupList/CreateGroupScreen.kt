@@ -143,9 +143,9 @@ fun CreateGroupScreen(
                         error = stringResource(
                             R.string.description_cant_exceed_max,
                             state.description.length,
-                            CreateGroupViewModel.MAX_DESCRIPTION_LENGTH,
+                            viewModel.maxDescriptionLength,
                         ),
-                        isInError = state.description.length > CreateGroupViewModel.MAX_DESCRIPTION_LENGTH,
+                        isInError = state.description.length > viewModel.maxDescriptionLength,
                         focusManager = focusManager,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -153,7 +153,7 @@ fun CreateGroupScreen(
 
                 groupMemberList(
                     members = state.members,
-                    authenticatedMember = state.authenticatedMember,
+                    authenticatedUserUuid = viewModel.getAuthenticatedUserUuid(),
                     onModifyMemberList = {
                         viewModel.showMemberDialog()
                     },
@@ -168,15 +168,17 @@ fun CreateGroupScreen(
                     .fillMaxWidth()
                     .padding(bottom = Padding.extraLarge)
                     .align(Alignment.BottomCenter),
-                enabled = state.title.isNotBlank() && state.members.isNotEmpty(),
+                enabled = viewModel.isOwnerInMembers()
+                        && state.members.size >= 2
+                        && state.title.length in (1..viewModel.maxTitleLength)
+                        && state.description.length in (0..viewModel.maxDescriptionLength),
                 colors = ButtonDefaults.buttonColors()
                     .copy(containerColor = MaterialTheme.colorScheme.primary),
                 onClick = {
-                    if (viewModel.groupUuid != null) {
+                    viewModel.groupUuid?.let {
                         viewModel.updateGroup()
-                    } else {
-                        viewModel.createGroup()
-                    }
+                    } ?: run { viewModel.createGroup() }
+
                     onBack()
                 },
             ) {

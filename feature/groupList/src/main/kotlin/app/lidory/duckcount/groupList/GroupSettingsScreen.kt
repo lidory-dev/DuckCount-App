@@ -114,6 +114,7 @@ fun GroupSettingsScreen(
 
             groupMemberDetail(
                 members = state.membersWithFullName,
+                authenticatedUserUuid = viewModel.getAuthenticatedUserUuid(),
                 openBottomSheet = { userUuid ->
                     // TODO: Remove this admin check when the BottomSheet will have more than just
                     //       an option to remove the user from the group.

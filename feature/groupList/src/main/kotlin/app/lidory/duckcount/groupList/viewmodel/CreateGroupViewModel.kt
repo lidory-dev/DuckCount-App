@@ -12,6 +12,9 @@ import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.User
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -31,8 +34,9 @@ class CreateGroupViewModel(
 ) : ViewModel() {
     private val _state = MutableStateFlow(CreateGroupState())
     val state = _state.onStart {
-        if (groupUuid != null) {
-            val group = groupListCallBacks.getGroupWithMembers(groupUuid).first()
+        groupUuid?.let { uuid ->
+            val group = groupListCallBacks.getGroupWithMembers(uuid).first()
+
             updateTitle(group.title)
             updateDescription(group.description)
             updateMembers(group.members)
@@ -43,6 +47,9 @@ class CreateGroupViewModel(
         initialValue = _state.value,
     )
 
+    val maxTitleLength: Int = groupListCallBacks.maxTitleLength
+    val maxDescriptionLength: Int = groupListCallBacks.maxDescriptionLength
+
     private var _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
@@ -50,32 +57,6 @@ class CreateGroupViewModel(
 
     private val _selectedUuids = MutableStateFlow<Set<String>>(emptySet())
     val selectedUuids: StateFlow<Set<String>> = _selectedUuids
-
-    init {
-        loadAuthenticatedMember()
-    }
-
-    private fun loadAuthenticatedMember() {
-        val authenticatedUserUuid = groupListCallBacks.getAuthenticatedUserUuid() ?: return
-
-        viewModelScope.launch {
-            val fullName = groupListCallBacks.getUserFullName(authenticatedUserUuid).first()
-                ?: authenticatedUserUuid
-
-            _state.update {
-                it.copy(
-                    authenticatedMember = GroupMemberWithFullName(
-                        member = GroupMember(
-                            userUuid = authenticatedUserUuid,
-                            groupUuid = "",
-                            isAdmin = true,
-                        ),
-                        fullName = fullName,
-                    ),
-                )
-            }
-        }
-    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val usersState: StateFlow<UserListState> = _searchQuery
@@ -103,6 +84,14 @@ class CreateGroupViewModel(
         started = SharingStarted.WhileSubscribed(5000L),
         initialValue = ToggleableState.Off,
     )
+
+    fun getAuthenticatedUserUuid(): String? {
+        return groupListCallBacks.getAuthenticatedUserUuid()
+    }
+
+    fun isOwnerInMembers(): Boolean {
+        return _state.value.members.any { it.member.userUuid == getAuthenticatedUserUuid() }
+    }
 
     fun showMemberDialog() {
         isMemberDialogShown = true
@@ -147,18 +136,26 @@ class CreateGroupViewModel(
 
     fun updateMembers(members: List<GroupMember>) {
         viewModelScope.launch {
-            val existingUuids = state.value.members.map { it.member.userUuid }.toSet()
-            _state.update {
-                it.copy(
-                    members = state.value.members.filter { memberWithFullName -> memberWithFullName.member.userUuid in members.map { member -> member.userUuid } } +
-                            members.filterNot { member -> member.userUuid in existingUuids }.map { member ->
-                                val fullName = groupListCallBacks.getUserFullName(member.userUuid).first() ?: member.userUuid
-		                        GroupMemberWithFullName(member, fullName = fullName)
-                            },
-                )
+            val currentMembers = state.value.members
+            val existingUuids = currentMembers.map { it.member.userUuid }.toSet()
+            val newUuids = members.map { it.userUuid }.toSet()
+
+            val kept = currentMembers.filter { it.member.userUuid in newUuids }
+            val added = coroutineScope {
+                members
+                    .filterNot { it.userUuid in existingUuids }
+                    .map { member ->
+                        async {
+                            val fullName = groupListCallBacks.getUserFullName(member.userUuid).first()
+                                ?: member.userUuid
+                            GroupMemberWithFullName(member, fullName = fullName)
+                        }
+                    }
+                    .awaitAll()
             }
 
-            _selectedUuids.update { _state.value.members.map { it.member.userUuid }.toSet() }
+            _state.update { it.copy(members = kept + added) }
+            _selectedUuids.update { newUuids }
         }
     }
 
@@ -201,17 +198,13 @@ class CreateGroupViewModel(
             )
         }
     }
-
-    companion object {
-        const val MAX_DESCRIPTION_LENGTH = 2000
-    }
 }
 
 data class CreateGroupState(
     val title: String = "",
     val description: String = "",
     val members: List<GroupMemberWithFullName> = emptyList(),
-    val authenticatedMember: GroupMemberWithFullName? = null,
+    val authenticatedUserUuid: String? = null,
 )
 
 data class UserListState(

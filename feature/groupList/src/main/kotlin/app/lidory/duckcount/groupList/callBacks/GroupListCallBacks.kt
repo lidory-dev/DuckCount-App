@@ -7,6 +7,11 @@ import app.lidory.duckcount.groupList.model.User
 import kotlinx.coroutines.flow.Flow
 
 interface GroupListCallBacks {
+
+    val maxTitleLength: Int
+
+    val maxDescriptionLength: Int
+
     suspend fun getAllGroups(): Flow<List<Group>>
 
     suspend fun getGroup(uuid: String): Flow<Group>

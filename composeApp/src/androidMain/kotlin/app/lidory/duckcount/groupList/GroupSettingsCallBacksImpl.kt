@@ -12,6 +12,10 @@ class GroupSettingsCallBacksImpl(
     val groupRepository: GroupRepository,
     val userRepository: UserRepository,
 ) : GroupSettingsCallBacks {
+    override fun getAuthenticatedUserUuid(): String? {
+        return authenticationUtils.getAuthenticatedUserUuid()
+    }
+
     override suspend fun getGroupWithMembers(groupUuid: String): Flow<GroupWithMembers> {
         return groupRepository.getWithMembers(groupUuid).map { groupWithMembers ->
             GroupWithMembers(

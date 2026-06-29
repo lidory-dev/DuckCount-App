@@ -12,7 +12,7 @@ fun LazyListScope.groupMemberList(
     members: List<GroupMemberWithFullName>,
     onModifyMemberList: () -> Unit,
     removeMember: (GroupMember) -> Unit,
-    authenticatedMember: GroupMemberWithFullName? = null,
+    authenticatedUserUuid: String?,
 ) {
     item {
         GroupMemberHeader(
@@ -21,7 +21,7 @@ fun LazyListScope.groupMemberList(
         )
     }
 
-    authenticatedMember?.let { memberWithFullName ->
+    members.find { it.member.userUuid == authenticatedUserUuid }?.let { memberWithFullName ->
         item(key = memberWithFullName.member.uuid) {
             GroupMemberRow(
                 modifier = Modifier.fillMaxWidth(),
@@ -34,7 +34,7 @@ fun LazyListScope.groupMemberList(
     }
 
     items(
-        items = members,
+        items = members.filterNot { it.member.userUuid == authenticatedUserUuid },
         key = { memberWithFullName -> memberWithFullName.member.uuid },
     ) { memberWithFullName ->
         GroupMemberRow(
