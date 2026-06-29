@@ -11,6 +11,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +36,13 @@ fun ContactDetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
+    // Subscribe once (keyed on Unit, so it survives recomposition) to the ViewModel's
+    // one-shot navigateBack events and forward them to navigation. The ViewModel emits
+    // this after deleting a contact, since there is no detail left to show.
+    LaunchedEffect(Unit) {
+        viewModel.navigateBack.collect { onBack() }
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -47,6 +55,16 @@ fun ContactDetailScreen(
                         Icon(
                             painter = painterResource(SharedR.drawable.ic_arrow_back),
                             contentDescription = stringResource(SharedR.string.back),
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = viewModel::removeContact,
+                    ) {
+                        Icon(
+                            painter = painterResource((SharedR.drawable.ic_delete)),
+                            contentDescription = stringResource(SharedR.string.remove),
                         )
                     }
                 },

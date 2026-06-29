@@ -7,4 +7,6 @@ interface ContactCallBacks {
     suspend fun getUser(uuid: String): Flow<User>
 
     fun getAuthenticatedUserUuid(): String?
+
+    suspend fun removeContact(userUuid: String)
 }

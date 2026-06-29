@@ -19,10 +19,13 @@ interface UserDao {
     @Delete
     suspend fun delete(userEntity: UserEntity)
 
-    @Query("SELECT * FROM UserEntity")
+    @Query("UPDATE UserEntity SET isDeleted = true WHERE uuid = :userUuid")
+    suspend fun remove(userUuid: String)
+
+    @Query("SELECT * FROM UserEntity WHERE isDeleted = false")
     fun getAllAsFlow(): Flow<List<UserEntity>>
 
-    @Query("SELECT * FROM UserEntity WHERE fullName LIKE '%' ||:filter|| '%'")
+    @Query("SELECT * FROM UserEntity WHERE fullName LIKE '%' ||:filter|| '%' AND isDeleted = false")
     fun getAllFiltered(filter: String): Flow<List<UserEntity>>
 
     @Transaction

@@ -20,6 +20,10 @@ class UserRepositoryImpl(
         userDao.delete(userEntity = user.toUserEntity())
     }
 
+    override suspend fun remove(userUuid: String) {
+        userDao.remove(userUuid = userUuid)
+    }
+
     override fun getAll(): Flow<List<User>> {
         return userDao.getAllAsFlow().map { userEntities ->
             userEntities.map { it.toUser() }

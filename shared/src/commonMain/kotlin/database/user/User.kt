@@ -5,4 +5,5 @@ data class User(
     val username: String,
     val fullName: String,
     // TODO: val profilePicture: String,
+    val isDeleted: Boolean = false,
 )

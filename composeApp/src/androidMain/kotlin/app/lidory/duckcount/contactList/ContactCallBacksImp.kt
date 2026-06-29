@@ -39,4 +39,8 @@ class ContactCallBacksImp(
     override fun getAuthenticatedUserUuid(): String? {
         return authenticationUtils.getAuthenticatedUserUuid()
     }
+
+    override suspend fun removeContact(userUuid: String) {
+        userRepository.remove(userUuid)
+    }
 }

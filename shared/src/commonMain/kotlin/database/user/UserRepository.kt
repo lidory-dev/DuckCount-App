@@ -10,6 +10,8 @@ interface UserRepository {
 
     suspend fun delete(user: User)
 
+    suspend fun remove(userUuid: String)
+
     fun getAll(): Flow<List<User>>
 
     fun getAllFiltered(filter: String): Flow<List<User>>
