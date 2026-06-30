@@ -2,6 +2,7 @@
     <string name="app_name">ExpenseList</string>
     <string name="date_format">EEEE dd MMMM</string>
     <string name="date_format_with_year">EEEE dd MMMM yyyy</string>
+    <string name="date_format_tiny">dd/MM/yy</string>
     <string name="beneficiary">Beneficiary</string>
     <string name="creditor">Creditor</string>
     <string name="neutral">Neutral</string>
@@ -59,6 +60,8 @@
     <string name="restore">Restore</string>
     <string name="delete">Delete</string>
     <string name="settlement">Settlement</string>
+    <string name="history">History</string>
+    <string name="expense_history">Expense history</string>
 
     <!-- ExpenseDetailActionButtons -->
     <string name="delete_one_time_expense_confirmation">Are you sure you want to delete this expense?\n\nUnlike an expense in a group, it cannot be restored.</string>

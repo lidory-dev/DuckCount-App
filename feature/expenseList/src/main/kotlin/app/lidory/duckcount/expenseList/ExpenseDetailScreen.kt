@@ -59,6 +59,7 @@ fun ExpenseDetailScreen(
     viewModel: ExpenseDetailViewModel = koinViewModel(),
     onBack: () -> Unit,
     navigateToEditExpense: () -> Unit,
+    navigateToExpenseHistory: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -119,6 +120,7 @@ fun ExpenseDetailScreen(
                             restore = viewModel::restoreExpense,
                             delete = viewModel::deleteExpense,
                             edit = dropUnlessResumed { navigateToEditExpense() },
+                            history = navigateToExpenseHistory,
                         )
                     }
                 },

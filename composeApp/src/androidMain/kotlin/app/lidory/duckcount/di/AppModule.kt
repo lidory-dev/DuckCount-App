@@ -7,9 +7,11 @@ import app.lidory.duckcount.authentication.AuthenticationCallBacksImpl
 import app.lidory.duckcount.contactList.ContactCallBacksImp
 import app.lidory.duckcount.expenseList.CreateExpenseCallBacksImpl
 import app.lidory.duckcount.expenseList.ExpenseDetailCallBacksImpl
+import app.lidory.duckcount.expenseList.ExpenseHistoryCallBacksImpl
 import app.lidory.duckcount.expenseList.ExpenseListCallBacksImpl
 import app.lidory.duckcount.expenseList.callBacks.CreateExpenseCallBacks
 import app.lidory.duckcount.expenseList.callBacks.ExpenseDetailCallBacks
+import app.lidory.duckcount.expenseList.callBacks.ExpenseHistoryCallBacks
 import app.lidory.duckcount.expenseList.callBacks.ExpenseListCallBacks
 import app.lidory.duckcount.expenseList.di.expenseListModule
 import app.lidory.duckcount.groupList.GroupBalanceCallBacksImpl
@@ -61,6 +63,7 @@ val expenseListCallBacks = module {
     singleOf(::ExpenseListCallBacksImpl).bind<ExpenseListCallBacks>()
     singleOf(::ExpenseDetailCallBacksImpl).bind<ExpenseDetailCallBacks>()
     singleOf(::CreateExpenseCallBacksImpl).bind<CreateExpenseCallBacks>()
+    singleOf(::ExpenseHistoryCallBacksImpl).bind<ExpenseHistoryCallBacks>()
 }
 
 val settingsCallBacks = module {

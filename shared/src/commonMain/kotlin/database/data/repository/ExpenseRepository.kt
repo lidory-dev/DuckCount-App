@@ -13,6 +13,7 @@ import database.data.mappers.toOneTimeRequestBody
 import database.data.remote.ExpenseApi
 import database.data.remote.ExpenseRemoteMediator
 import database.domain.Beneficiary
+import database.domain.Currency
 import database.domain.Expense
 import database.domain.ExpenseWithBeneficiaries
 import kotlinx.coroutines.flow.Flow
@@ -151,5 +152,9 @@ class ExpenseRepository(
     private companion object {
         // Server returns the full list at once; this only sizes local paging windows.
         const val ONE_TIME_PAGE_SIZE = 20
+    }
+
+    fun getCurrency(expenseUuid: String): Flow<Currency?> {
+        return expenseDao.getCurrency(expenseUuid)
     }
 }

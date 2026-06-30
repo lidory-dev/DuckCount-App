@@ -22,6 +22,7 @@ import app.lidory.duckcount.R
 import app.lidory.duckcount.android.ui.theme.isAppInDarkTheme
 import app.lidory.duckcount.expenseList.CreateExpenseScreen
 import app.lidory.duckcount.expenseList.ExpenseDetailScreen
+import app.lidory.duckcount.expenseList.ExpenseHistoryScreen
 import app.lidory.duckcount.expenseList.ExpenseListScreen
 import app.lidory.duckcount.expenseList.viewmodel.expenseListViewModel
 import app.lidory.duckcount.groupList.CreateOrEditGroupScreen
@@ -34,6 +35,7 @@ import app.lidory.duckcount.navigation.key.CreateExpenseScreenKey
 import app.lidory.duckcount.navigation.key.CreateGroupScreenKey
 import app.lidory.duckcount.navigation.key.DashboardKey
 import app.lidory.duckcount.navigation.key.ExpenseDetailScreenKey
+import app.lidory.duckcount.navigation.key.ExpenseHistoryScreenKey
 import app.lidory.duckcount.navigation.key.GroupDetailScreenKey
 import app.lidory.duckcount.navigation.key.GroupSettingsScreenKey
 import app.lidory.duckcount.navigation.key.NewContactScreenKey
@@ -145,6 +147,14 @@ fun NavigationRoot(
                                 navigateToEditExpense = {
                                     backStack.add(
                                         CreateExpenseScreenKey(
+                                            groupUuid = key.groupUuid,
+                                            expenseUuid = key.expenseUuid,
+                                        ),
+                                    )
+                                },
+                                navigateToExpenseHistory = {
+                                    backStack.add(
+                                        ExpenseHistoryScreenKey(
                                             groupUuid = key.groupUuid,
                                             expenseUuid = key.expenseUuid,
                                         ),
@@ -288,6 +298,19 @@ fun NavigationRoot(
                                 navigateToEditGroup = { backStack.add(CreateGroupScreenKey(key.groupUuid)) },
                                 animatedVisibilityScope = LocalNavAnimatedContentScope.current,
                                 sharedTransitionScope = this@SharedTransitionLayout,
+                            )
+                        }
+                    }
+
+                    is ExpenseHistoryScreenKey -> {
+                        NavEntry(
+                            key = key,
+                        ) {
+                            ExpenseHistoryScreen(
+                                viewModel = koinViewModel {
+                                    parametersOf(key.groupUuid, key.expenseUuid)
+                                },
+                                onBack = dropUnlessResumed { backStack.removeIf { it is ExpenseHistoryScreenKey } },
                             )
                         }
                     }

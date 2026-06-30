@@ -11,6 +11,7 @@ import androidx.room.Upsert
 import database.data.local.entity.BeneficiaryEntity
 import database.data.local.entity.ExpenseEntity
 import database.data.local.entity.ExpenseWithBeneficiariesEntity
+import database.domain.Currency
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -122,4 +123,7 @@ interface ExpenseDao {
     @Transaction
     @Query("SELECT * FROM ExpenseEntity WHERE uuid = :uuid")
     fun getWithBeneficiariesAsFlow(uuid: String): Flow<ExpenseWithBeneficiariesEntity?>
+
+    @Query("SELECT currency FROM ExpenseEntity WHERE uuid = :expenseUuid")
+    fun getCurrency(expenseUuid: String): Flow<Currency?>
 }

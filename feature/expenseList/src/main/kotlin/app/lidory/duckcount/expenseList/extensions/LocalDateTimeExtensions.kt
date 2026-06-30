@@ -35,6 +35,24 @@ fun LocalDate.formatDate(): String {
 }
 
 @OptIn(ExperimentalTime::class)
+@Composable
+fun LocalDate.formatDateTiny(): String {
+    val instantDate = this
+        .atTime(hour = 0, minute = 0)
+        .toInstant(timeZone = TimeZone.currentSystemDefault())
+
+    val dateFormat = R.string.date_format_tiny
+
+    val dateFormatted =
+        DateFormat.format(
+            stringResource(id = dateFormat),
+            instantDate.toEpochMilliseconds(),
+        ).toString()
+
+    return dateFormatted
+}
+
+@OptIn(ExperimentalTime::class)
 fun LocalDate.isCurrentYear(): Boolean {
     val currentDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
     return this.year == currentDate.year
