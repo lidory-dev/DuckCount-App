@@ -10,6 +10,7 @@ import android.net.NetworkCapabilities
 import android.util.Log
 import authenticationUtils.PendingRegistration
 import authenticationUtils.clearPendingRegistration
+import authenticationUtils.setAuthenticatedUserUsername
 import authenticationUtils.setAuthenticatedUserUuid
 import authenticationUtils.setHasPasswordBeenChecked
 import authenticationUtils.setPendingRegistration
@@ -117,8 +118,8 @@ class AuthenticationCallBacksImpl(
                         shortLivedToken = shortLivedToken,
                         longLivedToken = longLivedToken,
                     )
-
                     setAuthenticatedUserUuid(uuid)
+                    setAuthenticatedUserUsername(username = username)
 
                     AuthOutcome.Success(uuid)
                 }
@@ -187,6 +188,8 @@ class AuthenticationCallBacksImpl(
                     uuid?.let {
                         setAuthenticatedUserUuid(uuid)
                     } ?: Log.e(TAG, "login: could not read uuid from short-lived token")
+
+                    setAuthenticatedUserUsername(username = username)
 
                     AuthOutcome.Success(Unit)
                 }

@@ -7,12 +7,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 
 class AccountSettingsViewModel(
-    val settingsCallBacks: SettingsCallBacks,
+    private val settingsCallBacks: SettingsCallBacks,
 ) : ViewModel() {
+
+    val username = settingsCallBacks.getUserUsername()
 
     private val _navigateBack = Channel<Unit>(Channel.BUFFERED)
     val navigateBack: Flow<Unit> = _navigateBack.receiveAsFlow()
 
     fun logOut() = settingsCallBacks.logOut()
-
 }

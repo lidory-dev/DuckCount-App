@@ -3,9 +3,8 @@ package app.lidory.duckcount.settings.component
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -13,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import app.lidory.duckcount.android.ui.constant.Elevation
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.settings.R
 
@@ -24,11 +22,8 @@ fun PromotionalCard(
 ) {
     val uriHandler = LocalUriHandler.current
 
-    Card(
+    OutlinedCard(
         modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = Elevation.small,
-        ),
     ) {
         Text(
             modifier = Modifier
@@ -41,7 +36,7 @@ fun PromotionalCard(
                 ),
             text = stringResource(R.string.promotional_card_title),
             textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleLarge,
         )
 
         Text(
@@ -50,7 +45,6 @@ fun PromotionalCard(
                 .padding(horizontal = Padding.medium),
             text = stringResource(R.string.promotional_card_description),
             textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.bodyMedium,
         )
 
         Button(

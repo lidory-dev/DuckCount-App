@@ -19,6 +19,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.settings.component.ButtonLine
 import app.lidory.duckcount.settings.viewmodel.AccountSettingsViewModel
 import org.koin.androidx.compose.koinViewModel
@@ -29,7 +33,6 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 fun AccountSettingsScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
-    navigateToChangeFullName: () -> Unit,
     onLogout: () -> Unit,
 ) {
     val viewModel: AccountSettingsViewModel = koinViewModel()
@@ -93,19 +96,31 @@ fun AccountSettingsScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             item {
-                ButtonLine(
-                    text = R.string.change_fullName,
-                    onClick = navigateToChangeFullName,
-                )
+                val username = viewModel.username ?: ""
+                val fullText = stringResource(R.string.connected_as, username)
+                val startIndex = fullText.indexOf(username)
 
-                ButtonLine(
-                    text = R.string.change_username,
-                    onClick = {}, // TODO
-                )
+                val annotatedText = buildAnnotatedString {
+                    append(fullText)
+                    if (startIndex >= 0) {
+                        addStyle(
+                            style = SpanStyle(fontWeight = FontWeight.Bold),
+                            start = startIndex,
+                            end = startIndex + username.length,
+                        )
+                    }
+                }
 
+                Text(
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    text = annotatedText,
+                )
+            }
+
+            item {
                 ButtonLine(
                     text = R.string.change_password,
-                    onClick = {}, // TODO
+                    onClick = { TODO() },
                 )
             }
 

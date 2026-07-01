@@ -6,13 +6,17 @@
     <string name="change_fullName">Change full name</string>
     <string name="change_username">Change username</string>
     <string name="change_password">Change password</string>
+    <string name="connected_as">Connected as <b>%1$s</b></string>
     <string name="licences">Licences</string>
     <string name="logout">Log out</string>
     <string name="learn_more">Learn more</string>
     <string name="change_fullName_description">Visible to your contacts and group members. Everything is end-to-end encrypted, which means we can’t see your profile — only the people you choose to share it with.</string>
     <string name="logout_confirmation">Are you sure you want to log out? You’ll need to log back in to access your groups and expenses</string>
+    <string name="profile">Profile</string>
+    <string name="profile_disclaimer">Visible only to your contacts and group members.\nEverything is end-to-end encrypted, which means we can’t see your profile — only the people you choose to share it with.</string>
     <string name="promotional_card_title">DuckCount is built by the engineers at Lidory.</string>
-    <string name="promotional_card_description">Lidory is a company specializing in software development and cybersecurity. It develops both consumer applications and business software. Privacy and cybersecurity are top priorities for us.</string>
-    <string name="trademarks_of_lidory">© 2026 Lidory SASU. All rights reserved. \nDuckCount® and Lidory® are trademarks of Lidory SASU.</string>
+    <string name="promotional_card_description">Lidory is a company specializing in software development and cybersecurity. It develops both consumer applications and business software.\nPrivacy and cybersecurity are top priorities for us.</string>
+    <string name="save">Save</string>
+    <string name="trademarks_of_lidory">© 2026 Lidory SASU. All rights reserved.\nDuckCount® and Lidory® are trademarks of Lidory SASU.</string>
     <string name="quack">🐤 Quack!</string>
 </resources>

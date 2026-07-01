@@ -13,14 +13,14 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import app.lidory.duckcount.settings.AboutScreen
 import app.lidory.duckcount.settings.AccountSettingsScreen
-import app.lidory.duckcount.settings.ChangeFullNameScreen
 import app.lidory.duckcount.settings.LicencesScreen
 import app.lidory.duckcount.settings.SettingsScreen
+import app.lidory.duckcount.settings.UserProfileScreen
 import app.lidory.duckcount.settings.navigation.key.AboutScreenKey
 import app.lidory.duckcount.settings.navigation.key.AccountSettingsScreenKey
-import app.lidory.duckcount.settings.navigation.key.ChangeFullNameScreenKey
 import app.lidory.duckcount.settings.navigation.key.LicencesScreenKey
 import app.lidory.duckcount.settings.navigation.key.SettingsScreenKey
+import app.lidory.duckcount.settings.navigation.key.UserProfileScreenKey
 
 @Composable
 fun NavigationRoot(
@@ -50,6 +50,9 @@ fun NavigationRoot(
             entry<SettingsScreenKey> {
                 SettingsScreen(
                     onBack = dropUnlessResumed { onBack() },
+                    navigateToUserProfileScreen = {
+                        backStack.add(UserProfileScreenKey)
+                    },
                     navigateToAccountSettingsScreen = {
                         backStack.add(AccountSettingsScreenKey)
                     },
@@ -62,23 +65,20 @@ fun NavigationRoot(
                 )
             }
 
+            entry<UserProfileScreenKey> {
+                UserProfileScreen(
+                    onBack = dropUnlessResumed {
+                        backStack.removeIf { it is UserProfileScreenKey }
+                    },
+                )
+            }
+
             entry<AccountSettingsScreenKey> {
                 AccountSettingsScreen(
                     onBack = dropUnlessResumed {
                         backStack.removeIf { it is AccountSettingsScreenKey }
                     },
-                    navigateToChangeFullName = {
-                        backStack.add(ChangeFullNameScreenKey)
-                    },
                     onLogout = onLogout,
-                )
-            }
-
-            entry<ChangeFullNameScreenKey> {
-                ChangeFullNameScreen(
-                    onBack = dropUnlessResumed {
-                        backStack.removeIf { it is ChangeFullNameScreenKey }
-                    },
                 )
             }
 

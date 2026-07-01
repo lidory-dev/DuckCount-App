@@ -13,7 +13,9 @@ interface SettingsCallBacks {
 
     fun getAuthenticatedUserUuid(): String?
 
+    fun getUserUsername(): String?
+
     fun getUserFullName(uuid: String): Flow<String?>
 
-    suspend fun updateFullName(userUuid: String, fullName: String)
+    suspend fun updateUserFullName(userUuid: String, fullName: String)
 }
