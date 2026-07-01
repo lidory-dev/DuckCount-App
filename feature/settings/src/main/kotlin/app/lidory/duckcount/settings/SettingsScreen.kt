@@ -3,7 +3,9 @@ package app.lidory.duckcount.settings
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -25,6 +27,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     navigateToAccountSettingsScreen: () -> Unit,
+    navigateToAboutScreen: () -> Unit,
     navigateToLicencesScreen: () -> Unit,
 ) {
     val viewModel: SettingsViewModel = koinViewModel()
@@ -62,9 +65,21 @@ fun SettingsScreen(
             }
 
             item {
+                HorizontalDivider(Modifier, DividerDefaults.Thickness)
+            }
+
+            item {
+                ButtonLine(
+                    text = R.string.about,
+                    icon = R.drawable.ic_help,
+                    onClick = navigateToAboutScreen,
+                )
+            }
+
+            item {
                 ButtonLine(
                     text = R.string.licences,
-                    icon = R.drawable.ic_help,
+                    icon = R.drawable.license,
                     onClick = navigateToLicencesScreen,
                 )
             }

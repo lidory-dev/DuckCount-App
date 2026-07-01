@@ -11,10 +11,12 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import app.lidory.duckcount.settings.AboutScreen
 import app.lidory.duckcount.settings.AccountSettingsScreen
 import app.lidory.duckcount.settings.ChangeFullNameScreen
 import app.lidory.duckcount.settings.LicencesScreen
 import app.lidory.duckcount.settings.SettingsScreen
+import app.lidory.duckcount.settings.navigation.key.AboutScreenKey
 import app.lidory.duckcount.settings.navigation.key.AccountSettingsScreenKey
 import app.lidory.duckcount.settings.navigation.key.ChangeFullNameScreenKey
 import app.lidory.duckcount.settings.navigation.key.LicencesScreenKey
@@ -51,6 +53,9 @@ fun NavigationRoot(
                     navigateToAccountSettingsScreen = {
                         backStack.add(AccountSettingsScreenKey)
                     },
+                    navigateToAboutScreen = {
+                        backStack.add(AboutScreenKey)
+                    },
                     navigateToLicencesScreen = {
                         backStack.add(LicencesScreenKey)
                     },
@@ -73,6 +78,14 @@ fun NavigationRoot(
                 ChangeFullNameScreen(
                     onBack = dropUnlessResumed {
                         backStack.removeIf { it is ChangeFullNameScreenKey }
+                    },
+                )
+            }
+
+            entry<AboutScreenKey> {
+                AboutScreen(
+                    onBack = dropUnlessResumed {
+                        backStack.removeIf { it is AboutScreenKey }
                     },
                 )
             }
