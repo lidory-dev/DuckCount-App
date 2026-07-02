@@ -159,6 +159,7 @@ fun ExpenseDetailScreen(
                             userFullName = state.creditorFullName,
                             amount = expense.amount,
                             currency = expense.currency,
+                            userUuid = expense.creditorUuid,
                         )
                     }
 
@@ -175,6 +176,7 @@ fun ExpenseDetailScreen(
                             userFullName = beneficiary.fullName,
                             amount = beneficiary.share,
                             currency = expense.currency,
+                            userUuid = beneficiary.userUuid,
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
