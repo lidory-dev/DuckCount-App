@@ -53,7 +53,6 @@ fun UserProfileScreen(
     val viewModel = koinViewModel<UserProfileViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-
     val focusManager = LocalFocusManager.current
     val interactionSource = remember { MutableInteractionSource() }
 
@@ -110,7 +109,7 @@ fun UserProfileScreen(
                     modifier = Modifier
                         .fillMaxHeight()
                         .padding(innerPadding)
-                        .padding(horizontal = Padding.extraLarge),
+                        .padding(horizontal = Padding.large),
                     verticalArrangement = Arrangement.Center,
                 ) {
                     OutlinedCard(

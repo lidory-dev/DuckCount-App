@@ -12,12 +12,14 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import app.lidory.duckcount.settings.AboutScreen
-import app.lidory.duckcount.settings.AccountSettingsScreen
+import app.lidory.duckcount.settings.AccountDeletionScreen
+import app.lidory.duckcount.settings.AccountScreen
 import app.lidory.duckcount.settings.LicencesScreen
 import app.lidory.duckcount.settings.SettingsScreen
 import app.lidory.duckcount.settings.UserProfileScreen
 import app.lidory.duckcount.settings.navigation.key.AboutScreenKey
-import app.lidory.duckcount.settings.navigation.key.AccountSettingsScreenKey
+import app.lidory.duckcount.settings.navigation.key.AccountDeletionScreenKey
+import app.lidory.duckcount.settings.navigation.key.AccountScreenKey
 import app.lidory.duckcount.settings.navigation.key.LicencesScreenKey
 import app.lidory.duckcount.settings.navigation.key.SettingsScreenKey
 import app.lidory.duckcount.settings.navigation.key.UserProfileScreenKey
@@ -53,8 +55,8 @@ fun NavigationRoot(
                     navigateToUserProfileScreen = {
                         backStack.add(UserProfileScreenKey)
                     },
-                    navigateToAccountSettingsScreen = {
-                        backStack.add(AccountSettingsScreenKey)
+                    navigateToAccountScreen = {
+                        backStack.add(AccountScreenKey)
                     },
                     navigateToAboutScreen = {
                         backStack.add(AboutScreenKey)
@@ -73,12 +75,24 @@ fun NavigationRoot(
                 )
             }
 
-            entry<AccountSettingsScreenKey> {
-                AccountSettingsScreen(
+            entry<AccountScreenKey> {
+                AccountScreen(
                     onBack = dropUnlessResumed {
-                        backStack.removeIf { it is AccountSettingsScreenKey }
+                        backStack.removeIf { it is AccountScreenKey }
+                    },
+                    navigateToAccountDeletionScreen = {
+                        backStack.add(AccountDeletionScreenKey)
                     },
                     onLogout = onLogout,
+                )
+            }
+
+            entry<AccountDeletionScreenKey> {
+                AccountDeletionScreen(
+                    onBack = dropUnlessResumed {
+                        backStack.removeIf { it is AccountDeletionScreenKey }
+                    },
+                    onAccountDeletion = { TODO() },
                 )
             }
 

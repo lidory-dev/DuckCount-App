@@ -22,20 +22,21 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.settings.component.ButtonLine
-import app.lidory.duckcount.settings.viewmodel.AccountSettingsViewModel
+import app.lidory.duckcount.settings.viewmodel.AccountViewModel
 import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AccountSettingsScreen(
+fun AccountScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
+    navigateToAccountDeletionScreen: () -> Unit,
     onLogout: () -> Unit,
 ) {
-    val viewModel: AccountSettingsViewModel = koinViewModel()
+    val viewModel: AccountViewModel = koinViewModel()
 
     val openLogOutDialog = remember { mutableStateOf(false) }
 
@@ -112,7 +113,7 @@ fun AccountSettingsScreen(
                 }
 
                 Text(
-                    modifier = Modifier.padding(vertical = 12.dp),
+                    modifier = Modifier.padding(vertical = Padding.large),
                     text = annotatedText,
                 )
             }
@@ -128,6 +129,13 @@ fun AccountSettingsScreen(
                 ButtonLine(
                     text = R.string.logout,
                     onClick = { openLogOutDialog.value = !openLogOutDialog.value },
+                )
+            }
+
+            item {
+                ButtonLine(
+                    text = R.string.delete_account,
+                    onClick = navigateToAccountDeletionScreen,
                 )
             }
         }

@@ -1,17 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="account">Account</string>
+    <string name="account_deletion_disclaimer">Deleting your account is permanent and your data cannot be recovered.\n\nExpenses you’ve created or participated in will not be deleted. They’ll remain visible to anyone else involved.\n\nTo continue, you’ll need to re-enter your password to confirm.</string>
     <string name="about">About</string>
     <string name="app_version">App version: %1$s</string>
     <string name="change_fullName">Change full name</string>
     <string name="change_username">Change username</string>
     <string name="change_password">Change password</string>
     <string name="connected_as">Connected as <b>%1$s</b></string>
+    <string name="delete_account">Delete account</string>
     <string name="licences">Licences</string>
     <string name="logout">Log out</string>
     <string name="learn_more">Learn more</string>
-    <string name="change_fullName_description">Visible to your contacts and group members. Everything is end-to-end encrypted, which means we can’t see your profile — only the people you choose to share it with.</string>
     <string name="logout_confirmation">Are you sure you want to log out? You’ll need to log back in to access your groups and expenses</string>
+    <string name="password">Password</string>
     <string name="profile">Profile</string>
     <string name="profile_disclaimer">Visible only to your contacts and group members.\nEverything is end-to-end encrypted, which means we can’t see your profile — only the people you choose to share it with.</string>
     <string name="promotional_card_title">DuckCount is built by the engineers at Lidory.</string>

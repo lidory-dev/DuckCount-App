@@ -17,8 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import app.lidory.duckcount.settings.component.ButtonLine
-import app.lidory.duckcount.settings.viewmodel.SettingsViewModel
-import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -27,12 +25,10 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     navigateToUserProfileScreen: () -> Unit,
-    navigateToAccountSettingsScreen: () -> Unit,
+    navigateToAccountScreen: () -> Unit,
     navigateToAboutScreen: () -> Unit,
     navigateToLicencesScreen: () -> Unit,
 ) {
-    val viewModel: SettingsViewModel = koinViewModel()
-
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -69,7 +65,7 @@ fun SettingsScreen(
                 ButtonLine(
                     text = R.string.account,
                     icon = R.drawable.ic_account,
-                    onClick = navigateToAccountSettingsScreen,
+                    onClick = navigateToAccountScreen,
                 )
             }
 
