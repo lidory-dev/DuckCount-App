@@ -13,6 +13,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -21,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.contactList.R
 import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.constant.Padding
+import component.ContactDeletionDialog
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.ContactDetailViewModel
 import app.lidory.duckcount.android.ui.R as SharedR
@@ -43,6 +46,18 @@ fun ContactDetailScreen(
         viewModel.navigateBack.collect { onBack() }
     }
 
+    val isConfirmDeletionDialogVisible = remember { mutableStateOf(false) }
+
+    if (isConfirmDeletionDialogVisible.value) {
+        ContactDeletionDialog(
+            onDismiss = { isConfirmDeletionDialogVisible.value = false },
+            onConfirm = {
+                viewModel.removeContact()
+                isConfirmDeletionDialogVisible.value = false
+            },
+        )
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -60,7 +75,7 @@ fun ContactDetailScreen(
                 },
                 actions = {
                     IconButton(
-                        onClick = viewModel::removeContact,
+                        onClick = { isConfirmDeletionDialogVisible.value = true },
                     ) {
                         Icon(
                             painter = painterResource((SharedR.drawable.ic_delete)),
