@@ -47,10 +47,10 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.composable.button.PasswordVisibilityButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.authentication.R
-import component.PasswordVisibilityButton
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.RegisterViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
@@ -164,7 +164,7 @@ fun RegisterScreen(
                         isInError = state.password.isNotEmpty() && viewModel.isPasswordTooShort(),
                         error = stringResource(
                             R.string.error_password_short,
-                            RegisterViewModel.PASSWORD_STRENGTH,
+                            viewModel.passwordStrength,
                         ),
                         trailingIcon = {
                             PasswordVisibilityButton(

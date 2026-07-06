@@ -8,6 +8,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.util.Log
+import app.lidory.duckcount.PasswordRequirements
 import authenticationUtils.PendingRegistration
 import authenticationUtils.clearPendingRegistration
 import authenticationUtils.setAuthenticatedUserUsername
@@ -35,6 +36,8 @@ class AuthenticationCallBacksImpl(
     val userRepository: UserRepository,
     private val context: Context,
 ) : AuthenticationCallBacks {
+
+    override val passwordStrength: Int = PasswordRequirements.MINIMUM_PASSWORD_STRENGTH
 
     override suspend fun passwordLeakAmount(password: String): AuthOutcome<Int> {
         val sha1 = password.sha1().uppercase()

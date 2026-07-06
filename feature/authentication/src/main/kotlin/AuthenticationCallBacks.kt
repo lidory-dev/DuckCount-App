@@ -1,4 +1,7 @@
 interface AuthenticationCallBacks {
+
+    val passwordStrength: Int
+
     /** Number of times the password appears in known breaches (Have I Been Pwned). */
     suspend fun passwordLeakAmount(password: String): AuthOutcome<Int>
 

@@ -3,6 +3,9 @@ package app.lidory.duckcount.settings
 import kotlinx.coroutines.flow.Flow
 
 interface SettingsCallBacks {
+
+    val minimumPasswordStrength: Int
+
     val learnMoreLink: String
 
     val appVersionName: String

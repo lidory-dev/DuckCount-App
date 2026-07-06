@@ -18,8 +18,6 @@
     <string name="change_password_everywhere">If you used this password on any other service, you MUST update it immediately.</string>
     <string name="error_password_confirmation">The passwords do not match</string>
     <string name="password_confirmation">Password Confirmation</string>
-    <string name="hide">Hide</string>
-    <string name="show">Show</string>
     <string name="set_up_your_profile_title">Set up your profile</string>
     <string name="set_up_your_profile_description">Visible to your contacts and group members. Everything is end-to-end encrypted, which means we can’t see your profile — only the people you choose to share it with.</string>
     <string name="done">Done</string>

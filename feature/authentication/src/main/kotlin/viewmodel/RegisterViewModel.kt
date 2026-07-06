@@ -14,6 +14,9 @@ import kotlinx.coroutines.launch
 class RegisterViewModel(
     val authenticationCallBacks: AuthenticationCallBacks,
 ) : ViewModel() {
+
+    val passwordStrength = authenticationCallBacks.passwordStrength
+
     private val _state = MutableStateFlow(RegisterScreenState())
 
     val state = _state.stateIn(
@@ -91,11 +94,7 @@ class RegisterViewModel(
     }
 
     fun isPasswordTooShort(): Boolean {
-        return _state.value.password.length < PASSWORD_STRENGTH
-    }
-
-    companion object {
-        const val PASSWORD_STRENGTH = 15
+        return _state.value.password.length < passwordStrength
     }
 }
 

@@ -9,10 +9,14 @@
     <string name="change_password">Change password</string>
     <string name="connected_as">Connected as <b>%1$s</b></string>
     <string name="delete_account">Delete account</string>
+    <string name="error_new_password_confirmation">The passwords do not match</string>
+    <string name="error_password_too_short">Your password must have at least %1$s characters</string>
     <string name="licences">Licences</string>
     <string name="logout">Log out</string>
     <string name="learn_more">Learn more</string>
-    <string name="logout_confirmation">Are you sure you want to log out? You’ll need to log back in to access your groups and expenses</string>
+    <string name="logout_confirmation">Are you sure you want to log out?\nYou’ll need to log back in to access your groups and expenses</string>
+    <string name="new_password">New password</string>
+    <string name="new_password_confirmation">New password confirmation</string>
     <string name="password">Password</string>
     <string name="profile">Profile</string>
     <string name="profile_disclaimer">Visible only to your contacts and group members.\nEverything is end-to-end encrypted, which means we can’t see your profile — only the people you choose to share it with.</string>

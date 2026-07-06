@@ -15,4 +15,6 @@
     <string name="full_name">Full Name</string>
     <string name="required">Required</string>
     <string name="cancel">Cancel</string>
+    <string name="hide">Hide</string>
+    <string name="show">Show</string>
 </resources>

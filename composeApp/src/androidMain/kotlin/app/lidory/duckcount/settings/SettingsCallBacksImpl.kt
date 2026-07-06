@@ -3,6 +3,7 @@ package app.lidory.duckcount.settings
 import app.lidory.duckcount.BuildConfig
 import app.lidory.duckcount.ExternalLinks.LIDORY_WEBSITE
 import app.lidory.duckcount.LICENCES_LIST
+import app.lidory.duckcount.PasswordRequirements
 import authenticationUtils.clearAuthenticatedUserUsername
 import authenticationUtils.clearAuthenticatedUserUuid
 import authenticationUtils.clearTokens
@@ -13,6 +14,8 @@ import kotlinx.coroutines.flow.Flow
 class SettingsCallBacksImpl(
     private val userRepository: UserRepository,
 ) : SettingsCallBacks {
+
+    override val minimumPasswordStrength: Int = PasswordRequirements.MINIMUM_PASSWORD_STRENGTH
 
     override val learnMoreLink: String = LIDORY_WEBSITE
 

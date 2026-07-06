@@ -19,6 +19,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
@@ -28,9 +32,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.composable.button.PasswordVisibilityButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.settings.viewmodel.AccountDeletionViewModel
@@ -41,12 +48,13 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 @Composable
 fun AccountDeletionScreen(
     onBack: () -> Unit,
-    onAccountDeletion: () -> Unit, // TODO.
 ) {
     val viewModel: AccountDeletionViewModel = koinViewModel()
     val password = viewModel.password.collectAsStateWithLifecycle()
 
     val focusManager = LocalFocusManager.current
+
+    var isPasswordVisible by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -110,12 +118,13 @@ fun AccountDeletionScreen(
             DuckCountTextField(
                 modifier = Modifier
                     .semantics {
-                        contentType = ContentType.PersonFullName
+                        contentType = ContentType.Password
                     }
                     .fillMaxWidth(),
                 value = password.value,
                 onValueChange = { viewModel.onPasswordChanged(it) },
                 focusManager = focusManager,
+                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 singleLine = true,
                 labelName = stringResource(R.string.password),
                 keyboardOptions = KeyboardOptions(
@@ -123,6 +132,12 @@ fun AccountDeletionScreen(
                 ),
                 isInError = password.value.isBlank(),
                 error = stringResource(androidUiR.string.required),
+                trailingIcon = {
+                    PasswordVisibilityButton(
+                        onClick = { isPasswordVisible = !isPasswordVisible },
+                        isPasswordVisible = isPasswordVisible,
+                    )
+                },
             )
 
             Spacer(Modifier.weight(1f))

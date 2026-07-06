@@ -15,12 +15,14 @@ import app.lidory.duckcount.settings.AboutScreen
 import app.lidory.duckcount.settings.AccountDeletionScreen
 import app.lidory.duckcount.settings.AccountScreen
 import app.lidory.duckcount.settings.LicencesScreen
+import app.lidory.duckcount.settings.PasswordChangeScreen
 import app.lidory.duckcount.settings.SettingsScreen
 import app.lidory.duckcount.settings.UserProfileScreen
 import app.lidory.duckcount.settings.navigation.key.AboutScreenKey
 import app.lidory.duckcount.settings.navigation.key.AccountDeletionScreenKey
 import app.lidory.duckcount.settings.navigation.key.AccountScreenKey
 import app.lidory.duckcount.settings.navigation.key.LicencesScreenKey
+import app.lidory.duckcount.settings.navigation.key.PasswordChangeScreenKey
 import app.lidory.duckcount.settings.navigation.key.SettingsScreenKey
 import app.lidory.duckcount.settings.navigation.key.UserProfileScreenKey
 
@@ -80,10 +82,21 @@ fun NavigationRoot(
                     onBack = dropUnlessResumed {
                         backStack.removeIf { it is AccountScreenKey }
                     },
+                    navigateToPasswordChangeScreen = {
+                        backStack.add(PasswordChangeScreenKey)
+                    },
                     navigateToAccountDeletionScreen = {
                         backStack.add(AccountDeletionScreenKey)
                     },
                     onLogout = onLogout,
+                )
+            }
+
+            entry<PasswordChangeScreenKey> {
+                PasswordChangeScreen(
+                    onBack = dropUnlessResumed {
+                        backStack.removeIf { it is PasswordChangeScreenKey }
+                    },
                 )
             }
 
@@ -92,7 +105,6 @@ fun NavigationRoot(
                     onBack = dropUnlessResumed {
                         backStack.removeIf { it is AccountDeletionScreenKey }
                     },
-                    onAccountDeletion = { TODO() },
                 )
             }
 
