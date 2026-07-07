@@ -22,6 +22,7 @@ import app.lidory.duckcount.R
 import app.lidory.duckcount.android.ui.theme.isAppInDarkTheme
 import app.lidory.duckcount.expenseList.CreateExpenseScreen
 import app.lidory.duckcount.expenseList.ExpenseDetailScreen
+import app.lidory.duckcount.expenseList.ExpenseHistoryDetailScreen
 import app.lidory.duckcount.expenseList.ExpenseHistoryScreen
 import app.lidory.duckcount.expenseList.ExpenseListScreen
 import app.lidory.duckcount.expenseList.viewmodel.expenseListViewModel
@@ -35,6 +36,7 @@ import app.lidory.duckcount.navigation.key.CreateExpenseScreenKey
 import app.lidory.duckcount.navigation.key.CreateGroupScreenKey
 import app.lidory.duckcount.navigation.key.DashboardKey
 import app.lidory.duckcount.navigation.key.ExpenseDetailScreenKey
+import app.lidory.duckcount.navigation.key.ExpenseHistoryDetailScreenKey
 import app.lidory.duckcount.navigation.key.ExpenseHistoryScreenKey
 import app.lidory.duckcount.navigation.key.GroupDetailScreenKey
 import app.lidory.duckcount.navigation.key.GroupSettingsScreenKey
@@ -310,7 +312,29 @@ fun NavigationRoot(
                                 viewModel = koinViewModel {
                                     parametersOf(key.groupUuid, key.expenseUuid)
                                 },
+                                navigateToHistoryDetail = { index ->
+                                    backStack.add(
+                                        ExpenseHistoryDetailScreenKey(
+                                            groupUuid = key.groupUuid,
+                                            expenseUuid = key.expenseUuid,
+                                            expenseIndex = index,
+                                        ),
+                                    )
+                                },
                                 onBack = dropUnlessResumed { backStack.removeIf { it is ExpenseHistoryScreenKey } },
+                            )
+                        }
+                    }
+
+                    is ExpenseHistoryDetailScreenKey -> {
+                        NavEntry(
+                            key = key,
+                        ) {
+                            ExpenseHistoryDetailScreen(
+                                viewModel = koinViewModel {
+                                    parametersOf(key.groupUuid, key.expenseUuid, key.expenseIndex)
+                                },
+                                onBack = dropUnlessResumed { backStack.removeIf { it is ExpenseHistoryDetailScreenKey } },
                             )
                         }
                     }

@@ -120,7 +120,7 @@ fun ExpenseDetailScreen(
                             restore = viewModel::restoreExpense,
                             delete = viewModel::deleteExpense,
                             edit = dropUnlessResumed { navigateToEditExpense() },
-                            history = navigateToExpenseHistory,
+                            history = dropUnlessResumed { navigateToExpenseHistory() },
                         )
                     }
                 },

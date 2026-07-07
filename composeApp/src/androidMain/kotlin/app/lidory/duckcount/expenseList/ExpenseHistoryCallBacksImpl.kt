@@ -5,12 +5,15 @@ import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.PreviousBeneficiary
 import app.lidory.duckcount.expenseList.model.PreviousExpenseUi
 import database.data.repository.ExpenseRepository
+import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 class ExpenseHistoryCallBacksImpl(
     val expenseRepository: ExpenseRepository,
+    val userRepository: UserRepository,
 ) : ExpenseHistoryCallBacks {
     override fun getPreviousExpenses(groupUuid: String?, expenseUuid: String): Flow<List<PreviousExpenseUi>> {
         // TODO: Implement the server route
@@ -18,7 +21,7 @@ class ExpenseHistoryCallBacksImpl(
             listOf(
                 PreviousExpenseUi(
                     modifiedAt = "2026-06-29T16:55:59.017404",
-                    modifiedUserFullName = "Alice Martin",
+                    modifierUserFullName = "Alice Martin",
                     previousAmount = "20",
                     previousBeneficiaries = listOf(
                         PreviousBeneficiary(
@@ -34,13 +37,13 @@ class ExpenseHistoryCallBacksImpl(
                     ),
                     previousCreditorFullName = "Alice Martin",
                     previousDescription = "Delicious pizzas",
-                    previousIsRefund = false,
+                    previousIsSettlement = false,
                     previousTimestamp = "2026-06-29T16:50:59.017404",
                     previousTitle = "Restaurant Paris",
                 ),
                 PreviousExpenseUi(
                     modifiedAt = "2026-06-29T16:53:59.017404",
-                    modifiedUserFullName = "Bob Dylan",
+                    modifierUserFullName = "Bob Dylan",
                     previousAmount = "23",
                     previousBeneficiaries = listOf(
                         PreviousBeneficiary(
@@ -56,13 +59,13 @@ class ExpenseHistoryCallBacksImpl(
                     ),
                     previousCreditorFullName = "Alice Martin",
                     previousDescription = "Delicious pizzas",
-                    previousIsRefund = false,
+                    previousIsSettlement = false,
                     previousTimestamp = "2026-06-29T16:50:59.017404",
                     previousTitle = "Restaurant Paris",
                 ),
                 PreviousExpenseUi(
                     modifiedAt = "2026-06-29T16:52:59.017404",
-                    modifiedUserFullName = "Bob Dylan",
+                    modifierUserFullName = "Bob Dylan",
                     previousAmount = "23",
                     previousBeneficiaries = listOf(
                         PreviousBeneficiary(
@@ -78,13 +81,13 @@ class ExpenseHistoryCallBacksImpl(
                     ),
                     previousCreditorFullName = "Alice Martin",
                     previousDescription = "",
-                    previousIsRefund = false,
+                    previousIsSettlement = false,
                     previousTimestamp = "2026-06-29T16:50:59.017404",
                     previousTitle = "Restaurant Paris pizzas",
                 ),
                 PreviousExpenseUi(
                     modifiedAt = "2026-06-29T16:50:59.017404",
-                    modifiedUserFullName = "Bob Dylan",
+                    modifierUserFullName = "Bob Dylan",
                     previousAmount = "33",
                     previousBeneficiaries = listOf(
                         PreviousBeneficiary(
@@ -105,7 +108,7 @@ class ExpenseHistoryCallBacksImpl(
                     ),
                     previousCreditorFullName = "Alice Martin",
                     previousDescription = "",
-                    previousIsRefund = false,
+                    previousIsSettlement = false,
                     previousTimestamp = "2026-06-29T16:50:59.017404",
                     previousTitle = "Restaurant Paris pizzas",
                 ),
@@ -114,6 +117,32 @@ class ExpenseHistoryCallBacksImpl(
     }
 
     override fun getCurrency(expenseUuid: String): Flow<Currency?> {
-        return expenseRepository.getCurrency(expenseUuid).map { it?.toModel() }
+        return expenseRepository.getCurrency(expenseUuid).map { it?.toExpenseListModel() }
+    }
+
+    override fun getCurrentExpense(expenseUuid: String): Flow<PreviousExpenseUi> {
+        return expenseRepository.getWithBeneficiaries(expenseUuid).map {
+            PreviousExpenseUi(
+                modifiedAt = "",
+                modifierUserFullName = "",
+                previousAmount = it?.amount ?: "",
+                previousBeneficiaries = it?.beneficiaries?.map { beneficiary ->
+                    PreviousBeneficiary(
+                        userUuid = beneficiary.userUuid,
+                        share = beneficiary.share,
+                        // TODO: Show that the username was not found?
+                        fullName = userRepository.getFullName(beneficiary.userUuid).first()
+                            ?: beneficiary.userUuid,
+                    )
+                } ?: emptyList(),
+                // TODO: Show that the username was not found?
+                previousCreditorFullName = userRepository.getFullName(it?.creditorUuid ?: "").first()
+                    ?: it?.creditorUuid ?: "",
+                previousDescription = it?.description ?: "",
+                previousIsSettlement = it?.isSettlement ?: false,
+                previousTimestamp = it?.timestamp ?: "",
+                previousTitle = it?.title ?: "",
+            )
+        }
     }
 }

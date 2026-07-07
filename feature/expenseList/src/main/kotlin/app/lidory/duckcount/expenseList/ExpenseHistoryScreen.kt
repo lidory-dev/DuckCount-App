@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -26,9 +25,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.constant.Padding
-import app.lidory.duckcount.expenseList.component.PreviousExpenseCard
+import app.lidory.duckcount.expenseList.component.ExpenseChangesCard
+import app.lidory.duckcount.expenseList.extensions.formatDateTiny
+import app.lidory.duckcount.expenseList.model.compareToCurrent
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseHistoryState
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseHistoryViewModel
+import kotlinx.datetime.LocalDateTime
 import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
 
@@ -37,6 +39,7 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 fun ExpenseHistoryScreen(
     modifier: Modifier = Modifier,
     viewModel: ExpenseHistoryViewModel = koinViewModel(),
+    navigateToHistoryDetail: (Int) -> Unit,
     onBack: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -84,6 +87,7 @@ fun ExpenseHistoryScreen(
 
             is ExpenseHistoryState.Content -> {
                 val expenses = state.expenses
+                val currentExpense = state.currentExpense
                 val layoutDirection = LocalLayoutDirection.current
 
                 LazyColumn(
@@ -96,19 +100,29 @@ fun ExpenseHistoryScreen(
                     verticalArrangement = Arrangement.spacedBy(Padding.medium),
                 ) {
                     items(
-                        items = expenses,
-                        key = { expense -> "${expense.modifiedAt} ${expense.previousTitle}" },
-                    ) { expense ->
-                        PreviousExpenseCard(
+                        count = expenses.size,
+                    ) { index ->
+                        val expense = expenses[index]
+
+                        val date = LocalDateTime.parse(expense.modifiedAt)
+                        val dateText = stringResource(
+                            androidUiR.string.date,
+                            date.date.formatDateTiny(),
+                            "${date.time.hour}:${date.time.minute}",
+                        )
+                        ExpenseChangesCard(
                             modifier = Modifier.fillMaxWidth(),
-                            modifiedAt = expense.modifiedAt,
-                            modifiedUserFullName = expense.modifiedUserFullName,
-                            previousAmount = expense.previousAmount,
-                            previousBeneficiaries = expense.previousBeneficiaries,
-                            previousCreditorFullName = expense.previousCreditorFullName,
-                            previousDescription = expense.previousDescription,
-                            previousTitle = expense.previousTitle,
-                            currencySymbol = state.currencySymbol,
+                            modifiedAt = dateText,
+                            fieldChanged = if (index == 0)
+                                expense.compareToCurrent(currentExpense)
+                            else
+                                expense.compareToCurrent(expenses[index - 1]),
+                            modifierUserFullName = expenses[index].modifierUserFullName,
+                            onClick = {
+                                navigateToHistoryDetail(
+                                    index,
+                                )
+                            },
                         )
                     }
                 }

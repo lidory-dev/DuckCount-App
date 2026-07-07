@@ -31,6 +31,7 @@ fun ExpenseDetailActionButtons(
     restore: () -> Unit,
     edit: () -> Unit,
     delete: () -> Unit,
+    history: () -> Unit,
 ) {
     val openAlertDialog = remember { mutableStateOf(false) }
 
@@ -114,6 +115,17 @@ fun ExpenseDetailActionButtons(
                 ) {
                     Icon(
                         painter = painterResource(androidUiR.drawable.ic_delete),
+                        contentDescription = stringResource(R.string.delete),
+                    )
+                }
+            }
+
+            if (!isSettlement) {
+                IconButton(
+                    onClick = history,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_balance), // TODO.
                         contentDescription = stringResource(R.string.delete),
                     )
                 }

@@ -8,4 +8,6 @@ interface ExpenseHistoryCallBacks {
     fun getPreviousExpenses(groupUuid: String?, expenseUuid: String): Flow<List<PreviousExpenseUi>>
 
     fun getCurrency(expenseUuid: String): Flow<Currency?>
+
+    fun getCurrentExpense(expenseUuid: String): Flow<PreviousExpenseUi>
 }
