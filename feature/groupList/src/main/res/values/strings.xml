@@ -17,8 +17,9 @@
     <string name="debts">Debts</string>
     <string name="refund">Refund</string>
     <string name="expand">expand</string>
-    <string name="refund_owned">You owes %1$s %2$s</string>
-    <string name="debt_owned">%1$s owes you %2$s</string>
+    <string name="debt_owned">You owes %1$s %2$s</string>
+    <string name="refund_owned">%1$s owes you %2$s</string>
     <string name="no_transactions">There are no pending transactions</string>
+    <string name="no_balance">Everything is balanced</string>
     <string name="no_refund">You don\'t have any refund</string>
 </resources>

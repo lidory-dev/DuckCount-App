@@ -17,7 +17,7 @@ fun ExpenseAmount(
     totalAmount: String,
     currencySymbol: String,
     role: ExpenseStatus,
-    personalShare: String?,
+    personalShare: String? = null,
     isActive: Boolean,
 ) {
     Column(

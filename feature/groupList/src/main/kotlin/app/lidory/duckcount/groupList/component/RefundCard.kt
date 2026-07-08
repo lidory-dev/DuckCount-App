@@ -41,7 +41,7 @@ fun RefundCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(text = stringResource(R.string.debt_owned, debtorFullName, amount))
+            Text(text = stringResource(R.string.refund_owned, debtorFullName, amount))
 
             var dropDownMenuExpanded by remember { mutableStateOf(false) }
 
@@ -59,7 +59,10 @@ fun RefundCard(
                 ) {
                     DropdownMenuItem(
                         text = { Text(text = stringResource(R.string.confirm_refund)) },
-                        onClick = onValidateRefund,
+                        onClick = {
+                            dropDownMenuExpanded = !dropDownMenuExpanded
+                            onValidateRefund()
+                        },
                     )
                 }
             }

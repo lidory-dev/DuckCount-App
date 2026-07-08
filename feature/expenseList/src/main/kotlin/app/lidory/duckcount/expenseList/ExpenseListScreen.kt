@@ -196,21 +196,38 @@ private fun ExpenseListItem(
         ExpenseStatus.NEUTRAL -> null
     }
 
+    // In case of refund
+    val debtorUuid =
+        if (expense.isRefund && expense.beneficiaries.size == 1)
+            expense.beneficiaries.first().userUuid
+        else
+            ""
+
     // We navigate when clicking on an expense, so we need to safeguard the onClick with dropUnlessResumed
     ExpenseCard(
         modifier = Modifier
-            .clickable(
-                onClick = dropUnlessResumed { onExpenseClicked(expense.uuid, expense.groupUuid) },
-            )
+            .run {
+                if (expense.isRefund) {
+                    this
+                } else {
+                    this.clickable(
+                        onClick = dropUnlessResumed { onExpenseClicked(expense.uuid, expense.groupUuid) },
+                    )
+                }
+            }
             .padding(horizontal = Padding.medium, vertical = Padding.small),
         title = expense.title,
         creditorName = viewModel.getUserFullName(expense.creditorUuid)
             .collectAsStateWithLifecycle("").value
             ?: expense.creditorUuid, // TODO: Show that the username was not found?
+        debtorName = viewModel.getUserFullName(debtorUuid)
+            .collectAsStateWithLifecycle("").value
+            ?: debtorUuid,
         totalAmount = expense.amount,
         currencySymbol = expense.currency.symbol,
         personalShare = personalShare,
         role = role,
         isActive = !expense.isDeleted,
+        isRefund = expense.isRefund,
     )
 }

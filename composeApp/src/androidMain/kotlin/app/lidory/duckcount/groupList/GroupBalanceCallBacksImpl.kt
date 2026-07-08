@@ -2,6 +2,7 @@ package app.lidory.duckcount.groupList
 
 import app.lidory.duckcount.calculateNetDebtsPerUser
 import app.lidory.duckcount.groupList.callBacks.GroupBalanceCallBacks
+import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import database.data.repository.ExpenseRepository
@@ -10,7 +11,6 @@ import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import database.domain.GroupMember as DBGroupMember
 
 class GroupBalanceCallBacksImpl(
     private val groupMemberRepository: GroupMemberRepository,
@@ -18,17 +18,22 @@ class GroupBalanceCallBacksImpl(
     private val expenseRepository: ExpenseRepository,
 ) : GroupBalanceCallBacks {
 
-    override suspend fun getNetDebtsPerUser(groupUuid: String, groupMembers: List<GroupMember>): Map<String, String> {
+    override suspend fun getNetDebtsPerUser(
+        groupUuid: String,
+        groupMembers: List<GroupMember>,
+        groupExpenses: List<ExpenseWithBeneficiaries>,
+    ): Map<String, String> {
         return calculateNetDebtsPerUser(
             members = groupMembers.map { groupMember ->
-                DBGroupMember(
-                    userUuid = groupMember.userUuid,
-                    groupUuid = groupMember.groupUuid,
-                    isAdmin = groupMember.isAdmin,
-                )
+                groupMember.toDb()
             },
-            expenses = expenseRepository.getAllFromGroupWithoutDeletedOnes(groupUuid = groupUuid).first(),
+            expenses = groupExpenses.map { it.toDb() },
         )
+    }
+
+    override fun getAllGroupExpense(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> {
+        return expenseRepository.getAllFromGroupWithoutDeletedOnes(groupUuid = groupUuid)
+            .map { expenses -> expenses.map { it.toGroupListModel() } }
     }
 
     override fun getAllMembers(groupUuid: String): Flow<List<GroupMemberWithFullName>> {

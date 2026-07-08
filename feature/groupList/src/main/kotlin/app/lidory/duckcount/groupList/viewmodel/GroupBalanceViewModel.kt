@@ -3,31 +3,35 @@ package app.lidory.duckcount.groupList.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.groupList.callBacks.GroupBalanceCallBacks
+import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.groupList.model.GroupMemberWithBalance
-import kotlinx.coroutines.flow.MutableStateFlow
+import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 
 class GroupBalanceViewModel(
     private val groupUuid: String,
     groupBalanceCallBacks: GroupBalanceCallBacks,
 ) : ViewModel() {
-    private val _state = MutableStateFlow(MembersWithBalanceState())
+    val groupMembers: Flow<List<GroupMemberWithFullName>> = groupBalanceCallBacks.getAllMembers(groupUuid)
 
-    val state: StateFlow<MembersWithBalanceState> = _state.onStart {
-        groupBalanceCallBacks.getAllMembers(groupUuid).onEach { groupMembersWithFullName ->
+    val groupExpenses: Flow<List<ExpenseWithBeneficiaries>> = groupBalanceCallBacks.getAllGroupExpense(groupUuid)
+
+    val state: StateFlow<MembersWithBalanceState> =
+        combine(groupMembers, groupExpenses) { groupMembersWithFullName, groupExpenses ->
             val debts =
                 groupBalanceCallBacks.getNetDebtsPerUser(
                     groupUuid = groupUuid,
-                    groupMembersWithFullName.map { it.member },
+                    groupMembers = groupMembersWithFullName.map { it.member },
+                    groupExpenses = groupExpenses,
                 )
-            _state.update {
-                it.copy(
+            if (debts.isEmpty())
+                MembersWithBalanceState.Loading
+            else
+                MembersWithBalanceState.Content(
                     members = groupMembersWithFullName.map { memberWithFullName ->
                         GroupMemberWithBalance(
                             member = memberWithFullName,
@@ -36,15 +40,17 @@ class GroupBalanceViewModel(
                         )
                     },
                 )
-            }
-        }.launchIn(viewModelScope)
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000L),
-        initialValue = MembersWithBalanceState(),
-    )
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000L),
+            initialValue = MembersWithBalanceState.Loading,
+        )
 }
 
-data class MembersWithBalanceState(
-    val members: List<GroupMemberWithBalance> = emptyList(),
-)
+sealed interface MembersWithBalanceState {
+    data object Loading : MembersWithBalanceState
+    data object NotFound : MembersWithBalanceState
+    data class Content(
+        val members: List<GroupMemberWithBalance> = emptyList(),
+    ) : MembersWithBalanceState
+}

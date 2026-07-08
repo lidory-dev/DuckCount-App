@@ -2,10 +2,10 @@ package app.lidory.duckcount.groupList.di
 
 import app.lidory.duckcount.groupList.viewmodel.CreateGroupViewModel
 import app.lidory.duckcount.groupList.viewmodel.GroupBalanceViewModel
-import app.lidory.duckcount.groupList.viewmodel.GroupDebtViewModel
 import app.lidory.duckcount.groupList.viewmodel.GroupDetailViewModel
 import app.lidory.duckcount.groupList.viewmodel.GroupListViewModel
 import app.lidory.duckcount.groupList.viewmodel.GroupSettingsViewModel
+import app.lidory.duckcount.groupList.viewmodel.GroupTransactionsViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
@@ -22,5 +22,5 @@ val groupListModule = module {
     viewModelOf(::GroupDetailViewModel)
     viewModelOf(::GroupBalanceViewModel)
     viewModelOf(::GroupSettingsViewModel)
-    viewModelOf(::GroupDebtViewModel)
+    viewModelOf(::GroupTransactionsViewModel)
 }

@@ -29,11 +29,13 @@ fun ExpenseCard(
     modifier: Modifier = Modifier,
     title: String,
     creditorName: String,
+    debtorName: String = "",
     totalAmount: String,
     currencySymbol: String,
     personalShare: String?,
     role: ExpenseStatus,
     isActive: Boolean,
+    isRefund: Boolean,
 ) {
     ElevatedCard(
         modifier = modifier
@@ -67,7 +69,11 @@ fun ExpenseCard(
                 )
 
                 Text(
-                    text = stringResource(id = R.string.paid_by_creditor, creditorName),
+                    text = if (isRefund) stringResource(
+                        id = R.string.debtor_refund_creditor,
+                        creditorName,
+                        debtorName,
+                    ) else stringResource(id = R.string.paid_by_creditor, creditorName),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.labelMedium.copy(
@@ -88,7 +94,7 @@ fun ExpenseCard(
                 totalAmount = totalAmount,
                 role = role,
                 isActive = isActive,
-                personalShare = personalShare,
+                personalShare = if (isRefund) null else personalShare,
                 currencySymbol = currencySymbol,
             )
         }
