@@ -4,6 +4,10 @@ agp = "8.13.2"
 android-compileSdk = "36"
 android-minSdk = "24"
 android-targetSdk = "36"
+# NOTE: The following versions are held back to stay compatible with AGP 8.13.2
+# (see the AGP pin above). Newer releases (androidx-core 1.19, lifecycle/nav3 2.11,
+# material3-adaptive 1.3.0-rc01, CMP 1.11.1, material 1.14) hard-require AGP 9.1.0 /
+# compileSdk 37 and break the build until gobley#153 lets us move off AGP 8.
 androidx-activity = "1.12.4"
 androidx-appcompat = "1.7.1"
 androidx-core = "1.17.0"
@@ -25,22 +29,25 @@ kotlinxSerializationCore = "1.10.0"
 material3AdaptiveNav3 = "1.3.0-alpha08"
 
 # Datetime
-kotlinxDatetime = "0.7.1"
+kotlinxDatetime = "0.8.0"
 
 # Dependency injection
-koin = "4.1.1"
+koin = "4.2.2"
 material = "1.13.0"
 
 # Room
 room = "2.8.4"
-sqlite = "2.6.2"
+sqlite = "2.7.0"
 ksp = "2.3.8" # Keep this version in sync with Kotlin.
 
+# Paging
+paging = "3.5.0"
+
 # KSafe
-ksafe = "1.7.1"
+ksafe = "2.1.3"
 
 # Ktor
-ktor = "3.4.2"
+ktor = "3.5.1"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -85,6 +92,11 @@ material = { group = "com.google.android.material", name = "material", version.r
 androidx-sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "sqlite" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+androidx-room-paging = { module = "androidx.room:room-paging", version.ref = "room" }
+
+# Paging
+androidx-room-paging-runtime = { module = "androidx.paging:paging-runtime", version.ref = "paging" }
+androidx-room-paging-compose = { module = "androidx.paging:paging-compose", version.ref = "paging" }
 
 # KSafe
 ksafe = { module = "eu.anifantakis:ksafe", version.ref = "ksafe" }

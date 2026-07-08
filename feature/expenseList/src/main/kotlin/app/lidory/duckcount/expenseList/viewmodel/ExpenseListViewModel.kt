@@ -3,6 +3,8 @@ package app.lidory.duckcount.expenseList.viewmodel
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import app.lidory.duckcount.expenseList.callBacks.ExpenseListCallBacks
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -10,6 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import org.koin.androidx.compose.koinViewModel
@@ -23,24 +26,30 @@ class ExpenseListViewModel(
 
     private val _state = MutableStateFlow(ExpenseListScreenState())
 
+    /**
+     * Paged, server-synced one-time expenses.
+     * TODO: Group expenses still come through [state] as a plain list.
+     */
+    val oneTimeExpenses: Flow<PagingData<ExpenseWithBeneficiaries>>? =
+        if (groupUuid.isNullOrBlank()) {
+            expenseListCallBacks.getOneTimeExpensesPaged().cachedIn(viewModelScope)
+        } else {
+            null
+        }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val state = _groupUuid.flatMapLatest { uuid ->
+        val connectedUserUuid = expenseListCallBacks.getAuthenticatedUserUuid() ?: ""
         if (uuid.isNullOrBlank()) {
-            expenseListCallBacks.getAllExpensesWithoutGroup()
+            flowOf(ExpenseListScreenState(connectedUserUuid = connectedUserUuid))
         } else {
-            expenseListCallBacks.getAllExpensesFromGroup(uuid)
-        }
-            .map { expenses ->
+            expenseListCallBacks.getAllExpensesFromGroup(uuid).map { expenses ->
                 ExpenseListScreenState(
                     expenses = expenses,
-                    connectedUserUuid = expenseListCallBacks.getAuthenticatedUserUuid() ?: "",
+                    connectedUserUuid = connectedUserUuid,
                 )
             }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5000L),
-                initialValue = ExpenseListScreenState(),
-            )
+        }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000L),

@@ -1,14 +1,16 @@
 package app.lidory.duckcount.expenseList
 
+import androidx.paging.PagingData
+import androidx.paging.map as pagingMap
 import app.lidory.duckcount.expenseList.callBacks.ExpenseListCallBacks
 import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.Expense
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.User
-import database.beneficiary.BeneficiaryRepository
-import database.expense.ExpenseRepository
-import database.user.UserRepository
+import database.domain.repository.BeneficiaryRepository
+import database.domain.repository.ExpenseRepository
+import database.domain.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
@@ -18,6 +20,11 @@ class ExpenseListCallBacksImpl(
     private val userRepository: UserRepository,
     private val beneficiaryRepository: BeneficiaryRepository,
 ) : ExpenseListCallBacks {
+
+    override fun getOneTimeExpensesPaged(): Flow<PagingData<ExpenseWithBeneficiaries>> {
+        return expenseRepository.getOneTimeExpensesPaged()
+            .map { pagingData -> pagingData.pagingMap { it.toModel() } }
+    }
 
     override suspend fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries> {
         return expenseRepository.getWithBeneficiaries(uuid = uuid).filterNotNull().map { it.toModel() }

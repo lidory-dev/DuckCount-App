@@ -57,6 +57,9 @@ dependencies {
     // Datetime
     implementation(libs.kotlinx.datetime)
 
+    // Paging
+    implementation(libs.androidx.room.paging.compose)
+
     // Dependency injection
     api(libs.koin.core)
     implementation(libs.koin.android)

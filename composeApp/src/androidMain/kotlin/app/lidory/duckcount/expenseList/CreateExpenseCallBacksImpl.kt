@@ -9,9 +9,9 @@ import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.Expense
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.User
-import database.beneficiary.BeneficiaryRepository
-import database.expense.ExpenseRepository
-import database.user.UserRepository
+import database.domain.repository.BeneficiaryRepository
+import database.domain.repository.ExpenseRepository
+import database.domain.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
@@ -44,7 +44,13 @@ class CreateExpenseCallBacksImpl(
     }
 
     override suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries) {
-        expenseRepository.insertWithBeneficiaries(expenseWithBeneficiaries.toDb())
+        if (expenseWithBeneficiaries.groupUuid == null) {
+            // One-time expense: online-first write-through (server owns the uuid).
+            // TODO: surface a NetworkError to the UI (snackbar) instead of silently dropping.
+            expenseRepository.createOneTimeExpense(expenseWithBeneficiaries.toDb())
+        } else {
+            expenseRepository.insertWithBeneficiaries(expenseWithBeneficiaries.toDb())
+        }
     }
 
     override fun validateExpense(amount: String, currency: Currency, beneficiaries: List<Beneficiary>): Int? {
@@ -60,7 +66,13 @@ class CreateExpenseCallBacksImpl(
     }
 
     override suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries) {
-        expenseRepository.updateWithBeneficiaries(expenseWithBeneficiaries.toDb())
+        if (expenseWithBeneficiaries.groupUuid == null) {
+            // One-time expense: online-first write-through.
+            // TODO: surface a NetworkError to the UI (snackbar) instead of silently dropping.
+            expenseRepository.updateOneTimeExpense(expenseWithBeneficiaries.toDb())
+        } else {
+            expenseRepository.updateWithBeneficiaries(expenseWithBeneficiaries.toDb())
+        }
     }
 
     override fun getAuthenticatedUserUuid(): String? {

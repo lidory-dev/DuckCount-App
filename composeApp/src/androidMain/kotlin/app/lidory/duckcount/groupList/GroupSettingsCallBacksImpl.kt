@@ -3,8 +3,8 @@ package app.lidory.duckcount.groupList
 import app.lidory.duckcount.groupList.callBacks.GroupSettingsCallBacks
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
-import database.group.GroupRepository
-import database.user.UserRepository
+import database.domain.repository.GroupRepository
+import database.domain.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -24,7 +24,6 @@ class GroupSettingsCallBacksImpl(
                 description = groupWithMembers.description,
                 members = groupWithMembers.groupMembers.map { groupMember ->
                     GroupMember(
-                        uuid = groupMember.uuid,
                         userUuid = groupMember.userUuid,
                         groupUuid = groupMember.groupUuid,
                         isAdmin = groupMember.isAdmin,

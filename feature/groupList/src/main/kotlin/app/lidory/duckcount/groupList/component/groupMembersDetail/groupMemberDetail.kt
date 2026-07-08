@@ -32,7 +32,7 @@ fun LazyListScope.groupMemberDetail(
     }
 
     members.find { it.member.userUuid == authenticatedUserUuid }?.let { member ->
-        item(key = member.member.uuid) {
+        item(key = member.member.userUuid) {
             MemberDetailCard(
                 member = member,
                 onClick = {

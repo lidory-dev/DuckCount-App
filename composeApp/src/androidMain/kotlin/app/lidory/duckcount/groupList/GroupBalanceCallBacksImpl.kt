@@ -4,13 +4,13 @@ import app.lidory.duckcount.calculateNetDebtsPerUser
 import app.lidory.duckcount.groupList.callBacks.GroupBalanceCallBacks
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
-import database.expense.ExpenseRepository
-import database.groupMember.GroupMemberRepository
-import database.user.UserRepository
+import database.domain.repository.ExpenseRepository
+import database.domain.repository.GroupMemberRepository
+import database.domain.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import database.groupMember.GroupMember as DBGroupMember
+import database.domain.GroupMember as DBGroupMember
 
 class GroupBalanceCallBacksImpl(
     private val groupMemberRepository: GroupMemberRepository,
@@ -22,7 +22,6 @@ class GroupBalanceCallBacksImpl(
         return calculateNetDebtsPerUser(
             members = groupMembers.map { groupMember ->
                 DBGroupMember(
-                    uuid = groupMember.uuid,
                     userUuid = groupMember.userUuid,
                     groupUuid = groupMember.groupUuid,
                     isAdmin = groupMember.isAdmin,
@@ -37,7 +36,6 @@ class GroupBalanceCallBacksImpl(
             groupMembers.map { groupMember ->
                 GroupMemberWithFullName(
                     member = GroupMember(
-                        uuid = groupMember.uuid,
                         userUuid = groupMember.userUuid,
                         groupUuid = groupMember.groupUuid,
                         isAdmin = groupMember.isAdmin,

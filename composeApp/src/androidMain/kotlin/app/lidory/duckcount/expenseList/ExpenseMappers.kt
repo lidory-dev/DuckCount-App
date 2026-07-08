@@ -8,11 +8,11 @@ import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.User
 import app.lidory.duckcount.expenseList.R as expenseListR
 import app.lidory.duckcount.validateExpense as validateExpenseShared
-import database.beneficiary.Beneficiary as BeneficiaryDB
-import database.currency.Currency as CurrencyDB
-import database.expense.Expense as ExpenseDB
-import database.expense.ExpenseWithBeneficiaries as ExpenseWithBeneficiariesDB
-import database.user.User as UserDB
+import database.domain.Beneficiary as BeneficiaryDB
+import database.domain.Currency as CurrencyDB
+import database.domain.Expense as ExpenseDB
+import database.domain.ExpenseWithBeneficiaries as ExpenseWithBeneficiariesDB
+import database.domain.User as UserDB
 import uniffi.lib_duckcount.Currency as CurrencyUniffi
 
 // Mapping between the :shared database models (database.*) and the feature-module

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "f3693cc539a3700e5c7637c72a9ac1a9",
+    "identityHash": "3346f7da607e9b3f1490054aec002193",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -149,14 +149,8 @@
       },
       {
         "tableName": "BeneficiaryEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `expenseUuid` TEXT NOT NULL, `userUuid` TEXT NOT NULL, `share` TEXT NOT NULL, `isShareFixed` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `userUuid` TEXT NOT NULL, `share` TEXT NOT NULL, `isShareFixed` INTEGER NOT NULL, PRIMARY KEY(`expenseUuid`, `userUuid`))",
         "fields": [
-          {
-            "fieldPath": "uuid",
-            "columnName": "uuid",
-            "affinity": "TEXT",
-            "notNull": true
-          },
           {
             "fieldPath": "expenseUuid",
             "columnName": "expenseUuid",
@@ -185,7 +179,8 @@
         "primaryKey": {
           "autoGenerate": false,
           "columnNames": [
-            "uuid"
+            "expenseUuid",
+            "userUuid"
           ]
         }
       },
@@ -221,14 +216,8 @@
       },
       {
         "tableName": "GroupMemberEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `userUuid` TEXT NOT NULL, `groupUuid` TEXT NOT NULL, `isAdmin` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `groupUuid` TEXT NOT NULL, `isAdmin` INTEGER NOT NULL, PRIMARY KEY(`userUuid`, `groupUuid`))",
         "fields": [
-          {
-            "fieldPath": "uuid",
-            "columnName": "uuid",
-            "affinity": "TEXT",
-            "notNull": true
-          },
           {
             "fieldPath": "userUuid",
             "columnName": "userUuid",
@@ -251,14 +240,15 @@
         "primaryKey": {
           "autoGenerate": false,
           "columnNames": [
-            "uuid"
+            "userUuid",
+            "groupUuid"
           ]
         }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f3693cc539a3700e5c7637c72a9ac1a9')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3346f7da607e9b3f1490054aec002193')"
     ]
   }
 }

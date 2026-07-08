@@ -1,7 +1,7 @@
 package app.lidory.duckcount
 
-import database.expense.ExpenseWithBeneficiaries
-import database.groupMember.GroupMember
+import database.domain.ExpenseWithBeneficiaries
+import database.domain.GroupMember
 import uniffi.lib_duckcount.Beneficiary as uniffiBeneficiary
 import uniffi.lib_duckcount.Currency as uniffiCurrency
 import uniffi.lib_duckcount.Expense as uniffiExpense

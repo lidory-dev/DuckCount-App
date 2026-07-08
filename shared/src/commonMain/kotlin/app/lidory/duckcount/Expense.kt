@@ -8,8 +8,8 @@ import uniffi.lib_duckcount.validateExpense
 
 fun validateExpense(
     amount: String,
-    currency: database.currency.Currency,
-    beneficiaries: List<database.beneficiary.Beneficiary>,
+    currency: database.domain.Currency,
+    beneficiaries: List<database.domain.Beneficiary>,
 ): ExpenseError? {
     try {
         validateExpense(

@@ -32,13 +32,16 @@ kotlin {
     sourceSets {
         androidMain.dependencies {
             // SQLCipher
-            implementation("net.zetetic:sqlcipher-android:4.14.0@aar")
+            implementation("net.zetetic:sqlcipher-android:4.16.0@aar")
 
             // Koin
             implementation(libs.koin.android)
 
             // Ktor engine
             implementation(libs.ktor.client.cio)
+
+            // Paging
+            implementation(libs.androidx.room.paging.runtime)
         }
         commonMain.dependencies {
             // Lib-DuckCount
@@ -46,7 +49,11 @@ kotlin {
 
             // Room
             implementation(libs.androidx.room.runtime)
+            implementation(libs.androidx.room.paging)
             implementation(libs.androidx.sqlite.bundled)
+
+            // Paging
+            implementation(libs.androidx.room.paging.compose)
 
             // Koin
             implementation(libs.koin.core)

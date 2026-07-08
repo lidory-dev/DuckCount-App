@@ -1,10 +1,10 @@
 package di
 
-import database.beneficiary.BeneficiaryRepository
+import database.domain.repository.BeneficiaryRepository
 import database.di.dbModule
 import database.di.dbPlatformModule
-import database.expense.ExpenseRepository
-import database.user.UserRepository
+import database.domain.repository.ExpenseRepository
+import database.domain.repository.UserRepository
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
 import org.koin.core.context.startKoin

@@ -102,7 +102,7 @@ abstract class Client {
 
                 Method.POST -> {
                     httpClient.post(
-                        urlString = route,
+                        urlString = routeWithPathParameters,
                     ) {
                         setBody(body)
                         contentType?.let {
@@ -113,7 +113,7 @@ abstract class Client {
 
                 Method.PUT -> {
                     httpClient.put(
-                        urlString = route,
+                        urlString = routeWithPathParameters,
                     ) {
                         setBody(body)
                         contentType?.let {
@@ -124,7 +124,7 @@ abstract class Client {
 
                 Method.DELETE -> {
                     httpClient.delete(
-                        urlString = route,
+                        urlString = routeWithPathParameters,
                     )
                 }
             }

@@ -36,7 +36,7 @@ fun GroupBalanceScreen(
 
         items(
             items = membersWithBalanceSorted,
-            key = { it.member.member.uuid },
+            key = { it.member.member.userUuid },
         ) { member ->
             BalanceGraphItem(
                 fullName = member.member.fullName,

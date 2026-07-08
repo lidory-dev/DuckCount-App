@@ -1,0 +1,22 @@
+@file:Suppress("PropertyName")
+
+package database.data.remote
+
+import kotlinx.serialization.Serializable
+
+/**
+ * Request body for `POST /expenses` (create) and `PUT /expenses/{uuid}` (update).
+ *
+ * Same shape for both. The creditor is derived server-side from the token and
+ * the `uuid` is server-generated on create, so neither is sent here.
+ */
+@Serializable
+data class OneTimeExpenseRequestBody(
+    val master_key: EncryptedFieldDto,
+    val title: EncryptedFieldDto,
+    val description: EncryptedFieldDto,
+    val amount: EncryptedFieldDto,
+    val timestamp: EncryptedFieldDto,
+    val is_refunded: EncryptedFieldDto,
+    val beneficiaries: List<BeneficiaryDto>,
+)

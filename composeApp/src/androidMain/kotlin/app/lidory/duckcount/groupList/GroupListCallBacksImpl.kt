@@ -7,13 +7,13 @@ import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.User
-import database.group.GroupRepository
-import database.user.UserRepository
+import database.domain.repository.GroupRepository
+import database.domain.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import database.group.Group as DBGroup
-import database.group.GroupWithMembers as DBGroupWithMembers
-import database.groupMember.GroupMember as DBGroupMember
+import database.domain.Group as DBGroup
+import database.domain.GroupMember as DBGroupMember
+import database.domain.GroupWithMembers as DBGroupWithMembers
 
 class GroupListCallBacksImpl(
     val groupRepository: GroupRepository,
@@ -56,7 +56,6 @@ class GroupListCallBacksImpl(
                 description = groupWithMembers.description,
                 members = groupWithMembers.groupMembers.map { groupMember ->
                     GroupMember(
-                        uuid = groupMember.uuid,
                         userUuid = groupMember.userUuid,
                         groupUuid = groupMember.groupUuid,
                         isAdmin = groupMember.isAdmin,
@@ -108,7 +107,6 @@ class GroupListCallBacksImpl(
                 description = newGroup.description,
                 groupMembers = members.map { member ->
                     DBGroupMember(
-                        uuid = member.uuid,
                         userUuid = member.userUuid,
                         groupUuid = newGroup.uuid,
                         isAdmin = member.isAdmin,
@@ -130,7 +128,6 @@ class GroupListCallBacksImpl(
                 description = groupWithMembers.description,
                 groupMembers = groupWithMembers.members.map { member ->
                     DBGroupMember(
-                        uuid = member.uuid,
                         userUuid = member.userUuid,
                         groupUuid = groupWithMembers.uuid,
                         isAdmin = member.isAdmin,

@@ -164,7 +164,7 @@ class CreateGroupViewModel(
     fun removeMember(member: GroupMember) {
         _state.update {
             it.copy(
-                members = it.members.filterNot { memberWithFullName -> memberWithFullName.member.uuid == member.uuid },
+                members = it.members.filterNot { memberWithFullName -> memberWithFullName.member.userUuid == member.userUuid },
             )
         }
         _selectedUuids.update { selected ->

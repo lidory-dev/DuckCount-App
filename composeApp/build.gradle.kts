@@ -86,6 +86,9 @@ android {
 dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
+    // Paging (mapping PagingData between :shared domain and feature models)
+    implementation(libs.androidx.room.paging.compose)
+
     implementation(project(":shared"))
     implementation(project(":lib-duckcount"))
     implementation(project(":feature:expenseList"))

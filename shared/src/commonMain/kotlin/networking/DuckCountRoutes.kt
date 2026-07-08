@@ -18,4 +18,12 @@ object DuckCountRoutes {
     object Vault {
         val VAULT_BASE_URL = "$baseUrl/vault"
     }
+
+    object Expense {
+        private val EXPENSE_BASE_URL = "$baseUrl/expenses"
+
+        val EXPENSES = EXPENSE_BASE_URL
+
+        val EXPENSE_BY_UUID = "$EXPENSE_BASE_URL/:expense_uuid"
+    }
 }
