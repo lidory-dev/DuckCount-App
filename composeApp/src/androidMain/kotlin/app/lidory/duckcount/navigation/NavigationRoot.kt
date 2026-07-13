@@ -92,7 +92,7 @@ fun NavigationRoot(
                                 },
                                 navigateToNewContact = {
                                     backStack.add(
-                                        NewContactScreenKey(),
+                                        NewContactScreenKey,
                                     )
                                 },
                                 navigateToCreateGroupScreen = {
