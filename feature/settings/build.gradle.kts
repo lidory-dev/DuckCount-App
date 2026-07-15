@@ -8,6 +8,9 @@ plugins {
     alias(libs.plugins.composeCompiler)
 
     alias(libs.plugins.jetbrains.kotlin.serialization)
+
+    // About libraries
+    alias(libs.plugins.aboutLibraries)
 }
 
 kotlin {
@@ -68,4 +71,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(libs.androidx.material3.adaptive.navigation3)
     implementation(libs.kotlinx.serialization.core)
+
+    implementation(libs.aboutlibraries.core)
+    implementation(libs.aboutlibraries.compose.core)
+    implementation(libs.aboutlibraries.compose.m3)
 }

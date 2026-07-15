@@ -2,8 +2,6 @@ package app.lidory.duckcount.settings
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -11,12 +9,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import app.lidory.duckcount.android.ui.constant.Padding
-import app.lidory.duckcount.settings.viewmodel.LicencesViewModel
-import org.koin.androidx.compose.koinViewModel
+import com.mikepenz.aboutlibraries.ui.compose.android.produceLibraries
+import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
 import app.lidory.duckcount.android.ui.R as androidUiR
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -25,8 +23,7 @@ fun LicencesScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
 ) {
-    val viewModel: LicencesViewModel = koinViewModel()
-    val licences = viewModel.licences
+    val libraries by produceLibraries(R.raw.aboutlibraries)
 
     Scaffold(
         modifier = modifier,
@@ -46,17 +43,11 @@ fun LicencesScreen(
             )
         },
     ) { innerPadding ->
-        LazyColumn(
+        LibrariesContainer(
+            libraries = libraries,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = Padding.medium),
-        ) {
-            items(
-                items = licences,
-            ) { licence ->
-                Text(text = licence)
-            }
-        }
+                .padding(innerPadding),
+        )
     }
 }
