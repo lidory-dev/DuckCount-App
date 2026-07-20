@@ -2,11 +2,13 @@ package app.lidory.duckcount.expenseList
 
 import app.lidory.duckcount.expenseList.callBacks.ExpenseDetailCallBacks
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
+import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import database.domain.repository.ExpenseRepository
 import database.domain.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import util.Result
 
 class ExpenseDetailCallBacksImpl(
     private val expenseRepository: ExpenseRepository,
@@ -21,14 +23,19 @@ class ExpenseDetailCallBacksImpl(
         return userRepository.getFullName(userUuid)
     }
 
-    override suspend fun deleteExpense(expenseUuid: String) {
+    override suspend fun deleteExpense(expenseUuid: String): ExpenseWriteError? {
         val expense = expenseRepository.getWithBeneficiaries(expenseUuid).first()
-        if (expense?.groupUuid == null) {
-            // One-time expense: online-first write-through (server delete, then local hard delete).
-            // TODO: surface a NetworkError to the UI instead of silently dropping.
-            expenseRepository.deleteOneTimeExpense(expenseUuid)
-        } else {
+
+        return expense?.groupUuid?.let {
+            // TODO: "Delete" on the server.
             expenseRepository.delete(expenseUuid)
+            null
+        } ?: run {
+            // One-time expense: online-first write-through (server delete, then local hard delete).
+            when (val result = expenseRepository.deleteOneTimeExpense(expenseUuid)) {
+                is Result.Success -> null
+                is Result.Error -> result.error.toExpenseWriteError()
+            }
         }
     }
 

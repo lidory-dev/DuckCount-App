@@ -8,6 +8,7 @@ import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.Expense
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
+import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import app.lidory.duckcount.expenseList.model.User
 import database.domain.repository.BeneficiaryRepository
 import database.domain.repository.ExpenseRepository
@@ -15,6 +16,7 @@ import database.domain.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
+import util.Result
 
 class CreateExpenseCallBacksImpl(
     private val expenseRepository: ExpenseRepository,
@@ -43,13 +45,16 @@ class CreateExpenseCallBacksImpl(
         beneficiaryRepository.insert(beneficiary.toDb())
     }
 
-    override suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries) {
-        if (expenseWithBeneficiaries.groupUuid == null) {
-            // One-time expense: online-first write-through (server owns the uuid).
-            // TODO: surface a NetworkError to the UI (snackbar) instead of silently dropping.
-            expenseRepository.createOneTimeExpense(expenseWithBeneficiaries.toDb())
-        } else {
+    override suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseWriteError? {
+        return expenseWithBeneficiaries.groupUuid?.let {
             expenseRepository.insertWithBeneficiaries(expenseWithBeneficiaries.toDb())
+            null
+        } ?: run {
+            // One-time expense: online-first write-through (server owns the uuid).
+            when (val result = expenseRepository.createOneTimeExpense(expenseWithBeneficiaries.toDb())) {
+                is Result.Success -> null
+                is Result.Error -> result.error.toExpenseWriteError()
+            }
         }
     }
 
@@ -65,13 +70,16 @@ class CreateExpenseCallBacksImpl(
         return expenseRepository.getWithBeneficiaries(expenseUuid).filterNotNull().map { it.toModel() }
     }
 
-    override suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries) {
-        if (expenseWithBeneficiaries.groupUuid == null) {
-            // One-time expense: online-first write-through.
-            // TODO: surface a NetworkError to the UI (snackbar) instead of silently dropping.
-            expenseRepository.updateOneTimeExpense(expenseWithBeneficiaries.toDb())
-        } else {
+    override suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseWriteError? {
+        return expenseWithBeneficiaries.groupUuid?.let {
             expenseRepository.updateWithBeneficiaries(expenseWithBeneficiaries.toDb())
+            null
+        } ?: run {
+            // One-time expense: online-first write-through.
+            when (val result = expenseRepository.updateOneTimeExpense(expenseWithBeneficiaries.toDb())) {
+                is Result.Success -> null
+                is Result.Error -> result.error.toExpenseWriteError()
+            }
         }
     }
 

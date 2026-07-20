@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.expenseList.callBacks.ExpenseDetailCallBacks
 import app.lidory.duckcount.expenseList.model.BeneficiaryUi
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
+import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -27,6 +28,10 @@ class ExpenseDetailViewModel(
 
     private val _navigateBack = Channel<Unit>(Channel.BUFFERED)
     val navigateBack: Flow<Unit> = _navigateBack.receiveAsFlow()
+
+    // Emitted when the delete failed (offline / server error) so the screen can surface it.
+    private val _showError = Channel<ExpenseWriteError>(Channel.BUFFERED)
+    val showError: Flow<ExpenseWriteError> = _showError.receiveAsFlow()
 
     private val expense: StateFlow<ExpenseWithBeneficiaries?> =
         expenseDetailCallBacks.getExpenseWithBeneficiaries(uuid = expenseUuid)
@@ -93,8 +98,8 @@ class ExpenseDetailViewModel(
 
     fun deleteExpense() {
         viewModelScope.launch {
-            expenseDetailCallBacks.deleteExpense(expenseUuid)
-            _navigateBack.send(Unit)
+            val error = expenseDetailCallBacks.deleteExpense(expenseUuid)
+            if (error == null) _navigateBack.send(Unit) else _showError.send(error)
         }
     }
 

@@ -22,7 +22,7 @@ fun placeholderEncryptedFieldDto() =
 
 private fun fakeBoolean(): Boolean = false
 
-private fun fakeTimestamp(): String = "2026-08-16T17:00:08.746Z"
+private fun fakeTimestamp(): String = "2026-07-21T00:11:34.161895"
 
 fun fakeTitle(): String = "Fake Title"
 

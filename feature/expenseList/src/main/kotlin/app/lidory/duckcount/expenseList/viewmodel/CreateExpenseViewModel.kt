@@ -12,6 +12,7 @@ import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.BeneficiaryUi
 import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
+import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import app.lidory.duckcount.expenseList.model.User
 import app.lidory.duckcount.expenseList.utils.formatAmountWithSubunits
 import app.lidory.duckcount.expenseList.utils.getCurrentTimestamp
@@ -19,6 +20,7 @@ import app.lidory.duckcount.expenseList.utils.roundAmountWithSubunits
 import app.lidory.duckcount.expenseList.utils.roundAmountWithoutSubunits
 import app.lidory.duckcount.expenseList.utils.toValidNumber
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,6 +32,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -46,6 +49,17 @@ class CreateExpenseViewModel(
     private val _expenseUuid = MutableStateFlow(expenseUuid)
     val maxTitleLength: Int = createExpenseCallBacks.maxTitleLength
     val maxDescriptionLength: Int = createExpenseCallBacks.maxDescriptionLength
+
+    // Emitted once the create/update write has actually completed. The screen must
+    // wait for this before navigating: navigating away clears this ViewModel and
+    // cancels viewModelScope, which would otherwise abort the in-flight write.
+    private val _navigateBack = Channel<Unit>(Channel.BUFFERED)
+    val navigateBack: Flow<Unit> = _navigateBack.receiveAsFlow()
+
+    // Emitted with the reason when the write failed, so the screen can surface a
+    // message that matches the actual cause instead of silently dropping the expense.
+    private val _showError = Channel<ExpenseWriteError>(Channel.BUFFERED)
+    val showError: Flow<ExpenseWriteError> = _showError.receiveAsFlow()
 
     var isCreditorDialogShown by mutableStateOf(false)
 
@@ -234,7 +248,7 @@ class CreateExpenseViewModel(
     @OptIn(ExperimentalUuidApi::class)
     fun createExpense() = viewModelScope.launch {
         val expenseUuid = Uuid.random().toString()
-        createExpenseCallBacks.insertWithBeneficiaries(
+        val error = createExpenseCallBacks.insertWithBeneficiaries(
             expenseWithBeneficiaries = ExpenseWithBeneficiaries(
                 // TODO: get uuid from server
                 uuid = expenseUuid,
@@ -252,10 +266,12 @@ class CreateExpenseViewModel(
                 isDeleted = _state.value.isDeleted,
             ),
         )
+
+        if (error == null) _navigateBack.send(Unit) else _showError.send(error)
     }
 
     fun updateExpense() = viewModelScope.launch {
-        expenseUuid?.let {
+        val error = expenseUuid?.let {
             createExpenseCallBacks.updateExpenseWithBeneficiaries(
                 expenseWithBeneficiaries = ExpenseWithBeneficiaries(
                     uuid = expenseUuid,
@@ -273,7 +289,8 @@ class CreateExpenseViewModel(
                     isDeleted = _state.value.isDeleted,
                 ),
             )
-        }
+        } ?: ExpenseWriteError.UNKNOWN
+        if (error == null) _navigateBack.send(Unit) else _showError.send(error)
     }
 
     fun getCreditorName() {

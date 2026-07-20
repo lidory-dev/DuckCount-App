@@ -17,11 +17,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -35,6 +40,8 @@ import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.component.ExpenseDetailActionDropDownMenu
 import app.lidory.duckcount.expenseList.component.UserAmountCard
 import app.lidory.duckcount.expenseList.extensions.formatDate
+import app.lidory.duckcount.expenseList.model.ExpenseWriteError
+import app.lidory.duckcount.expenseList.model.messageRes
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseDetailViewModel
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseScreenState
 import kotlinx.datetime.LocalDateTime
@@ -51,12 +58,28 @@ fun ExpenseDetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    var pendingError by remember { mutableStateOf<ExpenseWriteError?>(null) }
+
     LaunchedEffect(Unit) {
         viewModel.navigateBack.collect { onBack() }
     }
 
+    // Surface delete failures with a message that matches the actual cause.
+    LaunchedEffect(Unit) {
+        viewModel.showError.collect { pendingError = it }
+    }
+    pendingError?.let { error ->
+        val message = stringResource(error.messageRes())
+        LaunchedEffect(error) {
+            snackbarHostState.showSnackbar(message)
+            pendingError = null
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             val content = state as? ExpenseScreenState.Content
             TopAppBar(

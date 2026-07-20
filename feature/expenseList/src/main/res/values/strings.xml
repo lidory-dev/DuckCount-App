@@ -31,6 +31,11 @@
     <string name="label_description">Description</string>
     <string name="description_too_long">Description too long (%1$d/%2$d)</string>
     <string name="add_expense">Add expense</string>
+    <string name="write_error_no_internet">No connection. Check your network and try again.</string>
+    <string name="write_error_server_unreachable">Server is unreachable. Please try again later.</string>
+    <string name="write_error_invalid_data">This expense is invalid.</string>
+    <string name="write_error_unauthorized">Your session expired. Please log in again.</string>
+    <string name="write_error_unknown">Something went wrong. Please try again.</string>
 
     <!-- ErrorCard -->
     <string name="no_beneficiaries">An expense must have at least one beneficiary</string>

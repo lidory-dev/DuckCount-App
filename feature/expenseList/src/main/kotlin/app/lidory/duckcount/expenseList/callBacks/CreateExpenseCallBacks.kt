@@ -4,6 +4,7 @@ import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.Expense
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
+import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import app.lidory.duckcount.expenseList.model.User
 import kotlinx.coroutines.flow.Flow
 
@@ -23,13 +24,15 @@ interface CreateExpenseCallBacks {
 
     suspend fun insertBeneficiary(beneficiary: Beneficiary)
 
-    suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries)
+    /** Returns null when the write succeeds (server + local), or the reason it failed. */
+    suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseWriteError?
 
     fun getUserFullName(userUuid: String): Flow<String?>
 
     fun getExpenseWithBeneficiaries(expenseUuid: String): Flow<ExpenseWithBeneficiaries>
 
-    suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries)
+    /** Returns null when the write succeeds (server + local), or the reason it failed. */
+    suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseWriteError?
 
     fun getAuthenticatedUserUuid(): String?
 

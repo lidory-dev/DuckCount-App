@@ -21,6 +21,7 @@ import kotlinx.serialization.json.Json
 class DuckCountClient : Client() {
     override val httpClient = HttpClient {
         install(Logging) {
+            logger = httpLogger
             level = LogLevel.ALL
         }
         install(ContentNegotiation) {

@@ -5,7 +5,9 @@ import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.Expense
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
+import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import app.lidory.duckcount.expenseList.model.User
+import util.NetworkError
 import app.lidory.duckcount.expenseList.R as expenseListR
 import app.lidory.duckcount.validateExpense as validateExpenseShared
 import database.domain.Beneficiary as BeneficiaryDB
@@ -14,6 +16,30 @@ import database.domain.Expense as ExpenseDB
 import database.domain.ExpenseWithBeneficiaries as ExpenseWithBeneficiariesDB
 import database.domain.User as UserDB
 import uniffi.lib_duckcount.Currency as CurrencyUniffi
+
+/** Maps the low-level networking error to the reason the UI surfaces for a failed write. */
+fun NetworkError.toExpenseWriteError(): ExpenseWriteError = when (this) {
+    NetworkError.NO_INTERNET,
+    NetworkError.REQUEST_TIMEOUT,
+        -> ExpenseWriteError.NO_INTERNET
+
+    NetworkError.UNREACHABLE -> ExpenseWriteError.SERVER_UNREACHABLE
+
+    NetworkError.BAD_REQUEST,
+    NetworkError.UNPROCESSABLE_ENTITY,
+        -> ExpenseWriteError.INVALID_DATA
+
+    NetworkError.UNAUTHORIZED -> ExpenseWriteError.UNAUTHORIZED
+
+    NetworkError.NOT_FOUND,
+    NetworkError.CONFLICT,
+    NetworkError.PAYLOAD_TOO_LARGE,
+    NetworkError.TOO_MANY_REQUESTS,
+    NetworkError.SERVER_ERROR,
+    NetworkError.SERIALIZATION,
+    NetworkError.UNKNOWN,
+        -> ExpenseWriteError.UNKNOWN
+}
 
 // Mapping between the :shared database models (database.*) and the feature-module
 // models (expenseList.model.*). composeApp is the only layer that sees both, so the
