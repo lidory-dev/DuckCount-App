@@ -1,3 +1,4 @@
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -63,6 +64,9 @@ fun LoginScreen(
 
     var isPasswordVisible by remember { mutableStateOf(false) }
 
+    // Do not allow navigating back while actually logging in.
+    BackHandler(enabled = state.isLoading) {}
+
     CompositionLocalProvider(
         LocalAutofillHighlightBrush provides SolidColor(Color.Transparent),
     ) {
@@ -80,6 +84,7 @@ fun LoginScreen(
                     title = {},
                     navigationIcon = {
                         IconButton(
+                            enabled = !state.isLoading,
                             onClick = navigateBack,
                         ) {
                             Icon(
