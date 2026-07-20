@@ -12,6 +12,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import app.lidory.duckcount.android.ui.constant.Padding
 
 @Composable
@@ -36,7 +37,10 @@ fun UserSelectableCard(
             Text(
                 text = fullName,
                 modifier = Modifier
-                    .padding(TextFieldDefaults.contentPaddingWithLabel()),
+                    .padding(TextFieldDefaults.contentPaddingWithLabel())
+                    .weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
 
             DuckCountCheckbox(
