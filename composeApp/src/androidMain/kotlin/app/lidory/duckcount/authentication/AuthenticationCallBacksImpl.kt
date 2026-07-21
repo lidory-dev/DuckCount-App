@@ -16,8 +16,8 @@ import authenticationUtils.setAuthenticatedUserUuid
 import authenticationUtils.setHasPasswordBeenChecked
 import authenticationUtils.setPendingRegistration
 import authenticationUtils.setTokens
+import database.data.repository.UserRepository
 import database.domain.User
-import database.domain.repository.UserRepository
 import networking.DuckCountClient
 import networking.DuckCountRoutes
 import networking.HaveIBeenPwnedClient

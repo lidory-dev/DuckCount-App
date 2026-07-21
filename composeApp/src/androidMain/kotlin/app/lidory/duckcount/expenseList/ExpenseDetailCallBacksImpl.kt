@@ -3,8 +3,8 @@ package app.lidory.duckcount.expenseList
 import app.lidory.duckcount.expenseList.callBacks.ExpenseDetailCallBacks
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.ExpenseWriteError
-import database.domain.repository.ExpenseRepository
-import database.domain.repository.UserRepository
+import database.data.repository.ExpenseRepository
+import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map

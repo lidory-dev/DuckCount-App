@@ -7,8 +7,8 @@ import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.User
-import database.domain.repository.GroupRepository
-import database.domain.repository.UserRepository
+import database.data.repository.GroupRepository
+import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import database.domain.Group as DBGroup

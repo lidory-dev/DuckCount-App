@@ -1,33 +1,26 @@
 package database.di
 
 import database.AppDatabase
-import database.domain.repository.BeneficiaryRepository
-import database.domain.repository.CurrencyRepository
-import database.data.repository.BeneficiaryRepositoryImpl
-import database.data.repository.CurrencyRepositoryImpl
-import database.data.repository.ExpenseRepositoryImpl
-import database.data.repository.GroupMemberRepositoryImpl
-import database.data.repository.GroupRepositoryImpl
-import database.data.repository.UserRepositoryImpl
-import database.domain.repository.ExpenseRepository
+import database.data.repository.BeneficiaryRepository
+import database.data.repository.CurrencyRepository
+import database.data.repository.ExpenseRepository
+import database.data.repository.GroupMemberRepository
+import database.data.repository.GroupRepository
+import database.data.repository.UserRepository
 import database.getRoomDatabase
-import database.domain.repository.GroupRepository
-import database.domain.repository.GroupMemberRepository
-import database.domain.repository.UserRepository
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.singleOf
-import org.koin.dsl.bind
 import org.koin.dsl.module
 
 expect fun dbPlatformModule(): Module
 
 val dbModule = module {
-    singleOf(::UserRepositoryImpl).bind<UserRepository>()
-    singleOf(::ExpenseRepositoryImpl).bind<ExpenseRepository>()
-    singleOf(::CurrencyRepositoryImpl).bind<CurrencyRepository>()
-    singleOf(::BeneficiaryRepositoryImpl).bind<BeneficiaryRepository>()
-    singleOf(::GroupRepositoryImpl).bind<GroupRepository>()
-    singleOf(::GroupMemberRepositoryImpl).bind<GroupMemberRepository>()
+    singleOf(::UserRepository)
+    singleOf(::ExpenseRepository)
+    singleOf(::CurrencyRepository)
+    singleOf(::BeneficiaryRepository)
+    singleOf(::GroupRepository)
+    singleOf(::GroupMemberRepository)
 
     single { getRoomDatabase(get()) }
 

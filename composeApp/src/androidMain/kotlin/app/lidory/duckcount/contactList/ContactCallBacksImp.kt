@@ -1,7 +1,7 @@
 package app.lidory.duckcount.contactList
 
 import ContactCallBacks
-import database.domain.repository.UserRepository
+import database.data.repository.UserRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map

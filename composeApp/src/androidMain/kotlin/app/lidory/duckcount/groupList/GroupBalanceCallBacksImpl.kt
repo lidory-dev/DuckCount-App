@@ -4,9 +4,9 @@ import app.lidory.duckcount.calculateNetDebtsPerUser
 import app.lidory.duckcount.groupList.callBacks.GroupBalanceCallBacks
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
-import database.domain.repository.ExpenseRepository
-import database.domain.repository.GroupMemberRepository
-import database.domain.repository.UserRepository
+import database.data.repository.ExpenseRepository
+import database.data.repository.GroupMemberRepository
+import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map

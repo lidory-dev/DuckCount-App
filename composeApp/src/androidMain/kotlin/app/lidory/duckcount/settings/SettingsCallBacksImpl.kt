@@ -8,7 +8,7 @@ import authenticationUtils.clearAuthenticatedUserUsername
 import authenticationUtils.clearAuthenticatedUserUuid
 import authenticationUtils.clearTokens
 import authenticationUtils.getAuthenticatedUserUsername
-import database.domain.repository.UserRepository
+import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 
 class SettingsCallBacksImpl(

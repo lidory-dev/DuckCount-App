@@ -1,19 +1,19 @@
 package app.lidory.duckcount.expenseList
 
 import androidx.paging.PagingData
-import androidx.paging.map as pagingMap
 import app.lidory.duckcount.expenseList.callBacks.ExpenseListCallBacks
 import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.Expense
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.User
-import database.domain.repository.BeneficiaryRepository
-import database.domain.repository.ExpenseRepository
-import database.domain.repository.UserRepository
+import database.data.repository.BeneficiaryRepository
+import database.data.repository.ExpenseRepository
+import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
+import androidx.paging.map as pagingMap
 
 class ExpenseListCallBacksImpl(
     private val expenseRepository: ExpenseRepository,

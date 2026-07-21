@@ -10,9 +10,9 @@ import app.lidory.duckcount.expenseList.model.Expense
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import app.lidory.duckcount.expenseList.model.User
-import database.domain.repository.BeneficiaryRepository
-import database.domain.repository.ExpenseRepository
-import database.domain.repository.UserRepository
+import database.data.repository.BeneficiaryRepository
+import database.data.repository.ExpenseRepository
+import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
