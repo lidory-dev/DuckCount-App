@@ -288,30 +288,39 @@ class CreateExpenseViewModel(
     fun updateExpense() = viewModelScope.launch {
         if (_isSaving.value) return@launch
 
+        // Editing an existing expense always has a uuid; guard the impossible null case.
+        val expenseUuid = expenseUuid
+        if (expenseUuid == null) {
+            _showError.send(ExpenseWriteError.UNKNOWN)
+            return@launch
+        }
+
         _isSaving.value = true
 
         try {
-            val error = expenseUuid?.let {
-                createExpenseCallBacks.updateExpenseWithBeneficiaries(
-                    expenseWithBeneficiaries = ExpenseWithBeneficiaries(
-                        uuid = expenseUuid,
-                        timestamp = getCurrentTimestamp(),
-                        title = _state.value.title,
-                        description = _state.value.description,
-                        amount = _state.value.amount,
-                        creditorUuid = _state.value.creditorUuid,
-                        isRefund = _state.value.isRefund,
-                        currency = _state.value.currency,
-                        groupUuid = groupUuid,
-                        beneficiaries = _state.value.beneficiaries.map {
-                            it.copy(expenseUuid = expenseUuid)
-                        },
-                        isDeleted = _state.value.isDeleted,
-                    ),
-                )
-            } ?: ExpenseWriteError.UNKNOWN
+            val error = createExpenseCallBacks.updateExpenseWithBeneficiaries(
+                expenseWithBeneficiaries = ExpenseWithBeneficiaries(
+                    uuid = expenseUuid,
+                    timestamp = getCurrentTimestamp(),
+                    title = _state.value.title,
+                    description = _state.value.description,
+                    amount = _state.value.amount,
+                    creditorUuid = _state.value.creditorUuid,
+                    isRefund = _state.value.isRefund,
+                    currency = _state.value.currency,
+                    groupUuid = groupUuid,
+                    beneficiaries = _state.value.beneficiaries.map {
+                        it.copy(expenseUuid = expenseUuid)
+                    },
+                    isDeleted = _state.value.isDeleted,
+                ),
+            )
 
-            if (error == null) _navigateBack.send(Unit) else _showError.send(error)
+            error?.let {
+                _showError.send(error)
+            } ?: run {
+                _navigateBack.send(Unit)
+            }
         } finally {
             _isSaving.value = false
         }

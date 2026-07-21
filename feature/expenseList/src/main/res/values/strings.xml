@@ -34,6 +34,7 @@
     <string name="write_error_no_internet">No connection. Check your network and try again.</string>
     <string name="write_error_server_unreachable">Server is unreachable. Please try again later.</string>
     <string name="write_error_invalid_data">This expense is invalid.</string>
+    <string name="write_error_conflict">The maximum number of edits has been reached.</string>
     <string name="write_error_unauthorized">Your session expired. Please log in again.</string>
     <string name="write_error_unknown">Something went wrong. Please try again.</string>
 

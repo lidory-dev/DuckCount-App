@@ -29,10 +29,11 @@ fun NetworkError.toExpenseWriteError(): ExpenseWriteError = when (this) {
     NetworkError.UNPROCESSABLE_ENTITY,
         -> ExpenseWriteError.INVALID_DATA
 
+    NetworkError.CONFLICT -> ExpenseWriteError.CONFLICT
+
     NetworkError.UNAUTHORIZED -> ExpenseWriteError.UNAUTHORIZED
 
     NetworkError.NOT_FOUND,
-    NetworkError.CONFLICT,
     NetworkError.PAYLOAD_TOO_LARGE,
     NetworkError.TOO_MANY_REQUESTS,
     NetworkError.SERVER_ERROR,

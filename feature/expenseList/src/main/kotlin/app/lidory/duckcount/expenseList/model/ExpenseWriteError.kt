@@ -17,6 +17,9 @@ enum class ExpenseWriteError {
     /** The server rejected the request contents (e.g. 400/422 invalid beneficiaries). */
     INVALID_DATA,
 
+    /** The maximum number of edits has been reached. */
+    CONFLICT,
+
     /** The session is no longer valid (401). */
     UNAUTHORIZED,
 
@@ -29,6 +32,7 @@ fun ExpenseWriteError.messageRes(): Int = when (this) {
     ExpenseWriteError.NO_INTERNET -> R.string.write_error_no_internet
     ExpenseWriteError.SERVER_UNREACHABLE -> R.string.write_error_server_unreachable
     ExpenseWriteError.INVALID_DATA -> R.string.write_error_invalid_data
+    ExpenseWriteError.CONFLICT -> R.string.write_error_conflict
     ExpenseWriteError.UNAUTHORIZED -> R.string.write_error_unauthorized
     ExpenseWriteError.UNKNOWN -> R.string.write_error_unknown
 }
