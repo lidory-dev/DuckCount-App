@@ -80,17 +80,28 @@ fun DuckCountTextField(
         animationSpec = tween(200),
     )
 
+    val defaultColors = TextFieldDefaults.colors()
+
+    val containerColor by animateColorAsState(
+        targetValue = if (enabled) defaultColors.unfocusedContainerColor
+        else defaultColors.disabledContainerColor,
+        animationSpec = tween(200),
+    )
+
+    val resolvedTextStyle = textStyle.merge(
+        TextStyle(
+            color = when {
+                !enabled -> defaultColors.disabledTextColor
+                isInError -> defaultColors.errorTextColor
+                else -> textStyle.color
+            },
+        ),
+    )
+
     BasicTextField(
         modifier = modifier
-            .border(
-                width = borderWidth,
-                color = borderColor,
-                shape = RoundedCornerShape(Padding.large),
-            )
-            .background(
-                color = TextFieldDefaults.colors().unfocusedContainerColor,
-                shape = RoundedCornerShape(Padding.large),
-            ),
+            .border(width = borderWidth, color = borderColor, shape = RoundedCornerShape(Padding.large))
+            .background(color = containerColor, shape = RoundedCornerShape(Padding.large)),
         value = value,
         enabled = enabled,
         onValueChange = onValueChange,
@@ -102,13 +113,13 @@ fun DuckCountTextField(
         singleLine = singleLine,
         readOnly = readOnly,
         keyboardOptions = keyboardOptions,
-        textStyle = textStyle,
+        textStyle = resolvedTextStyle,
         keyboardActions = keyboardActions,
         cursorBrush = cursorBrush,
     ) { innerTextField ->
         TextFieldDefaults.DecorationBox(
             isError = isInError,
-            enabled = true,
+            enabled = enabled,
             value = value,
             placeholder = placeholder,
             visualTransformation = visualTransformation,

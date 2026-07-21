@@ -30,6 +30,7 @@ fun AmountTextField(
     amountValue: String,
     currencyValue: String,
     currencies: List<Currency>,
+    enabled: Boolean,
     onAmountValueChange: (String) -> Unit,
     onCurrencyValueChange: (String, String, Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -57,6 +58,7 @@ fun AmountTextField(
                 },
             innerModifier = Modifier
                 .fillMaxWidth(.75f),
+            enabled = enabled,
             onValueChange = onAmountValueChange,
             keyboardOptions = KeyboardOptions.Default.copy(
                 keyboardType = KeyboardType.Number,
@@ -71,6 +73,7 @@ fun AmountTextField(
         CurrencyDropDownMenu(
             currency = currencyValue,
             currencies = currencies,
+            enabled = enabled,
             onValueChange = onCurrencyValueChange,
             focusManager = focusManager,
             modifier = Modifier

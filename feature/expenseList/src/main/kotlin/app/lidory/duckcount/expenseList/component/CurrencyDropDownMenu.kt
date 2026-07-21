@@ -27,6 +27,7 @@ import kotlin.uuid.ExperimentalUuidApi
 fun CurrencyDropDownMenu(
     currency: String,
     currencies: List<Currency>,
+    enabled: Boolean,
     onValueChange: (String, String, Boolean) -> Unit,
     modifier: Modifier = Modifier,
     focusManager: FocusManager,
@@ -40,12 +41,13 @@ fun CurrencyDropDownMenu(
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = {
-                expanded = !expanded
+                if (enabled) expanded = !expanded
             },
         ) {
             DuckCountTextField(
                 value = currency,
                 onValueChange = { },
+                enabled = enabled,
                 readOnly = true,
                 trailingIcon = {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
@@ -75,6 +77,7 @@ fun CurrencyDropDownMenu(
                 currencies.forEach { currency ->
                     DropdownMenuItem(
                         text = { Text(currency.name, color = MaterialTheme.colorScheme.onSurface) },
+                        enabled = enabled,
                         onClick = {
                             onValueChange(currency.name, currency.symbol, currency.hasSubunits)
                             expanded = false

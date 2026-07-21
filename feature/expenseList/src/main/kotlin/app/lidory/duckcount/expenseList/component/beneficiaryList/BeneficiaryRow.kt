@@ -25,11 +25,12 @@ import app.lidory.duckcount.expenseList.model.BeneficiaryUi
 
 @Composable
 fun BeneficiaryRow(
+    enabled: Boolean,
     onBeneficiaryAmountChange: (String, String) -> Unit,
     beneficiary: BeneficiaryUi,
     currencySymbol: String,
-    focusManager: FocusManager,
     removeFixedShare: () -> Unit,
+    focusManager: FocusManager,
 ) {
     Row(
         modifier = Modifier
@@ -71,6 +72,7 @@ fun BeneficiaryRow(
         ) {
             DuckCountTextField(
                 value = beneficiary.share,
+                enabled = enabled,
                 onValueChange = {
                     onBeneficiaryAmountChange(
                         beneficiary.userUuid, it,

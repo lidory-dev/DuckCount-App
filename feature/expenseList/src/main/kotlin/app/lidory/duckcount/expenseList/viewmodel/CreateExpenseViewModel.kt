@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -60,6 +61,11 @@ class CreateExpenseViewModel(
     // message that matches the actual cause instead of silently dropping the expense.
     private val _showError = Channel<ExpenseWriteError>(Channel.BUFFERED)
     val showError: Flow<ExpenseWriteError> = _showError.receiveAsFlow()
+
+    // True while a create/update write is in flight, so the confirm button can show
+    // an in-place spinner and stay disabled until the write completes.
+    private val _isSaving = MutableStateFlow(false)
+    val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 
     var isCreditorDialogShown by mutableStateOf(false)
 
@@ -247,33 +253,16 @@ class CreateExpenseViewModel(
 
     @OptIn(ExperimentalUuidApi::class)
     fun createExpense() = viewModelScope.launch {
-        val expenseUuid = Uuid.random().toString()
-        val error = createExpenseCallBacks.insertWithBeneficiaries(
-            expenseWithBeneficiaries = ExpenseWithBeneficiaries(
-                // TODO: get uuid from server
-                uuid = expenseUuid,
-                timestamp = getCurrentTimestamp(),
-                title = _state.value.title,
-                description = _state.value.description,
-                amount = _state.value.amount,
-                creditorUuid = _state.value.creditorUuid,
-                isRefund = _state.value.isRefund,
-                currency = _state.value.currency,
-                groupUuid = groupUuid,
-                beneficiaries = _state.value.beneficiaries.map {
-                    it.copy(expenseUuid = expenseUuid)
-                },
-                isDeleted = _state.value.isDeleted,
-            ),
-        )
+        if (_isSaving.value) return@launch
 
-        if (error == null) _navigateBack.send(Unit) else _showError.send(error)
-    }
+        _isSaving.value = true
 
-    fun updateExpense() = viewModelScope.launch {
-        val error = expenseUuid?.let {
-            createExpenseCallBacks.updateExpenseWithBeneficiaries(
+        try {
+            val expenseUuid = Uuid.random().toString()
+
+            val error = createExpenseCallBacks.insertWithBeneficiaries(
                 expenseWithBeneficiaries = ExpenseWithBeneficiaries(
+                    // TODO: get uuid from server
                     uuid = expenseUuid,
                     timestamp = getCurrentTimestamp(),
                     title = _state.value.title,
@@ -289,8 +278,43 @@ class CreateExpenseViewModel(
                     isDeleted = _state.value.isDeleted,
                 ),
             )
-        } ?: ExpenseWriteError.UNKNOWN
-        if (error == null) _navigateBack.send(Unit) else _showError.send(error)
+
+            if (error == null) _navigateBack.send(Unit) else _showError.send(error)
+        } finally {
+            _isSaving.value = false
+        }
+    }
+
+    fun updateExpense() = viewModelScope.launch {
+        if (_isSaving.value) return@launch
+
+        _isSaving.value = true
+
+        try {
+            val error = expenseUuid?.let {
+                createExpenseCallBacks.updateExpenseWithBeneficiaries(
+                    expenseWithBeneficiaries = ExpenseWithBeneficiaries(
+                        uuid = expenseUuid,
+                        timestamp = getCurrentTimestamp(),
+                        title = _state.value.title,
+                        description = _state.value.description,
+                        amount = _state.value.amount,
+                        creditorUuid = _state.value.creditorUuid,
+                        isRefund = _state.value.isRefund,
+                        currency = _state.value.currency,
+                        groupUuid = groupUuid,
+                        beneficiaries = _state.value.beneficiaries.map {
+                            it.copy(expenseUuid = expenseUuid)
+                        },
+                        isDeleted = _state.value.isDeleted,
+                    ),
+                )
+            } ?: ExpenseWriteError.UNKNOWN
+
+            if (error == null) _navigateBack.send(Unit) else _showError.send(error)
+        } finally {
+            _isSaving.value = false
+        }
     }
 
     fun getCreditorName() {

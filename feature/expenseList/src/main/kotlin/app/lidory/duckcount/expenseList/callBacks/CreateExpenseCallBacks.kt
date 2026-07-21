@@ -24,14 +24,14 @@ interface CreateExpenseCallBacks {
 
     suspend fun insertBeneficiary(beneficiary: Beneficiary)
 
-    /** Returns null when the write succeeds (server + local), or the reason it failed. */
+    /** Returns null when write succeeds (server + local), or the reason it failed. */
     suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseWriteError?
 
     fun getUserFullName(userUuid: String): Flow<String?>
 
     fun getExpenseWithBeneficiaries(expenseUuid: String): Flow<ExpenseWithBeneficiaries>
 
-    /** Returns null when the write succeeds (server + local), or the reason it failed. */
+    /** Returns null when write succeeds (server + local), or the reason it failed. */
     suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseWriteError?
 
     fun getAuthenticatedUserUuid(): String?

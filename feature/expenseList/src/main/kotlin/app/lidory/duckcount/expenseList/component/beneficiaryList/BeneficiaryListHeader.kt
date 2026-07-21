@@ -23,6 +23,7 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 @Composable
 fun BeneficiaryListHeader(
     isBeneficiaryListEmpty: Boolean,
+    enabled: Boolean,
     onModifyBeneficiaryList: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -35,6 +36,7 @@ fun BeneficiaryListHeader(
         Text(text = stringResource(R.string.beneficiaries))
 
         TextButton(
+            enabled = enabled,
             onClick = onModifyBeneficiaryList,
         ) {
             val iconSize = with(LocalDensity.current) {

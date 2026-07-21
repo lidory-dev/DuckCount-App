@@ -1,5 +1,6 @@
 package app.lidory.duckcount.expenseList
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -8,9 +9,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -33,6 +36,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
@@ -62,9 +66,13 @@ fun CreateExpenseScreen(
     val selectedUuids by viewModel.selectedUuids.collectAsStateWithLifecycle()
     val selectionToggleState by viewModel.selectionToggleState.collectAsStateWithLifecycle()
     val beneficiaries by viewModel.displayedBeneficiaries.collectAsStateWithLifecycle()
+    val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var pendingError by remember { mutableStateOf<ExpenseWriteError?>(null) }
+
+    // Do not allow navigating back while saving the expense.
+    BackHandler(enabled = isSaving) {}
 
     // Navigate back only once write has completed (see CreateExpenseViewModel.navigateBack).
     LaunchedEffect(Unit) {
@@ -131,6 +139,7 @@ fun CreateExpenseScreen(
                 },
                 navigationIcon = {
                     IconButton(
+                        enabled = !isSaving,
                         onClick = onBack,
                     ) {
                         Icon(
@@ -168,6 +177,7 @@ fun CreateExpenseScreen(
                     DuckCountTextField(
                         value = expenseState.title,
                         labelName = stringResource(R.string.expense_title),
+                        enabled = !isSaving,
                         onValueChange = { viewModel.updateTitle(title = it) },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         focusManager = focusManager,
@@ -187,20 +197,23 @@ fun CreateExpenseScreen(
 
                 item {
                     CreditorSelector(
+                        creditorName = expenseState.creditorFullName,
+                        label = stringResource(R.string.paid_by),
+                        enabled = !isSaving,
                         onClick = {
                             viewModel.showCreditorDialog()
                             focusManager.clearFocus()
                         },
-                        creditorName = expenseState.creditorFullName,
-                        label = stringResource(R.string.paid_by),
                     )
                 }
 
                 item {
+                    // TODO: readOnly = isSaving,
                     AmountTextField(
                         amountValue = expenseState.amount,
                         currencyValue = expenseState.currency.symbol,
                         currencies = viewModel.currencies,
+                        enabled = !isSaving,
                         onAmountValueChange = { amount ->
                             viewModel.updateAmount(amount)
                             viewModel.calculateShares()
@@ -217,6 +230,7 @@ fun CreateExpenseScreen(
                     DuckCountTextField(
                         value = expenseState.description,
                         labelName = stringResource(R.string.label_description),
+                        enabled = !isSaving,
                         onValueChange = { viewModel.updateDescription(description = it) },
                         singleLine = false,
                         maxLines = 5,
@@ -233,6 +247,7 @@ fun CreateExpenseScreen(
                 beneficiaryList(
                     beneficiaries = beneficiaries,
                     currencySymbol = expenseState.currency.symbol,
+                    enabled = !isSaving,
                     onBeneficiaryAmountChange = { userUuid, share ->
                         viewModel.updateBeneficiaryShare(
                             userUuid = userUuid,
@@ -263,7 +278,8 @@ fun CreateExpenseScreen(
                     .fillMaxWidth()
                     .padding(bottom = Padding.extraLarge)
                     .align(Alignment.BottomCenter),
-                enabled = expenseState.error == null
+                enabled = !isSaving
+                        && expenseState.error == null
                         && expenseState.amount.isNotBlank()
                         && expenseState.title.length in (1..viewModel.maxTitleLength)
                         && expenseState.description.length in (0..viewModel.maxDescriptionLength),
@@ -274,14 +290,23 @@ fun CreateExpenseScreen(
                         viewModel.createExpense()
                     else
                         viewModel.updateExpense()
-                    // Navigation happens via viewModel.navigateBack once the write completes,
+                    // Navigation happens via viewModel.navigateBack once write completes,
                     // otherwise popping this screen cancels the in-flight network write.
                 },
             ) {
-                Text(
-                    modifier = Modifier.padding(Padding.small),
-                    text = stringResource(androidUiR.string.confirm),
-                )
+                if (isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .padding(Padding.small)
+                            .size(24.dp),
+                        strokeWidth = 3.dp,
+                    )
+                } else {
+                    Text(
+                        modifier = Modifier.padding(Padding.small),
+                        text = stringResource(androidUiR.string.confirm),
+                    )
+                }
             }
         }
     }

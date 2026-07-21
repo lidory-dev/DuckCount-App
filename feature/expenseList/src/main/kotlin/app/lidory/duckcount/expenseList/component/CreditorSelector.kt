@@ -26,14 +26,16 @@ import app.lidory.duckcount.expenseList.R
 fun CreditorSelector(
     creditorName: String,
     label: String,
+    enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
         shape = RoundedCornerShape(size = Padding.large),
+        enabled = enabled,
+        onClick = onClick,
         modifier = modifier
             .fillMaxWidth(),
-        onClick = onClick,
     ) {
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,
