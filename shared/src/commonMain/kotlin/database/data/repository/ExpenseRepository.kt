@@ -31,7 +31,12 @@ class ExpenseRepository(
     @OptIn(ExperimentalPagingApi::class)
     fun getOneTimeExpensesPaged(): Flow<PagingData<ExpenseWithBeneficiaries>> =
         Pager(
-            config = PagingConfig(pageSize = ONE_TIME_PAGE_SIZE),
+            config = PagingConfig(
+                pageSize = ONE_TIME_PAGE_SIZE,
+                // The UI early-returns on null items, so placeholder rows would render as
+                // empty gaps and skew the initial scroll position. We don't render them.
+                enablePlaceholders = false,
+            ),
             remoteMediator = ExpenseRemoteMediator(
                 expenseApi = expenseApi,
                 expenseDao = expenseDao,
