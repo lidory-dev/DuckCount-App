@@ -4,11 +4,9 @@ import AuthError
 import AuthOutcome
 import AuthenticationCallBacks
 import PendingProfile
-import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.util.Log
 import app.lidory.duckcount.PasswordRequirements
+import app.lidory.duckcount.networking.NetworkConnectivity
 import authenticationUtils.PendingRegistration
 import authenticationUtils.clearPendingRegistration
 import authenticationUtils.setAuthenticatedUserUsername
@@ -34,7 +32,7 @@ private const val TAG = "AuthCallBacks"
 
 class AuthenticationCallBacksImpl(
     val userRepository: UserRepository,
-    private val context: Context,
+    private val networkConnectivity: NetworkConnectivity,
 ) : AuthenticationCallBacks {
 
     override val passwordStrength: Int = PasswordRequirements.MINIMUM_PASSWORD_STRENGTH
@@ -264,7 +262,9 @@ class AuthenticationCallBacksImpl(
      */
     private fun NetworkError.toAuthError(): AuthError = when (this) {
         NetworkError.NO_INTERNET -> AuthError.NO_INTERNET
-        NetworkError.UNREACHABLE -> if (isOnline()) AuthError.UNREACHABLE else AuthError.NO_INTERNET
+        NetworkError.UNREACHABLE ->
+            if (networkConnectivity.isOnline()) AuthError.UNREACHABLE else AuthError.NO_INTERNET
+
         NetworkError.CONFLICT -> AuthError.USERNAME_TAKEN
         // OPAQUE login hides user existence: both "unknown user" (404) and "unauthorized" read as
         // invalid credentials to the user.
@@ -283,20 +283,8 @@ class AuthenticationCallBacksImpl(
             -> AuthError.UNKNOWN
     }
 
-    /** True if the device currently has a network with internet capability. */
-    private fun isOnline(): Boolean {
-        val connectivityManager =
-            context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
-
-        val capabilities = connectivityManager.activeNetwork
-            ?.let(connectivityManager::getNetworkCapabilities)
-
-        return capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
-    }
-
     companion object {
         // Placeholder until MLS is implemented client-side.
         private const val PLACEHOLDER_PUBLIC_KEY = "public_key"
     }
 }
-

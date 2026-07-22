@@ -19,6 +19,7 @@ import app.lidory.duckcount.groupList.callBacks.GroupBalanceCallBacks
 import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
 import app.lidory.duckcount.groupList.callBacks.GroupSettingsCallBacks
 import app.lidory.duckcount.groupList.di.groupListModule
+import app.lidory.duckcount.networking.NetworkConnectivity
 import app.lidory.duckcount.settings.SettingsCallBacks
 import app.lidory.duckcount.settings.SettingsCallBacksImpl
 import app.lidory.duckcount.settings.di.settingsModule
@@ -28,6 +29,7 @@ import di.authenticationModule
 import di.contactListModule
 import di.sharedModule
 import networking.di.networkingModule
+import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.bind
@@ -51,6 +53,8 @@ val groupCallBacks = module {
 }
 
 val expenseListCallBacks = module {
+    single { NetworkConnectivity(androidContext()) }
+
     singleOf(::ExpenseListCallBacksImpl).bind<ExpenseListCallBacks>()
     singleOf(::ExpenseDetailCallBacksImpl).bind<ExpenseDetailCallBacks>()
     singleOf(::CreateExpenseCallBacksImpl).bind<CreateExpenseCallBacks>()

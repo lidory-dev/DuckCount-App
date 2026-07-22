@@ -3,6 +3,7 @@ package app.lidory.duckcount.expenseList
 import app.lidory.duckcount.expenseList.callBacks.ExpenseDetailCallBacks
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.ExpenseWriteError
+import app.lidory.duckcount.networking.NetworkConnectivity
 import database.data.repository.ExpenseRepository
 import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
@@ -13,6 +14,7 @@ import util.Result
 class ExpenseDetailCallBacksImpl(
     private val expenseRepository: ExpenseRepository,
     private val userRepository: UserRepository,
+    private val networkConnectivity: NetworkConnectivity,
 ) : ExpenseDetailCallBacks {
 
     override fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries?> {
@@ -34,7 +36,7 @@ class ExpenseDetailCallBacksImpl(
             // One-time expense: online-first write-through (server delete, then local hard delete).
             when (val result = expenseRepository.deleteOneTimeExpense(expenseUuid)) {
                 is Result.Success -> null
-                is Result.Error -> result.error.toExpenseWriteError()
+                is Result.Error -> result.error.toExpenseWriteError(networkConnectivity.isOnline())
             }
         }
     }

@@ -10,6 +10,7 @@ import app.lidory.duckcount.expenseList.model.Expense
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import app.lidory.duckcount.expenseList.model.User
+import app.lidory.duckcount.networking.NetworkConnectivity
 import database.data.repository.BeneficiaryRepository
 import database.data.repository.ExpenseRepository
 import database.data.repository.UserRepository
@@ -22,6 +23,7 @@ class CreateExpenseCallBacksImpl(
     private val expenseRepository: ExpenseRepository,
     private val userRepository: UserRepository,
     private val beneficiaryRepository: BeneficiaryRepository,
+    private val networkConnectivity: NetworkConnectivity,
 ) : CreateExpenseCallBacks {
 
     override val maxTitleLength: Int = MAX_TITLE_LENGTH
@@ -53,7 +55,7 @@ class CreateExpenseCallBacksImpl(
             // One-time expense: online-first write-through (server owns the uuid).
             when (val result = expenseRepository.createOneTimeExpense(expenseWithBeneficiaries.toDb())) {
                 is Result.Success -> null
-                is Result.Error -> result.error.toExpenseWriteError()
+                is Result.Error -> result.error.toExpenseWriteError(networkConnectivity.isOnline())
             }
         }
     }
@@ -78,7 +80,7 @@ class CreateExpenseCallBacksImpl(
             // One-time expense: online-first write-through.
             when (val result = expenseRepository.updateOneTimeExpense(expenseWithBeneficiaries.toDb())) {
                 is Result.Success -> null
-                is Result.Error -> result.error.toExpenseWriteError()
+                is Result.Error -> result.error.toExpenseWriteError(networkConnectivity.isOnline())
             }
         }
     }

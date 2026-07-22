@@ -17,13 +17,20 @@ import database.domain.ExpenseWithBeneficiaries as ExpenseWithBeneficiariesDB
 import database.domain.User as UserDB
 import uniffi.lib_duckcount.Currency as CurrencyUniffi
 
-/** Maps the low-level networking error to the reason the UI surfaces for a failed write. */
-fun NetworkError.toExpenseWriteError(): ExpenseWriteError = when (this) {
+/**
+ * Maps the low-level networking error to the reason the UI surfaces for a failed write.
+ *
+ * The "couldn't connect" case ([NetworkError.UNREACHABLE]) is resolved against real device
+ * connectivity ([isOnline]): airplane mode can surface as UNREACHABLE rather than NO_INTERNET
+ * and must be corrected here.
+ */
+fun NetworkError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError = when (this) {
     NetworkError.NO_INTERNET,
     NetworkError.REQUEST_TIMEOUT,
         -> ExpenseWriteError.NO_INTERNET
 
-    NetworkError.UNREACHABLE -> ExpenseWriteError.SERVER_UNREACHABLE
+    NetworkError.UNREACHABLE ->
+        if (isOnline) ExpenseWriteError.SERVER_UNREACHABLE else ExpenseWriteError.NO_INTERNET
 
     NetworkError.BAD_REQUEST,
     NetworkError.UNPROCESSABLE_ENTITY,
