@@ -206,15 +206,9 @@ private fun ExpenseListItem(
     // We navigate when clicking on an expense, so we need to safeguard the onClick with dropUnlessResumed
     ExpenseCard(
         modifier = Modifier
-            .run {
-                if (expense.isRefund) {
-                    this
-                } else {
-                    this.clickable(
-                        onClick = dropUnlessResumed { onExpenseClicked(expense.uuid, expense.groupUuid) },
-                    )
-                }
-            }
+            .clickable(
+                onClick = dropUnlessResumed { onExpenseClicked(expense.uuid, expense.groupUuid) },
+            )
             .padding(horizontal = Padding.medium, vertical = Padding.small),
         title = expense.title,
         creditorName = viewModel.getUserFullName(expense.creditorUuid)

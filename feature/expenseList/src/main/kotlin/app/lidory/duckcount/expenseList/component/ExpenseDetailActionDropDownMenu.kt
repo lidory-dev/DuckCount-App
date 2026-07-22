@@ -21,6 +21,7 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 fun ExpenseDetailActionDropDownMenu(
     modifier: Modifier = Modifier,
     isDeleted: Boolean,
+    isRefund: Boolean,
     restore: () -> Unit,
     edit: () -> Unit,
     delete: () -> Unit,
@@ -48,10 +49,11 @@ fun ExpenseDetailActionDropDownMenu(
                     },
                 )
             } else {
-                DropdownMenuItem(
-                    text = { Text(text = stringResource(R.string.edit)) },
-                    onClick = edit,
-                )
+                if (!isRefund)
+                    DropdownMenuItem(
+                        text = { Text(text = stringResource(R.string.edit)) },
+                        onClick = edit,
+                    )
                 DropdownMenuItem(
                     text = { Text(text = stringResource(R.string.delete)) },
                     onClick = delete,

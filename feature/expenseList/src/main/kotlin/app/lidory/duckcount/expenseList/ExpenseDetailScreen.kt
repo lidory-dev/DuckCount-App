@@ -107,6 +107,7 @@ fun ExpenseDetailScreen(
                     content?.let {
                         ExpenseDetailActionDropDownMenu(
                             isDeleted = content.expenseWithBeneficiaries.isDeleted,
+                            isRefund = content.expenseWithBeneficiaries.isRefund,
                             restore = viewModel::restoreExpense,
                             delete = viewModel::deleteExpense,
                             edit = dropUnlessResumed { navigateToEditExpense() },
