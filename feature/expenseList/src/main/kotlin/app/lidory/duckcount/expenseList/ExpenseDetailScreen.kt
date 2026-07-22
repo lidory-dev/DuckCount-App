@@ -41,7 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
 import app.lidory.duckcount.android.ui.constant.Padding
-import app.lidory.duckcount.expenseList.component.ExpenseDetailActionDropDownMenu
+import app.lidory.duckcount.expenseList.component.ExpenseDetailActionButtons
 import app.lidory.duckcount.expenseList.component.UserAmountCard
 import app.lidory.duckcount.expenseList.extensions.formatDate
 import app.lidory.duckcount.expenseList.model.ExpenseWriteError
@@ -110,7 +110,7 @@ fun ExpenseDetailScreen(
                 },
                 actions = {
                     content?.let {
-                        ExpenseDetailActionDropDownMenu(
+                        ExpenseDetailActionButtons(
                             isDeleted = content.expenseWithBeneficiaries.isDeleted,
                             isSettlement = content.expenseWithBeneficiaries.isSettlement,
                             canDelete = content.canDelete,
