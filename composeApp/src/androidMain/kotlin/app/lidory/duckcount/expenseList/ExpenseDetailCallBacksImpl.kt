@@ -28,16 +28,19 @@ class ExpenseDetailCallBacksImpl(
     override suspend fun deleteExpense(expenseUuid: String): ExpenseWriteError? {
         val expense = expenseRepository.getWithBeneficiaries(expenseUuid).first()
 
-        return expense?.groupUuid?.let {
+        // Group expense: local-only delete. Returning early is essential, the one-time
+        // branch below must not also run (it would issue a server delete for an expense
+        // the server never received).
+        if (expense?.groupUuid != null) {
             // TODO: "Delete" on the server.
             expenseRepository.delete(expenseUuid)
-            null
-        } ?: run {
-            // One-time expense: online-first write-through (server delete, then local hard delete).
-            when (val result = expenseRepository.deleteOneTimeExpense(expenseUuid)) {
-                is Result.Success -> null
-                is Result.Error -> result.error.toExpenseWriteError(networkConnectivity.isOnline())
-            }
+            return null
+        }
+
+        // One-time expense: online-first write-through (server delete, then local hard delete).
+        return when (val result = expenseRepository.deleteOneTimeExpense(expenseUuid)) {
+            is Result.Success -> null
+            is Result.Error -> result.error.toExpenseWriteError(networkConnectivity.isOnline())
         }
     }
 

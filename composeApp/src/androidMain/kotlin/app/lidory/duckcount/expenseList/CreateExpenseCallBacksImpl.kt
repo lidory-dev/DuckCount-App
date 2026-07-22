@@ -48,15 +48,18 @@ class CreateExpenseCallBacksImpl(
     }
 
     override suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseWriteError? {
-        return expenseWithBeneficiaries.groupUuid?.let {
+        // Group expense: local-only write. Returning early is essential, the one-time
+        // branch below must not also run (it would POST the expense to the server and
+        // insert a second local copy under the server uuid).
+        if (expenseWithBeneficiaries.groupUuid != null) {
             expenseRepository.insertWithBeneficiaries(expenseWithBeneficiaries.toDb())
-            null
-        } ?: run {
-            // One-time expense: online-first write-through (server owns the uuid).
-            when (val result = expenseRepository.createOneTimeExpense(expenseWithBeneficiaries.toDb())) {
-                is Result.Success -> null
-                is Result.Error -> result.error.toExpenseWriteError(networkConnectivity.isOnline())
-            }
+            return null
+        }
+
+        // One-time expense: online-first write-through (server owns the uuid).
+        return when (val result = expenseRepository.createOneTimeExpense(expenseWithBeneficiaries.toDb())) {
+            is Result.Success -> null
+            is Result.Error -> result.error.toExpenseWriteError(networkConnectivity.isOnline())
         }
     }
 
@@ -73,15 +76,17 @@ class CreateExpenseCallBacksImpl(
     }
 
     override suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseWriteError? {
-        return expenseWithBeneficiaries.groupUuid?.let {
+        // Group expense: local-only write. Returning early is essential, the one-time
+        // branch below must not also run (it would PUT the expense to the server).
+        if (expenseWithBeneficiaries.groupUuid != null) {
             expenseRepository.updateWithBeneficiaries(expenseWithBeneficiaries.toDb())
-            null
-        } ?: run {
-            // One-time expense: online-first write-through.
-            when (val result = expenseRepository.updateOneTimeExpense(expenseWithBeneficiaries.toDb())) {
-                is Result.Success -> null
-                is Result.Error -> result.error.toExpenseWriteError(networkConnectivity.isOnline())
-            }
+            return null
+        }
+
+        // One-time expense: online-first write-through.
+        return when (val result = expenseRepository.updateOneTimeExpense(expenseWithBeneficiaries.toDb())) {
+            is Result.Success -> null
+            is Result.Error -> result.error.toExpenseWriteError(networkConnectivity.isOnline())
         }
     }
 
