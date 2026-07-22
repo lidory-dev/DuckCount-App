@@ -504,6 +504,8 @@ class CreateExpenseViewModel(
     }
 
     fun getExpenseGroupUuid() = groupUuid
+
+    fun isOneTimeExpense(): Boolean = groupUuid == null
 }
 
 data class CreateExpenseState(

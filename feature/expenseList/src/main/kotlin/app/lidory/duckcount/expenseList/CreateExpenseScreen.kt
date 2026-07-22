@@ -199,7 +199,7 @@ fun CreateExpenseScreen(
                     CreditorSelector(
                         creditorName = expenseState.creditorFullName,
                         label = stringResource(R.string.paid_by),
-                        enabled = !isSaving,
+                        enabled = !isSaving && !viewModel.isOneTimeExpense(),
                         onClick = {
                             viewModel.showCreditorDialog()
                             focusManager.clearFocus()
