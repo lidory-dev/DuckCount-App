@@ -5,10 +5,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -22,6 +23,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.contactList.R
+import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import org.koin.androidx.compose.koinViewModel
@@ -84,11 +86,13 @@ fun NewContactScreen(
                 onValueChange = { viewModel.updateUsername(it) },
                 focusManager = focusManager,
             )
-            Button(
+            DuckCountElevatedButton(
                 onClick = {
                     focusManager.clearFocus()
                     // TODO: Search using the unique username to get user information
                 },
+                colors = ButtonDefaults.buttonColors()
+                    .copy(containerColor = MaterialTheme.colorScheme.primary),
             ) {
                 Text(text = stringResource(SharedR.string.add))
             }

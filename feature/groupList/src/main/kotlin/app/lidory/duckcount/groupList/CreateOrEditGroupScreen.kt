@@ -11,7 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,6 +28,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.component.CurrencyDropDownMenu
@@ -190,7 +190,7 @@ fun CreateOrEditGroupScreen(
                         )
                     }
 
-                    ElevatedButton(
+                    DuckCountElevatedButton(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = Padding.extraLarge)

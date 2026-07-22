@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,6 +36,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.composable.button.DuckCountButton
 import app.lidory.duckcount.android.ui.composable.button.PasswordVisibilityButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
@@ -142,7 +142,7 @@ fun AccountDeletionScreen(
 
             Spacer(Modifier.weight(1f))
 
-            Button(
+            DuckCountButton(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = { viewModel.onConfirmClicked() },
                 enabled = password.value.isNotBlank(),

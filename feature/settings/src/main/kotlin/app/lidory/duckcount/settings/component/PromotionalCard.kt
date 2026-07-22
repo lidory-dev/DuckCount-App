@@ -2,7 +2,6 @@ package app.lidory.duckcount.settings.component
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
@@ -12,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import app.lidory.duckcount.android.ui.composable.button.DuckCountButton
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.settings.R
 
@@ -47,7 +47,7 @@ fun PromotionalCard(
             textAlign = TextAlign.Center,
         )
 
-        Button(
+        DuckCountButton(
             modifier = Modifier
                 .padding(
                     vertical = Padding.large,

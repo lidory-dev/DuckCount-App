@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,6 +30,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.composable.button.DuckCountButton
 import app.lidory.duckcount.android.ui.composable.button.PasswordVisibilityButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
@@ -168,7 +168,7 @@ fun PasswordChangeScreen(
 
             Spacer(Modifier.weight(1f))
 
-            Button(
+            DuckCountButton(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = { viewModel.onConfirmClicked() },
                 enabled = state.value.currentPassword.isNotBlank()

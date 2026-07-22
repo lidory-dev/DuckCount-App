@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,6 +29,7 @@ import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
+import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedButton
 import app.lidory.duckcount.android.ui.composable.checkbox.SelectAllPill
 import app.lidory.duckcount.android.ui.composable.checkbox.UserSelectableCard
 import app.lidory.duckcount.android.ui.composable.fullscreendialog.FullScreenDialog
@@ -173,7 +173,7 @@ fun BeneficiariesDialog(
                     }
                 }
 
-                ElevatedButton(
+                DuckCountElevatedButton(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()

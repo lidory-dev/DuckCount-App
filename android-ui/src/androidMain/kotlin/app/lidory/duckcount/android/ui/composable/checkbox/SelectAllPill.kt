@@ -23,9 +23,9 @@ fun SelectAllPill(
     modifier: Modifier = Modifier,
 ) {
     Card(
-        shape = RoundedCornerShape(Padding.extraLarge),
+        shape = RoundedCornerShape(Padding.large),
         modifier = modifier
-            .clip(RoundedCornerShape(Padding.extraLarge))
+            .clip(RoundedCornerShape(Padding.large))
             .clickable(
                 onClick = toggleSelectAllUsers,
             ),

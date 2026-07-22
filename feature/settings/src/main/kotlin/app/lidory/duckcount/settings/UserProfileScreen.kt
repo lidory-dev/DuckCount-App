@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -37,6 +36,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.composable.button.DuckCountButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.settings.viewmodel.UserProfileScreenState
@@ -165,7 +165,7 @@ fun UserProfileScreen(
 
                         Spacer(modifier = Modifier.weight(1f))
 
-                        Button(
+                        DuckCountButton(
                             modifier = Modifier.fillMaxWidth(),
                             onClick = { viewModel.onConfirmClicked() },
                             enabled = state.draftFullName.isNotBlank() && state.draftFullName != state.fullName,
