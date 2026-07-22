@@ -23,6 +23,7 @@
     <string name="promotional_card_title">DuckCount is built by the engineers at Lidory.</string>
     <string name="promotional_card_description">Lidory is a company specializing in software development and cybersecurity. It develops both consumer applications and business software.\nPrivacy and cybersecurity are top priorities for us.</string>
     <string name="save">Save</string>
+    <string name="app_and_lib_licence">DuckCount and the library on which it depends (lib-duckcount) are licensed under the European Union Public Licence, version 1.2 (EUPL-1.2).</string>
     <string name="trademarks_of_lidory">© 2026 Lidory SASU. All rights reserved.\nDuckCount® and Lidory® are trademarks of Lidory SASU.</string>
     <string name="quack">🐤 Quack!</string>
 </resources>

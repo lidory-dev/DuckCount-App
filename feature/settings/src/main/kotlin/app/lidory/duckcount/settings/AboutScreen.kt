@@ -127,6 +127,21 @@ fun AboutScreen(
             item {
                 Text(
                     modifier = Modifier.padding(horizontal = Padding.medium),
+                    text = stringResource(R.string.app_and_lib_licence),
+                )
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(12.dp))
+
+                HorizontalDivider(Modifier, DividerDefaults.Thickness)
+
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            item {
+                Text(
+                    modifier = Modifier.padding(horizontal = Padding.medium),
                     text = stringResource(R.string.trademarks_of_lidory),
                 )
             }
