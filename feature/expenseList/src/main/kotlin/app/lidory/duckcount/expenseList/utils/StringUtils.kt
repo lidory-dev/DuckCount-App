@@ -7,6 +7,7 @@ fun String.formatAmountWithSubunits(): String {
     val replaced = this
         .replace(',', '.')
         .filter { it.isDigit() || it == '.' }
+        .dropWhile { it == '0' }
 
     val dotIndex = replaced.indexOf('.')
 
