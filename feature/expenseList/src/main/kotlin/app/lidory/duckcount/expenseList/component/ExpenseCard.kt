@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -15,10 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.android.ui.constant.Elevation
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.R
@@ -35,7 +39,7 @@ fun ExpenseCard(
     personalShare: String?,
     role: ExpenseStatus,
     isActive: Boolean,
-    isRefund: Boolean,
+    isSettlement: Boolean,
 ) {
     ElevatedCard(
         modifier = modifier
@@ -59,18 +63,44 @@ fun ExpenseCard(
                     .weight(1f)
                     .padding(all = Padding.small),
             ) {
-                Text(
-                    text = title,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        textDecoration = if (isActive) TextDecoration.None else TextDecoration.LineThrough,
-                    ),
-                )
+                if (isSettlement) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_balance),
+                            contentDescription = null,
+                        )
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        Text(
+                            text = stringResource(R.string.settlement),
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                textDecoration = if (isActive) {
+                                    TextDecoration.None
+                                } else {
+                                    TextDecoration.Underline + TextDecoration.LineThrough
+                                },
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                } else {
+                    Text(
+                        text = title,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            textDecoration = if (isActive) TextDecoration.None else TextDecoration.LineThrough,
+                        ),
+                    )
+                }
 
                 Text(
-                    text = if (isRefund) stringResource(
-                        id = R.string.debtor_refund_creditor,
+                    text = if (isSettlement) stringResource(
+                        id = R.string.debtor_paid_creditor,
                         creditorName,
                         debtorName,
                     ) else stringResource(id = R.string.paid_by_creditor, creditorName),
@@ -94,7 +124,7 @@ fun ExpenseCard(
                 totalAmount = totalAmount,
                 role = role,
                 isActive = isActive,
-                personalShare = if (isRefund) null else personalShare,
+                personalShare = if (isSettlement) null else personalShare,
                 currencySymbol = currencySymbol,
             )
         }

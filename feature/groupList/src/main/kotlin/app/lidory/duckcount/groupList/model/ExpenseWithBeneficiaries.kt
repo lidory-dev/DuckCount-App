@@ -7,7 +7,7 @@ data class ExpenseWithBeneficiaries(
     val description: String,
     val amount: String,
     val creditorUuid: String,
-    val isRefund: Boolean,
+    val isSettlement: Boolean,
     val currency: Currency,
     val beneficiaries: List<Beneficiary>,
     val groupUuid: String?,

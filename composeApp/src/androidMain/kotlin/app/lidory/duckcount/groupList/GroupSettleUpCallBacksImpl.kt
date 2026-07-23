@@ -1,8 +1,8 @@
 package app.lidory.duckcount.groupList
 
 import app.lidory.duckcount.expenseList.utils.getCurrentTimestamp
-import app.lidory.duckcount.getTransactionFromGroup
-import app.lidory.duckcount.groupList.callBacks.GroupDebtCallBacks
+import app.lidory.duckcount.getTransactionForGroup
+import app.lidory.duckcount.groupList.callBacks.GroupSettleUpCallBacks
 import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.groupList.model.GroupMember
@@ -18,17 +18,17 @@ import kotlin.uuid.Uuid
 import database.domain.Beneficiary as DBBeneficiary
 import database.domain.ExpenseWithBeneficiaries as DBExpenseWithBeneficiaries
 
-class GroupDebtCallBacksImpl(
+class GroupSettleUpCallBacksImpl(
     private val groupMemberRepository: GroupMemberRepository,
     private val userRepository: UserRepository,
     private val expenseRepository: ExpenseRepository,
-) : GroupDebtCallBacks {
+) : GroupSettleUpCallBacks {
     override suspend fun getGroupTransactions(
         groupUuid: String,
         groupMembers: List<GroupMember>,
         groupExpenses: List<ExpenseWithBeneficiaries>,
     ): List<TransactionWithFullName> {
-        return getTransactionFromGroup(
+        return getTransactionForGroup(
             members = groupMembers.map { groupMember ->
                 groupMember.toDb()
             },
@@ -61,7 +61,7 @@ class GroupDebtCallBacksImpl(
         }
     }
 
-    override fun getAllGroupAtiveExpenses(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> {
+    override fun getAllGroupActiveExpenses(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> {
         return expenseRepository.getAllFromGroupWithoutDeletedOnes(groupUuid = groupUuid)
             .map { expenses -> expenses.map { it.toGroupListModel() } }
     }
@@ -75,7 +75,7 @@ class GroupDebtCallBacksImpl(
     }
 
     private fun getCurrency(groupUuid: String): Currency {
-        // TODO: Get group currency when implemented
+        // TODO: Get group currency once implemented.
         return Currency(
             name = "EUR",
             symbol = "€",
@@ -83,17 +83,24 @@ class GroupDebtCallBacksImpl(
         )
     }
 
-    override suspend fun refundExpense(creditorUuid: String, debtorUuid: String, amount: String, groupUuid: String) {
+    override suspend fun validateSettlement(
+        creditorUuid: String,
+        debtorUuid: String,
+        amount: String,
+        groupUuid: String,
+    ) {
+        // TODO: The UUID should come from the server.
         val expenseUuid = Uuid.random().toString()
+
         expenseRepository.insertWithBeneficiaries(
             DBExpenseWithBeneficiaries(
                 uuid = expenseUuid,
                 timestamp = getCurrentTimestamp(),
-                title = "Refund",
+                title = "",
                 description = "",
                 amount = amount,
                 creditorUuid = debtorUuid,
-                isRefund = true,
+                isSettlement = true,
                 currency = getCurrency(groupUuid).toDb(),
                 groupUuid = groupUuid,
                 isDeleted = false,

@@ -7,7 +7,7 @@ public struct Expense: Identifiable, Hashable {
     public let description: String
     public let amount: String
     public let creditorUuid: String
-    public let isRefund: Bool
+    public let isSettlement: Bool
     public let currency: Currency
     public let status: ExpenseStatus
 
@@ -18,7 +18,7 @@ public struct Expense: Identifiable, Hashable {
         description: String = "",
         amount: String = "",
         creditorUuid: String = "",
-        isRefund: Bool = false,
+        isSettlement: Bool = false,
         currency: Currency,
         status: ExpenseStatus = .beneficiary
     ) {
@@ -28,7 +28,7 @@ public struct Expense: Identifiable, Hashable {
         self.description = description
         self.amount = amount
         self.creditorUuid = creditorUuid
-        self.isRefund = isRefund
+        self.isSettlement = isSettlement
         self.currency = currency
         self.status = status
     }

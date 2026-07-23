@@ -168,7 +168,7 @@ class CreateExpenseViewModel: ObservableObject, CreateExpenseFormState {
             description: description,
             amount: amount,
             creditorUuid: creditorUuid,
-            isRefund: false,
+            isSettlement: false,
             currency: kotlinCurrency,
             groupUuid: nil,
             isDeleted: false

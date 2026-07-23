@@ -3,12 +3,15 @@ package app.lidory.duckcount.expenseList
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,6 +36,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
@@ -81,6 +85,7 @@ fun ExpenseDetailScreen(
         modifier = modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
+            // TODO: This should not be done like that.
             val content = state as? ExpenseScreenState.Content
             TopAppBar(
                 title = {
@@ -99,7 +104,7 @@ fun ExpenseDetailScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             painter = painterResource(androidUiR.drawable.ic_arrow_back),
-                            contentDescription = "Back",
+                            contentDescription = stringResource(androidUiR.string.back),
                         )
                     }
                 },
@@ -107,7 +112,8 @@ fun ExpenseDetailScreen(
                     content?.let {
                         ExpenseDetailActionDropDownMenu(
                             isDeleted = content.expenseWithBeneficiaries.isDeleted,
-                            isRefund = content.expenseWithBeneficiaries.isRefund,
+                            isSettlement = content.expenseWithBeneficiaries.isSettlement,
+                            canDelete = content.canDelete,
                             restore = viewModel::restoreExpense,
                             delete = viewModel::deleteExpense,
                             edit = dropUnlessResumed { navigateToEditExpense() },
@@ -154,11 +160,34 @@ fun ExpenseDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(Padding.small),
                 ) {
                     item {
-                        Text(
-                            text = expense.title,
-                            style = MaterialTheme.typography.headlineSmall,
-                            textDecoration = if (expense.isDeleted) TextDecoration.LineThrough else null,
-                        )
+                        if (expense.isSettlement) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
+                            ) {
+                                Icon(
+                                    painterResource(R.drawable.ic_balance),
+                                    contentDescription = null,
+                                )
+
+                                Spacer(modifier = Modifier.width(4.dp))
+
+                                Text(
+                                    text = stringResource(R.string.settlement),
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    textDecoration = TextDecoration.Underline,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        } else {
+                            Text(
+                                text = expense.title,
+                                style = MaterialTheme.typography.headlineSmall,
+                                textDecoration = if (expense.isDeleted) TextDecoration.LineThrough else null,
+                            )
+                        }
 
                         val description = expense.description
                         if (description.isNotBlank()) {

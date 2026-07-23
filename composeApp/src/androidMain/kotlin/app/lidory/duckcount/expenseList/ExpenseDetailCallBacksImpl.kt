@@ -32,6 +32,19 @@ class ExpenseDetailCallBacksImpl(
         // branch below must not also run (it would issue a server delete for an expense
         // the server never received).
         if (expense?.groupUuid != null) {
+            if (expense.isSettlement) {
+                // Records a settlement between two people; only its beneficiary
+                // (the person who received the money back) may remove it. Deleting it is a
+                // soft delete (a settlement is never hard-deleted), but unlike a regular
+                // expense it cannot be restored afterward.
+                val authenticatedUserUuid = getAuthenticatedUserUuid()
+                if (expense.beneficiaries.none { it.userUuid == authenticatedUserUuid }) {
+                    return ExpenseWriteError.UNAUTHORIZED
+                }
+                expenseRepository.delete(expenseUuid)
+                return null
+            }
+
             // TODO: "Delete" on the server.
             expenseRepository.delete(expenseUuid)
             return null
@@ -46,5 +59,9 @@ class ExpenseDetailCallBacksImpl(
 
     override suspend fun restoreExpense(expenseUuid: String) {
         expenseRepository.restore(expenseUuid)
+    }
+
+    override fun getAuthenticatedUserUuid(): String? {
+        return authenticationUtils.getAuthenticatedUserUuid()
     }
 }

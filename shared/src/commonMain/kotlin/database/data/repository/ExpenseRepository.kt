@@ -113,6 +113,11 @@ class ExpenseRepository(
         expenseDao.restore(expenseUuid)
     }
 
+    /** Hard-deletes a local expense and its beneficiaries; there is no restoring it. */
+    suspend fun hardDelete(expenseUuid: String) {
+        expenseDao.hardDeleteWithBeneficiaries(expenseUuid = expenseUuid)
+    }
+
     fun getAll(): Flow<List<ExpenseWithBeneficiaries>> {
         return expenseDao.getAllWithBeneficiariesAsFlow().map { expensesWithBeneficiariesEntities ->
             expensesWithBeneficiariesEntities.map { it.toExpenseWithBeneficiaries() }

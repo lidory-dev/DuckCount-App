@@ -24,7 +24,7 @@ class GroupListCallBacksImpl(
 
     override val maxDescriptionLength: Int = MAX_DESCRIPTION_LENGTH
 
-    override suspend fun getAllGroups(): Flow<List<Group>> {
+    override fun getAllGroups(): Flow<List<Group>> {
         return groupRepository.getAll()
             .map { groups ->
                 groups.map {
@@ -37,7 +37,7 @@ class GroupListCallBacksImpl(
             }
     }
 
-    override suspend fun getGroup(uuid: String): Flow<Group> {
+    override fun getGroup(uuid: String): Flow<Group> {
         return groupRepository.get(uuid)
             .map { group ->
                 Group(
@@ -48,7 +48,7 @@ class GroupListCallBacksImpl(
             }
     }
 
-    override suspend fun getGroupWithMembers(uuid: String): Flow<GroupWithMembers> {
+    override fun getGroupWithMembers(uuid: String): Flow<GroupWithMembers> {
         return groupRepository.getWithMembers(uuid).map { groupWithMembers ->
             GroupWithMembers(
                 uuid = groupWithMembers.uuid,
@@ -65,7 +65,7 @@ class GroupListCallBacksImpl(
         }
     }
 
-    override suspend fun getUsersFiltered(filter: String): Flow<List<User>> {
+    override fun getUsersFiltered(filter: String): Flow<List<User>> {
         return userRepository.getAllFiltered(filter)
             .map { users ->
                 users.map {
@@ -78,7 +78,7 @@ class GroupListCallBacksImpl(
             }
     }
 
-    override suspend fun getUsersFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> {
+    override fun getUsersFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> {
         return userRepository.getAllFromGroupFiltered(filter, groupUuid)
             .map { users ->
                 users.map {
@@ -91,7 +91,7 @@ class GroupListCallBacksImpl(
             }
     }
 
-    override suspend fun getUserFullName(uuid: String): Flow<String?> {
+    override fun getUserFullName(uuid: String): Flow<String?> {
         return userRepository.getFullName(uuid)
     }
 

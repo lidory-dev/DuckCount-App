@@ -21,11 +21,18 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 fun ExpenseDetailActionDropDownMenu(
     modifier: Modifier = Modifier,
     isDeleted: Boolean,
-    isRefund: Boolean,
+    isSettlement: Boolean,
+    canDelete: Boolean,
     restore: () -> Unit,
     edit: () -> Unit,
     delete: () -> Unit,
 ) {
+    // A settlement exposes no "edit", and only its beneficiary sees "delete", so a non-beneficiary
+    // viewing an active settlement has no action at all. A settlement is also never restorable, so a
+    // deleted settlement has no action either. Don't render an empty menu in those cases.
+    val hasActions = if (isDeleted) !isSettlement else !isSettlement || canDelete
+    if (!hasActions) return
+
     var expanded by remember { mutableStateOf(false) }
     Box(
         modifier = modifier,
@@ -41,23 +48,29 @@ fun ExpenseDetailActionDropDownMenu(
             onDismissRequest = { expanded = false },
         ) {
             if (isDeleted) {
-                DropdownMenuItem(
-                    text = { Text(text = stringResource(R.string.restore)) },
-                    onClick = {
-                        restore()
-                        expanded = false
-                    },
-                )
+                // A settlement is soft-deleted but can never be restored.
+                if (!isSettlement) {
+                    DropdownMenuItem(
+                        text = { Text(text = stringResource(R.string.restore)) },
+                        onClick = {
+                            restore()
+                            expanded = false
+                        },
+                    )
+                }
             } else {
-                if (!isRefund)
+                if (!isSettlement) {
                     DropdownMenuItem(
                         text = { Text(text = stringResource(R.string.edit)) },
                         onClick = edit,
                     )
-                DropdownMenuItem(
-                    text = { Text(text = stringResource(R.string.delete)) },
-                    onClick = delete,
-                )
+                }
+                if (canDelete) {
+                    DropdownMenuItem(
+                        text = { Text(text = stringResource(R.string.delete)) },
+                        onClick = delete,
+                    )
+                }
             }
         }
     }

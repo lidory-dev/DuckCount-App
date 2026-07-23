@@ -27,7 +27,7 @@ fun DebtCard(
                 .padding(all = Padding.medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = stringResource(R.string.debt_owned, creditorFullName, amount))
+            Text(text = stringResource(R.string.you_owe, creditorFullName, amount))
         }
     }
 }

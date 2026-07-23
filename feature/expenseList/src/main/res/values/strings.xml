@@ -7,7 +7,7 @@
     <string name="neutral">Neutral</string>
     <string name="paid_by">Paid by</string>
     <string name="paid_by_creditor">Paid by %1$s</string>
-    <string name="debtor_refund_creditor">%1$s refunded %2$s</string>
+    <string name="debtor_paid_creditor">%1$s paid %2$s</string>
 
     <!-- Global -->
     <string name="no_result">No results</string>
@@ -57,4 +57,5 @@
     <string name="more_options">More options</string>
     <string name="restore">Restore</string>
     <string name="delete">Delete</string>
+    <string name="settlement">Settlement</string>
 </resources>

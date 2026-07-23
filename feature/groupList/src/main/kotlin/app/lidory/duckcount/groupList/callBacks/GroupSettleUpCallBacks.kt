@@ -6,7 +6,7 @@ import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import app.lidory.duckcount.groupList.model.TransactionWithFullName
 import kotlinx.coroutines.flow.Flow
 
-interface GroupDebtCallBacks {
+interface GroupSettleUpCallBacks {
     suspend fun getGroupTransactions(
         groupUuid: String,
         groupMembers: List<GroupMember>,
@@ -15,11 +15,11 @@ interface GroupDebtCallBacks {
 
     fun getAllMembers(groupUuid: String): Flow<List<GroupMemberWithFullName>>
 
-    fun getAllGroupAtiveExpenses(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>>
+    fun getAllGroupActiveExpenses(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>>
 
     fun getAuthenticatedUserUuid(): String
 
     fun getCurrencySymbol(groupUuid: String): String
 
-    suspend fun refundExpense(creditorUuid: String, debtorUuid: String, amount: String, groupUuid: String)
+    suspend fun validateSettlement(creditorUuid: String, debtorUuid: String, amount: String, groupUuid: String)
 }

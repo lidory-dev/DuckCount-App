@@ -12,7 +12,7 @@ data class ExpenseEntity(
     val description: String,
     val amount: String,
     val creditorUuid: String,
-    val isRefund: Boolean,
+    val isSettlement: Boolean,
     val currency: Currency,
     val groupUuid: String? = null,
     val isDeleted: Boolean = false,

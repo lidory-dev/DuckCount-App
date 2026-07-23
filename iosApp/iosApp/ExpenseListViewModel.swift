@@ -101,7 +101,7 @@ class ExpenseListViewModel: ObservableObject {
                         description: kotlinExpense.description_,
                         amount: kotlinExpense.amount,
                         creditorUuid: kotlinExpense.creditorUuid,
-                        isRefund: kotlinExpense.isRefund,
+                        isSettlement: kotlinExpense.isSettlement,
                         currency: Currency(
                             id: kotlinExpense.currency.uuid,
                             name: kotlinExpense.currency.name,
@@ -220,7 +220,7 @@ class ExpenseListViewModel: ObservableObject {
                 description: descriptions[index],
                 amount: amount,
                 creditorUuid: creditorUuid,
-                isRefund: false,
+                isSettlement: false,
                 currency: Shared.Currency(
                     uuid: UUID().uuidString,
                     name: currencyNames[currencyIndex],

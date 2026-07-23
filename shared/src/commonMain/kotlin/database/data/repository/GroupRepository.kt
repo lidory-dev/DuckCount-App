@@ -43,19 +43,19 @@ class GroupRepository(
         groupDao.delete(groupEntity = group.toGroupEntity())
     }
 
-    suspend fun getAll(): Flow<List<Group>> {
+    fun getAll(): Flow<List<Group>> {
         return groupDao.getAllAsFlow().map { groupEntities ->
             groupEntities.map { it.toGroup() }
         }
     }
 
-    suspend fun get(uuid: String): Flow<Group> {
+    fun get(uuid: String): Flow<Group> {
         return groupDao.getAsFlow(uuid).map { groupEntity ->
             groupEntity.toGroup()
         }
     }
 
-    suspend fun getWithMembers(uuid: String): Flow<GroupWithMembers> {
+    fun getWithMembers(uuid: String): Flow<GroupWithMembers> {
         return groupDao.getWithMembers(uuid).map { groupWithMembersEntity ->
             groupWithMembersEntity.toGroupWithMembers()
         }

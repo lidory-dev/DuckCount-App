@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
  *
  * Matches the DuckCount-API contract exactly. `title`, `description`, `amount`
  * and `timestamp` are opaque (end-to-end-encrypted) strings;
- * `master_key` and `is_refunded` are encrypted `{ field, nonce }` objects.
+ * `master_key` and `is_settled` are encrypted `{ field, nonce }` objects.
  * TODO: There is no `currency`, `group_uuid` or `isDeleted` yet.
  */
 @Serializable
@@ -21,6 +21,6 @@ data class ExpenseDto(
     val description: EncryptedFieldDto,
     val amount: EncryptedFieldDto,
     val timestamp: EncryptedFieldDto,
-    val is_refunded: EncryptedFieldDto,
+    val is_settled: EncryptedFieldDto,
     val beneficiaries: List<BeneficiaryDto>,
 )

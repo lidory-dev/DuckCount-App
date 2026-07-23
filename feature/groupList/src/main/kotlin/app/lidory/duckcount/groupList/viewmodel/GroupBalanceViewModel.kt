@@ -28,18 +28,16 @@ class GroupBalanceViewModel(
                     groupMembers = groupMembersWithFullName.map { it.member },
                     groupExpenses = groupExpenses,
                 )
-            if (debts.isEmpty())
-                MembersWithBalanceState.Loading
-            else
-                MembersWithBalanceState.Content(
-                    members = groupMembersWithFullName.map { memberWithFullName ->
-                        GroupMemberWithBalance(
-                            member = memberWithFullName,
-                            balance = debts[memberWithFullName.member.userUuid]
-                                ?: memberWithFullName.member.userUuid, // TODO: Show that the username was not found?
-                        )
-                    },
-                )
+
+            MembersWithBalanceState.Content(
+                members = groupMembersWithFullName.map { memberWithFullName ->
+                    GroupMemberWithBalance(
+                        member = memberWithFullName,
+                        balance = debts[memberWithFullName.member.userUuid]
+                            ?: memberWithFullName.member.userUuid, // TODO: Show that the username was not found?
+                    )
+                },
+            )
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000L),
@@ -49,7 +47,6 @@ class GroupBalanceViewModel(
 
 sealed interface MembersWithBalanceState {
     data object Loading : MembersWithBalanceState
-    data object NotFound : MembersWithBalanceState
     data class Content(
         val members: List<GroupMemberWithBalance> = emptyList(),
     ) : MembersWithBalanceState

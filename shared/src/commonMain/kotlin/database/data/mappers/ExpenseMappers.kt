@@ -10,9 +10,9 @@ import database.domain.Expense
 import database.domain.ExpenseWithBeneficiaries
 
 // --- Placeholders until end-to-end encryption is wired up -------------------
-// The server has no `currency` for one-time expenses, and `is_refunded` /
+// The server has no `currency` for one-time expenses, and `is_settled` /
 // `master_key` are encrypted `{ field, nonce }` objects. Until real crypto and
-// currency handling land, we default the currency, stash the refund boolean in
+// currency handling land, we default the currency, stash the settle boolean in
 // the `field` as plain text, and send an empty master key.
 
 private val DEFAULT_CURRENCY = Currency(name = "EUR", symbol = "€", hasSubunits = true)
@@ -40,7 +40,7 @@ fun ExpenseDto.toExpenseWithBeneficiariesEntity() =
             description = fakeDescription(),
             amount = fakeAmount(),
             creditorUuid = creditor_uuid,
-            isRefund = fakeBoolean(),
+            isSettlement = fakeBoolean(),
             currency = DEFAULT_CURRENCY,
             groupUuid = null,
             isDeleted = false,
@@ -57,7 +57,7 @@ fun ExpenseWithBeneficiaries.toOneTimeRequestBody() =
         description = placeholderEncryptedFieldDto(),
         amount = placeholderEncryptedFieldDto(),
         timestamp = placeholderEncryptedFieldDto(),
-        is_refunded = placeholderEncryptedFieldDto(),
+        is_settled = placeholderEncryptedFieldDto(),
         beneficiaries = beneficiaries.map { it.toBeneficiaryDto() },
     )
 
@@ -68,7 +68,7 @@ fun Expense.toExpenseEntity() = ExpenseEntity(
     description = description,
     amount = amount,
     creditorUuid = creditorUuid,
-    isRefund = isRefund,
+    isSettlement = isSettlement,
     currency = currency,
     groupUuid = groupUuid,
     isDeleted = isDeleted,
@@ -82,7 +82,7 @@ fun ExpenseEntity.toExpense() = Expense(
     description = description,
     amount = amount,
     creditorUuid = creditorUuid,
-    isRefund = isRefund,
+    isSettlement = isSettlement,
     currency = currency,
     groupUuid = groupUuid,
     isDeleted = isDeleted,
@@ -96,7 +96,7 @@ fun ExpenseWithBeneficiariesEntity.toExpenseWithBeneficiaries() =
         description = expense.description,
         amount = expense.amount,
         creditorUuid = expense.creditorUuid,
-        isRefund = expense.isRefund,
+        isSettlement = expense.isSettlement,
         currency = expense.currency,
         groupUuid = expense.groupUuid,
         isDeleted = expense.isDeleted,
@@ -112,7 +112,7 @@ fun ExpenseWithBeneficiaries.toExpenseWithBeneficiariesEntity() =
             description = description,
             amount = amount,
             creditorUuid = creditorUuid,
-            isRefund = isRefund,
+            isSettlement = isSettlement,
             currency = currency,
             groupUuid = groupUuid,
             isDeleted = isDeleted,

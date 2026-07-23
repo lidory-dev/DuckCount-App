@@ -1,6 +1,6 @@
 package networking
 
-// dev/emulator on debug, production on release — see apiBaseUrl + shared/build.gradle.kts.
+// dev/emulator on debug, production on release, see apiBaseUrl + shared/build.gradle.kts.
 private val baseUrl = apiBaseUrl
 
 object DuckCountRoutes {

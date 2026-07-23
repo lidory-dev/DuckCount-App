@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "3346f7da607e9b3f1490054aec002193",
+    "identityHash": "9913fa8917204bb70cdc32b5a30b27db",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -42,7 +42,7 @@
       },
       {
         "tableName": "ExpenseEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `timestamp` TEXT NOT NULL, `description` TEXT NOT NULL, `amount` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `isRefund` INTEGER NOT NULL, `currency` TEXT NOT NULL, `groupUuid` TEXT, `isDeleted` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `timestamp` TEXT NOT NULL, `description` TEXT NOT NULL, `amount` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `isSettlement` INTEGER NOT NULL, `currency` TEXT NOT NULL, `groupUuid` TEXT, `isDeleted` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
         "fields": [
           {
             "fieldPath": "uuid",
@@ -81,8 +81,8 @@
             "notNull": true
           },
           {
-            "fieldPath": "isRefund",
-            "columnName": "isRefund",
+            "fieldPath": "isSettlement",
+            "columnName": "isSettlement",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -248,7 +248,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3346f7da607e9b3f1490054aec002193')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9913fa8917204bb70cdc32b5a30b27db')"
     ]
   }
 }

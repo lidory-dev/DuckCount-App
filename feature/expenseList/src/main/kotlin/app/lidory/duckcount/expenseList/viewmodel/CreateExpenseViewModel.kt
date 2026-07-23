@@ -269,7 +269,7 @@ class CreateExpenseViewModel(
                     description = _state.value.description,
                     amount = _state.value.amount,
                     creditorUuid = _state.value.creditorUuid,
-                    isRefund = _state.value.isRefund,
+                    isSettlement = _state.value.isSettlement,
                     currency = _state.value.currency,
                     groupUuid = groupUuid,
                     beneficiaries = _state.value.beneficiaries.map {
@@ -306,7 +306,7 @@ class CreateExpenseViewModel(
                     description = _state.value.description,
                     amount = _state.value.amount,
                     creditorUuid = _state.value.creditorUuid,
-                    isRefund = _state.value.isRefund,
+                    isSettlement = _state.value.isSettlement,
                     currency = _state.value.currency,
                     groupUuid = groupUuid,
                     beneficiaries = _state.value.beneficiaries.map {
@@ -509,7 +509,7 @@ data class CreateExpenseState(
     val amount: String = "",
     val creditorUuid: String = "",
     val creditorFullName: String = "",
-    val isRefund: Boolean = false,
+    val isSettlement: Boolean = false,
     // TODO: adapt
     val currency: Currency = Currency("", "", "", false),
     val beneficiaries: List<Beneficiary> = emptyList(),

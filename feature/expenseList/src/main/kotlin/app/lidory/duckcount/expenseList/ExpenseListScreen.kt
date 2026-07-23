@@ -196,14 +196,10 @@ private fun ExpenseListItem(
         ExpenseStatus.NEUTRAL -> null
     }
 
-    // In case of refund
-    val debtorUuid =
-        if (expense.isRefund && expense.beneficiaries.size == 1)
-            expense.beneficiaries.first().userUuid
-        else
-            ""
+    // In case of a settlement.
+    val debtorUuid = if (expense.isSettlement) expense.beneficiaries.first().userUuid else ""
 
-    // We navigate when clicking on an expense, so we need to safeguard the onClick with dropUnlessResumed
+    // We navigate when clicking on an expense, so we need to safeguard the onClick with dropUnlessResumed.
     ExpenseCard(
         modifier = Modifier
             .clickable(
@@ -222,6 +218,6 @@ private fun ExpenseListItem(
         personalShare = personalShare,
         role = role,
         isActive = !expense.isDeleted,
-        isRefund = expense.isRefund,
+        isSettlement = expense.isSettlement,
     )
 }

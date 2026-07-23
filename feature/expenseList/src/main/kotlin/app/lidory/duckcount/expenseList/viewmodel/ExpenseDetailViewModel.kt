@@ -33,6 +33,8 @@ class ExpenseDetailViewModel(
     private val _showError = Channel<ExpenseWriteError>(Channel.BUFFERED)
     val showError: Flow<ExpenseWriteError> = _showError.receiveAsFlow()
 
+    private val authenticatedUserUuid: String? = expenseDetailCallBacks.getAuthenticatedUserUuid()
+
     private val expense: StateFlow<ExpenseWithBeneficiaries?> =
         expenseDetailCallBacks.getExpenseWithBeneficiaries(uuid = expenseUuid)
             .stateIn(
@@ -88,6 +90,12 @@ class ExpenseDetailViewModel(
                     expenseWithBeneficiaries = expenseValue,
                     creditorFullName = creditor,
                     beneficiaries = beneficiaryUis,
+                    // A settlement may only be deleted by its beneficiary (the money's recipient).
+                    // A one-time expense may only be deleted by its creditor.
+                    // A group expense may be deleted by any member of the group.
+                    canDelete = (expenseValue.isSettlement && expenseValue.beneficiaries.any { it.userUuid == authenticatedUserUuid })
+                            || (expenseValue.groupUuid == null && expenseValue.creditorUuid == authenticatedUserUuid)
+                            || expenseValue.groupUuid != null,
                 )
             }
         }.stateIn(
@@ -106,6 +114,7 @@ class ExpenseDetailViewModel(
     fun restoreExpense() {
         viewModelScope.launch {
             expenseDetailCallBacks.restoreExpense(expenseUuid)
+            _navigateBack.send(Unit)
         }
     }
 
@@ -119,5 +128,6 @@ sealed interface ExpenseScreenState {
         val expenseWithBeneficiaries: ExpenseWithBeneficiaries,
         val creditorFullName: String,
         val beneficiaries: List<BeneficiaryUi>,
+        val canDelete: Boolean,
     ) : ExpenseScreenState
 }

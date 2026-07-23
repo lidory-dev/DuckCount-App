@@ -5,10 +5,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import app.lidory.duckcount.groupList.R
 
-class TransactionTab : Tab() {
+class SettleUpTab : Tab() {
     @Composable
     override fun icon() = painterResource(R.drawable.ic_checkbook)
 
     @Composable
-    override fun title() = stringResource(R.string.transactions)
+    override fun title() = stringResource(R.string.settle_up)
 }

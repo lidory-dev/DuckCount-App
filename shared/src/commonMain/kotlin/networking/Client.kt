@@ -143,7 +143,7 @@ abstract class Client {
         } catch (_: SerializationException) {
             return Result.Error(NetworkError.SERIALIZATION)
         } catch (_: Exception) {
-            // Connection refused/reset, socket timeout, TLS failure, etc. — the host resolved but
+            // Connection refused/reset, socket timeout, TLS failure, etc., the host resolved, but
             // we couldn't reach it. Surface as a handled error, never crash the caller.
             return Result.Error(NetworkError.UNREACHABLE)
         }

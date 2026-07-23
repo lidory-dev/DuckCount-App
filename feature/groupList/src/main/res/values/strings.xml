@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="not_part_of_any_group">You are not part of any group</string>
+    <string name="you_are_not_part_of_any_group">You are not part of any group</string>
     <string name="description_cant_exceed_max">Description too long (%1$s/%2$s)</string>
     <string name="members">Members</string>
     <string name="select_new_members">Select new members</string>
@@ -11,15 +11,12 @@
     <string name="group_size">%1$d members</string>
     <string name="remove_from_the_group">Remove from the group</string>
     <string name="group_settings">Group settings</string>
-    <string name="transactions">Transactions</string>
+    <string name="settle_up">Settle up</string>
     <string name="more_options">More options</string>
-    <string name="confirm_refund">Confirm refund</string>
-    <string name="debts">Debts</string>
-    <string name="refund">Refund</string>
+    <string name="settlement">Settlement</string>
     <string name="expand">expand</string>
-    <string name="debt_owned">You owes %1$s %2$s</string>
-    <string name="refund_owned">%1$s owes you %2$s</string>
-    <string name="no_transactions">There are no pending transactions</string>
-    <string name="no_balance">Everything is balanced</string>
-    <string name="no_refund">You don\'t have any refund</string>
+    <string name="you_owe">You owe %1$s %2$s</string>
+    <string name="owes_you">%1$s owes you %2$s</string>
+    <string name="you_are_all_settled_up">You’re all settled up</string>
+    <string name="everything_is_balanced">Everything is balanced</string>
 </resources>

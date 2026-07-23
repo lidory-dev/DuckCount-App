@@ -30,7 +30,7 @@ import app.lidory.duckcount.groupList.component.GroupActionDropDownMenu
 import app.lidory.duckcount.groupList.component.GroupPager
 import app.lidory.duckcount.groupList.tab.BalanceTab
 import app.lidory.duckcount.groupList.tab.ExpenseTab
-import app.lidory.duckcount.groupList.tab.TransactionTab
+import app.lidory.duckcount.groupList.tab.SettleUpTab
 import app.lidory.duckcount.groupList.viewmodel.GroupDetailViewModel
 import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
@@ -45,13 +45,13 @@ fun GroupDetailScreen(
     navigateToGroupSettings: () -> Unit,
     expenseListContent: @Composable () -> Unit,
     balanceContent: @Composable () -> Unit,
-    debtContent: @Composable () -> Unit,
+    settleUpContent: @Composable () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    val tabs = listOf(ExpenseTab(), BalanceTab(), TransactionTab())
+    val tabs = listOf(ExpenseTab(), BalanceTab(), SettleUpTab())
     val pagerState = rememberPagerState(pageCount = { tabs.size })
 
     Scaffold(
@@ -74,7 +74,7 @@ fun GroupDetailScreen(
                                     style = MaterialTheme.typography.titleLarge,
                                 )
 
-                                if (it.description.isNotBlank())
+                                if (it.description.isNotBlank()) {
                                     Text(
                                         modifier = Modifier.sharedBounds(
                                             sharedContentState = rememberSharedContentState(key = "group_description_${state.groupWithMembers?.uuid}"),
@@ -85,6 +85,7 @@ fun GroupDetailScreen(
                                         overflow = TextOverflow.Ellipsis,
                                         style = MaterialTheme.typography.labelMedium,
                                     )
+                                }
                             }
                         }
                     }
@@ -130,7 +131,7 @@ fun GroupDetailScreen(
                 tabs = tabs,
                 expenseListContent = expenseListContent,
                 balanceContent = balanceContent,
-                debtContent = debtContent,
+                settleUpContent = settleUpContent,
             )
         }
     }

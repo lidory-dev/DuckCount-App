@@ -12,7 +12,7 @@ import uniffi.lib_duckcount.Group as uniffiGroup
 fun createGroup(members: List<GroupMember>, expenses: List<ExpenseWithBeneficiaries>): uniffiGroup {
     return uniffiGroup(
         currency = uniffiCurrency(
-            // TODO: Use currency of the group
+            // TODO: Use currency of the group once implemented.
             name = "EUR", symbol = "€", hasSubUnit = true,
         ),
         usersUuid = members.map { it.userUuid },
@@ -43,6 +43,6 @@ fun calculateNetDebtsPerUser(
     return createGroup(members, expenses).calculateNetDebtsPerUser()
 }
 
-fun getTransactionFromGroup(members: List<GroupMember>, expenses: List<ExpenseWithBeneficiaries>): List<Transaction> {
+fun getTransactionForGroup(members: List<GroupMember>, expenses: List<ExpenseWithBeneficiaries>): List<Transaction> {
     return createGroup(members, expenses).calculateTransactionsToEquilibrate()
 }
