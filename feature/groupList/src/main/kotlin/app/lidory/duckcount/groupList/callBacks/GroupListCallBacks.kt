@@ -25,6 +25,15 @@ interface GroupListCallBacks {
 
     fun getUserFullName(uuid: String): Flow<String?>
 
+    /** The currencies a group can be created with (single source of truth). */
+    fun getCurrencies(): List<Currency>
+
+    /** Currency selected by default when creating a new group. */
+    fun getDefaultCurrency(): Currency
+
+    /** Localized, human-readable name for an ISO 4217 currency [code] (e.g. "USD" -> "US Dollar"). */
+    fun getCurrencyDisplayName(code: String): String
+
     suspend fun createGroup(title: String, description: String, currency: Currency, members: List<GroupMember>)
 
     fun getAuthenticatedUserUuid(): String?

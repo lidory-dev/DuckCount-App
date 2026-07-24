@@ -150,8 +150,9 @@ fun CreateOrEditGroupScreen(
                         viewModel.groupUuid ?: run {
                             item {
                                 CurrencyDropDownMenu(
-                                    currency = state.currency.name,
+                                    currency = viewModel.currencyDisplayName(state.currency.name),
                                     currencies = viewModel.currencies,
+                                    currencyDisplayName = viewModel::currencyDisplayName,
                                     onValueChange = { name, symbol, hasSubUnits ->
                                         viewModel.updateCurrency(name, symbol, hasSubUnits)
                                     },

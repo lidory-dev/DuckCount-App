@@ -71,14 +71,10 @@ class CreateExpenseViewModel(
 
     var isBeneficiariesDialogShown by mutableStateOf(false)
 
-    // TODO: remove when currencyRepository is implemented
-    @OptIn(ExperimentalUuidApi::class)
-    val currencies =
-        listOf(
-            Currency(uuid = Uuid.random().toString(), "EUR", "€", true),
-            Currency(uuid = Uuid.random().toString(), "USD", "$", true),
-            Currency(uuid = Uuid.random().toString(), "JPY", "¥", false),
-        )
+    val currencies: List<Currency> = createExpenseCallBacks.getCurrencies()
+
+    /** Localized display name for an ISO 4217 currency code (e.g. "USD" -> "US Dollar"). */
+    fun currencyDisplayName(code: String): String = createExpenseCallBacks.getCurrencyDisplayName(code)
 
     private fun normalizeAmountInput(raw: String, previous: String): String? {
         val formatted = raw.formatAmountWithSubunits()
@@ -136,7 +132,8 @@ class CreateExpenseViewModel(
             val groupCurrency = createExpenseCallBacks.getGroupCurrency(groupUuid = it).first()
             updateCurrency(groupCurrency.name, groupCurrency.symbol, groupCurrency.hasSubunits)
         } ?: run {
-            updateCurrency(currencies.first().name, currencies.first().symbol, currencies.first().hasSubunits)
+            val defaultCurrency = createExpenseCallBacks.getDefaultCurrency()
+            updateCurrency(defaultCurrency.name, defaultCurrency.symbol, defaultCurrency.hasSubunits)
         }
 
         expenseUuid?.let { uuid ->

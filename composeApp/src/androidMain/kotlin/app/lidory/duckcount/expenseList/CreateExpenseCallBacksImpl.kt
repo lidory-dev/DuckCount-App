@@ -15,6 +15,8 @@ import database.data.repository.BeneficiaryRepository
 import database.data.repository.ExpenseRepository
 import database.data.repository.GroupRepository
 import database.data.repository.UserRepository
+import database.domain.CurrencyCatalog
+import database.domain.currencyDisplayName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
@@ -121,4 +123,11 @@ class CreateExpenseCallBacksImpl(
     override fun getGroupCurrency(groupUuid: String): Flow<Currency> {
         return groupRepository.get(groupUuid).map { it.currency.toExpenseListModel() }
     }
+
+    override fun getCurrencies(): List<Currency> =
+        CurrencyCatalog.defaultCurrencies.map { it.toExpenseListModel() }
+
+    override fun getDefaultCurrency(): Currency = CurrencyCatalog.defaultCurrency.toExpenseListModel()
+
+    override fun getCurrencyDisplayName(code: String): String = currencyDisplayName(code)
 }

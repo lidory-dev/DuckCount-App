@@ -10,6 +10,8 @@ import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.User
 import database.data.repository.GroupRepository
 import database.data.repository.UserRepository
+import database.domain.CurrencyCatalog
+import database.domain.currencyDisplayName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import database.domain.Group as DBGroup
@@ -68,6 +70,13 @@ class GroupListCallBacksImpl(
     override fun getUserFullName(uuid: String): Flow<String?> {
         return userRepository.getFullName(uuid)
     }
+
+    override fun getCurrencies(): List<Currency> =
+        CurrencyCatalog.defaultCurrencies.map { it.toGroupListModel() }
+
+    override fun getDefaultCurrency(): Currency = CurrencyCatalog.defaultCurrency.toGroupListModel()
+
+    override fun getCurrencyDisplayName(code: String): String = currencyDisplayName(code)
 
     override suspend fun createGroup(
         title: String,

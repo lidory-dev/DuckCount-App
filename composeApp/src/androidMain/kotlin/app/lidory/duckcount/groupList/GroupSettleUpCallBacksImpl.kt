@@ -11,6 +11,7 @@ import app.lidory.duckcount.groupList.model.TransactionWithFullName
 import database.data.repository.ExpenseRepository
 import database.data.repository.GroupMemberRepository
 import database.data.repository.UserRepository
+import database.domain.CurrencyCatalog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -76,11 +77,7 @@ class GroupSettleUpCallBacksImpl(
 
     private fun getCurrency(groupUuid: String): Currency {
         // TODO: Get group currency once implemented.
-        return Currency(
-            name = "EUR",
-            symbol = "€",
-            hasSubunits = true,
-        )
+        return CurrencyCatalog.defaultCurrency.toGroupListModel()
     }
 
     override suspend fun validateSettlement(

@@ -28,22 +28,16 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
 class CreateGroupViewModel(
     val groupUuid: String?,
     val groupListCallBacks: GroupListCallBacks,
 ) : ViewModel() {
 
-    // TODO: remove when currencyRepository is implemented
-    @OptIn(ExperimentalUuidApi::class)
-    val currencies =
-        listOf(
-            Currency(uuid = Uuid.random().toString(), "EUR", "€", true),
-            Currency(uuid = Uuid.random().toString(), "USD", "$", true),
-            Currency(uuid = Uuid.random().toString(), "JPY", "¥", false),
-        )
+    val currencies: List<Currency> = groupListCallBacks.getCurrencies()
+
+    /** Localized display name for an ISO 4217 currency code (e.g. "USD" -> "US Dollar"). */
+    fun currencyDisplayName(code: String): String = groupListCallBacks.getCurrencyDisplayName(code)
 
     private val _state = MutableStateFlow<CreateGroupState>(CreateGroupState.Loading)
     val state: StateFlow<CreateGroupState> = _state.onStart {
@@ -65,7 +59,7 @@ class CreateGroupViewModel(
             )
             updateMembers(group.members)
         } ?: run {
-            val defaultCurrency = currencies.first()
+            val defaultCurrency = groupListCallBacks.getDefaultCurrency()
 
             _state.value = CreateGroupState.Content(
                 title = "",

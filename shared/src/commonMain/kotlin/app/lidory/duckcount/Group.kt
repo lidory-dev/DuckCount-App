@@ -13,7 +13,9 @@ fun createGroup(members: List<GroupMember>, expenses: List<ExpenseWithBeneficiar
     return uniffiGroup(
         currency = uniffiCurrency(
             // TODO: Use currency of the group once implemented.
-            name = "EUR", symbol = "€", hasSubUnit = true,
+            name = database.domain.CurrencyCatalog.defaultCurrency.name,
+            symbol = database.domain.CurrencyCatalog.defaultCurrency.symbol,
+            hasSubUnit = database.domain.CurrencyCatalog.defaultCurrency.hasSubunits,
         ),
         usersUuid = members.map { it.userUuid },
         expenses = expenses.map { expense ->

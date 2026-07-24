@@ -213,6 +213,7 @@ fun CreateExpenseScreen(
                         amountValue = expenseState.amount,
                         currencyValue = expenseState.currency.symbol,
                         currencies = viewModel.currencies,
+                        currencyDisplayName = viewModel::currencyDisplayName,
                         enabled = !isSaving,
                         onAmountValueChange = { amount ->
                             viewModel.updateAmount(amount)

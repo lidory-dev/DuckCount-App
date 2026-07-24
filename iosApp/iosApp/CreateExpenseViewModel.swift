@@ -19,12 +19,21 @@ class CreateExpenseViewModel: ObservableObject, CreateExpenseFormState {
         }
     }
 
-    // TODO: Move this somewhere else.
-    let currencies: [ExpenseList.Currency] = [
-        ExpenseList.Currency(id: "EUR", name: "EUR", symbol: "€", hasSubunits: true),
-        ExpenseList.Currency(id: "USD", name: "USD", symbol: "$", hasSubunits: true),
-        ExpenseList.Currency(id: "JPY", name: "JPY", symbol: "¥", hasSubunits: false),
-    ]
+    // Single source of truth: the shared CurrencyCatalog. `id` keeps the stable ISO 4217
+    // code (what gets persisted), while `name` holds the localized label for display.
+    let currencies: [ExpenseList.Currency] =
+        Shared.CurrencyCatalog.shared.defaultCurrencies.map(Self.toExpenseCurrency)
+
+    /// Maps a shared-domain `Currency` (whose `name` is the ISO 4217 code) to the UI model,
+    /// resolving the localized display name from the code via the shared helper.
+    private static func toExpenseCurrency(_ currency: Shared.Currency) -> ExpenseList.Currency {
+        ExpenseList.Currency(
+            id: currency.name,
+            name: Shared.CurrencyDisplayKt.currencyDisplayName(code: currency.name),
+            symbol: currency.symbol,
+            hasSubunits: currency.hasSubunits
+        )
+    }
 
     let maxTitleLength: Int = Int(ExpenseLimitsKt.MAX_TITLE_LENGTH)
     let maxDescriptionLength: Int = Int(ExpenseLimitsKt.MAX_DESCRIPTION_LENGTH)
@@ -52,7 +61,7 @@ class CreateExpenseViewModel: ObservableObject, CreateExpenseFormState {
         self.expenseRepository = helper.getExpenseRepository()
         self.beneficiaryRepository = helper.getBeneficiaryRepository()
         self.userRepository = helper.getUserRepository()
-        self.currency = ExpenseList.Currency(id: "EUR", name: "EUR", symbol: "€", hasSubunits: true)
+        self.currency = Self.toExpenseCurrency(Shared.CurrencyCatalog.shared.defaultCurrency)
         self.creditor = Self.placeholderCreditor
         observeUsers()
         recomputeError()
@@ -156,7 +165,7 @@ class CreateExpenseViewModel: ObservableObject, CreateExpenseFormState {
 
         let kotlinCurrency = Shared.Currency(
             uuid: UUID().uuidString,
-            name: currency.name,
+            name: currency.id, // persist the stable ISO code, not the localized label
             symbol: currency.symbol,
             hasSubunits: currency.hasSubunits
         )

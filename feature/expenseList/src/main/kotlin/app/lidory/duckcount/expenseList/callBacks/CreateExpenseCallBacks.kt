@@ -45,4 +45,13 @@ interface CreateExpenseCallBacks {
     ): List<Beneficiary>
 
     fun getGroupCurrency(groupUuid: String): Flow<Currency>
+
+    /** The currencies a one-time expense can be created with (single source of truth). */
+    fun getCurrencies(): List<Currency>
+
+    /** Currency selected by default for a new one-time expense. */
+    fun getDefaultCurrency(): Currency
+
+    /** Localized, human-readable name for an ISO 4217 currency [code] (e.g. "USD" -> "US Dollar"). */
+    fun getCurrencyDisplayName(code: String): String
 }

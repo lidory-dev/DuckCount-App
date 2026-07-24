@@ -6,6 +6,7 @@ import database.data.remote.EncryptedFieldDto
 import database.data.remote.ExpenseDto
 import database.data.remote.OneTimeExpenseRequestBody
 import database.domain.Currency
+import database.domain.CurrencyCatalog
 import database.domain.Expense
 import database.domain.ExpenseWithBeneficiaries
 
@@ -15,7 +16,7 @@ import database.domain.ExpenseWithBeneficiaries
 // currency handling land, we default the currency, stash the settle boolean in
 // the `field` as plain text, and send an empty master key.
 
-private val DEFAULT_CURRENCY = Currency(name = "EUR", symbol = "€", hasSubunits = true)
+private val DEFAULT_CURRENCY = CurrencyCatalog.defaultCurrency
 
 fun placeholderEncryptedFieldDto() =
     EncryptedFieldDto(field = "placeholder", nonce = "nonce")

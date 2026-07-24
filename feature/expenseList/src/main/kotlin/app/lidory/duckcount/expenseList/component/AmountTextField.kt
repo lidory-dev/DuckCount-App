@@ -31,6 +31,7 @@ fun AmountTextField(
     amountValue: String,
     currencyValue: String,
     currencies: List<Currency>,
+    currencyDisplayName: (String) -> String,
     enabled: Boolean,
     onAmountValueChange: (String) -> Unit,
     onCurrencyValueChange: (String, String, Boolean) -> Unit,
@@ -89,6 +90,7 @@ fun AmountTextField(
             CurrencyDropDownMenu(
                 currency = currencyValue,
                 currencies = currencies,
+                currencyDisplayName = currencyDisplayName,
                 enabled = enabled,
                 onValueChange = onCurrencyValueChange,
                 focusManager = focusManager,

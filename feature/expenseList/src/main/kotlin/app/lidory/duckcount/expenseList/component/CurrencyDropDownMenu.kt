@@ -2,11 +2,13 @@ package app.lidory.duckcount.expenseList.component
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,6 +29,7 @@ import kotlin.uuid.ExperimentalUuidApi
 fun CurrencyDropDownMenu(
     currency: String,
     currencies: List<Currency>,
+    currencyDisplayName: (String) -> String,
     enabled: Boolean,
     onValueChange: (String, String, Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -73,9 +76,14 @@ fun CurrencyDropDownMenu(
                     focusManager.clearFocus()
                 },
             ) {
-                currencies.forEach { currency ->
+                currencies.forEachIndexed { index, currency ->
                     DropdownMenuItem(
-                        text = { Text(currency.name, color = MaterialTheme.colorScheme.onSurface) },
+                        text = {
+                            Text(
+                                currencyDisplayName(currency.name),
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        },
                         enabled = enabled,
                         onClick = {
                             onValueChange(currency.name, currency.symbol, currency.hasSubunits)
@@ -84,6 +92,10 @@ fun CurrencyDropDownMenu(
                         },
                         contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
                     )
+
+                    if (index < currencies.lastIndex) {
+                        HorizontalDivider(thickness = DividerDefaults.Thickness)
+                    }
                 }
             }
         }
