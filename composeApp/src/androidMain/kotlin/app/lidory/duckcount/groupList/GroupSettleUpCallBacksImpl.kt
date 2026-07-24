@@ -3,33 +3,36 @@ package app.lidory.duckcount.groupList
 import app.lidory.duckcount.expenseList.utils.getCurrentTimestamp
 import app.lidory.duckcount.getTransactionForGroup
 import app.lidory.duckcount.groupList.callBacks.GroupSettleUpCallBacks
-import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import app.lidory.duckcount.groupList.model.TransactionWithFullName
 import database.data.repository.ExpenseRepository
 import database.data.repository.GroupMemberRepository
+import database.data.repository.GroupRepository
 import database.data.repository.UserRepository
-import database.domain.CurrencyCatalog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlin.uuid.Uuid
 import database.domain.Beneficiary as DBBeneficiary
+import database.domain.Currency as DBCurrency
 import database.domain.ExpenseWithBeneficiaries as DBExpenseWithBeneficiaries
 
 class GroupSettleUpCallBacksImpl(
     private val groupMemberRepository: GroupMemberRepository,
     private val userRepository: UserRepository,
     private val expenseRepository: ExpenseRepository,
+    private val groupRepository: GroupRepository,
 ) : GroupSettleUpCallBacks {
+
     override suspend fun getGroupTransactions(
         groupUuid: String,
         groupMembers: List<GroupMember>,
         groupExpenses: List<ExpenseWithBeneficiaries>,
     ): List<TransactionWithFullName> {
         return getTransactionForGroup(
+            currency = getCurrency(groupUuid),
             members = groupMembers.map { groupMember ->
                 groupMember.toDb()
             },
@@ -71,13 +74,12 @@ class GroupSettleUpCallBacksImpl(
         return authenticationUtils.getAuthenticatedUserUuid() ?: ""
     }
 
-    override fun getCurrencySymbol(groupUuid: String): String {
+    override suspend fun getCurrencySymbol(groupUuid: String): String {
         return getCurrency(groupUuid).symbol
     }
 
-    private fun getCurrency(groupUuid: String): Currency {
-        // TODO: Get group currency once implemented.
-        return CurrencyCatalog.defaultCurrency.toGroupListModel()
+    private suspend fun getCurrency(groupUuid: String): DBCurrency {
+        return groupRepository.get(groupUuid).first().currency
     }
 
     override suspend fun validateSettlement(
@@ -98,7 +100,7 @@ class GroupSettleUpCallBacksImpl(
                 amount = amount,
                 creditorUuid = debtorUuid,
                 isSettlement = true,
-                currency = getCurrency(groupUuid).toDb(),
+                currency = getCurrency(groupUuid),
                 groupUuid = groupUuid,
                 isDeleted = false,
                 beneficiaries = listOf(

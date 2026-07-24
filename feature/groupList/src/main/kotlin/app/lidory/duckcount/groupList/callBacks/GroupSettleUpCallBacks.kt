@@ -19,7 +19,7 @@ interface GroupSettleUpCallBacks {
 
     fun getAuthenticatedUserUuid(): String
 
-    fun getCurrencySymbol(groupUuid: String): String
+    suspend fun getCurrencySymbol(groupUuid: String): String
 
     suspend fun validateSettlement(creditorUuid: String, debtorUuid: String, amount: String, groupUuid: String)
 }

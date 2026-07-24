@@ -7,6 +7,7 @@ import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import database.data.repository.ExpenseRepository
 import database.data.repository.GroupMemberRepository
+import database.data.repository.GroupRepository
 import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -16,6 +17,7 @@ class GroupBalanceCallBacksImpl(
     private val groupMemberRepository: GroupMemberRepository,
     private val userRepository: UserRepository,
     private val expenseRepository: ExpenseRepository,
+    private val groupRepository: GroupRepository,
 ) : GroupBalanceCallBacks {
 
     override suspend fun getNetDebtsPerUser(
@@ -24,6 +26,7 @@ class GroupBalanceCallBacksImpl(
         groupExpenses: List<ExpenseWithBeneficiaries>,
     ): Map<String, String> {
         return calculateNetDebtsPerUser(
+            currency = groupRepository.get(groupUuid).first().currency,
             members = groupMembers.map { groupMember ->
                 groupMember.toDb()
             },
