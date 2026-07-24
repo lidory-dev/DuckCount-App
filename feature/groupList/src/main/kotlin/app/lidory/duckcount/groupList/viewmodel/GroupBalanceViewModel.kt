@@ -37,6 +37,7 @@ class GroupBalanceViewModel(
                             ?: memberWithFullName.member.userUuid, // TODO: Show that the username was not found?
                     )
                 },
+                currencySymbol = groupBalanceCallBacks.getCurrencySymbol(groupUuid),
             )
         }.stateIn(
             scope = viewModelScope,
@@ -48,6 +49,7 @@ class GroupBalanceViewModel(
 sealed interface MembersWithBalanceState {
     data object Loading : MembersWithBalanceState
     data class Content(
-        val members: List<GroupMemberWithBalance> = emptyList(),
+        val members: List<GroupMemberWithBalance>,
+        val currencySymbol: String,
     ) : MembersWithBalanceState
 }

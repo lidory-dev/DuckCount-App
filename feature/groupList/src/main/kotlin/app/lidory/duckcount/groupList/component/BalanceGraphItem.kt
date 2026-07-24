@@ -27,6 +27,7 @@ fun BalanceGraphItem(
     fullName: String,
     debt: BigDecimal,
     maxAmount: BigDecimal,
+    currencySymbol: String,
     isAppInDarkTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -43,6 +44,7 @@ fun BalanceGraphItem(
                 modifier = Modifier.weight(1f),
                 maxAmount = maxAmount,
                 amount = debt,
+                currencySymbol = currencySymbol,
                 isAppInDarkTheme = isAppInDarkTheme,
             )
         },
@@ -66,6 +68,7 @@ fun BalanceGraphItem(
 fun Bar(
     maxAmount: BigDecimal,
     amount: BigDecimal,
+    currencySymbol: String,
     isAppInDarkTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -85,10 +88,9 @@ fun Bar(
                 .background(color = spec.color, shape = spec.shape),
         )
 
-        // TODO: Add currency
         Text(
             modifier = Modifier.padding(horizontal = Padding.medium),
-            text = "$amount",
+            text = "$amount $currencySymbol",
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

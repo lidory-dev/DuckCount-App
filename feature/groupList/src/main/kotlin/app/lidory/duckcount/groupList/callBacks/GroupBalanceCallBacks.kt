@@ -15,4 +15,6 @@ interface GroupBalanceCallBacks {
     fun getAllGroupExpense(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>>
 
     fun getAllMembers(groupUuid: String): Flow<List<GroupMemberWithFullName>>
+
+    suspend fun getCurrencySymbol(groupUuid: String): String
 }

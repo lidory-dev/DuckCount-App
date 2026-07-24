@@ -39,6 +39,10 @@ class GroupBalanceCallBacksImpl(
             .map { expenses -> expenses.map { it.toGroupListModel() } }
     }
 
+    override suspend fun getCurrencySymbol(groupUuid: String): String {
+        return groupRepository.get(groupUuid).first().currency.symbol
+    }
+
     override fun getAllMembers(groupUuid: String): Flow<List<GroupMemberWithFullName>> {
         return groupMemberRepository.getMembersFromGroup(groupUuid = groupUuid).map { groupMembers ->
             groupMembers.map { groupMember ->
