@@ -77,7 +77,7 @@ fun AmountTextField(
                 value = currencyValue,
                 onValueChange = { },
                 readOnly = true,
-                enabled = false,
+                enabled = true,
                 modifier = Modifier
                     .fillMaxSize()
                     .height(textFieldHeightDp)

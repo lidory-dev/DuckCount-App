@@ -118,7 +118,7 @@ class CreateExpenseCallBacksImpl(
         }
     }
 
-    override suspend fun getGroupCurrency(groupUuid: String): Flow<Currency> {
+    override fun getGroupCurrency(groupUuid: String): Flow<Currency> {
         return groupRepository.get(groupUuid).map { it.currency.toExpenseListModel() }
     }
 }

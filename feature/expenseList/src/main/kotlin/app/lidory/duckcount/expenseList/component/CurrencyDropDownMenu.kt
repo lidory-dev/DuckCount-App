@@ -32,7 +32,6 @@ fun CurrencyDropDownMenu(
     modifier: Modifier = Modifier,
     focusManager: FocusManager,
 ) {
-
     var expanded by remember { mutableStateOf(false) }
 
     Box(

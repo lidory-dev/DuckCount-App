@@ -134,7 +134,6 @@ fun CreateOrEditGroupScreen(
                     )
                 }
 
-                // TODO: When editing a group we need to change to currency of every group expense with the correct currency conversion
                 viewModel.groupUuid ?: run {
                     item {
                         CurrencyDropDownMenu(
