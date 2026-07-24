@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -34,6 +35,7 @@ import app.lidory.duckcount.groupList.component.CurrencyDropDownMenu
 import app.lidory.duckcount.groupList.component.GroupMemberFullScreenDialog
 import app.lidory.duckcount.groupList.component.groupMemberList.groupMemberList
 import app.lidory.duckcount.groupList.model.GroupMember
+import app.lidory.duckcount.groupList.viewmodel.CreateGroupState
 import app.lidory.duckcount.groupList.viewmodel.CreateGroupViewModel
 import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
@@ -109,96 +111,109 @@ fun CreateOrEditGroupScreen(
                 )
                 .fillMaxSize(),
         ) {
-            LazyColumn(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .clickable(
-                        interactionSource = interactionSource,
-                        indication = null,
+            when (val state = state) {
+                CreateGroupState.Loading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        focusManager.clearFocus()
+                        CircularProgressIndicator()
                     }
-                    .fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(Padding.medium),
-            ) {
-                item {
-                    DuckCountTextField(
-                        value = state.title,
-                        labelName = stringResource(androidUiR.string.title),
-                        onValueChange = { viewModel.updateTitle(title = it) },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                        focusManager = focusManager,
-                        error = stringResource(androidUiR.string.title_mandatory),
-                        isInError = state.title.isBlank(),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
                 }
 
-                viewModel.groupUuid ?: run {
-                    item {
-                        CurrencyDropDownMenu(
-                            currency = state.currency.name,
-                            currencies = viewModel.currencies,
-                            onValueChange = { name, symbol, hasSubUnits ->
-                                viewModel.updateCurrency(name, symbol, hasSubUnits)
+                is CreateGroupState.Content -> {
+                    LazyColumn(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = null,
+                            ) {
+                                focusManager.clearFocus()
+                            }
+                            .fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(Padding.medium),
+                    ) {
+                        item {
+                            DuckCountTextField(
+                                value = state.title,
+                                labelName = stringResource(androidUiR.string.title),
+                                onValueChange = { viewModel.updateTitle(title = it) },
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                                focusManager = focusManager,
+                                error = stringResource(androidUiR.string.title_mandatory),
+                                isInError = state.title.isBlank(),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+
+                        viewModel.groupUuid ?: run {
+                            item {
+                                CurrencyDropDownMenu(
+                                    currency = state.currency.name,
+                                    currencies = viewModel.currencies,
+                                    onValueChange = { name, symbol, hasSubUnits ->
+                                        viewModel.updateCurrency(name, symbol, hasSubUnits)
+                                    },
+                                )
+                            }
+                        }
+
+                        item {
+                            DuckCountTextField(
+                                value = state.description,
+                                labelName = stringResource(androidUiR.string.description),
+                                onValueChange = { viewModel.updateDescription(description = it) },
+                                singleLine = false,
+                                maxLines = 5,
+                                error = stringResource(
+                                    R.string.description_cant_exceed_max,
+                                    state.description.length,
+                                    viewModel.maxDescriptionLength,
+                                ),
+                                isInError = state.description.length > viewModel.maxDescriptionLength,
+                                focusManager = focusManager,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+
+                        groupMemberList(
+                            members = state.members,
+                            authenticatedUserUuid = viewModel.getAuthenticatedUserUuid(),
+                            onModifyMemberList = {
+                                viewModel.showMemberDialog()
+                            },
+                            removeMember = { member ->
+                                viewModel.removeMember(member)
                             },
                         )
                     }
+
+                    ElevatedButton(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = Padding.extraLarge)
+                            .align(Alignment.BottomCenter),
+                        enabled = viewModel.isOwnerInMembers()
+                                && state.members.size >= 2
+                                && state.title.length in (1..viewModel.maxTitleLength)
+                                && state.description.length in (0..viewModel.maxDescriptionLength),
+                        colors = ButtonDefaults.buttonColors()
+                            .copy(containerColor = MaterialTheme.colorScheme.primary),
+                        onClick = {
+                            viewModel.groupUuid?.let {
+                                viewModel.updateGroup()
+                            } ?: run { viewModel.createGroup() }
+
+                            onBack()
+                        },
+                    ) {
+                        Text(
+                            modifier = Modifier.padding(Padding.small),
+                            text = stringResource(androidUiR.string.confirm),
+                        )
+                    }
                 }
-
-                item {
-                    DuckCountTextField(
-                        value = state.description,
-                        labelName = stringResource(androidUiR.string.description),
-                        onValueChange = { viewModel.updateDescription(description = it) },
-                        singleLine = false,
-                        maxLines = 5,
-                        error = stringResource(
-                            R.string.description_cant_exceed_max,
-                            state.description.length,
-                            viewModel.maxDescriptionLength,
-                        ),
-                        isInError = state.description.length > viewModel.maxDescriptionLength,
-                        focusManager = focusManager,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-
-                groupMemberList(
-                    members = state.members,
-                    authenticatedUserUuid = viewModel.getAuthenticatedUserUuid(),
-                    onModifyMemberList = {
-                        viewModel.showMemberDialog()
-                    },
-                    removeMember = { member ->
-                        viewModel.removeMember(member)
-                    },
-                )
-            }
-
-            ElevatedButton(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = Padding.extraLarge)
-                    .align(Alignment.BottomCenter),
-                enabled = viewModel.isOwnerInMembers()
-                        && state.members.size >= 2
-                        && state.title.length in (1..viewModel.maxTitleLength)
-                        && state.description.length in (0..viewModel.maxDescriptionLength),
-                colors = ButtonDefaults.buttonColors()
-                    .copy(containerColor = MaterialTheme.colorScheme.primary),
-                onClick = {
-                    viewModel.groupUuid?.let {
-                        viewModel.updateGroup()
-                    } ?: run { viewModel.createGroup() }
-
-                    onBack()
-                },
-            ) {
-                Text(
-                    modifier = Modifier.padding(Padding.small),
-                    text = stringResource(androidUiR.string.confirm),
-                )
             }
         }
     }

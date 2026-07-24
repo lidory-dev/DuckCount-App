@@ -45,24 +45,63 @@ class CreateGroupViewModel(
             Currency(uuid = Uuid.random().toString(), "JPY", "¥", false),
         )
 
-    private val _state = MutableStateFlow(CreateGroupState())
-    val state = _state.onStart {
+    private val _state = MutableStateFlow<CreateGroupState>(CreateGroupState.Loading)
+    val state: StateFlow<CreateGroupState> = _state.onStart {
+        val authenticatedUserUuid = getAuthenticatedUserUuid() ?: ""
+
         groupUuid?.let { uuid ->
             val group = groupListCallBacks.getGroupWithMembers(uuid).first()
 
-            updateTitle(group.title)
-            updateDescription(group.description)
+            _state.value = CreateGroupState.Content(
+                title = group.title,
+                description = group.description,
+                currency = Currency(
+                    name = group.currency.name,
+                    symbol = group.currency.symbol,
+                    hasSubunits = group.currency.hasSubunits,
+                ),
+                members = emptyList(),
+                authenticatedUserUuid = authenticatedUserUuid,
+            )
             updateMembers(group.members)
-            updateCurrency(group.currency.name, group.currency.symbol, group.currency.hasSubunits)
         } ?: run {
-            loadAuthenticatedMember()
-            updateCurrency(currencies.first().name, currencies.first().symbol, currencies.first().hasSubunits)
+            val defaultCurrency = currencies.first()
+
+            _state.value = CreateGroupState.Content(
+                title = "",
+                description = "",
+                currency = Currency(
+                    name = defaultCurrency.name,
+                    symbol = defaultCurrency.symbol,
+                    hasSubunits = defaultCurrency.hasSubunits,
+                ),
+                members = emptyList(),
+                authenticatedUserUuid = authenticatedUserUuid,
+            )
+            updateMembers(
+                listOf(
+                    GroupMember(
+                        userUuid = authenticatedUserUuid,
+                        groupUuid = "",
+                        isAdmin = true,
+                    ),
+                ),
+            )
         }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000L),
-        initialValue = _state.value,
+        initialValue = CreateGroupState.Loading,
     )
+
+    private val content: CreateGroupState.Content?
+        get() = _state.value as? CreateGroupState.Content
+
+    private fun updateContent(transform: (CreateGroupState.Content) -> CreateGroupState.Content) {
+        _state.update { current ->
+            if (current is CreateGroupState.Content) transform(current) else current
+        }
+    }
 
     val maxTitleLength: Int = groupListCallBacks.maxTitleLength
     val maxDescriptionLength: Int = groupListCallBacks.maxDescriptionLength
@@ -107,7 +146,7 @@ class CreateGroupViewModel(
     }
 
     fun isOwnerInMembers(): Boolean {
-        return _state.value.members.any { it.member.userUuid == getAuthenticatedUserUuid() }
+        return content?.members?.any { it.member.userUuid == getAuthenticatedUserUuid() } == true
     }
 
     fun showMemberDialog() {
@@ -140,20 +179,20 @@ class CreateGroupViewModel(
     }
 
     fun updateTitle(title: String) {
-        _state.update {
+        updateContent {
             it.copy(title = title)
         }
     }
 
     fun updateDescription(description: String) {
-        _state.update {
+        updateContent {
             it.copy(description = description)
         }
     }
 
     fun updateMembers(members: List<GroupMember>) {
         viewModelScope.launch {
-            val currentMembers = state.value.members
+            val currentMembers = content?.members.orEmpty()
             val existingUuids = currentMembers.map { it.member.userUuid }.toSet()
             val newUuids = members.map { it.userUuid }.toSet()
 
@@ -171,13 +210,13 @@ class CreateGroupViewModel(
                     .awaitAll()
             }
 
-            _state.update { it.copy(members = kept + added) }
+            updateContent { it.copy(members = kept + added) }
             _selectedUuids.update { newUuids }
         }
     }
 
     fun removeMember(member: GroupMember) {
-        _state.update {
+        updateContent {
             it.copy(
                 members = it.members.filterNot { memberWithFullName -> memberWithFullName.member.userUuid == member.userUuid },
             )
@@ -188,34 +227,38 @@ class CreateGroupViewModel(
     }
 
     fun createGroup() {
+        val content = content ?: return
+
         viewModelScope.launch {
             groupListCallBacks.createGroup(
-                title = state.value.title,
-                description = state.value.description,
-                members = state.value.members.map { it.member },
-                currency = state.value.currency,
+                title = content.title,
+                description = content.description,
+                members = content.members.map { it.member },
+                currency = content.currency,
             )
         }
     }
 
     fun updateGroup() = viewModelScope.launch {
+        val content = content ?: return@launch
+
         groupUuid?.let {
             groupListCallBacks.updateGroup(
                 GroupWithMembers(
                     uuid = groupUuid,
-                    title = state.value.title,
-                    description = state.value.description,
-                    members = state.value.members.map {
+                    title = content.title,
+                    description = content.description,
+                    members = content.members.map {
                         it.member.copy(groupUuid = groupUuid)
                     },
-                    currency = state.value.currency,
+                    currency = content.currency,
                 ),
             )
         }
     }
 
     fun updateCurrency(name: String, symbol: String, hasSubUnits: Boolean) {
-        _state.update {
+        updateContent {
             it.copy(
                 currency = Currency(
                     name = name, symbol = symbol, hasSubunits = hasSubUnits,
@@ -223,29 +266,18 @@ class CreateGroupViewModel(
             )
         }
     }
-
-    private fun loadAuthenticatedMember() {
-        val authenticatedUserUuid = getAuthenticatedUserUuid() ?: ""
-
-        viewModelScope.launch {
-            updateMembers(
-                _state.value.members.map { it.member } + GroupMember(
-                    userUuid = authenticatedUserUuid,
-                    groupUuid = "",
-                    isAdmin = true,
-                ),
-            )
-        }
-    }
 }
 
-data class CreateGroupState(
-    val title: String = "",
-    val description: String = "",
-    val currency: Currency = Currency("", "", "", false),
-    val members: List<GroupMemberWithFullName> = emptyList(),
-    val authenticatedUserUuid: String? = null,
-)
+sealed interface CreateGroupState {
+    data object Loading : CreateGroupState
+    data class Content(
+        val title: String,
+        val description: String,
+        val currency: Currency,
+        val members: List<GroupMemberWithFullName>,
+        val authenticatedUserUuid: String,
+    ) : CreateGroupState
+}
 
 data class UserListState(
     val users: List<User> = emptyList(),
