@@ -113,6 +113,8 @@ fun ExpenseDetailScreen(
                         ExpenseDetailActionButtons(
                             isDeleted = content.expenseWithBeneficiaries.isDeleted,
                             isSettlement = content.expenseWithBeneficiaries.isSettlement,
+                            isOneTimeExpense = content.expenseWithBeneficiaries.groupUuid == null,
+                            canEdit = content.canEdit,
                             canDelete = content.canDelete,
                             restore = viewModel::restoreExpense,
                             delete = viewModel::deleteExpense,

@@ -26,7 +26,7 @@
     <!-- CreditorDialog -->
     <string name="select_creditor">Select the creditor</string>
 
-    <!-- app.lidory.duckcount.expenseList.CreateExpenseScreen -->
+    <!-- CreateExpenseScreen -->
     <string name="add_new_expense">Add a new expense</string>
     <string name="expense_title">Expense title</string>
     <string name="label_description">Description</string>
@@ -58,4 +58,8 @@
     <string name="restore">Restore</string>
     <string name="delete">Delete</string>
     <string name="settlement">Settlement</string>
+
+    <!-- ExpenseDetailActionButtons -->
+    <string name="delete_one_time_expense_confirmation">Are you sure you want to delete this expense?\n\nUnlike an expense in a group, it cannot be restored.</string>
+    <string name="delete_settlement_confirmation">Are you sure you want to delete this settlement?\n\nUnlike an expense, it cannot be restored, but it will still appear in the list of expenses.</string>
 </resources>

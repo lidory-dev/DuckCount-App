@@ -24,6 +24,10 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 fun ExpenseDetailActionButtons(
     modifier: Modifier = Modifier,
     isDeleted: Boolean,
+    isSettlement: Boolean,
+    isOneTimeExpense: Boolean,
+    canEdit: Boolean,
+    canDelete: Boolean,
     restore: () -> Unit,
     edit: () -> Unit,
     delete: () -> Unit,
@@ -60,8 +64,13 @@ fun ExpenseDetailActionButtons(
                 },
                 text = {
                     Column {
-                        Text(text = "Are you sure you want to delete this expense ?")
-                        Text(text = "Don't worries, a deleted expense can be restored.")
+                        val confirmationText = if (isSettlement) {
+                            R.string.delete_settlement_confirmation
+                        } else {
+                            R.string.delete_one_time_expense_confirmation
+                        }
+
+                        Text(text = stringResource(confirmationText))
                     }
                 },
             )
@@ -82,23 +91,32 @@ fun ExpenseDetailActionButtons(
                 )
             }
         } else {
-            IconButton(
-                onClick = edit,
-            ) {
-                Icon(
-                    painter = painterResource(androidUiR.drawable.ic_edit),
-                    contentDescription = stringResource(R.string.edit),
-                )
+            if (canEdit) {
+                IconButton(
+                    onClick = edit,
+                ) {
+                    Icon(
+                        painter = painterResource(androidUiR.drawable.ic_edit),
+                        contentDescription = stringResource(R.string.edit),
+                    )
+                }
             }
 
-
-            IconButton(
-                onClick = { openAlertDialog.value = !openAlertDialog.value },
-            ) {
-                Icon(
-                    painter = painterResource(androidUiR.drawable.ic_delete),
-                    contentDescription = stringResource(R.string.delete),
-                )
+            if (canDelete) {
+                IconButton(
+                    onClick = {
+                        if (isSettlement || isOneTimeExpense) {
+                            openAlertDialog.value = !openAlertDialog.value
+                        } else {
+                            delete()
+                        }
+                    },
+                ) {
+                    Icon(
+                        painter = painterResource(androidUiR.drawable.ic_delete),
+                        contentDescription = stringResource(R.string.delete),
+                    )
+                }
             }
         }
     }

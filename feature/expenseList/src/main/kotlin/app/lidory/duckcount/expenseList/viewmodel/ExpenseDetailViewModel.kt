@@ -29,7 +29,7 @@ class ExpenseDetailViewModel(
     private val _navigateBack = Channel<Unit>(Channel.BUFFERED)
     val navigateBack: Flow<Unit> = _navigateBack.receiveAsFlow()
 
-    // Emitted when the delete failed (offline / server error) so the screen can surface it.
+    // Emitted when delete failed (offline / server error) so the screen can surface it.
     private val _showError = Channel<ExpenseWriteError>(Channel.BUFFERED)
     val showError: Flow<ExpenseWriteError> = _showError.receiveAsFlow()
 
@@ -90,6 +90,8 @@ class ExpenseDetailViewModel(
                     expenseWithBeneficiaries = expenseValue,
                     creditorFullName = creditor,
                     beneficiaries = beneficiaryUis,
+                    canEdit = (!expenseValue.isSettlement && expenseValue.groupUuid != null)
+                            || (!expenseValue.isSettlement && expenseValue.creditorUuid == authenticatedUserUuid),
                     // A settlement may only be deleted by its beneficiary (the money's recipient).
                     // A one-time expense may only be deleted by its creditor.
                     // A group expense may be deleted by any member of the group.
@@ -128,6 +130,7 @@ sealed interface ExpenseScreenState {
         val expenseWithBeneficiaries: ExpenseWithBeneficiaries,
         val creditorFullName: String,
         val beneficiaries: List<BeneficiaryUi>,
+        val canEdit: Boolean,
         val canDelete: Boolean,
     ) : ExpenseScreenState
 }
