@@ -523,8 +523,13 @@ data class CreateExpenseState(
     private val validateExpenseCallBack: (String, Currency, List<Beneficiary>) -> Int?,
 ) {
     val error: Int? =
-        if (beneficiaries.any { it.share.isBlank() }) R.string.non_positive_amount_share
-        else validateExpenseCallBack(amount, currency, beneficiaries)
+        when {
+            (beneficiaries.size == 1 && !beneficiaries.any { it.userUuid != creditorUuid })
+                -> R.string.no_beneficiary_other_than_the_creditor
+
+            beneficiaries.any { it.share.isBlank() } -> R.string.non_positive_amount_share
+            else -> validateExpenseCallBack(amount, currency, beneficiaries)
+        }
 }
 
 data class UserListState(
