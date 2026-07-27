@@ -119,8 +119,6 @@ class ExpenseDetailViewModel(
             _navigateBack.send(Unit)
         }
     }
-
-    fun getUserFullName(userUuid: String): Flow<String?> = expenseDetailCallBacks.getUserFullName(userUuid)
 }
 
 sealed interface ExpenseScreenState {

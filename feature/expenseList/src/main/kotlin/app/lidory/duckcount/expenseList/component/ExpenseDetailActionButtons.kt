@@ -103,6 +103,17 @@ fun ExpenseDetailActionButtons(
                 }
             }
 
+            if (!isSettlement) {
+                IconButton(
+                    onClick = history,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_history),
+                        contentDescription = stringResource(R.string.history),
+                    )
+                }
+            }
+
             if (canDelete) {
                 IconButton(
                     onClick = {
@@ -115,17 +126,6 @@ fun ExpenseDetailActionButtons(
                 ) {
                     Icon(
                         painter = painterResource(androidUiR.drawable.ic_delete),
-                        contentDescription = stringResource(R.string.delete),
-                    )
-                }
-            }
-
-            if (!isSettlement) {
-                IconButton(
-                    onClick = history,
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_balance), // TODO.
                         contentDescription = stringResource(R.string.delete),
                     )
                 }

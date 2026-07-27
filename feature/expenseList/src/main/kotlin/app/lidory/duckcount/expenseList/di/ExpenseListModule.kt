@@ -38,8 +38,8 @@ val expenseListModule = module {
     viewModel { params ->
         ExpenseHistoryDetailViewModel(
             groupUuid = params[0],
-            expenseUuid = params[1],
-            expenseIndex = params[2],
+            expenseIndex = params[1],
+            expenseUuid = params[2],
             expenseHistoryCallBacks = get(),
         )
     }

@@ -3,17 +3,19 @@ package app.lidory.duckcount.expenseList.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.expenseList.callBacks.ExpenseHistoryCallBacks
+import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.PreviousExpenseUi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 class ExpenseHistoryViewModel(
     groupUuid: String?,
     expenseUuid: String,
-    expenseHistoryCallBacks: ExpenseHistoryCallBacks,
+    private val expenseHistoryCallBacks: ExpenseHistoryCallBacks,
 ) : ViewModel() {
     private val expenses: StateFlow<List<PreviousExpenseUi>> =
         expenseHistoryCallBacks.getPreviousExpenses(groupUuid, expenseUuid)
@@ -23,34 +25,16 @@ class ExpenseHistoryViewModel(
                 initialValue = emptyList(),
             )
 
-    private val currentExpense: StateFlow<PreviousExpenseUi> =
-        expenseHistoryCallBacks.getCurrentExpense(expenseUuid)
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5000L),
-                initialValue = PreviousExpenseUi(
-                    modifiedAt = "",
-                    modifierUserFullName = "",
-                    previousTitle = "",
-                    previousDescription = "",
-                    previousAmount = "",
-                    previousTimestamp = "",
-                    previousBeneficiaries = emptyList(),
-                    previousIsSettlement = false,
-                    previousCreditorFullName = "",
-                ),
-            )
-
     val state: StateFlow<ExpenseHistoryState> =
-        combine(expenses, currentExpense) { expensesValue, currentExpenseValue ->
-            val currencySymbol = expenseHistoryCallBacks.getCurrency(expenseUuid)
-            if (expensesValue.isEmpty()) {
-                ExpenseHistoryState.Loading
+        expenses.map { expensesValue ->
+            val currency = expenseHistoryCallBacks.getCurrency(expenseUuid).first()
+
+            if (currency == null) {
+                ExpenseHistoryState.NotFound
             } else {
                 ExpenseHistoryState.Content(
                     expensesValue,
-                    currentExpenseValue,
-                    currencySymbol.first()?.symbol ?: "",
+                    currency,
                 )
             }
         }.stateIn(
@@ -58,6 +42,8 @@ class ExpenseHistoryViewModel(
             started = SharingStarted.WhileSubscribed(5000L),
             initialValue = ExpenseHistoryState.Loading,
         )
+
+    fun getUserFullName(userUuid: String): Flow<String?> = expenseHistoryCallBacks.getUserFullName(userUuid)
 }
 
 sealed interface ExpenseHistoryState {
@@ -68,7 +54,6 @@ sealed interface ExpenseHistoryState {
 
     data class Content(
         val expenses: List<PreviousExpenseUi>,
-        val currentExpense: PreviousExpenseUi,
-        val currencySymbol: String = "",
+        val currency: Currency,
     ) : ExpenseHistoryState
 }

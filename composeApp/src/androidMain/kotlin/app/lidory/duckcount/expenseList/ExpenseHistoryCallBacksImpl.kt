@@ -7,7 +7,6 @@ import app.lidory.duckcount.expenseList.model.PreviousExpenseUi
 import database.data.repository.ExpenseRepository
 import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
@@ -21,7 +20,7 @@ class ExpenseHistoryCallBacksImpl(
             listOf(
                 PreviousExpenseUi(
                     modifiedAt = "2026-06-29T16:55:59.017404",
-                    modifierUserFullName = "Alice Martin",
+                    editorUserUuid = "c901f183-7209-4706-bac5-cd539e116ab8",
                     previousAmount = "20",
                     previousBeneficiaries = listOf(
                         PreviousBeneficiary(
@@ -35,7 +34,7 @@ class ExpenseHistoryCallBacksImpl(
                             fullName = "Alice Martin",
                         ),
                     ),
-                    previousCreditorFullName = "Alice Martin",
+                    previousCreditorUuid = "c901f183-7209-4706-bac5-cd539e116ab8",
                     previousDescription = "Delicious pizzas",
                     previousIsSettlement = false,
                     previousTimestamp = "2026-06-29T16:50:59.017404",
@@ -43,7 +42,7 @@ class ExpenseHistoryCallBacksImpl(
                 ),
                 PreviousExpenseUi(
                     modifiedAt = "2026-06-29T16:53:59.017404",
-                    modifierUserFullName = "Bob Dylan",
+                    editorUserUuid = "5246201e-2e3e-4a52-abda-6161847c8779",
                     previousAmount = "23",
                     previousBeneficiaries = listOf(
                         PreviousBeneficiary(
@@ -57,7 +56,7 @@ class ExpenseHistoryCallBacksImpl(
                             fullName = "Alice Martin",
                         ),
                     ),
-                    previousCreditorFullName = "Alice Martin",
+                    previousCreditorUuid = "Alice Martin",
                     previousDescription = "Delicious pizzas",
                     previousIsSettlement = false,
                     previousTimestamp = "2026-06-29T16:50:59.017404",
@@ -65,7 +64,7 @@ class ExpenseHistoryCallBacksImpl(
                 ),
                 PreviousExpenseUi(
                     modifiedAt = "2026-06-29T16:52:59.017404",
-                    modifierUserFullName = "Bob Dylan",
+                    editorUserUuid = "5246201e-2e3e-4a52-abda-6161847c8779",
                     previousAmount = "23",
                     previousBeneficiaries = listOf(
                         PreviousBeneficiary(
@@ -79,7 +78,7 @@ class ExpenseHistoryCallBacksImpl(
                             fullName = "Alice Martin",
                         ),
                     ),
-                    previousCreditorFullName = "Alice Martin",
+                    previousCreditorUuid = "5246201e-2e3e-4a52-abda-6161847c8779",
                     previousDescription = "",
                     previousIsSettlement = false,
                     previousTimestamp = "2026-06-29T16:50:59.017404",
@@ -87,7 +86,7 @@ class ExpenseHistoryCallBacksImpl(
                 ),
                 PreviousExpenseUi(
                     modifiedAt = "2026-06-29T16:50:59.017404",
-                    modifierUserFullName = "Bob Dylan",
+                    editorUserUuid = "5246201e-2e3e-4a52-abda-6161847c8779",
                     previousAmount = "33",
                     previousBeneficiaries = listOf(
                         PreviousBeneficiary(
@@ -101,12 +100,12 @@ class ExpenseHistoryCallBacksImpl(
                             fullName = "Alice Martin",
                         ),
                         PreviousBeneficiary(
-                            userUuid = "5246201e-2e3e-4a52-abda-6161847c8779",
+                            userUuid = "4246201e-2e3e-4a52-abda-6161847c8779",
                             share = "11",
                             fullName = "Frank Sinatra",
                         ),
                     ),
-                    previousCreditorFullName = "Alice Martin",
+                    previousCreditorUuid = "c901f183-7209-4706-bac5-cd539e116ab8",
                     previousDescription = "",
                     previousIsSettlement = false,
                     previousTimestamp = "2026-06-29T16:50:59.017404",
@@ -120,29 +119,7 @@ class ExpenseHistoryCallBacksImpl(
         return expenseRepository.getCurrency(expenseUuid).map { it?.toExpenseListModel() }
     }
 
-    override fun getCurrentExpense(expenseUuid: String): Flow<PreviousExpenseUi> {
-        return expenseRepository.getWithBeneficiaries(expenseUuid).map {
-            PreviousExpenseUi(
-                modifiedAt = "",
-                modifierUserFullName = "",
-                previousAmount = it?.amount ?: "",
-                previousBeneficiaries = it?.beneficiaries?.map { beneficiary ->
-                    PreviousBeneficiary(
-                        userUuid = beneficiary.userUuid,
-                        share = beneficiary.share,
-                        // TODO: Show that the username was not found?
-                        fullName = userRepository.getFullName(beneficiary.userUuid).first()
-                            ?: beneficiary.userUuid,
-                    )
-                } ?: emptyList(),
-                // TODO: Show that the username was not found?
-                previousCreditorFullName = userRepository.getFullName(it?.creditorUuid ?: "").first()
-                    ?: it?.creditorUuid ?: "",
-                previousDescription = it?.description ?: "",
-                previousIsSettlement = it?.isSettlement ?: false,
-                previousTimestamp = it?.timestamp ?: "",
-                previousTitle = it?.title ?: "",
-            )
-        }
+    override fun getUserFullName(userUuid: String): Flow<String?> {
+        return userRepository.getFullName(userUuid)
     }
 }

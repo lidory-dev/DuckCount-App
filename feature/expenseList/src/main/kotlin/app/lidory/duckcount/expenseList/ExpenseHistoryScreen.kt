@@ -17,6 +17,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,12 +26,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.constant.Padding
-import app.lidory.duckcount.expenseList.component.ExpenseChangesCard
-import app.lidory.duckcount.expenseList.extensions.formatDateTiny
-import app.lidory.duckcount.expenseList.model.compareToCurrent
+import app.lidory.duckcount.expenseList.component.ExpensePreviousVersionCard
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseHistoryState
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseHistoryViewModel
-import kotlinx.datetime.LocalDateTime
 import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
 
@@ -81,13 +79,12 @@ fun ExpenseHistoryScreen(
                         .padding(innerPadding),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = stringResource(R.string.no_result))
+                    Text(text = stringResource(androidUiR.string.an_error_occurred))
                 }
             }
 
             is ExpenseHistoryState.Content -> {
                 val expenses = state.expenses
-                val currentExpense = state.currentExpense
                 val layoutDirection = LocalLayoutDirection.current
 
                 LazyColumn(
@@ -97,27 +94,24 @@ fun ExpenseHistoryScreen(
                         start = innerPadding.calculateStartPadding(layoutDirection) + Padding.medium,
                         end = innerPadding.calculateEndPadding(layoutDirection) + Padding.medium,
                     ),
-                    verticalArrangement = Arrangement.spacedBy(Padding.medium),
+                    verticalArrangement = Arrangement.spacedBy(Padding.large),
                 ) {
                     items(
                         count = expenses.size,
+                        key = { expenses[it].modifiedAt },
                     ) { index ->
                         val expense = expenses[index]
 
-                        val date = LocalDateTime.parse(expense.modifiedAt)
-                        val dateText = stringResource(
-                            androidUiR.string.date,
-                            date.date.formatDateTiny(),
-                            "${date.time.hour}:${date.time.minute}",
-                        )
-                        ExpenseChangesCard(
+                        val editorFullName =
+                            viewModel.getUserFullName(expense.editorUserUuid)
+                                .collectAsState(null)
+                                .value ?: expense.editorUserUuid
+
+                        ExpensePreviousVersionCard(
                             modifier = Modifier.fillMaxWidth(),
-                            modifiedAt = dateText,
-                            fieldChanged = if (index == 0)
-                                expense.compareToCurrent(currentExpense)
-                            else
-                                expense.compareToCurrent(expenses[index - 1]),
-                            modifierUserFullName = expenses[index].modifierUserFullName,
+                            modifiedAt = expense.modifiedAt,
+                            editorFullName = editorFullName,
+                            isFirstEntry = index == expenses.lastIndex,
                             onClick = {
                                 navigateToHistoryDetail(
                                     index,

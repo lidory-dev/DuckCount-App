@@ -9,5 +9,5 @@ interface ExpenseHistoryCallBacks {
 
     fun getCurrency(expenseUuid: String): Flow<Currency?>
 
-    fun getCurrentExpense(expenseUuid: String): Flow<PreviousExpenseUi>
+    fun getUserFullName(userUuid: String): Flow<String?>
 }

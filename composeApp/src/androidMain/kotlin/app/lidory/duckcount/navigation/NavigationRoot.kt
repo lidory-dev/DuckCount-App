@@ -332,7 +332,7 @@ fun NavigationRoot(
                         ) {
                             ExpenseHistoryDetailScreen(
                                 viewModel = koinViewModel {
-                                    parametersOf(key.groupUuid, key.expenseUuid, key.expenseIndex)
+                                    parametersOf(key.groupUuid, key.expenseIndex, key.expenseUuid)
                                 },
                                 onBack = dropUnlessResumed { backStack.removeIf { it is ExpenseHistoryDetailScreenKey } },
                             )

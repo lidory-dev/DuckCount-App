@@ -56,7 +56,10 @@ fun UserAmountCard(
             }
 
             // TODO: The currency symbol might be before the amount.
-            Text(text = "$amount ${currency.symbol}")
+            Text(
+                modifier = Modifier.padding(horizontal = Padding.medium),
+                text = "$amount ${currency.symbol}",
+            )
         }
     }
 }

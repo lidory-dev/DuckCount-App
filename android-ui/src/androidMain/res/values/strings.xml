@@ -20,8 +20,6 @@
     <string name="show">Show</string>
     <string name="delete">Delete</string>
     <string name="validate">Validate</string>
-    <string name="no_description">No description</string>
-    <string name="modified_by">modified by %1$s</string>
+    <string name="modified_by">Modified by %1$s</string>
     <string name="date">%1$s, %2$s</string>
-    <string name="date_format_tiny">dd/MM/yy</string>
 </resources>
