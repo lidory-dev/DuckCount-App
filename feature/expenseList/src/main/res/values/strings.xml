@@ -2,7 +2,6 @@
     <string name="app_name">ExpenseList</string>
     <string name="date_format">EEEE dd MMMM</string>
     <string name="date_format_with_year">EEEE dd MMMM yyyy</string>
-    <string name="beneficiary">Beneficiary</string>
     <string name="creditor">Creditor</string>
     <string name="neutral">Neutral</string>
     <string name="paid_by">Paid by</string>
@@ -22,7 +21,10 @@
     <string name="select_beneficiaries">Select beneficiaries</string>
 
     <!-- BeneficiaryList -->
-    <string name="beneficiaries">Beneficiaries</string>
+    <plurals name="beneficiaries">
+        <item quantity="one">Beneficiary</item>
+        <item quantity="other">Beneficiaries</item>
+    </plurals>
 
     <!-- CreditorDialog -->
     <string name="select_creditor">Select the creditor</string>

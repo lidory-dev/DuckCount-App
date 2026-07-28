@@ -1,8 +1,7 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">ExpenseList</string>
     <string name="date_format">EEEE d MMMM</string>
     <string name="date_format_with_year">EEEE d MMMM yyyy</string>
-    <string name="beneficiary">Participant</string>
     <string name="creditor">Qui a payé</string>
     <string name="neutral">Neutre</string>
     <string name="paid_by">Payé par</string>
@@ -22,7 +21,10 @@
     <string name="select_beneficiaries">Sélectionner les participants</string>
 
     <!-- BeneficiaryList -->
-    <string name="beneficiaries">Participants</string>
+    <plurals name="beneficiaries">
+        <item quantity="one" tools:ignore="ImpliedQuantity">Participant</item>
+        <item quantity="other">Participants</item>
+    </plurals>
 
     <!-- CreditorDialog -->
     <string name="select_creditor">Sélectionner qui a payé</string>

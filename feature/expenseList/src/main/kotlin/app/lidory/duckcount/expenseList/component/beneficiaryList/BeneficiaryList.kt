@@ -22,7 +22,7 @@ fun LazyListScope.beneficiaryList(
 ) {
     item {
         BeneficiaryListHeader(
-            isBeneficiaryListEmpty = beneficiaries.isEmpty(),
+            numberOfBeneficiaries = beneficiaries.size,
             enabled = enabled,
             onModifyBeneficiaryList = onModifyBeneficiaryList,
         )

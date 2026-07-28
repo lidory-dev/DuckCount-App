@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.expenseList.R
@@ -22,7 +23,7 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 
 @Composable
 fun BeneficiaryListHeader(
-    isBeneficiaryListEmpty: Boolean,
+    numberOfBeneficiaries: Int,
     enabled: Boolean,
     onModifyBeneficiaryList: () -> Unit,
     modifier: Modifier = Modifier,
@@ -33,7 +34,7 @@ fun BeneficiaryListHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = stringResource(R.string.beneficiaries))
+        Text(text = pluralStringResource(R.plurals.beneficiaries, numberOfBeneficiaries))
 
         TextButton(
             enabled = enabled,
@@ -43,9 +44,9 @@ fun BeneficiaryListHeader(
                 (LocalTextStyle.current.fontSize * 1.2f).toDp()
             }
 
-            val iconRes = if (isBeneficiaryListEmpty) androidUiR.drawable.ic_add else androidUiR.drawable.ic_edit
+            val iconRes = if (numberOfBeneficiaries == 0) androidUiR.drawable.ic_add else androidUiR.drawable.ic_edit
             val labelRes =
-                if (isBeneficiaryListEmpty) androidUiR.string.add else androidUiR.string.modify
+                if (numberOfBeneficiaries == 0) androidUiR.string.add else androidUiR.string.modify
 
             Icon(
                 painter = painterResource(iconRes),
