@@ -6,6 +6,7 @@ import AuthenticationCallBacks
 import PendingProfile
 import android.util.Log
 import app.lidory.duckcount.PasswordRequirements
+import app.lidory.duckcount.hashLoginUsername
 import app.lidory.duckcount.networking.NetworkConnectivity
 import authenticationUtils.PendingRegistration
 import authenticationUtils.clearPendingRegistration
@@ -75,12 +76,19 @@ class AuthenticationCallBacksImpl(
                 route = DuckCountRoutes.Auth.REGISTRATIONS,
                 body = RegistrationStartBody(
                     bytes = registration.start(password).toBase64(),
-                    username = username,
+                    // The server only ever knows the digest of the username, never the
+                    // username itself.
+                    username = hashLoginUsername(username = username),
                 ),
             )
 
-            val responseBytes = when (startResult) {
-                is Result.Success -> JSONObject(startResult.data).getString("bytes")
+            // The username is not repeated when finishing: the server kept it, keyed by
+            // the session id it just handed out.
+            val (sessionId, responseBytes) = when (startResult) {
+                is Result.Success -> JSONObject(startResult.data).let {
+                    it.getString("session_id") to it.getString("bytes")
+                }
+
                 is Result.Error -> {
                     Log.w(TAG, "registration start failed: ${startResult.error}")
                     return AuthOutcome.Failure(startResult.error.toAuthError())
@@ -90,15 +98,17 @@ class AuthenticationCallBacksImpl(
             val finishResult = DuckCountClient().put<String, RegistrationFinishBody>(
                 route = DuckCountRoutes.Auth.REGISTRATIONS,
                 body = RegistrationFinishBody(
+                    sessionId = sessionId,
+                    // TODO: The finish result also carries the OPAQUE export key, which is
+                    //  what client-side encryption keys should be derived from.
                     messageBytes = registration.finish(
                         registrationResponseBytes = responseBytes.decodeBase64ToByteArray(),
                         password = password,
-                    ).toBase64(),
+                    ).message.toBase64(),
                     // STUB: a real public key is not generated (no Rust
                     // keypair function is exposed). Kept as a placeholder; the server stores it
                     // as-is. Swap for the real vault public key later.
                     publicKey = PLACEHOLDER_PUBLIC_KEY.toByteArray().toBase64(),
-                    username = username,
                 ),
             )
 
@@ -151,13 +161,18 @@ class AuthenticationCallBacksImpl(
                 route = DuckCountRoutes.Auth.SESSIONS,
                 body = LoginStartBody(
                     credentialRequestBytes = login.start(password).toBase64(),
-                    username = username,
+                    // Hashed the same way registration hashed it, otherwise the account
+                    // simply cannot be found.
+                    username = hashLoginUsername(username = username),
                 ),
             )
 
-            val responseBytes = when (startResult) {
-                is Result.Success ->
-                    JSONObject(startResult.data).getString("credential_response_bytes")
+            // The username is not repeated when finishing: the server kept track of who is
+            // logging in, keyed by the session id it just handed out.
+            val (sessionId, responseBytes) = when (startResult) {
+                is Result.Success -> JSONObject(startResult.data).let {
+                    it.getString("session_id") to it.getString("credential_response_bytes")
+                }
 
                 is Result.Error -> {
                     Log.w(TAG, "login start failed: ${startResult.error}")
@@ -168,11 +183,13 @@ class AuthenticationCallBacksImpl(
             val finishResult = DuckCountClient().put<String, LoginFinishBody>(
                 route = DuckCountRoutes.Auth.SESSIONS,
                 body = LoginFinishBody(
+                    sessionId = sessionId,
+                    // TODO: The finish result also carries the OPAQUE export key, which is
+                    //  what client-side encryption keys should be derived from.
                     credentialFinalizationBytes = login.finish(
                         credentialResponseBytes = responseBytes.decodeBase64ToByteArray(),
                         password = password,
-                    ).toBase64(),
-                    username = username,
+                    ).message.toBase64(),
                 ),
             )
 

@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="unresolved_user">Unresolved user</string>
-    <string name="search_by_username">Search by username</string>
     <string name="add_new_contact">Add a new contact</string>
     <string name="delete_contact">Delete contact</string>
     <string name="delete_contact_confirmation">Are you sure you want to delete this contact?</string>
+    <string name="reserve_a_username">Reserve a username</string>
+    <string name="search_by_username">Search by username</string>
+    <string name="unresolved_user">Unresolved user</string>
+    <string name="username_reservation_required">Your contacts need a username to add you, and you need one to add them.\n\nReserve yours to start building your contact list.</string>
 </resources>

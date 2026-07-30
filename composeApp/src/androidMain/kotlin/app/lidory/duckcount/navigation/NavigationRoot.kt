@@ -42,6 +42,7 @@ import app.lidory.duckcount.navigation.key.GroupDetailScreenKey
 import app.lidory.duckcount.navigation.key.GroupSettingsScreenKey
 import app.lidory.duckcount.navigation.key.NewContactScreenKey
 import app.lidory.duckcount.settings.SettingsFlow
+import app.lidory.duckcount.settings.navigation.key.ReserveDiscoveryUsernameScreenKey
 import app.lidory.duckcount.settings.navigation.key.SettingsFlowKey
 import navigation.key.OnBoardingScreenKey
 import org.koin.androidx.compose.koinViewModel
@@ -114,7 +115,12 @@ fun NavigationRoot(
                                     )
                                 },
                                 navigateToSettingsScreen = {
-                                    backStack.add(SettingsFlowKey)
+                                    backStack.add(SettingsFlowKey())
+                                },
+                                navigateToUsernameReservation = {
+                                    backStack.add(
+                                        SettingsFlowKey(startOnNavKey = ReserveDiscoveryUsernameScreenKey),
+                                    )
                                 },
                             )
                         }
@@ -125,6 +131,7 @@ fun NavigationRoot(
                             key = key,
                         ) {
                             SettingsFlow(
+                                startOnNavKey = key.startOnNavKey,
                                 onBack = {
                                     backStack.removeIf { it is SettingsFlowKey }
                                 },

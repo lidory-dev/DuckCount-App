@@ -1,10 +1,11 @@
 package di
 
-import database.domain.repository.BeneficiaryRepository
+import database.data.repository.BeneficiaryRepository
+import database.data.repository.ExpenseRepository
+import database.data.repository.UserRepository
 import database.di.dbModule
 import database.di.dbPlatformModule
-import database.domain.repository.ExpenseRepository
-import database.domain.repository.UserRepository
+import networking.di.networkingModule
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
 import org.koin.core.context.startKoin
@@ -15,6 +16,7 @@ fun initKoin() {
             sharedModule,
             dbModule,
             dbPlatformModule(),
+            networkingModule,
         )
     }
 }

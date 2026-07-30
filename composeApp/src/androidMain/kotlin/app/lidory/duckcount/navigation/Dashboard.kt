@@ -13,7 +13,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
@@ -30,6 +33,8 @@ import app.lidory.duckcount.navigation.key.ContactListScreenKey
 import app.lidory.duckcount.navigation.key.ExpenseListScreenKey
 import app.lidory.duckcount.navigation.key.GroupListScreenKey
 import app.lidory.duckcount.navigation.key.NavigableTabNavKey
+import authenticationUtils.getDiscoveryUsername
+import authenticationUtils.getDiscoveryUsernameFlow
 import component.AddContactFloatingActionButton
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
@@ -45,8 +50,13 @@ fun Dashboard(
     navigateToCreateGroupScreen: () -> Unit,
     navigateToGroupDetailScreen: (String) -> Unit,
     navigateToSettingsScreen: () -> Unit,
+    navigateToUsernameReservation: () -> Unit,
 ) {
     val backStack = rememberNavBackStack(ExpenseListScreenKey)
+
+    // The contacts tab asks for a username to be reserved until there is one.
+    val reservedUsername by remember { getDiscoveryUsernameFlow() }
+        .collectAsStateWithLifecycle(initialValue = getDiscoveryUsername())
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -65,9 +75,11 @@ fun Dashboard(
                 }
 
                 is ContactListScreenKey -> {
-                    AddContactFloatingActionButton(
-                        onClick = navigateToNewContact,
-                    )
+                    if (reservedUsername != null) {
+                        AddContactFloatingActionButton(
+                            onClick = navigateToNewContact,
+                        )
+                    }
                 }
             }
         },
@@ -137,6 +149,7 @@ fun Dashboard(
                         ) {
                             ContactListScreen(
                                 navigateToDetailScreen = navigateToContactDetailScreen,
+                                navigateToUsernameReservation = navigateToUsernameReservation,
                                 animatedVisibilityScope = animatedVisibilityScope,
                                 sharedTransitionScope = sharedTransitionScope,
                             )

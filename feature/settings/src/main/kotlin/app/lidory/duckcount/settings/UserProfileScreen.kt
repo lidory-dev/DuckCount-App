@@ -100,7 +100,7 @@ fun UserProfileScreen(
                         .padding(innerPadding),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = stringResource(androidUiR.string.no_result))
+                    Text(text = stringResource(androidUiR.string.an_error_occurred))
                 }
             }
 
@@ -120,7 +120,7 @@ fun UserProfileScreen(
                                 .align(Alignment.CenterHorizontally)
                                 .padding(top = Padding.large)
                                 .size(32.dp),
-                            painter = painterResource(R.drawable.ic_eye_with_lock),
+                            painter = painterResource(androidUiR.drawable.ic_eye_with_lock),
                             contentDescription = null,
                         )
 

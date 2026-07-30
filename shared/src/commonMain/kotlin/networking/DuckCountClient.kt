@@ -6,6 +6,7 @@ import authenticationUtils.setTokens
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.auth.Auth
+import io.ktor.client.plugins.auth.clearAuthTokens
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -64,5 +65,18 @@ class DuckCountClient : Client() {
                 }
             }
         }
+    }
+
+    /**
+     * Drops the bearer tokens the [Auth] plugin holds in memory.
+     *
+     * They are read once through `loadTokens` and then cached until a `401` forces a
+     * refresh. Clearing the stored tokens is therefore not enough: without this, the
+     * requests that follow a log out would still carry the previous session's token,
+     * and the next user to log in on this device would be sending somebody else's
+     * credentials.
+     */
+    fun clearAuthenticationCache() {
+        httpClient.clearAuthTokens()
     }
 }

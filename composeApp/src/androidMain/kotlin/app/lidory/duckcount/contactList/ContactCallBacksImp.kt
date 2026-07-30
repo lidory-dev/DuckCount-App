@@ -1,6 +1,7 @@
 package app.lidory.duckcount.contactList
 
 import ContactCallBacks
+import authenticationUtils.getDiscoveryUsernameFlow
 import database.data.repository.UserRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -42,5 +43,9 @@ class ContactCallBacksImp(
 
     override suspend fun removeContact(userUuid: String) {
         userRepository.remove(userUuid)
+    }
+
+    override fun getReservedUsername(): Flow<String?> {
+        return getDiscoveryUsernameFlow()
     }
 }

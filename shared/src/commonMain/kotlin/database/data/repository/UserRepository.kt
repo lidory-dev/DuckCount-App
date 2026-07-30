@@ -1,15 +1,22 @@
 package database.data.repository
 
+import app.lidory.duckcount.hashUsername
 import database.data.local.dao.UserDao
 import database.data.mappers.toUser
 import database.data.mappers.toUserEntity
+import database.data.remote.ReserveUsernameRequestBody
+import database.data.remote.UserApi
 import database.domain.User
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import util.EmptyResult
+import util.NetworkError
+import util.Result
+import util.asEmptyDataResult
 
 class UserRepository(
-    // TODO: Add remote data source.
     private val userDao: UserDao,
+    private val userApi: UserApi,
 ) {
 
     suspend fun insert(user: User) {
@@ -58,5 +65,22 @@ class UserRepository(
 
     suspend fun updateFullName(userUuid: String, fullName: String) {
         userDao.updateFullName(userUuid, fullName)
+    }
+
+    /**
+     * Reserves [username] as the discovery handle of the user identified by [userUuid].
+     *
+     * Only its digest leaves the device. An invalid handle never reaches the server:
+     * callers are expected to have validated it, so this is reported as the same
+     * [NetworkError.BAD_REQUEST] the server would answer with.
+     */
+    suspend fun reserveUsername(userUuid: String, username: String): EmptyResult<NetworkError> {
+        val digest = hashUsername(username = username)
+            ?: return Result.Error(NetworkError.BAD_REQUEST)
+
+        return userApi.reserveUsername(
+            userUuid = userUuid,
+            body = ReserveUsernameRequestBody(username = digest),
+        ).asEmptyDataResult()
     }
 }

@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
@@ -16,6 +17,7 @@ import app.lidory.duckcount.settings.AccountDeletionScreen
 import app.lidory.duckcount.settings.AccountScreen
 import app.lidory.duckcount.settings.LicencesScreen
 import app.lidory.duckcount.settings.PasswordChangeScreen
+import app.lidory.duckcount.settings.ReserveDiscoveryUsernameScreen
 import app.lidory.duckcount.settings.SettingsScreen
 import app.lidory.duckcount.settings.UserProfileScreen
 import app.lidory.duckcount.settings.navigation.key.AboutScreenKey
@@ -23,6 +25,7 @@ import app.lidory.duckcount.settings.navigation.key.AccountDeletionScreenKey
 import app.lidory.duckcount.settings.navigation.key.AccountScreenKey
 import app.lidory.duckcount.settings.navigation.key.LicencesScreenKey
 import app.lidory.duckcount.settings.navigation.key.PasswordChangeScreenKey
+import app.lidory.duckcount.settings.navigation.key.ReserveDiscoveryUsernameScreenKey
 import app.lidory.duckcount.settings.navigation.key.SettingsScreenKey
 import app.lidory.duckcount.settings.navigation.key.UserProfileScreenKey
 
@@ -31,8 +34,17 @@ fun NavigationRoot(
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     onLogout: () -> Unit,
+    startOnNavKey: NavKey? = null,
 ) {
-    val backStack = rememberNavBackStack(SettingsScreenKey)
+    // Landing straight on the startOnNavKey keeps the settings list underneath,
+    // so backing out of it still leads somewhere sensible.
+    val backStack = rememberNavBackStack(
+        *if (startOnNavKey != null) {
+            arrayOf(SettingsScreenKey, startOnNavKey)
+        } else {
+            arrayOf(SettingsScreenKey)
+        },
+    )
 
     NavDisplay(
         modifier = modifier,
@@ -54,6 +66,9 @@ fun NavigationRoot(
             entry<SettingsScreenKey> {
                 SettingsScreen(
                     onBack = dropUnlessResumed { onBack() },
+                    navigateToReserveDiscoveryUsernameScreen = {
+                        backStack.add(ReserveDiscoveryUsernameScreenKey)
+                    },
                     navigateToUserProfileScreen = {
                         backStack.add(UserProfileScreenKey)
                     },
@@ -65,6 +80,14 @@ fun NavigationRoot(
                     },
                     navigateToLicencesScreen = {
                         backStack.add(LicencesScreenKey)
+                    },
+                )
+            }
+
+            entry<ReserveDiscoveryUsernameScreenKey> {
+                ReserveDiscoveryUsernameScreen(
+                    onBack = dropUnlessResumed {
+                        backStack.removeIf { it is ReserveDiscoveryUsernameScreenKey }
                     },
                 )
             }
