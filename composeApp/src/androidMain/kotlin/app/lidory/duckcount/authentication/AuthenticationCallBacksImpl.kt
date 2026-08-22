@@ -34,6 +34,8 @@ private const val TAG = "AuthCallBacks"
 class AuthenticationCallBacksImpl(
     val userRepository: UserRepository,
     private val networkConnectivity: NetworkConnectivity,
+    private val duckCountClient: DuckCountClient,
+    private val haveIBeenPwnedClient: HaveIBeenPwnedClient,
 ) : AuthenticationCallBacks {
 
     override val passwordStrength: Int = PasswordRequirements.MINIMUM_PASSWORD_STRENGTH
@@ -41,7 +43,7 @@ class AuthenticationCallBacksImpl(
     override suspend fun passwordLeakAmount(password: String): AuthOutcome<Int> {
         val sha1 = password.sha1().uppercase()
 
-        val result = HaveIBeenPwnedClient().get<String>(
+        val result = haveIBeenPwnedClient.get<String>(
             route = HaveIBeenPwnedRoutes.Password.CHECK,
             pathParams = mapOf("sha1FiveFirstCharacters" to sha1.take(5)),
         )
@@ -72,7 +74,7 @@ class AuthenticationCallBacksImpl(
         val registration = Registration()
 
         try {
-            val startResult = DuckCountClient().post<String, RegistrationStartBody>(
+            val startResult = duckCountClient.post<String, RegistrationStartBody>(
                 route = DuckCountRoutes.Auth.REGISTRATIONS,
                 body = RegistrationStartBody(
                     bytes = registration.start(password).toBase64(),
@@ -95,7 +97,7 @@ class AuthenticationCallBacksImpl(
                 }
             }
 
-            val finishResult = DuckCountClient().put<String, RegistrationFinishBody>(
+            val finishResult = duckCountClient.put<String, RegistrationFinishBody>(
                 route = DuckCountRoutes.Auth.REGISTRATIONS,
                 body = RegistrationFinishBody(
                     sessionId = sessionId,
@@ -157,7 +159,7 @@ class AuthenticationCallBacksImpl(
         val login = Login()
 
         try {
-            val startResult = DuckCountClient().post<String, LoginStartBody>(
+            val startResult = duckCountClient.post<String, LoginStartBody>(
                 route = DuckCountRoutes.Auth.SESSIONS,
                 body = LoginStartBody(
                     credentialRequestBytes = login.start(password).toBase64(),
@@ -180,7 +182,7 @@ class AuthenticationCallBacksImpl(
                 }
             }
 
-            val finishResult = DuckCountClient().put<String, LoginFinishBody>(
+            val finishResult = duckCountClient.put<String, LoginFinishBody>(
                 route = DuckCountRoutes.Auth.SESSIONS,
                 body = LoginFinishBody(
                     sessionId = sessionId,
