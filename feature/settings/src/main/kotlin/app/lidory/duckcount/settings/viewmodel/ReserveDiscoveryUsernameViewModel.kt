@@ -68,7 +68,7 @@ class ReserveDiscoveryUsernameViewModel(
         )
 
     fun onUsernameChanged(username: String) {
-        draftUsername.value = username
+        draftUsername.value = username.lowercase()
         error.value = null
     }
 

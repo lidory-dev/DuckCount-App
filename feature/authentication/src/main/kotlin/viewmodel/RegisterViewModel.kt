@@ -27,15 +27,17 @@ class RegisterViewModel(
     )
 
     fun updateUsername(username: String) {
+        val lowercased = username.lowercase()
+
         _state.update {
             it.copy(
-                username = username,
+                username = lowercased,
                 // Nothing typed yet isn't a mistake worth pointing out, the button
                 // stays disabled anyway.
-                usernameError = if (username.isBlank()) {
+                usernameError = if (lowercased.isBlank()) {
                     null
                 } else {
-                    authenticationCallBacks.validateUsername(username = username)
+                    authenticationCallBacks.validateUsername(username = lowercased)
                 },
                 error = null,
             )
