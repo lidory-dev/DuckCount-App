@@ -131,6 +131,8 @@ fun LoginScreen(
                         },
                         labelName = stringResource(R.string.username),
                         focusManager = focusManager,
+                        isInError = state.usernameError != null,
+                        error = state.usernameError?.let { stringResource(it.messageRes()) },
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -176,7 +178,7 @@ fun LoginScreen(
                                 navigateToExpenseListScreen = navigateToDashboard,
                             )
                         },
-                        enabled = state.username.isNotBlank() && state.password.isNotBlank() && !state.isLoading,
+                        enabled = state.canLogIn,
                     ) {
                         Text(
                             text = stringResource(R.string.login),

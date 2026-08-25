@@ -3,6 +3,7 @@ package viewmodel
 import AuthError
 import AuthOutcome
 import AuthenticationCallBacks
+import UsernameInputError
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +25,17 @@ class LoginViewModel(
 
     fun updateUsername(username: String) {
         _state.update {
-            it.copy(username = username, error = null)
+            it.copy(
+                username = username,
+                // Nothing typed yet isn't a mistake worth pointing out, the button
+                // stays disabled anyway.
+                usernameError = if (username.isBlank()) {
+                    null
+                } else {
+                    authenticationCallBacks.validateUsername(username = username)
+                },
+                error = null,
+            )
         }
     }
 
@@ -39,6 +50,10 @@ class LoginViewModel(
         password: String,
         navigateToExpenseListScreen: () -> Unit,
     ) {
+        // The digest the server knows the account by is derived from this username, so
+        // one that does not pass the rules can never match an account.
+        if (authenticationCallBacks.validateUsername(username = username) != null) return
+
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
 
@@ -56,5 +71,11 @@ data class LoginScreenState(
     val isLoading: Boolean = false,
     val username: String = "",
     val password: String = "",
+    val usernameError: UsernameInputError? = null,
     val error: AuthError? = null,
-)
+) {
+    val canLogIn = username.isNotBlank() &&
+            usernameError == null &&
+            password.isNotBlank() &&
+            !isLoading
+}

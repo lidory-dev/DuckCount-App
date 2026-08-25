@@ -11,6 +11,9 @@ interface AuthenticationCallBacks {
     /** Authenticates the user via OPAQUE. */
     suspend fun login(username: String, password: String): AuthOutcome<Unit>
 
+    /** Returns why [username] cannot be used as typed, or null when it is valid. */
+    fun validateUsername(username: String): UsernameInputError?
+
     suspend fun insertUser(uuid: String, username: String, fullName: String, hasPasswordBeenChecked: Boolean)
 
     /** Remembers a registration whose local profile step still needs completing (survives restart). */

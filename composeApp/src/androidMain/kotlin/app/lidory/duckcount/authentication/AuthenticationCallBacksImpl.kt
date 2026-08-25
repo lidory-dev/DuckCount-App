@@ -4,6 +4,7 @@ import AuthError
 import AuthOutcome
 import AuthenticationCallBacks
 import PendingProfile
+import UsernameInputError
 import android.util.Log
 import app.lidory.duckcount.PasswordRequirements
 import app.lidory.duckcount.hashLoginUsername
@@ -28,6 +29,8 @@ import uniffi.lib_duckcount.Login
 import uniffi.lib_duckcount.Registration
 import util.NetworkError
 import util.Result
+import app.lidory.duckcount.UsernameError as SharedUsernameError
+import app.lidory.duckcount.validateUsername as validateUsernameShared
 
 private const val TAG = "AuthCallBacks"
 
@@ -236,6 +239,10 @@ class AuthenticationCallBacksImpl(
         }
     }
 
+    override fun validateUsername(username: String): UsernameInputError? {
+        return validateUsernameShared(username = username)?.toUsernameInputError()
+    }
+
     override suspend fun insertUser(uuid: String, username: String, fullName: String, hasPasswordBeenChecked: Boolean) {
         setHasPasswordBeenChecked(hasPasswordBeenChecked)
 
@@ -273,6 +280,12 @@ class AuthenticationCallBacksImpl(
     // "not logged in" when it's merely expired, the vault doesn't exist yet, or we're offline.
     override suspend fun isLoggedIn(): Boolean =
         getLongLivedToken()?.isNotBlank() ?: false
+
+    private fun SharedUsernameError.toUsernameInputError(): UsernameInputError = when (this) {
+        SharedUsernameError.EMPTY -> UsernameInputError.EMPTY
+        SharedUsernameError.MUST_START_WITH_LETTER -> UsernameInputError.MUST_START_WITH_LETTER
+        SharedUsernameError.INVALID_CHARACTER -> UsernameInputError.INVALID_CHARACTER
+    }
 
     /**
      * Maps a transport-level [NetworkError] to a user-facing [AuthError]. The "couldn't connect"

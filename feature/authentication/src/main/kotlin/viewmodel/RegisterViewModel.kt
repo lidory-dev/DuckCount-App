@@ -3,6 +3,7 @@ package viewmodel
 import AuthError
 import AuthOutcome
 import AuthenticationCallBacks
+import UsernameInputError
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +28,17 @@ class RegisterViewModel(
 
     fun updateUsername(username: String) {
         _state.update {
-            it.copy(username = username, error = null)
+            it.copy(
+                username = username,
+                // Nothing typed yet isn't a mistake worth pointing out, the button
+                // stays disabled anyway.
+                usernameError = if (username.isBlank()) {
+                    null
+                } else {
+                    authenticationCallBacks.validateUsername(username = username)
+                },
+                error = null,
+            )
         }
     }
 
@@ -59,6 +70,10 @@ class RegisterViewModel(
         navigateToPasswordLeakScreen: (Int) -> Unit,
         navigateToUserInformationScreen: (String, String, Boolean) -> Unit,
     ) = viewModelScope.launch {
+        // The account is keyed by a digest derived from this username, so registering one
+        // that does not pass the rules would mint an account nothing can log back into.
+        if (authenticationCallBacks.validateUsername(username = username) != null) return@launch
+
         _state.update { it.copy(isLoading = true, error = null) }
 
         // Advisory breach check: if the password is leaked, warn and stop. If it's clean, or if
@@ -103,5 +118,6 @@ data class RegisterScreenState(
     val username: String = "",
     val password: String = "",
     val passwordConfirmation: String = "",
+    val usernameError: UsernameInputError? = null,
     val error: AuthError? = null,
 )

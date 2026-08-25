@@ -146,6 +146,8 @@ fun RegisterScreen(
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         labelName = stringResource(R.string.username),
                         focusManager = focusManager,
+                        isInError = state.usernameError != null,
+                        error = state.usernameError?.let { stringResource(it.messageRes()) },
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))
@@ -246,7 +248,7 @@ fun RegisterScreen(
                                 navigateToUserInformationScreen = navigateToSetUpProfileScreen,
                             )
                         },
-                        enabled = state.username.isNotBlank() && !viewModel.isPasswordTooShort() && viewModel.isPasswordConfirmationValid() && !state.isLoading,
+                        enabled = state.username.isNotBlank() && state.usernameError == null && !viewModel.isPasswordTooShort() && viewModel.isPasswordConfirmationValid() && !state.isLoading,
                     ) {
                         Text(
                             text = stringResource(R.string.register),
