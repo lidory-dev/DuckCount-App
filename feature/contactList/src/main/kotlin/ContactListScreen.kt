@@ -13,12 +13,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -28,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -42,6 +45,7 @@ import org.koin.androidx.compose.koinViewModel
 import viewmodel.ContactListState
 import viewmodel.ContactListViewModel
 import java.text.Normalizer
+import app.lidory.duckcount.android.ui.R as androidUiR
 
 
 @Composable
@@ -95,8 +99,6 @@ private fun DiscoveryUsernameReservationPrompt(
     navigateToUsernameReservation: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    TODO("Add an icon in the column")
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -104,18 +106,30 @@ private fun DiscoveryUsernameReservationPrompt(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Spacer(modifier = Modifier.weight(0.4f))
+
+        Icon(
+            modifier = Modifier.size(32.dp),
+            painter = painterResource(androidUiR.drawable.ic_username),
+            contentDescription = null,
+        )
+
+        Spacer(modifier = Modifier.height(Padding.medium))
+
         Text(
             textAlign = TextAlign.Center,
             text = stringResource(R.string.username_reservation_required),
         )
 
-        Spacer(modifier = Modifier.height(Padding.large))
+        Spacer(modifier = Modifier.height(Padding.medium))
 
         DuckCountButton(
             onClick = navigateToUsernameReservation,
         ) {
             Text(text = stringResource(R.string.reserve_a_username))
         }
+
+        Spacer(modifier = Modifier.weight(0.6f))
     }
 }
 

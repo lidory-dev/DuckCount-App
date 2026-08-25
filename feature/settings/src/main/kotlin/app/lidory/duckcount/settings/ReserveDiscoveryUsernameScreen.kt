@@ -134,7 +134,7 @@ private fun ReserveDiscoveryUsernameContent(
                         .align(Alignment.CenterHorizontally)
                         .padding(top = Padding.large)
                         .size(32.dp),
-                    painter = painterResource(R.drawable.ic_username),
+                    painter = painterResource(androidUiR.drawable.ic_username),
                     contentDescription = null,
                 )
 

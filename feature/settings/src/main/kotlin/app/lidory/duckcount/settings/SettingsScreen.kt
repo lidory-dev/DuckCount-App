@@ -24,10 +24,6 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
-    /*
-    navigateToReserveUsernameScreen: () -> Unit,
-    navigateToChangeUsernameScreen: () -> Unit,
-    */
     navigateToReserveDiscoveryUsernameScreen: () -> Unit,
     navigateToUserProfileScreen: () -> Unit,
     navigateToAccountScreen: () -> Unit,
@@ -61,7 +57,7 @@ fun SettingsScreen(
             item {
                 ButtonLine(
                     text = R.string.username,
-                    icon = R.drawable.ic_username,
+                    icon = androidUiR.drawable.ic_username,
                     onClick = navigateToReserveDiscoveryUsernameScreen,
                 )
             }
