@@ -35,7 +35,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.lidory.duckcount.android.ui.composable.button.DuckCountButton
+import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.settings.model.messageRes
@@ -186,22 +186,16 @@ private fun ReserveDiscoveryUsernameContent(
 
             Spacer(modifier = Modifier.weight(1.5f))
 
-            DuckCountButton(
+            DuckCountLoadingButton(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = {
                     focusManager.clearFocus()
                     onReserveClicked()
                 },
                 enabled = state.canReserve,
+                isLoading = state.isReserving,
             ) {
-                if (state.isReserving) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                } else {
-                    Text(text = stringResource(R.string.reserve))
-                }
+                Text(text = stringResource(R.string.reserve))
             }
         }
     }

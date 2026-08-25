@@ -9,11 +9,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,9 +33,8 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedButton
+import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.component.AmountTextField
@@ -275,7 +272,7 @@ fun CreateExpenseScreen(
                 }
             }
 
-            DuckCountElevatedButton(
+            DuckCountElevatedLoadingButton(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = Padding.extraLarge)
@@ -295,20 +292,12 @@ fun CreateExpenseScreen(
                     // Navigation happens via viewModel.navigateBack once write completes,
                     // otherwise popping this screen cancels the in-flight network write.
                 },
+                isLoading = isSaving,
             ) {
-                if (isSaving) {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .padding(Padding.small)
-                            .size(24.dp),
-                        strokeWidth = 3.dp,
-                    )
-                } else {
-                    Text(
-                        modifier = Modifier.padding(Padding.small),
-                        text = stringResource(androidUiR.string.confirm),
-                    )
-                }
+                Text(
+                    modifier = Modifier.padding(Padding.small),
+                    text = stringResource(androidUiR.string.confirm),
+                )
             }
         }
     }
