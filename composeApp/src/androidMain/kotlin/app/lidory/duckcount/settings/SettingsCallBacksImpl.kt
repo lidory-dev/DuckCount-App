@@ -7,6 +7,7 @@ import app.lidory.duckcount.PasswordRequirements
 import app.lidory.duckcount.networking.NetworkConnectivity
 import app.lidory.duckcount.settings.model.ReserveUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
+import app.lidory.duckcount.usernameMaximumLength
 import authenticationUtils.clearAuthenticatedUserUsername
 import authenticationUtils.clearAuthenticatedUserUuid
 import authenticationUtils.clearDiscoveryUsername
@@ -26,6 +27,8 @@ class SettingsCallBacksImpl(
     private val duckCountClient: DuckCountClient,
     private val networkConnectivity: NetworkConnectivity,
 ) : SettingsCallBacks {
+
+    override val maxUsernameLength: Int = usernameMaximumLength()
 
     override val minimumPasswordStrength: Int = PasswordRequirements.MINIMUM_PASSWORD_STRENGTH
 

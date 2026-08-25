@@ -9,6 +9,7 @@ import android.util.Log
 import app.lidory.duckcount.PasswordRequirements
 import app.lidory.duckcount.hashLoginUsername
 import app.lidory.duckcount.networking.NetworkConnectivity
+import app.lidory.duckcount.usernameMaximumLength
 import authenticationUtils.PendingRegistration
 import authenticationUtils.clearPendingRegistration
 import authenticationUtils.setAuthenticatedUserUsername
@@ -40,6 +41,8 @@ class AuthenticationCallBacksImpl(
     private val duckCountClient: DuckCountClient,
     private val haveIBeenPwnedClient: HaveIBeenPwnedClient,
 ) : AuthenticationCallBacks {
+
+    override val maxUsernameLength: Int = usernameMaximumLength()
 
     override val passwordStrength: Int = PasswordRequirements.MINIMUM_PASSWORD_STRENGTH
 
@@ -285,6 +288,7 @@ class AuthenticationCallBacksImpl(
         SharedUsernameError.EMPTY -> UsernameInputError.EMPTY
         SharedUsernameError.MUST_START_WITH_LETTER -> UsernameInputError.MUST_START_WITH_LETTER
         SharedUsernameError.INVALID_CHARACTER -> UsernameInputError.INVALID_CHARACTER
+        SharedUsernameError.TOO_LONG -> UsernameInputError.TOO_LONG
     }
 
     /**

@@ -70,6 +70,7 @@ fun ReserveDiscoveryUsernameScreen(
             ReserveDiscoveryUsernameContent(
                 modifier = modifier,
                 state = state,
+                maxUsernameLength = viewModel.maxUsernameLength,
                 onBack = onBack,
                 onUsernameChanged = viewModel::onUsernameChanged,
                 onReserveClicked = viewModel::onReserveClicked,
@@ -83,6 +84,7 @@ fun ReserveDiscoveryUsernameScreen(
 private fun ReserveDiscoveryUsernameContent(
     modifier: Modifier,
     state: DiscoveryUsernameScreenState.Content,
+    maxUsernameLength: Int,
     onBack: () -> Unit,
     onUsernameChanged: (String) -> Unit,
     onReserveClicked: () -> Unit,
@@ -169,7 +171,9 @@ private fun ReserveDiscoveryUsernameContent(
                     imeAction = ImeAction.Done,
                 ),
                 isInError = state.inputError != null,
-                error = state.inputError?.let { stringResource(it.messageRes()) },
+                error = state.inputError?.let {
+                    stringResource(it.messageRes(), state.username.length, maxUsernameLength)
+                },
             )
 
             state.error?.let { error ->

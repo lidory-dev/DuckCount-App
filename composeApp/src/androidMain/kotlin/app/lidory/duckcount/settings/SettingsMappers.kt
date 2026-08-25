@@ -9,6 +9,7 @@ fun SharedUsernameError.toUsernameInputError(): UsernameInputError = when (this)
     SharedUsernameError.EMPTY -> UsernameInputError.EMPTY
     SharedUsernameError.MUST_START_WITH_LETTER -> UsernameInputError.MUST_START_WITH_LETTER
     SharedUsernameError.INVALID_CHARACTER -> UsernameInputError.INVALID_CHARACTER
+    SharedUsernameError.TOO_LONG -> UsernameInputError.TOO_LONG
 }
 
 /**

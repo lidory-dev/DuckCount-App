@@ -16,6 +16,8 @@ class RegisterViewModel(
     val authenticationCallBacks: AuthenticationCallBacks,
 ) : ViewModel() {
 
+    val maxUsernameLength = authenticationCallBacks.maxUsernameLength
+
     val passwordStrength = authenticationCallBacks.passwordStrength
 
     private val _state = MutableStateFlow(RegisterScreenState())

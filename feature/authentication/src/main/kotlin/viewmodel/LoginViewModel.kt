@@ -15,6 +15,9 @@ import kotlinx.coroutines.launch
 class LoginViewModel(
     val authenticationCallBacks: AuthenticationCallBacks,
 ) : ViewModel() {
+
+    val maxUsernameLength = authenticationCallBacks.maxUsernameLength
+
     private val _state = MutableStateFlow(LoginScreenState())
 
     val state = _state.stateIn(

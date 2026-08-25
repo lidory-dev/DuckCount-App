@@ -146,7 +146,9 @@ fun RegisterScreen(
                         labelName = stringResource(R.string.username),
                         focusManager = focusManager,
                         isInError = state.usernameError != null,
-                        error = state.usernameError?.let { stringResource(it.messageRes()) },
+                        error = state.usernameError?.let {
+                            stringResource(it.messageRes(), state.username.length, viewModel.maxUsernameLength)
+                        },
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))

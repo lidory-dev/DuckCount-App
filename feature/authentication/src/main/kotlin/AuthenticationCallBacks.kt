@@ -2,6 +2,9 @@ interface AuthenticationCallBacks {
 
     val passwordStrength: Int
 
+    /** Longest username `lib-duckcount` accepts, for the "too long" message to count against. */
+    val maxUsernameLength: Int
+
     /** Number of times the password appears in known breaches (Have I Been Pwned). */
     suspend fun passwordLeakAmount(password: String): AuthOutcome<Int>
 

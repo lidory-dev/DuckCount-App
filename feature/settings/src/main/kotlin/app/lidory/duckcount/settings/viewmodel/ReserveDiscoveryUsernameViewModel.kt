@@ -24,6 +24,8 @@ class ReserveDiscoveryUsernameViewModel(
     private val settingsCallBacks: SettingsCallBacks,
 ) : ViewModel() {
 
+    val maxUsernameLength = settingsCallBacks.maxUsernameLength
+
     private val _navigateBack = Channel<Unit>(Channel.BUFFERED)
     val navigateBack: Flow<Unit> = _navigateBack.receiveAsFlow()
 

@@ -6,6 +6,9 @@ import kotlinx.coroutines.flow.Flow
 
 interface SettingsCallBacks {
 
+    /** Longest username `lib-duckcount` accepts, for the "too long" message to count against. */
+    val maxUsernameLength: Int
+
     val minimumPasswordStrength: Int
 
     val learnMoreLink: String

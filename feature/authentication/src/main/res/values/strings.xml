@@ -29,6 +29,7 @@
     <string name="username_error_empty">A username is required</string>
     <string name="username_error_must_start_with_letter">Must start with a letter</string>
     <string name="username_error_invalid_character">Letters and digits only</string>
+    <string name="username_error_too_long">Username too long (%1$d/%2$d)</string>
 
     <!-- Authentication error messages -->
     <string name="error_no_internet">No internet connection. Please check your network and try again.</string>
