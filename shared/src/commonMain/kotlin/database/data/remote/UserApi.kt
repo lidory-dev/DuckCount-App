@@ -15,8 +15,7 @@ class UserApi(
      * Reserves the caller's discovery username, replacing any previous reservation.
      *
      * [userUuid] must be the authenticated user's, the server rejects anything else
-     * with a `403`. A digest already held by somebody else comes back as a `409`, and
-     * one equal to the caller's own login username as a `400`.
+     * with a `403`. A digest already held by somebody else comes back as a `409`.
      */
     suspend fun reserveUsername(
         userUuid: String,
