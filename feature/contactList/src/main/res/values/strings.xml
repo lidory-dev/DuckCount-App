@@ -7,4 +7,5 @@
     <string name="search_by_username">Search by username</string>
     <string name="unresolved_user">Unresolved user</string>
     <string name="username_reservation_required">Your contacts need a username to add you, and you need one to add them.\n\nReserve yours to start building your contact list.</string>
+    <string name="no_contacts_yet">You don’t have any contacts yet</string>
 </resources>

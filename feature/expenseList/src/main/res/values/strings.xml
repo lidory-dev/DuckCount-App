@@ -8,7 +8,7 @@
     <string name="paid_by">Paid by</string>
     <string name="paid_by_creditor">Paid by %1$s</string>
     <string name="debtor_paid_creditor">%1$s paid %2$s</string>
-    <string name="no_expenses_yet">No expenses yet</string>
+    <string name="no_expenses_yet">You don’t have any expenses yet</string>
 
     <!-- Global -->
     <string name="no_result">No results</string>

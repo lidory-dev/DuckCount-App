@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.contactList.R
+import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.composable.button.DuckCountButton
 import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
@@ -188,73 +189,80 @@ private fun ContactList(
             focusManager = focusManager,
         )
 
-        LazyColumn(
-            state = listState,
-        ) {
-            groupedContactList.forEach { (letter, users) ->
-                if (searchQuery.isBlank()) {
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(
-                                modifier = Modifier.padding(horizontal = Padding.medium),
-                                text = letter,
-                            )
+        if (groupedContactList.isEmpty()) {
+            EmptyContentContainer(
+                icon = R.drawable.ic_contacts_group,
+                text = R.string.no_contacts_yet,
+            )
+        } else {
+            LazyColumn(
+                state = listState,
+            ) {
+                groupedContactList.forEach { (letter, users) ->
+                    if (searchQuery.isBlank()) {
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    modifier = Modifier.padding(horizontal = Padding.medium),
+                                    text = letter,
+                                )
 
+                            }
                         }
                     }
-                }
 
-                items(
-                    items = users,
-                    key = { user -> user.uuid },
-                ) { user ->
-                    Card(
-                        shape = RoundedCornerShape(size = Padding.large),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .animateItem(
-                                fadeInSpec = tween(200),
-                                placementSpec = tween(200),
-                            )
-                            .padding(vertical = Padding.medium),
-                        onClick = { navigateToDetailScreen(user.uuid) },
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                    items(
+                        items = users,
+                        key = { user -> user.uuid },
+                    ) { user ->
+                        Card(
+                            shape = RoundedCornerShape(size = Padding.large),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(TextFieldDefaults.MinHeight),
+                                .animateItem(
+                                    fadeInSpec = tween(200),
+                                    placementSpec = tween(200),
+                                )
+                                .padding(vertical = Padding.medium),
+                            onClick = { navigateToDetailScreen(user.uuid) },
                         ) {
-                            with(sharedTransitionScope) {
-                                ProfilePictureCard(
-                                    modifier = Modifier
-                                        .fillMaxHeight()
-                                        .sharedElement(
-                                            sharedContentState = rememberSharedContentState(key = "profile_picture_${user.uuid}"),
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(TextFieldDefaults.MinHeight),
+                            ) {
+                                with(sharedTransitionScope) {
+                                    ProfilePictureCard(
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .sharedElement(
+                                                sharedContentState = rememberSharedContentState(key = "profile_picture_${user.uuid}"),
+                                                animatedVisibilityScope = animatedVisibilityScope,
+                                            ),
+                                        profilePicture = user.profilePicture,
+                                        uuid = user.uuid,
+                                        fullName = user.fullName,
+                                    )
+
+                                    Text(
+                                        modifier = Modifier.sharedBounds(
+                                            sharedContentState = rememberSharedContentState(key = "full_name_${user.uuid}"),
                                             animatedVisibilityScope = animatedVisibilityScope,
                                         ),
-                                    profilePicture = user.profilePicture,
-                                    uuid = user.uuid,
-                                    fullName = user.fullName,
-                                )
-
-                                Text(
-                                    modifier = Modifier.sharedBounds(
-                                        sharedContentState = rememberSharedContentState(key = "full_name_${user.uuid}"),
-                                        animatedVisibilityScope = animatedVisibilityScope,
-                                    ),
-                                    text = user.fullName,
-                                )
+                                        text = user.fullName,
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            item {
-                Spacer(modifier = Modifier.height(80.dp))
+                item {
+                    Spacer(modifier = Modifier.height(80.dp))
+                }
             }
         }
     }
