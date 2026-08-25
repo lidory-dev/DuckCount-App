@@ -1,6 +1,7 @@
 package app.lidory.duckcount.settings
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
@@ -25,6 +26,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.settings.component.ButtonLine
 import app.lidory.duckcount.settings.viewmodel.AccountViewModel
@@ -107,7 +109,7 @@ fun AccountScreen(
             item {
                 val username = viewModel.username ?: ""
                 val fullText = stringResource(R.string.connected_as, username)
-                val startIndex = fullText.indexOf(username)
+                val startIndex = fullText.lastIndexOf(username)
 
                 val annotatedText = buildAnnotatedString {
                     append(fullText)
@@ -121,8 +123,11 @@ fun AccountScreen(
                 }
 
                 Text(
-                    modifier = Modifier.padding(vertical = Padding.large),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Padding.large, vertical = Padding.large),
                     text = annotatedText,
+                    textAlign = TextAlign.Center,
                 )
             }
 
