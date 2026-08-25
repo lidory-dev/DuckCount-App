@@ -35,9 +35,10 @@ fun NetworkError.toReserveUsernameError(isOnline: Boolean): ReserveUsernameError
 
     NetworkError.UNAUTHORIZED -> ReserveUsernameError.UNAUTHORIZED
 
+    NetworkError.TOO_MANY_REQUESTS -> ReserveUsernameError.RATE_LIMITED
+
     NetworkError.NOT_FOUND,
     NetworkError.PAYLOAD_TOO_LARGE,
-    NetworkError.TOO_MANY_REQUESTS,
     NetworkError.SERVER_ERROR,
     NetworkError.SERIALIZATION,
     NetworkError.UNKNOWN,
