@@ -12,9 +12,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.component.BalanceGraphItem
-import app.lidory.duckcount.groupList.component.EmptyContentContainer
 import app.lidory.duckcount.groupList.viewmodel.GroupBalanceViewModel
 import app.lidory.duckcount.groupList.viewmodel.MembersWithBalanceState
 import org.koin.androidx.compose.koinViewModel

@@ -17,6 +17,7 @@ import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
+import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.component.ExpenseCard
 import app.lidory.duckcount.expenseList.component.StickyHeaderElevated
@@ -26,6 +27,7 @@ import app.lidory.duckcount.expenseList.viewmodel.ExpenseListViewModel
 import app.lidory.duckcount.expenseList.viewmodel.expenseListViewModel
 import kotlinx.datetime.LocalDateTime
 import kotlin.uuid.ExperimentalUuidApi
+import app.lidory.duckcount.android.ui.R as androidUiR
 
 // TODO: Add pull-to-refresh.
 @OptIn(ExperimentalUuidApi::class)
@@ -68,45 +70,52 @@ private fun PagedOneTimeExpenseList(
     onExpenseClicked: (String, String?) -> Unit,
     viewModel: ExpenseListViewModel,
 ) {
-    LazyColumn(
-        modifier = modifier
-            .clipScrollableContainer(orientation = Orientation.Vertical)
-            .padding(
-                top = Padding.medium,
-                start = Padding.medium,
-                end = Padding.medium,
-            ),
-    ) {
-        items(
-            count = lazyItems.itemCount,
-            key = lazyItems.itemKey { it.uuid },
-        ) { index ->
-            val expense = lazyItems[index] ?: return@items
-            val date = LocalDateTime.parse(expense.timestamp).date
-            val previousDate = if (index > 0) {
-                lazyItems.peek(index - 1)?.let { LocalDateTime.parse(it.timestamp).date }
-            } else {
-                null
-            }
+    if (lazyItems.itemCount == 0) {
+        EmptyContentContainer(
+            icon = androidUiR.drawable.ic_receipt_long,
+            text = R.string.no_expenses_yet,
+        )
+    } else {
+        LazyColumn(
+            modifier = modifier
+                .clipScrollableContainer(orientation = Orientation.Vertical)
+                .padding(
+                    top = Padding.medium,
+                    start = Padding.medium,
+                    end = Padding.medium,
+                ),
+        ) {
+            items(
+                count = lazyItems.itemCount,
+                key = lazyItems.itemKey { it.uuid },
+            ) { index ->
+                val expense = lazyItems[index] ?: return@items
+                val date = LocalDateTime.parse(expense.timestamp).date
+                val previousDate = if (index > 0) {
+                    lazyItems.peek(index - 1)?.let { LocalDateTime.parse(it.timestamp).date }
+                } else {
+                    null
+                }
 
-            // Insert a date separator whenever the day changes (list is ordered by timestamp DESC).
-            if (previousDate != date) {
-                StickyHeaderElevated(
-                    modifier = Modifier.padding(bottom = Padding.medium),
-                    date = date,
+                // Insert a date separator whenever the day changes (list is ordered by timestamp DESC).
+                if (previousDate != date) {
+                    StickyHeaderElevated(
+                        modifier = Modifier.padding(bottom = Padding.medium),
+                        date = date,
+                    )
+                }
+
+                ExpenseListItem(
+                    expense = expense,
+                    connectedUserUuid = connectedUserUuid,
+                    onExpenseClicked = onExpenseClicked,
+                    viewModel = viewModel,
                 )
             }
 
-            ExpenseListItem(
-                expense = expense,
-                connectedUserUuid = connectedUserUuid,
-                onExpenseClicked = onExpenseClicked,
-                viewModel = viewModel,
-            )
-        }
-
-        item {
-            Spacer(modifier = Modifier.padding(bottom = 70.dp))
+            item {
+                Spacer(modifier = Modifier.padding(bottom = 70.dp))
+            }
         }
     }
 }
@@ -127,43 +136,50 @@ private fun GroupedExpenseList(
             .groupBy { LocalDateTime.parse(it.timestamp).date }
     }
 
-    LazyColumn(
-        modifier = modifier
-            .clipScrollableContainer(orientation = Orientation.Vertical)
-            .padding(
-                top = Padding.medium,
-                start = Padding.medium,
-                end = Padding.medium,
-            ),
-    ) {
-        groupedExpenseList.forEach { (date, expensesForDate) ->
-            stickyHeader {
-                StickyHeaderElevated(
-                    modifier = Modifier
-                        .padding(bottom = Padding.medium),
-                    date = date,
-                )
-            }
+    if (expenses.isEmpty()) {
+        EmptyContentContainer(
+            icon = androidUiR.drawable.ic_receipt_long,
+            text = R.string.no_expenses_yet,
+        )
+    } else {
+        LazyColumn(
+            modifier = modifier
+                .clipScrollableContainer(orientation = Orientation.Vertical)
+                .padding(
+                    top = Padding.medium,
+                    start = Padding.medium,
+                    end = Padding.medium,
+                ),
+        ) {
+            groupedExpenseList.forEach { (date, expensesForDate) ->
+                stickyHeader {
+                    StickyHeaderElevated(
+                        modifier = Modifier
+                            .padding(bottom = Padding.medium),
+                        date = date,
+                    )
+                }
 
-            items(
-                items = expensesForDate,
-                key = { expense -> expense.uuid },
-            ) { expense ->
-                ExpenseListItem(
-                    expense = expense,
-                    connectedUserUuid = connectedUserUuid,
-                    onExpenseClicked = onExpenseClicked,
-                    viewModel = viewModel,
-                )
+                items(
+                    items = expensesForDate,
+                    key = { expense -> expense.uuid },
+                ) { expense ->
+                    ExpenseListItem(
+                        expense = expense,
+                        connectedUserUuid = connectedUserUuid,
+                        onExpenseClicked = onExpenseClicked,
+                        viewModel = viewModel,
+                    )
+                }
+
+                item {
+                    Spacer(modifier = Modifier.padding(bottom = Padding.large))
+                }
             }
 
             item {
-                Spacer(modifier = Modifier.padding(bottom = Padding.large))
+                Spacer(modifier = Modifier.padding(bottom = 70.dp))
             }
-        }
-
-        item {
-            Spacer(modifier = Modifier.padding(bottom = 70.dp))
         }
     }
 }

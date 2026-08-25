@@ -1,4 +1,4 @@
-package app.lidory.duckcount.groupList.component
+package app.lidory.duckcount.android.ui.composable
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
