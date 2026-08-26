@@ -5,6 +5,7 @@ import authenticationUtils.getShortLivedToken
 import authenticationUtils.setTokens
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.clearAuthTokens
 import io.ktor.client.plugins.auth.providers.BearerTokens
@@ -19,8 +20,16 @@ import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
+/**
+ * Hard cap on a call to our own backend.
+ */
+private const val REQUEST_TIMEOUT_MILLIS = 5_000L
+
 class DuckCountClient : Client() {
     override val httpClient = HttpClient {
+        install(HttpTimeout) {
+            requestTimeoutMillis = REQUEST_TIMEOUT_MILLIS
+        }
         install(Logging) {
             logger = httpLogger
             level = LogLevel.ALL
