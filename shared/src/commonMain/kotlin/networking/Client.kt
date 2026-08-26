@@ -2,6 +2,7 @@ package networking
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
@@ -9,6 +10,7 @@ import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.utils.unwrapCancellationException
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.util.network.UnresolvedAddressException
@@ -137,7 +139,14 @@ abstract class Client {
         val response = try {
             executor()
         } catch (cancellation: CancellationException) {
+            // The timeout plugin gives up by cancelling the request's job with the timeout as the
+            // cancellation cause, so an expired timeout reaches us wrapped like this. Anything
+            // else is our own caller going away, which has to keep propagating.
+            if (cancellation.isRequestTimeout()) return Result.Error(NetworkError.REQUEST_TIMEOUT)
+
             throw cancellation
+        } catch (_: HttpRequestTimeoutException) {
+            return Result.Error(NetworkError.REQUEST_TIMEOUT)
         } catch (_: UnresolvedAddressException) {
             return Result.Error(NetworkError.NO_INTERNET)
         } catch (_: SerializationException) {
@@ -153,7 +162,13 @@ abstract class Client {
                 try {
                     Result.Success(response.body<T>())
                 } catch (cancellation: CancellationException) {
-                    throw cancellation
+                    // The timeout stays armed until the body has been consumed, so it can just as
+                    // well expire here, part-way through reading the response.
+                    if (!cancellation.isRequestTimeout()) throw cancellation
+
+                    Result.Error(NetworkError.REQUEST_TIMEOUT)
+                } catch (_: HttpRequestTimeoutException) {
+                    Result.Error(NetworkError.REQUEST_TIMEOUT)
                 } catch (_: SerializationException) {
                     Result.Error(NetworkError.SERIALIZATION)
                 } catch (_: Exception) {
@@ -181,3 +196,11 @@ abstract class Client {
         DELETE,
     }
 }
+
+/**
+ * Whether this was raised by a client-side request timeout, either directly or as the cause of the
+ * cancellation the timeout plugin uses to abort the request.
+ *
+ * Public because [Client.execute] is `inline`.
+ */
+fun Throwable.isRequestTimeout(): Boolean = unwrapCancellationException() is HttpRequestTimeoutException
