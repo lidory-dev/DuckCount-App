@@ -1,0 +1,43 @@
+<resources>
+    <string name="username">Identifiant</string>
+    <string name="password">Mot de passe</string>
+    <string name="next">Suivant</string>
+    <string name="sign_up">S’inscrire</string>
+    <string name="welcome">Bienvenue !</string>
+    <string name="register">Créer un compte</string>
+    <string name="welcome_back">Bon retour !</string>
+    <string name="sign_in">Se connecter</string>
+    <string name="username_not_blank">L’identifiant ne peut pas être vide</string>
+    <string name="error_password_blank">Le mot de passe ne peut pas être vide</string>
+    <string name="error_password_short">Le mot de passe doit contenir au moins %1$s caractères</string>
+    <string name="error_password_leaked">Ce mot de passe est compromis</string>
+    <string name="noted">Compris</string>
+    <string name="watch_out">Attention !</string>
+    <string name="password_leak_times">Le mot de passe que vous utilisez a été retrouvé %1$d fois dans des fuites de données. Des pirates peuvent déjà s’en servir pour accéder à vos comptes.</string>
+    <string name="choose_new_password">Nous vous conseillons de générer un nouveau mot de passe aléatoire avec un gestionnaire de mots de passe.</string>
+    <string name="change_password_everywhere">Si vous avez utilisé ce mot de passe sur un autre service, vous DEVEZ le changer immédiatement.</string>
+    <string name="error_password_confirmation">Les mots de passe ne correspondent pas</string>
+    <string name="password_confirmation">Confirmation du mot de passe</string>
+    <string name="set_up_your_profile_title">Configurez votre profil</string>
+    <string name="set_up_your_profile_description">Visible par vos contacts et les membres de vos groupes. Tout est chiffré de bout en bout : nous ne pouvons pas voir votre profil, seules les personnes avec qui vous choisissez de le partager y ont accès.</string>
+    <string name="done">Terminer</string>
+    <string name="phone_number_field">Numéro de téléphone (facultatif)</string>
+    <string name="bank_detail_field">Coordonnées bancaires (facultatives)</string>
+    <string name="login">Se connecter</string>
+
+    <!-- Erreurs de validation du nom d’utilisateur -->
+    <string name="username_error_empty">Un identifiant est requis</string>
+    <string name="username_error_must_start_with_letter">Doit commencer par une lettre</string>
+    <string name="username_error_invalid_character">Lettres et chiffres uniquement</string>
+    <string name="username_error_too_long">Identifiant trop long (%1$d/%2$d)</string>
+
+    <!-- Messages d’erreur d’authentification -->
+    <string name="error_no_internet">Aucune connexion Internet. Vérifiez votre connexion et réessayez.</string>
+    <string name="error_unreachable">Impossible de joindre le serveur. Réessayez plus tard.</string>
+    <string name="error_username_taken">Cet identifiant est déjà pris.</string>
+    <string name="error_invalid_credentials">Identifiant ou mot de passe incorrect.</string>
+    <string name="error_timeout">La requête a expiré. Réessayez.</string>
+    <string name="error_server">Une erreur est survenue de notre côté. Réessayez plus tard.</string>
+    <string name="error_crypto">La connexion sécurisée n’a pas pu être établie. Réessayez.</string>
+    <string name="error_unknown">Une erreur est survenue. Réessayez.</string>
+</resources>

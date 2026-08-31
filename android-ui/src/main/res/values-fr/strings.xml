@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="add">Ajouter</string>
+    <string name="back">Retour</string>
+    <string name="confirm">Confirmer</string>
+    <string name="modify">Modifier</string>
+</resources>

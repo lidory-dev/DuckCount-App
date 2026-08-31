@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="add_new_contact">Ajouter un contact</string>
+    <string name="delete_contact">Supprimer le contact</string>
+    <string name="delete_contact_confirmation">Voulez-vous vraiment supprimer ce contact ?</string>
+    <string name="reserve_a_username">Réserver un nom d’utilisateur</string>
+    <string name="search_by_username">Rechercher par nom d’utilisateur</string>
+    <string name="unresolved_user">Utilisateur inconnu</string>
+    <string name="username_reservation_required">Vos contacts ont besoin de votre nom d’utilisateur pour vous ajouter, et vous avez besoin du leur pour les ajouter.\n\nRéservez le vôtre pour commencer à constituer votre liste de contacts.</string>
+    <string name="no_contacts_yet">Aucun contact pour le moment</string>
+</resources>

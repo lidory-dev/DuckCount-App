@@ -21,8 +21,8 @@
     <string name="password">Password</string>
     <string name="profile">Profile</string>
     <string name="profile_disclaimer">Visible only to your contacts and group members.\nEverything is end-to-end encrypted, which means we can’t see your profile — only the people you choose to share it with.</string>
-    <string name="promotional_card_title">DuckCount is built by the engineers at Lidory.</string>
-    <string name="promotional_card_description">Lidory is a company specializing in software development and cybersecurity. It develops both consumer applications and business software.\nPrivacy and cybersecurity are top priorities for us.</string>
+    <string name="promotional_card_title">DuckCount is built by the engineers at Lidory</string>
+    <string name="promotional_card_description">Lidory is a company specializing in software development and cybersecurity. It develops both consumer applications and business software.\n\nPrivacy and cybersecurity are top priorities for us.</string>
     <string name="quack">🐤 Quack!</string>
     <string name="reserve">Reserve</string>
     <string name="reserve_username">Reserve a username</string>
@@ -30,12 +30,12 @@
     <string name="change_username_disclaimer">Choose the new username your contacts will use to add you.\n\nThe one you hold now is released as soon as the new one is reserved, so anybody still looking for the old one will no longer find you.</string>
     <string name="save">Save</string>
     <string name="trademarks_of_lidory">© 2026 Lidory SASU. All rights reserved.\nDuckCount® and Lidory® are trademarks of Lidory SASU.</string>
-    <string name="username">Username</string>
+    <string name="discovery_username">Username</string>
 
-    <string name="username_error_empty">A username is required</string>
-    <string name="username_error_must_start_with_letter">Must start with a letter</string>
-    <string name="username_error_invalid_character">Letters and digits only</string>
-    <string name="username_error_too_long">Username too long (%1$d/%2$d)</string>
+    <string name="discovery_username_error_empty">A username is required</string>
+    <string name="discovery_username_error_must_start_with_letter">Must start with a letter</string>
+    <string name="discovery_username_error_invalid_character">Letters and digits only</string>
+    <string name="discovery_username_error_too_long">Username too long (%1$d/%2$d)</string>
 
     <string name="reserve_error_already_taken">This username is already taken</string>
     <string name="reserve_error_invalid">This username cannot be used</string>

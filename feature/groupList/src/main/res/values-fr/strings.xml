@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="you_are_not_part_of_any_group">Aucun groupe pour le moment</string>
+    <string name="description_cant_exceed_max">Description trop longue (%1$s/%2$s)</string>
+    <string name="members">Membres</string>
+    <string name="select_new_members">Sélectionner de nouveaux membres</string>
+    <string name="create_a_group">Créer un groupe</string>
+    <string name="expenses">Dépenses</string>
+    <string name="balance">Solde</string>
+    <string name="edit_group">Modifier le groupe</string>
+    <string name="group_size">%1$d membres</string>
+    <string name="remove_from_the_group">Retirer du groupe</string>
+    <string name="group_settings">Paramètres du groupe</string>
+    <string name="settle_up">Rembourser</string>
+    <string name="more_options">Plus d’options</string>
+    <string name="settlement">Remboursement</string>
+    <string name="expand">développer</string>
+    <string name="you_owe">Vous devez %2$s à %1$s</string>
+    <string name="owes_you">%1$s vous doit %2$s</string>
+    <string name="you_are_all_settled_up">Tout est remboursé</string>
+    <string name="everything_is_balanced">Les comptes sont équilibrés</string>
+    <string name="currency">Devise</string>
+</resources>

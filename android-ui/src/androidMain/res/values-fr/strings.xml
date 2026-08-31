@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="an_error_occurred">Une erreur est survenue</string>
+    <string name="checked">Coché</string>
+    <string name="unchecked">Non coché</string>
+    <string name="indeterminate_checked">Partiellement coché</string>
+    <string name="search">Rechercher</string>
+    <string name="no_result">Aucun résultat</string>
+    <string name="remove">Retirer</string>
+    <string name="title">Titre</string>
+    <string name="description">Description</string>
+    <string name="select_all">Tout sélectionner</string>
+    <string name="title_mandatory">Le titre est obligatoire</string>
+    <string name="edit">Modifier</string>
+    <string name="settings">Paramètres</string>
+    <string name="full_name">Nom complet</string>
+    <string name="required">Obligatoire</string>
+    <string name="cancel">Annuler</string>
+    <string name="hide">Masquer</string>
+    <string name="show">Afficher</string>
+    <string name="delete">Supprimer</string>
+    <string name="validate">Valider</string>
+    <string name="modified_by">Modifié par %1$s</string>
+    <string name="date">%1$s à %2$s</string>
+</resources>

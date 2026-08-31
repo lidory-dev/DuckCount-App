@@ -56,7 +56,7 @@ fun SettingsScreen(
         ) {
             item {
                 ButtonLine(
-                    text = R.string.username,
+                    text = R.string.discovery_username,
                     icon = androidUiR.drawable.ic_username,
                     onClick = navigateToReserveDiscoveryUsernameScreen,
                 )

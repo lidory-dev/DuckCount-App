@@ -27,8 +27,8 @@ enum class UsernameInputError {
  */
 @StringRes
 fun UsernameInputError.messageRes(): Int = when (this) {
-    UsernameInputError.EMPTY -> R.string.username_error_empty
-    UsernameInputError.MUST_START_WITH_LETTER -> R.string.username_error_must_start_with_letter
-    UsernameInputError.INVALID_CHARACTER -> R.string.username_error_invalid_character
-    UsernameInputError.TOO_LONG -> R.string.username_error_too_long
+    UsernameInputError.EMPTY -> R.string.discovery_username_error_empty
+    UsernameInputError.MUST_START_WITH_LETTER -> R.string.discovery_username_error_must_start_with_letter
+    UsernameInputError.INVALID_CHARACTER -> R.string.discovery_username_error_invalid_character
+    UsernameInputError.TOO_LONG -> R.string.discovery_username_error_too_long
 }

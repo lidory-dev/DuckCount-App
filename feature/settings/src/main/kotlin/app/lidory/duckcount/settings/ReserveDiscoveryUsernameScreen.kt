@@ -106,7 +106,7 @@ private fun ReserveDiscoveryUsernameContent(
             .fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text(text = stringResource(R.string.username)) },
+                title = { Text(text = stringResource(R.string.discovery_username)) },
                 navigationIcon = {
                     IconButton(
                         onClick = onBack,
@@ -166,7 +166,7 @@ private fun ReserveDiscoveryUsernameContent(
                 onValueChange = onUsernameChanged,
                 focusManager = focusManager,
                 singleLine = true,
-                labelName = stringResource(R.string.username),
+                labelName = stringResource(R.string.discovery_username),
                 keyboardOptions = KeyboardOptions(
                     imeAction = ImeAction.Done,
                 ),

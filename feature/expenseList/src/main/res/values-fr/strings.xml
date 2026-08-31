@@ -1,0 +1,71 @@
+<resources>
+    <string name="app_name">ExpenseList</string>
+    <string name="date_format">EEEE d MMMM</string>
+    <string name="date_format_with_year">EEEE d MMMM yyyy</string>
+    <string name="beneficiary">Participant</string>
+    <string name="creditor">Qui a payé</string>
+    <string name="neutral">Neutre</string>
+    <string name="paid_by">Payé par</string>
+    <string name="paid_by_creditor">Payé par %1$s</string>
+    <string name="debtor_paid_creditor">%1$s a remboursé %2$s</string>
+    <string name="no_expenses_yet">Aucune dépense pour le moment</string>
+
+    <!-- Global -->
+    <string name="no_result">Aucun résultat</string>
+    <string name="edit">Modifier</string>
+
+    <!-- AmountTextField -->
+    <string name="amount_expense">Montant de la dépense</string>
+    <string name="amount_mandatory">Un montant est requis</string>
+
+    <!-- BeneficiariesDialog -->
+    <string name="select_beneficiaries">Sélectionner les participants</string>
+
+    <!-- BeneficiaryList -->
+    <string name="beneficiaries">Participants</string>
+
+    <!-- CreditorDialog -->
+    <string name="select_creditor">Sélectionner qui a payé</string>
+
+    <!-- CreateExpenseScreen -->
+    <string name="add_new_expense">Ajouter une dépense</string>
+    <string name="expense_title">Titre de la dépense</string>
+    <string name="label_description">Description</string>
+    <string name="description_too_long">Description trop longue (%1$d/%2$d)</string>
+    <string name="add_expense">Ajouter la dépense</string>
+    <string name="write_error_no_internet">Aucune connexion. Vérifiez votre connexion et réessayez.</string>
+    <string name="write_error_server_unreachable">Le serveur est injoignable. Réessayez plus tard.</string>
+    <string name="write_error_invalid_data">Cette dépense est invalide.</string>
+    <string name="write_error_conflict">Le nombre maximum de modifications a été atteint.</string>
+    <string name="write_error_unauthorized">Votre session a expiré. Reconnectez-vous.</string>
+    <string name="write_error_unknown">Une erreur est survenue. Réessayez.</string>
+
+    <!-- ErrorCard -->
+    <string name="no_beneficiaries">Une dépense doit avoir au moins un participant</string>
+    <string name="no_beneficiary_other_than_the_creditor">Une dépense doit avoir au moins un participant autre que celui qui a payé</string>
+    <string name="shares_below_total_amount">Le total des parts ne peut pas être inférieur au montant total</string>
+    <string name="shares_exceed_total_amount">Le total des parts ne peut pas être supérieur au montant total</string>
+    <string name="back">Retour</string>
+    <string name="non_positive_amount_share">Chaque participant doit avoir une part supérieure à zéro</string>
+    <string name="edit_expense">Modifier la dépense</string>
+    <string name="title_too_long">Titre trop long (%1$d/%2$d)</string>
+    <string name="remove_fixed_share">Retirer la part fixe</string>
+
+    <!-- ExpenseDetailScreen -->
+    <string name="date">%1$s à %2$s</string>
+    <string name="creditor_paid">%1$s a payé un total de %2$s %3$s</string>
+    <string name="beneficiary_has_to_pay">%1$s doit payer %2$s %3$s</string>
+    <string name="more_options">Plus d’options</string>
+    <string name="restore">Restaurer</string>
+    <string name="delete">Supprimer</string>
+    <string name="settlement">Remboursement</string>
+    <string name="history">Historique</string>
+    <string name="expense_history">Historique de la dépense</string>
+
+    <!-- ExpenseDetailActionButtons -->
+    <string name="delete_one_time_expense_confirmation">Voulez-vous vraiment supprimer cette dépense ?\n\nContrairement à une dépense dans un groupe, elle ne pourra pas être restaurée.</string>
+    <string name="delete_settlement_confirmation">Voulez-vous vraiment supprimer ce remboursement ?\n\nContrairement à une dépense, il ne pourra pas être restauré, mais il continuera d’apparaître dans la liste des dépenses.</string>
+
+    <!-- ExpenseHistoryScreen -->
+    <string name="created_by">Créé par %1$s</string>
+</resources>

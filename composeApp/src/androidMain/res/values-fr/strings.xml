@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">DuckCount</string>
+    <string name="contacts">Contacts</string>
+    <string name="expenses">Dépenses</string>
+    <string name="groups">Groupes</string>
+    <string name="on_boarding_title">Partagez vos dépenses, pas vos données.</string>
+    <string name="on_boarding_description">Partagez la note avec votre groupe en quelques secondes. Les montants et leur nature restent chiffrés, nous ne pouvons pas les lire.</string>
+    <string name="settings">Paramètres</string>
+</resources>

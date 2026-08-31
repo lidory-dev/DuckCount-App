@@ -146,7 +146,7 @@ fun ExpenseDetailScreen(
                         .padding(innerPadding),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = stringResource(R.string.no_result))
+                    Text(text = stringResource(androidUiR.string.an_error_occurred))
                 }
             }
 
