@@ -1,5 +1,6 @@
 package app.lidory.duckcount.authentication
 
+import database.data.remote.EncryptedFieldDto
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -19,6 +20,10 @@ data class RegistrationFinishBody(
     @SerialName("message_bytes")
     val messageBytes: String,
 
-    @SerialName("public_key")
-    val publicKey: String,
+    // The vault root key, sealed under the key derived from the password (the OPAQUE
+    // export key) this handshake just established. Mandatory: the server writes it in
+    // the same transaction as the account, because this is the only moment the client
+    // holds the export key, and everything else the user will ever hold hangs off it.
+    @SerialName("root_key")
+    val rootKey: EncryptedFieldDto,
 )

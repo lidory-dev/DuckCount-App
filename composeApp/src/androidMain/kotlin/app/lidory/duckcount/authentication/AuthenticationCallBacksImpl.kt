@@ -16,7 +16,9 @@ import authenticationUtils.setAuthenticatedUserUsername
 import authenticationUtils.setAuthenticatedUserUuid
 import authenticationUtils.setHasPasswordBeenChecked
 import authenticationUtils.setPendingRegistration
+import authenticationUtils.setRootKey
 import authenticationUtils.setTokens
+import database.data.remote.EncryptedFieldDto
 import database.data.repository.UserRepository
 import database.domain.User
 import networking.DuckCountClient
@@ -26,6 +28,7 @@ import networking.HaveIBeenPwnedRoutes
 import org.json.JSONException
 import org.json.JSONObject
 import uniffi.lib_duckcount.AuthenticationException
+import uniffi.lib_duckcount.EncryptedField
 import uniffi.lib_duckcount.Login
 import uniffi.lib_duckcount.Registration
 import util.NetworkError
@@ -103,20 +106,20 @@ class AuthenticationCallBacksImpl(
                 }
             }
 
+            val registrationFinish = registration.finish(
+                registrationResponseBytes = responseBytes.decodeBase64ToByteArray(),
+                password = password,
+            )
+
             val finishResult = duckCountClient.put<String, RegistrationFinishBody>(
                 route = DuckCountRoutes.Auth.REGISTRATIONS,
                 body = RegistrationFinishBody(
                     sessionId = sessionId,
-                    // TODO: The finish result also carries the OPAQUE export key, which is
-                    //  what client-side encryption keys should be derived from.
-                    messageBytes = registration.finish(
-                        registrationResponseBytes = responseBytes.decodeBase64ToByteArray(),
-                        password = password,
-                    ).message.toBase64(),
-                    // STUB: a real public key is not generated (no Rust
-                    // keypair function is exposed). Kept as a placeholder; the server stores it
-                    // as-is. Swap for the real vault public key later.
-                    publicKey = PLACEHOLDER_PUBLIC_KEY.toByteArray().toBase64(),
+                    messageBytes = registrationFinish.message().toBase64(),
+                    rootKey = EncryptedFieldDto(
+                        ciphertext = registrationFinish.encryptedRootKey().ciphertext().toBase64(),
+                        nonce = registrationFinish.encryptedRootKey().nonce().toBase64(),
+                    ),
                 ),
             )
 
@@ -139,6 +142,7 @@ class AuthenticationCallBacksImpl(
                     )
                     setAuthenticatedUserUuid(uuid)
                     setAuthenticatedUserUsername(username = username)
+                    setRootKey(registrationFinish.rootKey())
 
                     AuthOutcome.Success(uuid)
                 }
@@ -192,8 +196,6 @@ class AuthenticationCallBacksImpl(
                 route = DuckCountRoutes.Auth.SESSIONS,
                 body = LoginFinishBody(
                     sessionId = sessionId,
-                    // TODO: The finish result also carries the OPAQUE export key, which is
-                    //  what client-side encryption keys should be derived from.
                     credentialFinalizationBytes = login.finish(
                         credentialResponseBytes = responseBytes.decodeBase64ToByteArray(),
                         password = password,
@@ -216,6 +218,19 @@ class AuthenticationCallBacksImpl(
                     } ?: Log.e(TAG, "login: could not read uuid from short-lived token")
 
                     setAuthenticatedUserUsername(username = username)
+
+                    body.optJSONObject("root_key")?.let { sealedRootKey ->
+                        setRootKey(
+                            login.unsealRootKey(
+                                encryptedRootKey = EncryptedField.fromParts(
+                                    ciphertext = sealedRootKey.getString("ciphertext")
+                                        .decodeBase64ToByteArray(),
+                                    nonce = sealedRootKey.getString("nonce")
+                                        .decodeBase64ToByteArray(),
+                                ),
+                            ),
+                        )
+                    } ?: Log.w(TAG, "login: the server returned no root key")
 
                     AuthOutcome.Success(Unit)
                 }
@@ -317,10 +332,5 @@ class AuthenticationCallBacksImpl(
         NetworkError.SERIALIZATION,
         NetworkError.UNKNOWN,
             -> AuthError.UNKNOWN
-    }
-
-    companion object {
-        // Placeholder until MLS is implemented client-side.
-        private const val PLACEHOLDER_PUBLIC_KEY = "public_key"
     }
 }

@@ -19,7 +19,7 @@ import database.domain.ExpenseWithBeneficiaries
 private val DEFAULT_CURRENCY = CurrencyCatalog.defaultCurrency
 
 fun placeholderEncryptedFieldDto() =
-    EncryptedFieldDto(field = "placeholder", nonce = "nonce")
+    EncryptedFieldDto(ciphertext = "placeholder", nonce = "nonce")
 
 private fun fakeBoolean(): Boolean = false
 

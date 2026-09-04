@@ -11,6 +11,7 @@ import app.lidory.duckcount.usernameMaximumLength
 import authenticationUtils.clearAuthenticatedUserUsername
 import authenticationUtils.clearAuthenticatedUserUuid
 import authenticationUtils.clearDiscoveryUsername
+import authenticationUtils.clearRootKey
 import authenticationUtils.clearTokens
 import authenticationUtils.getAuthenticatedUserUsername
 import authenticationUtils.getDiscoveryUsernameFlow
@@ -43,6 +44,7 @@ class SettingsCallBacksImpl(
         clearAuthenticatedUserUuid()
         clearAuthenticatedUserUsername()
         clearDiscoveryUsername()
+        clearRootKey()
 
         // The stored tokens are only read once per client, so they have to be dropped
         // from the client too: otherwise the next user to log in keeps sending this
