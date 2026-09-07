@@ -63,10 +63,6 @@ class UserRepository(
         }
     }
 
-    suspend fun updateFullName(userUuid: String, fullName: String) {
-        userDao.updateFullName(userUuid, fullName)
-    }
-
     /**
      * Reserves [username] as the discovery handle of the user identified by [userUuid].
      *

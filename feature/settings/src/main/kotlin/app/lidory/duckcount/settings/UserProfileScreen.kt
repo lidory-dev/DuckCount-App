@@ -1,5 +1,6 @@
 package app.lidory.duckcount.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +18,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -36,9 +38,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.lidory.duckcount.android.ui.composable.button.DuckCountButton
+import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.settings.model.messageRes
 import app.lidory.duckcount.settings.viewmodel.UserProfileScreenState
 import app.lidory.duckcount.settings.viewmodel.UserProfileViewModel
 import org.koin.androidx.compose.koinViewModel
@@ -56,6 +59,11 @@ fun UserProfileScreen(
     val focusManager = LocalFocusManager.current
     val interactionSource = remember { MutableInteractionSource() }
 
+    val isSaving = (state as? UserProfileScreenState.Content)?.isSaving == true
+
+    // Do not allow navigating back while saving the profile.
+    BackHandler(enabled = isSaving) {}
+
     Scaffold(
         modifier = modifier
             .clickable(
@@ -71,6 +79,7 @@ fun UserProfileScreen(
                 navigationIcon = {
                     IconButton(
                         onClick = onBack,
+                        enabled = !isSaving,
                     ) {
                         Icon(
                             painter = painterResource(androidUiR.drawable.ic_arrow_back),
@@ -159,16 +168,29 @@ fun UserProfileScreen(
                             keyboardOptions = KeyboardOptions(
                                 imeAction = ImeAction.Next,
                             ),
+                            enabled = !isSaving,
                             isInError = state.draftFullName.isBlank(),
                             error = stringResource(androidUiR.string.required),
                         )
 
+                        state.error?.let { error ->
+                            Text(
+                                modifier = Modifier.padding(top = Padding.medium),
+                                text = stringResource(error.messageRes()),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+
                         Spacer(modifier = Modifier.weight(1f))
 
-                        DuckCountButton(
+                        DuckCountLoadingButton(
                             modifier = Modifier.fillMaxWidth(),
-                            onClick = { viewModel.onConfirmClicked() },
-                            enabled = state.draftFullName.isNotBlank() && state.draftFullName != state.fullName,
+                            onClick = {
+                                focusManager.clearFocus()
+                                viewModel.onConfirmClicked()
+                            },
+                            enabled = state.canSave,
+                            isLoading = state.isSaving,
                         ) {
                             Text(text = stringResource(R.string.save))
                         }

@@ -1,3 +1,4 @@
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,7 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.lidory.duckcount.android.ui.composable.button.DuckCountButton
+import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.FontSize
 import app.lidory.duckcount.android.ui.constant.Padding
@@ -49,6 +51,9 @@ fun SetUpProfileScreen(
     LaunchedEffect(state.isSaved) {
         if (state.isSaved) navigateToDashboard()
     }
+
+    // Do not allow navigating back while saving the profile.
+    BackHandler(enabled = state.isSaving) {}
 
     val focusManager = LocalFocusManager.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -118,11 +123,21 @@ fun SetUpProfileScreen(
                     error = stringResource(androidUiR.string.required),
                 )
 
+                state.error?.let { error ->
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = stringResource(error.messageRes()),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(32.dp))
 
-                DuckCountButton(
+                DuckCountLoadingButton(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
+                        focusManager.clearFocus()
                         viewModel.insertUser(
                             uuid = uuid,
                             username = username,
@@ -130,7 +145,8 @@ fun SetUpProfileScreen(
                             hasPasswordBeenChecked = hasPasswordBeenChecked,
                         )
                     },
-                    enabled = state.fullName.isNotBlank() && !state.isSaving,
+                    enabled = state.canSave,
+                    isLoading = state.isSaving,
                 ) {
                     Text(text = stringResource(R.string.done))
                 }

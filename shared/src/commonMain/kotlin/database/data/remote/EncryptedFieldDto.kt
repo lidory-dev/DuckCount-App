@@ -5,8 +5,8 @@ import kotlinx.serialization.Serializable
 /**
  * Mirrors the server's `EncryptedField` JSON object (`{ ciphertext, nonce }`).
  *
- * Carries real AES-GCM output where key management has landed (the vault root
- * key at registration).
+ * Carries real AES-GCM output where key management has landed: the vault root key
+ * at registration, and every vault entry the key ring seals.
  *
  * TODO: Everywhere else encryption is not wired up yet, and these still carry
  * placeholder values so the server accepts the request. Replace with real

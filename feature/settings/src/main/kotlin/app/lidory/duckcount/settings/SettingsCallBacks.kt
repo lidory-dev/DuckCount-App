@@ -1,5 +1,6 @@
 package app.lidory.duckcount.settings
 
+import app.lidory.duckcount.settings.model.ProfileSaveError
 import app.lidory.duckcount.settings.model.ReserveUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
 import kotlinx.coroutines.flow.Flow
@@ -25,7 +26,20 @@ interface SettingsCallBacks {
 
     fun getUserFullName(uuid: String): Flow<String?>
 
-    suspend fun updateUserFullName(userUuid: String, fullName: String)
+    /**
+     * Pulls the profile from the server into the local cache.
+     *
+     * Failing is not reported, the cached copy is what the screen shows either way.
+     */
+    suspend fun refreshUserProfile(userUuid: String)
+
+    /**
+     * Updates the user's profile, server first.
+     *
+     * Nothing is kept locally when this fails, the profile lives on the server, so a
+     * save that did not reach it did not happen.
+     */
+    suspend fun updateUserProfile(userUuid: String, fullName: String): ProfileSaveError?
 
     /**
      * Emits the username the user reserved to be discoverable by, or null when they

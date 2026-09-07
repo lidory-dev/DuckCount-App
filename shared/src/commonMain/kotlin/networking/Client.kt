@@ -5,7 +5,9 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
@@ -26,12 +28,14 @@ abstract class Client {
         route: String,
         pathParams: Map<String, String> = emptyMap(),
         queryParams: Map<String, String> = hashMapOf(),
+        headers: Map<String, String> = emptyMap(),
     ): Result<T, NetworkError> {
         return executeMethod(
             method = Method.GET,
             route = route,
             pathParams = pathParams,
             queryParams = queryParams,
+            headers = headers,
             body = Unit,
         )
     }
@@ -39,6 +43,7 @@ abstract class Client {
     suspend inline fun <reified T, D> post(
         route: String,
         pathParams: Map<String, String> = emptyMap(),
+        headers: Map<String, String> = emptyMap(),
         body: D,
         contentType: ContentType = ContentType.Application.Json,
     ): Result<T, NetworkError> {
@@ -46,6 +51,7 @@ abstract class Client {
             method = Method.POST,
             route = route,
             pathParams = pathParams,
+            headers = headers,
             body = body,
             contentType = contentType,
         )
@@ -54,6 +60,7 @@ abstract class Client {
     suspend inline fun <reified T, D> put(
         route: String,
         pathParams: Map<String, String> = emptyMap(),
+        headers: Map<String, String> = emptyMap(),
         body: D,
         contentType: ContentType = ContentType.Application.Json,
     ): Result<T, NetworkError> {
@@ -61,6 +68,24 @@ abstract class Client {
             method = Method.PUT,
             route = route,
             pathParams = pathParams,
+            headers = headers,
+            body = body,
+            contentType = contentType,
+        )
+    }
+
+    suspend inline fun <reified T, D> patch(
+        route: String,
+        pathParams: Map<String, String> = emptyMap(),
+        headers: Map<String, String> = emptyMap(),
+        body: D,
+        contentType: ContentType = ContentType.Application.Json,
+    ): Result<T, NetworkError> {
+        return executeMethod(
+            method = Method.PATCH,
+            route = route,
+            pathParams = pathParams,
+            headers = headers,
             body = body,
             contentType = contentType,
         )
@@ -69,11 +94,13 @@ abstract class Client {
     suspend inline fun <reified T> delete(
         route: String,
         pathParams: Map<String, String> = emptyMap(),
+        headers: Map<String, String> = emptyMap(),
     ): Result<T, NetworkError> {
         return executeMethod(
             method = Method.DELETE,
             route = route,
             pathParams = pathParams,
+            headers = headers,
             body = Unit,
         )
     }
@@ -83,6 +110,7 @@ abstract class Client {
         route: String,
         pathParams: Map<String, String> = emptyMap(),
         queryParams: Map<String, String> = hashMapOf(),
+        headers: Map<String, String> = emptyMap(),
         body: D? = null,
         contentType: ContentType? = null,
     ): Result<T, NetworkError> {
@@ -99,6 +127,9 @@ abstract class Client {
                         queryParams.onEach { param ->
                             parameter(key = param.key, value = param.value)
                         }
+                        headers.onEach { (name, value) ->
+                            header(key = name, value = value)
+                        }
                     }
                 }
 
@@ -109,6 +140,9 @@ abstract class Client {
                         setBody(body)
                         contentType?.let {
                             contentType(it)
+                        }
+                        headers.onEach { (name, value) ->
+                            header(key = name, value = value)
                         }
                     }
                 }
@@ -121,13 +155,34 @@ abstract class Client {
                         contentType?.let {
                             contentType(it)
                         }
+                        headers.onEach { (name, value) ->
+                            header(key = name, value = value)
+                        }
+                    }
+                }
+
+                Method.PATCH -> {
+                    httpClient.patch(
+                        urlString = routeWithPathParameters,
+                    ) {
+                        setBody(body)
+                        contentType?.let {
+                            contentType(it)
+                        }
+                        headers.onEach { (name, value) ->
+                            header(key = name, value = value)
+                        }
                     }
                 }
 
                 Method.DELETE -> {
                     httpClient.delete(
                         urlString = routeWithPathParameters,
-                    )
+                    ) {
+                        headers.onEach { (name, value) ->
+                            header(key = name, value = value)
+                        }
+                    }
                 }
             }
         }
@@ -193,6 +248,7 @@ abstract class Client {
         GET,
         POST,
         PUT,
+        PATCH,
         DELETE,
     }
 }

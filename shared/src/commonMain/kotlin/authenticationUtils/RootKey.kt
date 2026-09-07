@@ -42,10 +42,17 @@ fun clearRootKey() {
     )
 }
 
+/**
+ * The type argument is load-bearing and must not be dropped: with only
+ * `defaultValue = null` to go on, and a `?.let` that swallows the expected type
+ * (`Nothing` being a subtype of `String`, the lambda constrains nothing), Kotlin
+ * infers `T = Nothing?` and KSafe deserializes the stored value into a null. The
+ * key reads back as absent while sitting on disk perfectly intact.
+ */
 suspend fun getRootKey(): ByteArray? {
     val vault: KSafe = getKoin().get(named("vault"))
 
-    return vault.get(ROOT_KEY, defaultValue = null)?.let { encoded: String ->
+    return vault.get<String?>(ROOT_KEY, defaultValue = null)?.let { encoded: String ->
         Base64.Default.decode(encoded)
     }
 }

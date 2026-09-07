@@ -16,13 +16,24 @@ object DuckCountRoutes {
     }
 
     object Vault {
-        val VAULT_BASE_URL = "$baseUrl/vault"
+        private val VAULT_BASE_URL = "$baseUrl/vault"
+
+        /** The whole vault: `GET` to sync it, `PATCH` to write several parts at once. */
+        val VAULT = VAULT_BASE_URL
+
+        /** One part of the vault: `GET` its items, `PUT` one, `DELETE` them all. */
+        val VAULT_PART = "$VAULT_BASE_URL/:entry_key"
+
+        /** One item of a part. `DELETE` only: `PUT` carries the item id in its body. */
+        val VAULT_ITEM = "$VAULT_BASE_URL/:entry_key/:item_id"
     }
 
     object User {
         private val USER_BASE_URL = "$baseUrl/users"
 
         val USERNAME = "$USER_BASE_URL/:user_uuid/username"
+
+        val PROFILE = "$USER_BASE_URL/:user_uuid/profile"
     }
 
     object Expense {

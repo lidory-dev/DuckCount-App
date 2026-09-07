@@ -20,19 +20,22 @@ import authenticationUtils.setRootKey
 import authenticationUtils.setTokens
 import database.data.remote.EncryptedFieldDto
 import database.data.repository.UserRepository
-import database.domain.User
 import networking.DuckCountClient
 import networking.DuckCountRoutes
 import networking.HaveIBeenPwnedClient
 import networking.HaveIBeenPwnedRoutes
 import org.json.JSONException
 import org.json.JSONObject
+import profile.ProfileError
+import profile.ProfileRepository
 import uniffi.lib_duckcount.AuthenticationException
 import uniffi.lib_duckcount.EncryptedField
 import uniffi.lib_duckcount.Login
 import uniffi.lib_duckcount.Registration
 import util.NetworkError
 import util.Result
+import util.onError
+import vault.VaultError
 import app.lidory.duckcount.UsernameError as SharedUsernameError
 import app.lidory.duckcount.validateUsername as validateUsernameShared
 
@@ -43,6 +46,7 @@ class AuthenticationCallBacksImpl(
     private val networkConnectivity: NetworkConnectivity,
     private val duckCountClient: DuckCountClient,
     private val haveIBeenPwnedClient: HaveIBeenPwnedClient,
+    private val profileRepository: ProfileRepository,
 ) : AuthenticationCallBacks {
 
     override val maxUsernameLength: Int = usernameMaximumLength()
@@ -232,6 +236,13 @@ class AuthenticationCallBacksImpl(
                         )
                     } ?: Log.w(TAG, "login: the server returned no root key")
 
+                    uuid?.let {
+                        profileRepository.restoreProfile(userUuid = it, username = username)
+                            .onError { error ->
+                                Log.w(TAG, "login: could not restore the profile: $error")
+                            }
+                    }
+
                     AuthOutcome.Success(Unit)
                 }
 
@@ -261,19 +272,34 @@ class AuthenticationCallBacksImpl(
         return validateUsernameShared(username = username)?.toUsernameInputError()
     }
 
-    override suspend fun insertUser(uuid: String, username: String, fullName: String, hasPasswordBeenChecked: Boolean) {
+    override suspend fun insertUser(
+        uuid: String,
+        username: String,
+        fullName: String,
+        hasPasswordBeenChecked: Boolean,
+    ): AuthOutcome<Unit> {
         setHasPasswordBeenChecked(hasPasswordBeenChecked)
 
-        userRepository.insert(
-            User(
-                uuid = uuid,
-                username = username,
-                fullName = fullName,
-            ),
+        val upload = profileRepository.uploadProfile(
+            userUuid = uuid,
+            username = username,
+            fullName = fullName,
         )
+
+        if (upload is Result.Error) {
+            Log.w(TAG, "insertUser: could not upload the profile: ${upload.error}")
+
+            // The marker stays, so the user comes back to this step rather than to an
+            // account with no profile anywhere.
+            return AuthOutcome.Failure(
+                upload.error.toAuthError(),
+            )
+        }
 
         // Profile completed, drop the saved "resume registration" marker.
         clearPendingRegistration()
+
+        return AuthOutcome.Success(Unit)
     }
 
     override suspend fun markPendingRegistration(uuid: String, username: String, hasPasswordBeenChecked: Boolean) {
@@ -304,6 +330,35 @@ class AuthenticationCallBacksImpl(
         SharedUsernameError.MUST_START_WITH_LETTER -> UsernameInputError.MUST_START_WITH_LETTER
         SharedUsernameError.INVALID_CHARACTER -> UsernameInputError.INVALID_CHARACTER
         SharedUsernameError.TOO_LONG -> UsernameInputError.TOO_LONG
+    }
+
+    /**
+     * Maps a failed profile upload to a user-facing [AuthError].
+     *
+     * The vault half is folded in: to somebody finishing a registration, "the key could
+     * not be written" and "the profile could not be sent" are the same unfinished step.
+     */
+    private fun ProfileError.toAuthError(): AuthError = when (this) {
+        is ProfileError.Network -> error.toAuthError()
+
+        is ProfileError.Vault -> when (val vaultError = error) {
+            is VaultError.Network -> vaultError.error.toAuthError()
+
+            // The root key was set moments ago by the registration that led here, so
+            // its absence is not something the user can be asked to fix.
+            VaultError.MissingRootKey,
+            VaultError.Crypto,
+            VaultError.MalformedKeyRing,
+            VaultError.OrphanedEntry,
+            VaultError.Contended,
+                -> AuthError.CRYPTO_ERROR
+        }
+
+        // Neither can happen on the way out: NotStored is a read outcome, and a field
+        // this device just sealed is one it can seal.
+        ProfileError.NotStored,
+        ProfileError.Crypto,
+            -> AuthError.UNKNOWN
     }
 
     /**

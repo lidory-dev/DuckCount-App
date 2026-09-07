@@ -33,11 +33,13 @@ import di.authenticationModule
 import di.contactListModule
 import di.sharedModule
 import networking.di.networkingModule
+import profile.di.profileModule
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.bind
 import org.koin.dsl.module
+import vault.di.vaultModule
 
 val authenticationCallBacksModule = module {
     singleOf(::AuthenticationCallBacksImpl).bind<AuthenticationCallBacks>()
@@ -76,6 +78,8 @@ val appModule = listOf(
     dbModule,
     dbPlatformModule(),
     networkingModule,
+    vaultModule,
+    profileModule,
     expenseListModule,
     authenticationModule,
     authenticationCallBacksModule,

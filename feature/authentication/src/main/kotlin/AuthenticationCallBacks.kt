@@ -17,7 +17,19 @@ interface AuthenticationCallBacks {
     /** Returns why [username] cannot be used as typed, or null when it is valid. */
     fun validateUsername(username: String): UsernameInputError?
 
-    suspend fun insertUser(uuid: String, username: String, fullName: String, hasPasswordBeenChecked: Boolean)
+    /**
+     * Stores the profile the user just filled in, on the server first and locally after.
+     *
+     * The profile lives on the server, so one that could not be sent was not saved and
+     * the registration is not finished, the "resume registration" marker is left in
+     * place and the user stays on the profile step.
+     */
+    suspend fun insertUser(
+        uuid: String,
+        username: String,
+        fullName: String,
+        hasPasswordBeenChecked: Boolean,
+    ): AuthOutcome<Unit>
 
     /** Remembers a registration whose local profile step still needs completing (survives restart). */
     suspend fun markPendingRegistration(uuid: String, username: String, hasPasswordBeenChecked: Boolean)

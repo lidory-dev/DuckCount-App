@@ -9,6 +9,8 @@ import networking.di.networkingModule
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
 import org.koin.core.context.startKoin
+import profile.di.profileModule
+import vault.di.vaultModule
 
 fun initKoin() {
     startKoin {
@@ -17,6 +19,9 @@ fun initKoin() {
             dbModule,
             dbPlatformModule(),
             networkingModule,
+            vaultModule,
+            profileModule,
+    profileModule,
         )
     }
 }

@@ -3,6 +3,7 @@ package app.lidory.duckcount.settings.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.settings.SettingsCallBacks
+import app.lidory.duckcount.settings.model.ProfileSaveError
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,45 +17,70 @@ class UserProfileViewModel(
 
     val authenticatedUserUuid = settingsCallBacks.getAuthenticatedUserUuid()
 
-    private val userFullName: StateFlow<String?> =
-        settingsCallBacks.getUserFullName(uuid = authenticatedUserUuid ?: "")
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5000L),
-                initialValue = null,
-            )
-
     val draftFullName = MutableStateFlow<String?>(null)
 
-    val state: StateFlow<UserProfileScreenState> =
-        combine(userFullName, draftFullName) { savedName, draft ->
-            if (authenticatedUserUuid != null && savedName != null) {
-                UserProfileScreenState.Content(
-                    authenticatedUserUuid = authenticatedUserUuid,
-                    fullName = savedName,
-                    draftFullName = draft ?: savedName,
-                )
-            } else {
-                UserProfileScreenState.NotFound
-            }
+    private val isSaving = MutableStateFlow(false)
+
+    private val error = MutableStateFlow<ProfileSaveError?>(null)
+
+    init {
+        // The server holds the profile, refreshing on open is what makes a change from
+        // another device show up here. It is not waited on, the cached copy is displayed
+        // straight away and replaced when the fetch lands.
+        authenticatedUserUuid?.let { uuid ->
+            viewModelScope.launch { settingsCallBacks.refreshUserProfile(userUuid = uuid) }
+        }
+    }
+
+    val state: StateFlow<UserProfileScreenState> = when (authenticatedUserUuid) {
+        null -> MutableStateFlow(UserProfileScreenState.NotFound)
+
+        else -> combine(
+            settingsCallBacks.getUserFullName(uuid = authenticatedUserUuid),
+            draftFullName,
+            isSaving,
+            error,
+        ) { savedName, draft, saving, saveError ->
+            val fullName = savedName.orEmpty()
+
+            UserProfileScreenState.Content(
+                authenticatedUserUuid = authenticatedUserUuid,
+                fullName = fullName,
+                draftFullName = draft ?: fullName,
+                isSaving = saving,
+                error = saveError,
+            )
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000L),
             initialValue = UserProfileScreenState.Loading,
         )
+    }
 
     fun onFullNameChanged(fullName: String) {
         draftFullName.value = fullName
+        error.value = null
     }
 
     fun onConfirmClicked() {
+        val uuid = authenticatedUserUuid ?: return
         val nameToSave = draftFullName.value ?: return
 
         viewModelScope.launch {
-            authenticatedUserUuid?.let { uuid ->
-                settingsCallBacks.updateUserFullName(userUuid = uuid, fullName = nameToSave)
-                draftFullName.value = null
-            }
+            isSaving.value = true
+            error.value = null
+
+            val saveError = settingsCallBacks.updateUserProfile(
+                userUuid = uuid,
+                fullName = nameToSave,
+            )
+
+            isSaving.value = false
+            error.value = saveError
+
+            // Only a save the server took is worth dropping the draft for; otherwise
+            // the user keeps what they typed and can try again.
+            if (saveError == null) draftFullName.value = null
         }
     }
 }
@@ -66,5 +92,10 @@ sealed interface UserProfileScreenState {
         val authenticatedUserUuid: String,
         val fullName: String,
         val draftFullName: String,
-    ) : UserProfileScreenState
+        val isSaving: Boolean,
+        val error: ProfileSaveError?,
+    ) : UserProfileScreenState {
+        val canSave: Boolean =
+            draftFullName.isNotBlank() && draftFullName != fullName && !isSaving
+    }
 }
