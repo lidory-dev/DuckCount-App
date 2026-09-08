@@ -40,6 +40,7 @@
     <string name="reserve_error_already_taken">Ce nom d’utilisateur est déjà pris</string>
     <string name="reserve_error_invalid">Ce nom d’utilisateur ne peut pas être utilisé</string>
     <string name="reserve_error_unauthorized">Reconnectez-vous pour réserver un nom d’utilisateur</string>
+    <string name="reserve_error_conflict">Votre compte a changé sur un autre appareil, réessayez</string>
     <string name="reserve_error_rate_limited">Trop de tentatives, réessayez plus tard</string>
     <string name="reserve_error_no_internet">Aucune connexion Internet</string>
     <string name="reserve_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>

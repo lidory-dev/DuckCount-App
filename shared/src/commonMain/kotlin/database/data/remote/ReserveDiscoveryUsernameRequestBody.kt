@@ -10,6 +10,6 @@ import kotlinx.serialization.Serializable
  * characters), the hashing happens client-side in `lib-duckcount`.
  */
 @Serializable
-data class ReserveUsernameRequestBody(
+data class ReserveDiscoveryUsernameRequestBody(
     val username: String,
 )

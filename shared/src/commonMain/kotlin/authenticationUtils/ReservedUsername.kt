@@ -10,11 +10,13 @@ import org.koin.mp.KoinPlatform.getKoin
 const val DISCOVERY_USERNAME = "discoveryUsername"
 
 /**
- * Saves the discovery username the user reserved, in its normalized form.
+ * Caches the discovery username the user reserved, in its normalized form.
  *
- * The server holds only the digest and exposes no way to read it back, so this is the
- * only record that the user is discoverable at all. Set when a reservation succeeds,
- * and cleared on log out.
+ * The handle itself lives in the vault, which is what makes it survive a reinstall,
+ * and this is the local copy the screens that show it read without a round trip. It
+ * is written when a reservation succeeds and when a login restores the vault's copy,
+ * and dropped on log out. `DiscoveryUsernameRepository` owns both, nothing else has
+ * business writing here.
  */
 fun setDiscoveryUsername(username: String) {
     val vault: KSafe = getKoin().get(named("vault"))
@@ -29,6 +31,7 @@ fun setDiscoveryUsername(username: String) {
     )
 }
 
+/** Drops the local copy, on log out or when the vault turns out to hold none. */
 fun clearDiscoveryUsername() {
     val vault: KSafe = getKoin().get(named("vault"))
 
@@ -37,13 +40,14 @@ fun clearDiscoveryUsername() {
     )
 }
 
+/** The cached discovery username, or null when this device has not been told of one. */
 fun getDiscoveryUsername(): String? {
     val vault: KSafe = getKoin().get(named("vault"))
 
     return vault.getDirect(key = DISCOVERY_USERNAME, defaultValue = null)
 }
 
-/** Emits the discovery username, and again whenever it changes. */
+/** Emits the cached discovery username, and again whenever it changes. */
 fun getDiscoveryUsernameFlow(): Flow<String?> {
     val vault: KSafe = getKoin().get(named("vault"))
 

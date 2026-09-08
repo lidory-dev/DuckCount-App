@@ -7,7 +7,7 @@ import app.lidory.duckcount.LICENCES_LIST
 import app.lidory.duckcount.PasswordRequirements
 import app.lidory.duckcount.networking.NetworkConnectivity
 import app.lidory.duckcount.settings.model.ProfileSaveError
-import app.lidory.duckcount.settings.model.ReserveUsernameError
+import app.lidory.duckcount.settings.model.ReserveDiscoveryUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
 import app.lidory.duckcount.usernameMaximumLength
 import authenticationUtils.clearAuthenticatedUserUsername
@@ -17,8 +17,8 @@ import authenticationUtils.clearRootKey
 import authenticationUtils.clearTokens
 import authenticationUtils.getAuthenticatedUserUsername
 import authenticationUtils.getDiscoveryUsernameFlow
-import authenticationUtils.setDiscoveryUsername
 import database.data.repository.UserRepository
+import discoveryUsername.DiscoveryUsernameRepository
 import kotlinx.coroutines.flow.Flow
 import networking.DuckCountClient
 import profile.ProfileRepository
@@ -34,6 +34,7 @@ class SettingsCallBacksImpl(
     private val duckCountClient: DuckCountClient,
     private val networkConnectivity: NetworkConnectivity,
     private val profileRepository: ProfileRepository,
+    private val discoveryUsernameRepository: DiscoveryUsernameRepository,
 ) : SettingsCallBacks {
 
     override val maxUsernameLength: Int = usernameMaximumLength()
@@ -102,6 +103,14 @@ class SettingsCallBacksImpl(
         return getDiscoveryUsernameFlow()
     }
 
+    override suspend fun refreshReservedDiscoveryUsername() {
+        discoveryUsernameRepository.syncDiscoveryUsername().onError { error ->
+            // Nothing to tell the user: they keep seeing the local copy, which is what
+            // it is for.
+            Log.w(TAG, "refreshReservedUsername: could not refresh the username: $error")
+        }
+    }
+
     override fun validateUsername(username: String): UsernameInputError? {
         return validateUsernameShared(username = username)?.toUsernameInputError()
     }
@@ -110,21 +119,18 @@ class SettingsCallBacksImpl(
         return normalizeUsernameShared(username = username)
     }
 
-    override suspend fun reserveUsername(username: String): ReserveUsernameError? {
-        val userUuid = getAuthenticatedUserUuid() ?: return ReserveUsernameError.UNAUTHORIZED
+    override suspend fun reserveDiscoveryUsername(username: String): ReserveDiscoveryUsernameError? {
+        val userUuid = getAuthenticatedUserUuid() ?: return ReserveDiscoveryUsernameError.UNAUTHORIZED
 
-        return when (
-            val result = userRepository.reserveUsername(userUuid = userUuid, username = username)
-        ) {
-            is Result.Success -> {
-                // The server holds nothing but the digest, so the handle itself is kept
-                // here: it is the only record that this user is discoverable.
-                setDiscoveryUsername(username = normalizeUsername(username = username))
+        val reservation = discoveryUsernameRepository.reserve(
+            userUuid = userUuid,
+            username = username,
+        )
 
-                null
-            }
+        return when (reservation) {
+            is Result.Success -> null
 
-            is Result.Error -> result.error.toReserveUsernameError(
+            is Result.Error -> reservation.error.toReserveUsernameError(
                 isOnline = networkConnectivity.isOnline(),
             )
         }

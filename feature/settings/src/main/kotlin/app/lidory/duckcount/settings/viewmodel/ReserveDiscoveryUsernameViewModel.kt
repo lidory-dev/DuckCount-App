@@ -3,7 +3,7 @@ package app.lidory.duckcount.settings.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.settings.SettingsCallBacks
-import app.lidory.duckcount.settings.model.ReserveUsernameError
+import app.lidory.duckcount.settings.model.ReserveDiscoveryUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -34,7 +34,7 @@ class ReserveDiscoveryUsernameViewModel(
 
     private val isReserving = MutableStateFlow(false)
 
-    private val error = MutableStateFlow<ReserveUsernameError?>(null)
+    private val error = MutableStateFlow<ReserveDiscoveryUsernameError?>(null)
 
     val state: StateFlow<DiscoveryUsernameScreenState> =
         combine(
@@ -69,6 +69,15 @@ class ReserveDiscoveryUsernameViewModel(
             initialValue = DiscoveryUsernameScreenState.Loading,
         )
 
+    init {
+        // The vault is what says which handle the account holds, so the local copy the
+        // screen reads is refreshed from it on every entry. It shows immediately and is
+        // replaced when the fetch lands.
+        viewModelScope.launch {
+            settingsCallBacks.refreshReservedDiscoveryUsername()
+        }
+    }
+
     fun onUsernameChanged(username: String) {
         draftUsername.value = username.lowercase()
         error.value = null
@@ -83,7 +92,7 @@ class ReserveDiscoveryUsernameViewModel(
             isReserving.value = true
             error.value = null
 
-            val reserveError = settingsCallBacks.reserveUsername(username = username)
+            val reserveError = settingsCallBacks.reserveDiscoveryUsername(username = username)
 
             isReserving.value = false
             error.value = reserveError
@@ -104,7 +113,7 @@ sealed interface DiscoveryUsernameScreenState {
         val username: String,
         val inputError: UsernameInputError?,
         val isReserving: Boolean,
-        val error: ReserveUsernameError?,
+        val error: ReserveDiscoveryUsernameError?,
         val hasReservedUsername: Boolean,
         val isUnchanged: Boolean,
     ) : DiscoveryUsernameScreenState {

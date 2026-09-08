@@ -1,10 +1,10 @@
 package database.data.repository
 
-import app.lidory.duckcount.hashUsername
+import app.lidory.duckcount.hashDiscoveryUsername
 import database.data.local.dao.UserDao
 import database.data.mappers.toUser
 import database.data.mappers.toUserEntity
-import database.data.remote.ReserveUsernameRequestBody
+import database.data.remote.ReserveDiscoveryUsernameRequestBody
 import database.data.remote.UserApi
 import database.domain.User
 import kotlinx.coroutines.flow.Flow
@@ -71,12 +71,12 @@ class UserRepository(
      * [NetworkError.BAD_REQUEST] the server would answer with.
      */
     suspend fun reserveUsername(userUuid: String, username: String): EmptyResult<NetworkError> {
-        val digest = hashUsername(username = username)
+        val digest = hashDiscoveryUsername(username = username)
             ?: return Result.Error(NetworkError.BAD_REQUEST)
 
-        return userApi.reserveUsername(
+        return userApi.reserveDiscoveryUsername(
             userUuid = userUuid,
-            body = ReserveUsernameRequestBody(username = digest),
+            body = ReserveDiscoveryUsernameRequestBody(username = digest),
         ).asEmptyDataResult()
     }
 }

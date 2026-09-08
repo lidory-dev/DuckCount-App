@@ -50,6 +50,17 @@ enum class VaultEntryKey(val wireName: String) {
     PROFILE_ENCRYPTION_KEY("profile_encryption_key"),
 
     /**
+     * The handle the user reserved to be discoverable by. Singleton.
+     *
+     * The server holds only its digest, so it can answer a contact lookup without
+     * ever learning the handle and cannot give it back either. Without this entry the
+     * pre-image lives nowhere but the device that typed it, and a reinstall takes it
+     * with it: the account stays discoverable while the app can no longer say under
+     * what.
+     */
+    DISCOVERY_USERNAME("discovery_username"),
+
+    /**
      * The user's blocklist. Singleton, sealed whole rather than split into an entry
      * per blocked user, so the server never learns how many there are.
      */

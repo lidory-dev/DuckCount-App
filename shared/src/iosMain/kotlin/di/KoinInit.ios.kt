@@ -5,6 +5,7 @@ import database.data.repository.ExpenseRepository
 import database.data.repository.UserRepository
 import database.di.dbModule
 import database.di.dbPlatformModule
+import discoveryUsername.di.discoveryModule
 import networking.di.networkingModule
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
@@ -21,7 +22,7 @@ fun initKoin() {
             networkingModule,
             vaultModule,
             profileModule,
-    profileModule,
+            discoveryModule,
         )
     }
 }

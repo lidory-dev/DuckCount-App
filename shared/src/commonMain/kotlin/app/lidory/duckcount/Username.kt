@@ -40,7 +40,7 @@ fun normalizeUsername(username: String): String {
  * Hashes [username] into the digest the server stores as a reserved username, or
  * returns null when the username is not valid.
  */
-fun hashUsername(username: String): String? {
+fun hashDiscoveryUsername(username: String): String? {
     return try {
         hashDiscoveryUsername(username = username)
     } catch (_: UsernameException) {

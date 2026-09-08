@@ -5,6 +5,9 @@ import networking.DuckCountRoutes
 import util.NetworkError
 import util.Result
 
+/** Narrows `GET /vault` to a comma-separated set of parts. */
+private const val ENTRY_KEYS_QUERY = "entry_keys"
+
 /**
  * Remote data source for the user's vault.
  *
@@ -19,9 +22,25 @@ import util.Result
 class VaultApi(
     private val client: DuckCountClient,
 ) {
-    /** Every entry the caller holds. A vault that was never written comes back empty. */
-    suspend fun getVault(): Result<ListVaultEntriesResponse, NetworkError> =
-        client.get<ListVaultEntriesResponse>(route = DuckCountRoutes.Vault.VAULT)
+    /**
+     * The entries of the parts named in [parts], or every entry the caller holds when
+     * none are. A vault that was never written comes back empty either way.
+     *
+     * Naming parts matters because opening anything takes the key ring plus the part it
+     * seals, two entries, while [VaultEntryKey.GROUP_MASTER_KEY] is a collection: a
+     * caller that could only read in full would carry one entry per group behind every
+     * such read. The server narrows in one request, so this stays a single round trip.
+     */
+    suspend fun getVault(
+        vararg parts: VaultEntryKey,
+    ): Result<ListVaultEntriesResponse, NetworkError> =
+        client.get<ListVaultEntriesResponse>(
+            route = DuckCountRoutes.Vault.VAULT,
+            queryParams = when {
+                parts.isEmpty() -> emptyMap()
+                else -> mapOf(ENTRY_KEYS_QUERY to parts.joinToString(",") { it.wireName })
+            },
+        )
 
     /**
      * The entries of one part.

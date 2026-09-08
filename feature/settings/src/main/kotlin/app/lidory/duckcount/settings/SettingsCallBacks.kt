@@ -1,7 +1,7 @@
 package app.lidory.duckcount.settings
 
 import app.lidory.duckcount.settings.model.ProfileSaveError
-import app.lidory.duckcount.settings.model.ReserveUsernameError
+import app.lidory.duckcount.settings.model.ReserveDiscoveryUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
 import kotlinx.coroutines.flow.Flow
 
@@ -47,6 +47,14 @@ interface SettingsCallBacks {
      */
     fun getReservedUsername(): Flow<String?>
 
+    /**
+     * Pulls the reserved discovery username from the vault into the local copy.
+     *
+     * Failing is not reported, the screen shows the copy it already had, which is what
+     * it is for.
+     */
+    suspend fun refreshReservedDiscoveryUsername()
+
     /** Returns why [username] cannot be reserved as typed, or null when it is valid. */
     fun validateUsername(username: String): UsernameInputError?
 
@@ -57,5 +65,5 @@ interface SettingsCallBacks {
      * Reserves [username], replacing any previous reservation, and returns why it
      * failed, or null on success.
      */
-    suspend fun reserveUsername(username: String): ReserveUsernameError?
+    suspend fun reserveDiscoveryUsername(username: String): ReserveDiscoveryUsernameError?
 }

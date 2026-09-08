@@ -1,8 +1,9 @@
 package app.lidory.duckcount.settings
 
 import app.lidory.duckcount.settings.model.ProfileSaveError
-import app.lidory.duckcount.settings.model.ReserveUsernameError
+import app.lidory.duckcount.settings.model.ReserveDiscoveryUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
+import discoveryUsername.DiscoveryUsernameError
 import profile.ProfileError
 import util.NetworkError
 import vault.VaultError
@@ -23,31 +24,71 @@ fun SharedUsernameError.toUsernameInputError(): UsernameInputError = when (this)
  * connectivity ([isOnline]): airplane mode can surface as UNREACHABLE rather than NO_INTERNET
  * and must be corrected here.
  */
-fun NetworkError.toReserveUsernameError(isOnline: Boolean): ReserveUsernameError = when (this) {
+fun NetworkError.toReserveUsernameError(isOnline: Boolean): ReserveDiscoveryUsernameError = when (this) {
     NetworkError.NO_INTERNET,
     NetworkError.REQUEST_TIMEOUT,
-        -> ReserveUsernameError.NO_INTERNET
+        -> ReserveDiscoveryUsernameError.NO_INTERNET
 
     NetworkError.UNREACHABLE ->
-        if (isOnline) ReserveUsernameError.SERVER_UNREACHABLE else ReserveUsernameError.NO_INTERNET
+        if (isOnline) ReserveDiscoveryUsernameError.SERVER_UNREACHABLE else ReserveDiscoveryUsernameError.NO_INTERNET
 
-    NetworkError.CONFLICT -> ReserveUsernameError.ALREADY_TAKEN
+    NetworkError.CONFLICT -> ReserveDiscoveryUsernameError.ALREADY_TAKEN
 
     NetworkError.BAD_REQUEST,
     NetworkError.UNPROCESSABLE_ENTITY,
-        -> ReserveUsernameError.INVALID
+        -> ReserveDiscoveryUsernameError.INVALID
 
-    NetworkError.UNAUTHORIZED -> ReserveUsernameError.UNAUTHORIZED
+    NetworkError.UNAUTHORIZED -> ReserveDiscoveryUsernameError.UNAUTHORIZED
 
-    NetworkError.TOO_MANY_REQUESTS -> ReserveUsernameError.RATE_LIMITED
+    NetworkError.TOO_MANY_REQUESTS -> ReserveDiscoveryUsernameError.RATE_LIMITED
 
     NetworkError.NOT_FOUND,
     NetworkError.PAYLOAD_TOO_LARGE,
     NetworkError.SERVER_ERROR,
     NetworkError.SERIALIZATION,
     NetworkError.UNKNOWN,
-        -> ReserveUsernameError.UNKNOWN
+        -> ReserveDiscoveryUsernameError.UNKNOWN
 }
+
+/**
+ * Maps a failed username reservation to the reason the UI surfaces.
+ *
+ * The vault half is folded in rather than reported separately: to the user, "the handle
+ * could not be recorded" and "the handle could not be reserved" are the same failed
+ * reservation, and retrying is the answer to both.
+ *
+ * As in [toReserveUsernameError], [isOnline] corrects a [NetworkError.UNREACHABLE] that
+ * is really airplane mode.
+ */
+fun DiscoveryUsernameError.toReserveUsernameError(isOnline: Boolean): ReserveDiscoveryUsernameError =
+    when (this) {
+        is DiscoveryUsernameError.Reservation -> error.toReserveUsernameError(isOnline = isOnline)
+
+        is DiscoveryUsernameError.Vault -> when (val vaultError = error) {
+            // Only ever unsealed during a registration or a login, so logging in again is
+            // the only way back.
+            VaultError.MissingRootKey -> ReserveDiscoveryUsernameError.UNAUTHORIZED
+
+            VaultError.Contended -> ReserveDiscoveryUsernameError.CONFLICT
+
+            is VaultError.Network -> when (vaultError.error) {
+                // Not the reservation route's 409, which is the one that means the handle
+                // belongs to somebody else. A vault write only ever conflicts on the key
+                // ring, and that is already reported as [VaultError.Contended].
+                NetworkError.CONFLICT -> ReserveDiscoveryUsernameError.CONFLICT
+
+                else -> vaultError.error.toReserveUsernameError(isOnline = isOnline)
+            }
+
+            // Key material that will not unseal or does not parse. Nothing the user can do,
+            // and nothing worth explaining to them in detail.
+            // TODO: Log this, it should never happen.
+            VaultError.Crypto,
+            VaultError.MalformedKeyRing,
+            VaultError.OrphanedEntry,
+                -> ReserveDiscoveryUsernameError.UNKNOWN
+        }
+    }
 
 /**
  * Maps a failed profile save to the reason the UI surfaces.

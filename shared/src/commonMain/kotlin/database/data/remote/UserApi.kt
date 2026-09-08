@@ -22,11 +22,11 @@ class UserApi(
      * namespace. Both outcomes are counted, so reserving too often, successfully or
      * not, comes back as a `429`.
      */
-    suspend fun reserveUsername(
+    suspend fun reserveDiscoveryUsername(
         userUuid: String,
-        body: ReserveUsernameRequestBody,
+        body: ReserveDiscoveryUsernameRequestBody,
     ): Result<Unit, NetworkError> =
-        client.put<Unit, ReserveUsernameRequestBody>(
+        client.put<Unit, ReserveDiscoveryUsernameRequestBody>(
             route = DuckCountRoutes.User.USERNAME,
             pathParams = mapOf("user_uuid" to userUuid),
             body = body,

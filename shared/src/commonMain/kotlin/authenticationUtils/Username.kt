@@ -12,8 +12,6 @@ const val USERNAME = "username"
  * Saves the authenticated user's username.
  *
  * Set when registration or login finishes.
- *
- * TODO: This information is already in DB, remove it from KSafe.
  */
 fun setAuthenticatedUserUsername(username: String) {
     val vault: KSafe = getKoin().get(named("vault"))

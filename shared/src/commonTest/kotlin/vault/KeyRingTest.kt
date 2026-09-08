@@ -102,6 +102,7 @@ class KeyRingTest {
                 "key_ring",
                 "group_master_key",
                 "profile_encryption_key",
+                "discovery_username",
                 "blocked_users",
             ),
             VaultEntryKey.entries.map { it.wireName },

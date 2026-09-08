@@ -170,6 +170,7 @@ private fun ReserveDiscoveryUsernameContent(
                 keyboardOptions = KeyboardOptions(
                     imeAction = ImeAction.Done,
                 ),
+                enabled = !state.isReserving,
                 isInError = state.inputError != null,
                 error = state.inputError?.let {
                     stringResource(it.messageRes(), state.username.length, maxUsernameLength)

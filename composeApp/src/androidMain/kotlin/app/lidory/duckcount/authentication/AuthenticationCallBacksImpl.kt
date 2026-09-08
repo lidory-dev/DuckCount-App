@@ -20,6 +20,7 @@ import authenticationUtils.setRootKey
 import authenticationUtils.setTokens
 import database.data.remote.EncryptedFieldDto
 import database.data.repository.UserRepository
+import discoveryUsername.DiscoveryUsernameRepository
 import networking.DuckCountClient
 import networking.DuckCountRoutes
 import networking.HaveIBeenPwnedClient
@@ -47,6 +48,7 @@ class AuthenticationCallBacksImpl(
     private val duckCountClient: DuckCountClient,
     private val haveIBeenPwnedClient: HaveIBeenPwnedClient,
     private val profileRepository: ProfileRepository,
+    private val discoveryUsernameRepository: DiscoveryUsernameRepository,
 ) : AuthenticationCallBacks {
 
     override val maxUsernameLength: Int = usernameMaximumLength()
@@ -241,6 +243,10 @@ class AuthenticationCallBacksImpl(
                             .onError { error ->
                                 Log.w(TAG, "login: could not restore the profile: $error")
                             }
+                    }
+
+                    discoveryUsernameRepository.syncDiscoveryUsername().onError { error ->
+                        Log.w(TAG, "login: could not restore the discovery username: $error")
                     }
 
                     AuthOutcome.Success(Unit)

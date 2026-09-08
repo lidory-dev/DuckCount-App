@@ -40,6 +40,7 @@
     <string name="reserve_error_already_taken">This username is already taken</string>
     <string name="reserve_error_invalid">This username cannot be used</string>
     <string name="reserve_error_unauthorized">Please log in again to reserve a username</string>
+    <string name="reserve_error_conflict">Your account changed on another device, please try again</string>
     <string name="reserve_error_rate_limited">Too many attempts, please try again later</string>
     <string name="reserve_error_no_internet">No internet connection</string>
     <string name="reserve_error_server_unreachable">The server is unreachable, please try again later</string>
