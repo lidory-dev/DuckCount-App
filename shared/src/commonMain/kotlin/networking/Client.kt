@@ -24,6 +24,17 @@ import kotlin.coroutines.cancellation.CancellationException
 abstract class Client {
     abstract val httpClient: HttpClient
 
+    /**
+     * Called whenever a response comes back `401`, before the error reaches the caller.
+     *
+     * The default does nothing: only a client that authenticates its requests has a session to
+     * react about. Ktor's `Auth` plugin has already had its go at refreshing the credentials by
+     * this point, so a `401` here is one that survived the refresh.
+     *
+     * Public because [execute] is `inline`.
+     */
+    open suspend fun onUnauthorized() = Unit
+
     suspend inline fun <reified T> get(
         route: String,
         pathParams: Map<String, String> = emptyMap(),
@@ -232,7 +243,12 @@ abstract class Client {
             }
 
             400 -> Result.Error(NetworkError.BAD_REQUEST)
-            401 -> Result.Error(NetworkError.UNAUTHORIZED)
+            401 -> {
+                onUnauthorized()
+
+                Result.Error(NetworkError.UNAUTHORIZED)
+            }
+
             404 -> Result.Error(NetworkError.NOT_FOUND)
             409 -> Result.Error(NetworkError.CONFLICT)
             408 -> Result.Error(NetworkError.REQUEST_TIMEOUT)

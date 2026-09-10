@@ -1,5 +1,6 @@
 package networking.di
 
+import authenticationUtils.SessionExpiry
 import database.data.remote.ExpenseApi
 import database.data.remote.UserApi
 import networking.DuckCountClient
@@ -8,7 +9,8 @@ import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
 
 val networkingModule = module {
-    single { DuckCountClient() }
+    single { SessionExpiry() }
+    single { DuckCountClient(get()) }
     single { HaveIBeenPwnedClient() }
     singleOf(::ExpenseApi)
     singleOf(::UserApi)

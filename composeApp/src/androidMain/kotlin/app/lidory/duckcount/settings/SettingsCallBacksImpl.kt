@@ -10,11 +10,6 @@ import app.lidory.duckcount.settings.model.ProfileSaveError
 import app.lidory.duckcount.settings.model.ReserveDiscoveryUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
 import app.lidory.duckcount.usernameMaximumLength
-import authenticationUtils.clearAuthenticatedUserUsername
-import authenticationUtils.clearAuthenticatedUserUuid
-import authenticationUtils.clearDiscoveryUsername
-import authenticationUtils.clearRootKey
-import authenticationUtils.clearTokens
 import authenticationUtils.getAuthenticatedUserUsername
 import authenticationUtils.getDiscoveryUsernameFlow
 import database.data.repository.UserRepository
@@ -48,16 +43,7 @@ class SettingsCallBacksImpl(
     override val licences: List<String> = LICENCES_LIST
 
     override fun logOut() {
-        clearTokens()
-        clearAuthenticatedUserUuid()
-        clearAuthenticatedUserUsername()
-        clearDiscoveryUsername()
-        clearRootKey()
-
-        // The stored tokens are only read once per client, so they have to be dropped
-        // from the client too: otherwise the next user to log in keeps sending this
-        // session's token until it expires.
-        duckCountClient.clearAuthenticationCache()
+        duckCountClient.endSession()
     }
 
     override fun getAuthenticatedUserUuid(): String? {

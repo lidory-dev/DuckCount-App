@@ -1,5 +1,7 @@
 package networking
 
+import authenticationUtils.SessionExpiry
+import authenticationUtils.clearSession
 import authenticationUtils.getLongLivedToken
 import authenticationUtils.getShortLivedToken
 import authenticationUtils.setTokens
@@ -16,7 +18,9 @@ import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
@@ -25,7 +29,9 @@ import kotlinx.serialization.json.Json
  */
 private const val REQUEST_TIMEOUT_MILLIS = 5_000L
 
-class DuckCountClient : Client() {
+class DuckCountClient(
+    private val sessionExpiry: SessionExpiry,
+) : Client() {
     override val httpClient = HttpClient {
         install(HttpTimeout) {
             requestTimeoutMillis = REQUEST_TIMEOUT_MILLIS
@@ -52,15 +58,34 @@ class DuckCountClient : Client() {
                     }
                 }
                 refreshTokens {
-                    val refreshToken = getLongLivedToken()
+                    // Nothing to refresh with: this device is not (or no longer) logged in, so the
+                    // `401` that got us here is final. Returning null stops the plugin from
+                    // retrying and hands the caller the original response.
+                    val refreshToken = getLongLivedToken()?.takeIf { it.isNotBlank() }
+                        ?: return@refreshTokens null
 
-                    val accessTokens = client.post(
+                    val response = client.post(
                         urlString = DuckCountRoutes.Auth.TOKEN,
                     ) {
                         setBody(hashMapOf("long_lived_token" to refreshToken))
                         contentType(ContentType.Application.Json)
                         markAsRefreshTokenRequest()
-                    }.body<TokenResponse>()
+                    }
+
+                    if (!response.status.isSuccess()) {
+                        // `401` is the one thing this endpoint says about the long-lived token
+                        // itself: expired, revoked or unknown. There is no way back to a valid
+                        // session from here, so end it and let the UI take the user to the login
+                        // screen.
+                        //
+                        // Its only other failure is `500`, which is transient and says nothing
+                        // about the session, so it costs the caller this one request and no more.
+                        if (response.status == HttpStatusCode.Unauthorized) expireSession()
+
+                        return@refreshTokens null
+                    }
+
+                    val accessTokens = response.body<TokenResponse>()
 
                     setTokens(
                         accessTokens.shortLivedToken,
@@ -77,15 +102,42 @@ class DuckCountClient : Client() {
     }
 
     /**
-     * Drops the bearer tokens the [Auth] plugin holds in memory.
+     * Catches the `401`s the refresh above could not act on: the ones where this device holds no
+     * credentials at all, yet something is still calling an authenticated endpoint.
      *
-     * They are read once through `loadTokens` and then cached until a `401` forces a
-     * refresh. Clearing the stored tokens is therefore not enough: without this, the
-     * requests that follow a log out would still carry the previous session's token,
-     * and the next user to log in on this device would be sending somebody else's
-     * credentials.
+     * Reachable without the session having been revoked: the tokens are sealed against an unlocked
+     * device, so a Keystore key invalidated by a lock-screen change reads back as no token while
+     * navigation still sits on the dashboard.
+     *
+     * A `401` with the credentials still in place is left alone. It means the refresh either
+     * succeeded (and the server turned the request down for its own reasons) or failed for a
+     * transient reason, and neither is worth throwing the user out over.
      */
-    fun clearAuthenticationCache() {
+    override suspend fun onUnauthorized() {
+        if (getLongLivedToken().isNullOrBlank()) expireSession()
+    }
+
+    /**
+     * Ends the session on this device: the credentials in the vault, and the bearer tokens the
+     * [Auth] plugin caches in memory.
+     *
+     * The cached half matters as much as the stored one. Tokens are read once through `loadTokens`
+     * and then kept until a `401` forces a refresh, so without this the requests that follow a log-out
+     * would still carry the previous session's token.
+     */
+    fun endSession() {
+        clearSession()
+
         httpClient.clearAuthTokens()
+    }
+
+    /**
+     * [endSession], plus the signal that makes the UI react. Used when the server ended the
+     * session for us, as opposed to the user asking for it.
+     */
+    private fun expireSession() {
+        endSession()
+
+        sessionExpiry.signal()
     }
 }

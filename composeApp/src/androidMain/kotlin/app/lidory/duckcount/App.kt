@@ -1,13 +1,16 @@
 package app.lidory.duckcount
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation3.runtime.rememberNavBackStack
 import app.lidory.duckcount.android.ui.theme.AppTheme
 import app.lidory.duckcount.navigation.NavigationRoot
@@ -36,6 +39,21 @@ fun App() {
                 val backStack = rememberNavBackStack(
                     if (state is Startup.LoggedIn) DashboardKey else OnBoardingScreenKey,
                 )
+
+                val context = LocalContext.current
+                val isSessionExpired by appViewModel.isSessionExpired.collectAsState()
+
+                // The server has ended the session (the refresh token was turned down).
+                LaunchedEffect(isSessionExpired) {
+                    if (!isSessionExpired) return@LaunchedEffect
+
+                    Toast.makeText(context, R.string.session_expired, Toast.LENGTH_LONG).show()
+
+                    backStack.add(OnBoardingScreenKey)
+                    backStack.removeIf { it !is OnBoardingScreenKey }
+
+                    appViewModel.onSessionExpiryHandled()
+                }
 
                 NavigationRoot(
                     modifier = Modifier

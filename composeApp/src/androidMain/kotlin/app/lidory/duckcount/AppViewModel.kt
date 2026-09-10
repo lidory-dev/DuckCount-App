@@ -4,6 +4,7 @@ import AuthenticationCallBacks
 import PendingProfile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import authenticationUtils.SessionExpiry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -24,9 +25,17 @@ sealed interface Startup {
  */
 class AppViewModel(
     private val authenticationCallBacks: AuthenticationCallBacks,
+    private val sessionExpiry: SessionExpiry,
 ) : ViewModel() {
     private val _startup = MutableStateFlow<Startup>(Startup.Loading)
     val startup = _startup.asStateFlow()
+
+    /**
+     * Turns true when the server has ended this device's session. The credentials are already gone
+     * by then; all that is left is to take the user off the screens that can no longer load
+     * anything.
+     */
+    val isSessionExpired = sessionExpiry.isExpired
 
     init {
         viewModelScope.launch {
@@ -38,4 +47,7 @@ class AppViewModel(
             }
         }
     }
+
+    /** Call once the user has been sent back to the authentication flow, so it fires only once. */
+    fun onSessionExpiryHandled() = sessionExpiry.acknowledge()
 }
