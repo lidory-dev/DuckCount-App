@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand green, from the designer's android_background.svg. The adaptive
+         background layer must be fully opaque and fill all 108dp: a transparent
+         one makes the launcher draw its icon shadow as a dark outline. -->
+    <color name="ic_launcher_background">#36693B</color>
+</resources>

@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Default icon, used for square/squircle/teardrop launcher shapes. The coin is
+     inset so the green plate reads as an even border on every side, matching how
+     Chrome shows a white border under those shapes. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ic_launcher_background" />
-    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground_inset" />
+    <monochrome android:drawable="@mipmap/ic_launcher_monochrome_inset" />
 </adaptive-icon>

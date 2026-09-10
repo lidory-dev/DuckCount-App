@@ -22,21 +22,21 @@ class CreateExpenseViewModel: ObservableObject, CreateExpenseFormState {
     // Single source of truth: the shared CurrencyCatalog. `id` keeps the stable ISO 4217
     // code (what gets persisted), while `name` holds the localized label for display.
     let currencies: [ExpenseList.Currency] =
-        Shared.CurrencyCatalog.shared.defaultCurrencies.map(Self.toExpenseCurrency)
+        Shared.CurrencyCatalog.shared.defaultCurrencies.map(CreateExpenseViewModel.toExpenseCurrency)
 
     /// Maps a shared-domain `Currency` (whose `name` is the ISO 4217 code) to the UI model,
     /// resolving the localized display name from the code via the shared helper.
     private static func toExpenseCurrency(_ currency: Shared.Currency) -> ExpenseList.Currency {
         ExpenseList.Currency(
             id: currency.name,
-            name: Shared.CurrencyDisplayKt.currencyDisplayName(code: currency.name),
+            name: Shared.CurrencyDisplay_iosKt.currencyDisplayName(code: currency.name),
             symbol: currency.symbol,
             hasSubunits: currency.hasSubunits
         )
     }
 
-    let maxTitleLength: Int = Int(ExpenseLimitsKt.MAX_TITLE_LENGTH)
-    let maxDescriptionLength: Int = Int(ExpenseLimitsKt.MAX_DESCRIPTION_LENGTH)
+    let maxTitleLength: Int = Int(Shared.ExpenseLimits.shared.MAX_TITLE_LENGTH)
+    let maxDescriptionLength: Int = Int(Shared.ExpenseLimits.shared.MAX_DESCRIPTION_LENGTH)
 
     static let placeholderCreditor = ExpenseList.User(
         id: "00000000-0000-0000-0000-000000000001",

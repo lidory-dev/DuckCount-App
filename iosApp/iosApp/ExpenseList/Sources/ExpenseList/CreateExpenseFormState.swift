@@ -1,5 +1,6 @@
 import Combine
 
+@MainActor
 public protocol CreateExpenseFormState: ObservableObject {
     var title: String { get set }
     var description: String { get set }

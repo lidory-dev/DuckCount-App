@@ -167,7 +167,9 @@ class ExpenseListViewModel: ObservableObject {
 
         for user in demoUsers {
             userRepository.insert(
-                user: Shared.User(uuid: user.uuid, username: user.username, fullName: user.fullName)
+                user: Shared.User(
+                    uuid: user.uuid, username: user.username, fullName: user.fullName,
+                    isDeleted: false)
             ) { _ in
             }
         }
