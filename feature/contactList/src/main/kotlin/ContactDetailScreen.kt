@@ -26,7 +26,7 @@ import app.lidory.duckcount.android.ui.constant.Padding
 import component.ContactDeletionDialog
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.ContactDetailViewModel
-import app.lidory.duckcount.android.ui.R as SharedR
+import app.lidory.duckcount.android.ui.R as androidUiR
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,8 +68,8 @@ fun ContactDetailScreen(
                         onClick = onBack,
                     ) {
                         Icon(
-                            painter = painterResource(SharedR.drawable.ic_arrow_back),
-                            contentDescription = stringResource(SharedR.string.back),
+                            painter = painterResource(androidUiR.drawable.ic_arrow_back),
+                            contentDescription = stringResource(androidUiR.string.back),
                         )
                     }
                 },
@@ -78,8 +78,8 @@ fun ContactDetailScreen(
                         onClick = { isConfirmDeletionDialogVisible.value = true },
                     ) {
                         Icon(
-                            painter = painterResource((SharedR.drawable.ic_delete)),
-                            contentDescription = stringResource(SharedR.string.remove),
+                            painter = painterResource((androidUiR.drawable.ic_delete)),
+                            contentDescription = stringResource(androidUiR.string.remove),
                         )
                     }
                 },

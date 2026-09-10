@@ -134,6 +134,7 @@ fun AccountScreen(
             item {
                 ButtonLine(
                     text = R.string.change_password,
+                    icon = R.drawable.ic_password,
                     onClick = navigateToPasswordChangeScreen,
                 )
             }
@@ -141,6 +142,7 @@ fun AccountScreen(
             item {
                 ButtonLine(
                     text = R.string.logout,
+                    icon = R.drawable.ic_logout,
                     onClick = { openLogOutDialog.value = !openLogOutDialog.value },
                 )
             }
@@ -148,6 +150,7 @@ fun AccountScreen(
             item {
                 ButtonLine(
                     text = R.string.delete_account,
+                    icon = androidUiR.drawable.ic_delete,
                     onClick = navigateToAccountDeletionScreen,
                 )
             }
