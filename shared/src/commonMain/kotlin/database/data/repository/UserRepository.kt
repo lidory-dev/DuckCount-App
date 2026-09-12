@@ -8,6 +8,7 @@ import database.data.remote.ReserveDiscoveryUsernameRequestBody
 import database.data.remote.UserApi
 import database.domain.User
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import util.EmptyResult
 import util.NetworkError
@@ -48,7 +49,7 @@ class UserRepository(
     }
 
     fun get(uuid: String): Flow<User> {
-        return userDao.getUserAsFlow(uuid = uuid).map { userEntity ->
+        return userDao.getUserAsFlow(uuid = uuid).filterNotNull().map { userEntity ->
             userEntity.toUser()
         }
     }

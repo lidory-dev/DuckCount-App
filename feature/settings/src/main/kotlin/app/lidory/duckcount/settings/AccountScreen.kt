@@ -63,7 +63,6 @@ fun AccountScreen(
                         onClick = {
                             openLogOutDialog.value = false
                             viewModel.logOut()
-                            onLogout()
                         },
                     ) {
                         Text(text = stringResource(R.string.logout))

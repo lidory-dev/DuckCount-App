@@ -30,4 +30,6 @@ val dbModule = module {
     single { get<AppDatabase>().beneficiaryDao }
     single { get<AppDatabase>().groupDao }
     single { get<AppDatabase>().groupMemberDao }
+
+    single { get<AppDatabase>().localDataDao }
 }

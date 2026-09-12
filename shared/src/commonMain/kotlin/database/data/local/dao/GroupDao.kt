@@ -38,7 +38,7 @@ interface GroupDao {
     suspend fun updateWithMembers(groupWithMembers: GroupWithMembersEntity) {
         update(groupWithMembers.group)
 
-        val oldUser = getWithMembers(groupWithMembers.group.uuid).first().groupMembers
+        val oldUser = checkNotNull(getWithMembers(groupWithMembers.group.uuid).first()).groupMembers
         val userToRemove = oldUser - groupWithMembers.groupMembers.toSet()
 
         updateMembers(groupWithMembers.groupMembers)
@@ -61,8 +61,8 @@ interface GroupDao {
     fun getAllAsFlow(): Flow<List<GroupEntity>>
 
     @Query("SELECT * FROM GroupEntity WHERE uuid = :uuid")
-    fun getAsFlow(uuid: String): Flow<GroupEntity>
+    fun getAsFlow(uuid: String): Flow<GroupEntity?>
 
     @Query("SELECT * FROM GroupEntity WHERE uuid = :uuid")
-    fun getWithMembers(uuid: String): Flow<GroupWithMembersEntity>
+    fun getWithMembers(uuid: String): Flow<GroupWithMembersEntity?>
 }

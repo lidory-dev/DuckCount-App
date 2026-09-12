@@ -10,6 +10,7 @@ import database.domain.Group
 import database.domain.GroupMember
 import database.domain.GroupWithMembers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 
 class GroupRepository(
@@ -50,13 +51,13 @@ class GroupRepository(
     }
 
     fun get(uuid: String): Flow<Group> {
-        return groupDao.getAsFlow(uuid).map { groupEntity ->
+        return groupDao.getAsFlow(uuid).filterNotNull().map { groupEntity ->
             groupEntity.toGroup()
         }
     }
 
     fun getWithMembers(uuid: String): Flow<GroupWithMembers> {
-        return groupDao.getWithMembers(uuid).map { groupWithMembersEntity ->
+        return groupDao.getWithMembers(uuid).filterNotNull().map { groupWithMembersEntity ->
             groupWithMembersEntity.toGroupWithMembers()
         }
     }

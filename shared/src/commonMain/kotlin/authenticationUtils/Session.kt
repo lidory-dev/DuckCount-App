@@ -5,12 +5,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Wipes everything this device holds about who is signed in.
+ * Wipes everything the vault holds about who is signed in.
  *
  * Shared by the deliberate log-out and by the forced one a rejected session triggers.
  *
- * The in-memory half lives in `DuckCountClient.endSession`, which calls this: the bearer tokens the
- * HTTP client caches have to go too, and only the client can drop those.
+ * The rest lives in `DuckCountClient.endSession`, which calls this: the bearer tokens the HTTP
+ * client caches, which only the client can drop, and the account's data in the local database.
  */
 fun clearSession() {
     clearTokens()

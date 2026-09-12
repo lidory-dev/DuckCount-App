@@ -5,6 +5,7 @@ import authenticationUtils.clearSession
 import authenticationUtils.getLongLivedToken
 import authenticationUtils.getShortLivedToken
 import authenticationUtils.setTokens
+import database.data.local.dao.LocalDataDao
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.HttpTimeout
@@ -22,6 +23,8 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
 /**
@@ -31,6 +34,7 @@ private const val REQUEST_TIMEOUT_MILLIS = 5_000L
 
 class DuckCountClient(
     private val sessionExpiry: SessionExpiry,
+    private val localDataDao: LocalDataDao,
 ) : Client() {
     override val httpClient = HttpClient {
         install(HttpTimeout) {
@@ -118,24 +122,37 @@ class DuckCountClient(
     }
 
     /**
-     * Ends the session on this device: the credentials in the vault, and the bearer tokens the
-     * [Auth] plugin caches in memory.
+     * Ends the session on this device: the credentials in the vault, the bearer tokens the [Auth]
+     * plugin caches in memory, and everything the database holds for the account.
      *
      * The cached half matters as much as the stored one. Tokens are read once through `loadTokens`
      * and then kept until a `401` forces a refresh, so without this the requests that follow a log-out
      * would still carry the previous session's token.
+     *
+     * The database goes too: it was filled for this account alone, and whoever signs in next on
+     * this device must not find it there.
+     *
+     * Not cancellable once started. A forced log-out runs inside whichever request got the `401`,
+     * whose caller can go away at any point, and stopping after the credentials but before the
+     * database would leave the account's data behind on a device that no longer knows whose it is.
      */
-    fun endSession() {
-        clearSession()
+    suspend fun endSession() {
+        withContext(NonCancellable) {
+            clearSession()
 
-        httpClient.clearAuthTokens()
+            httpClient.clearAuthTokens()
+
+            localDataDao.deleteAll()
+
+            // TODO: Delete database password.
+        }
     }
 
     /**
      * [endSession], plus the signal that makes the UI react. Used when the server ended the
      * session for us, as opposed to the user asking for it.
      */
-    private fun expireSession() {
+    private suspend fun expireSession() {
         endSession()
 
         sessionExpiry.signal()

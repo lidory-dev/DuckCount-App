@@ -10,7 +10,7 @@ import org.koin.dsl.module
 
 val networkingModule = module {
     single { SessionExpiry() }
-    single { DuckCountClient(get()) }
+    single { DuckCountClient(get(), get()) }
     single { HaveIBeenPwnedClient() }
     singleOf(::ExpenseApi)
     singleOf(::UserApi)

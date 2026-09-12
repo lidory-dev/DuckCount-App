@@ -42,7 +42,7 @@ class SettingsCallBacksImpl(
 
     override val licences: List<String> = LICENCES_LIST
 
-    override fun logOut() {
+    override suspend fun logOut() {
         duckCountClient.endSession()
     }
 
