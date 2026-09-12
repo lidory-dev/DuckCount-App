@@ -14,7 +14,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import model.User
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -39,14 +41,29 @@ class ContactListViewModel(
         }
 
     val usersState: StateFlow<ContactListState> =
-        combine(contactCallBacks.getReservedUsername(), users) { reservedUsername, users ->
+        combine(
+            contactCallBacks.getReservedUsername(),
+            users,
+            contactCallBacks.getContactRequestCount(),
+        ) { reservedUsername, users, contactRequestCount ->
             // Until a username is reserved nobody can reach this user, so the list would
             // stay empty whatever they do: ask for one instead of showing nothing.
             if (reservedUsername == null) {
                 ContactListState.UsernameReservationRequired
             } else {
-                ContactListState.Content(users = users)
+                ContactListState.Content(
+                    users = users,
+                    contactRequestCount = contactRequestCount,
+                )
             }
+        }.onStart {
+            // `WhileSubscribed` is what paces this: once per screen entry and once per
+            // foreground, never per recomposition. `init` would not do, the contacts tab
+            // is never popped, so its ViewModel outlives every tab switch.
+            //
+            // Launched rather than awaited: `onStart` runs in the collector's context, so
+            // suspending here would hold the first emission back for the whole request.
+            viewModelScope.launch { contactCallBacks.refreshContactRequests() }
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000L),
@@ -61,5 +78,8 @@ sealed interface ContactListState {
     /** The user has not reserved a username yet. */
     data object UsernameReservationRequired : ContactListState
 
-    data class Content(val users: List<User> = emptyList()) : ContactListState
+    data class Content(
+        val users: List<User>,
+        val contactRequestCount: Int,
+    ) : ContactListState
 }

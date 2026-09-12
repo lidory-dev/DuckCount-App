@@ -47,6 +47,7 @@ fun Dashboard(
     navigateToCreateExpenseScreen: () -> Unit,
     navigateToContactDetailScreen: (String) -> Unit,
     navigateToNewContact: () -> Unit,
+    navigateToContactRequests: () -> Unit,
     navigateToCreateGroupScreen: () -> Unit,
     navigateToGroupDetailScreen: (String) -> Unit,
     navigateToSettingsScreen: () -> Unit,
@@ -150,6 +151,7 @@ fun Dashboard(
                             ContactListScreen(
                                 navigateToDetailScreen = navigateToContactDetailScreen,
                                 navigateToUsernameReservation = navigateToUsernameReservation,
+                                navigateToContactRequests = navigateToContactRequests,
                                 animatedVisibilityScope = animatedVisibilityScope,
                                 sharedTransitionScope = sharedTransitionScope,
                             )

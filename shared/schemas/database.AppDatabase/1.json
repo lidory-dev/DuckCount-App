@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "c1c08ec9d438935b7ca07e3100798000",
+    "identityHash": "e4c976ebf864c9542f9129f86e35f2e4",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -250,11 +250,47 @@
             "groupUuid"
           ]
         }
+      },
+      {
+        "tableName": "ContactRequestEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `senderUserUuid` TEXT NOT NULL, `ciphertext` TEXT NOT NULL, `createdAt` TEXT NOT NULL, PRIMARY KEY(`uuid`))",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "senderUserUuid",
+            "columnName": "senderUserUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ciphertext",
+            "columnName": "ciphertext",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c1c08ec9d438935b7ca07e3100798000')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e4c976ebf864c9542f9129f86e35f2e4')"
     ]
   }
 }

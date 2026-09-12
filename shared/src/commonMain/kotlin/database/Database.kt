@@ -7,6 +7,7 @@ import androidx.room.RoomDatabaseConstructor
 import androidx.room.TypeConverters
 import database.data.converter.CurrencyConverter
 import database.data.local.dao.BeneficiaryDao
+import database.data.local.dao.ContactRequestDao
 import database.data.local.dao.CurrencyDao
 import database.data.local.dao.ExpenseDao
 import database.data.local.dao.GroupDao
@@ -14,6 +15,7 @@ import database.data.local.dao.GroupMemberDao
 import database.data.local.dao.LocalDataDao
 import database.data.local.dao.UserDao
 import database.data.local.entity.BeneficiaryEntity
+import database.data.local.entity.ContactRequestEntity
 import database.data.local.entity.CurrencyEntity
 import database.data.local.entity.ExpenseEntity
 import database.data.local.entity.GroupEntity
@@ -32,6 +34,7 @@ import eu.anifantakis.lib.ksafe.KSafeWriteMode
         BeneficiaryEntity::class,
         GroupEntity::class,
         GroupMemberEntity::class,
+        ContactRequestEntity::class,
     ],
     version = 1,
 )
@@ -44,6 +47,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract val beneficiaryDao: BeneficiaryDao
     abstract val groupDao: GroupDao
     abstract val groupMemberDao: GroupMemberDao
+    abstract val contactRequestDao: ContactRequestDao
+
     abstract val localDataDao: LocalDataDao
 
     companion object {

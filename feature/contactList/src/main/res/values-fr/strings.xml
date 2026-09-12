@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="add_new_contact">Ajouter un contact</string>
+    <string name="contact_requests">Demandes de contact</string>
+    <plurals name="contact_requests_count">
+        <item quantity="one" tools:ignore="ImpliedQuantity">%1$d demande de contact</item>
+        <item quantity="other">%1$d demandes de contact</item>
+    </plurals>
     <string name="delete_contact">Supprimer le contact</string>
     <string name="delete_contact_confirmation">Voulez-vous vraiment supprimer ce contact ?</string>
     <string name="reserve_a_username">Réserver un nom d’utilisateur</string>

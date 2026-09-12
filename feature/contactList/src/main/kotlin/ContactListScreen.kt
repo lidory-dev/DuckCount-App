@@ -41,6 +41,7 @@ import app.lidory.duckcount.android.ui.composable.button.DuckCountButton
 import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
+import component.ContactRequestsCard
 import model.User
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.ContactListState
@@ -53,6 +54,7 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 fun ContactListScreen(
     navigateToDetailScreen: (String) -> Unit,
     navigateToUsernameReservation: () -> Unit,
+    navigateToContactRequests: () -> Unit,
     modifier: Modifier = Modifier,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
@@ -80,9 +82,11 @@ fun ContactListScreen(
         is ContactListState.Content -> {
             ContactList(
                 users = state.users,
+                contactRequestCount = state.contactRequestCount,
                 searchQuery = viewModel.searchQuery,
                 onSearchQueryChange = { viewModel.onSearchQueryChange(query = it) },
                 navigateToDetailScreen = navigateToDetailScreen,
+                navigateToContactRequests = navigateToContactRequests,
                 modifier = modifier,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedVisibilityScope = animatedVisibilityScope,
@@ -137,9 +141,11 @@ private fun DiscoveryUsernameReservationPrompt(
 @Composable
 private fun ContactList(
     users: List<User>,
+    contactRequestCount: Int,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     navigateToDetailScreen: (String) -> Unit,
+    navigateToContactRequests: () -> Unit,
     modifier: Modifier = Modifier,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
@@ -188,6 +194,13 @@ private fun ContactList(
             onSearchChange = onSearchQueryChange,
             focusManager = focusManager,
         )
+
+        if (searchQuery.isBlank() && contactRequestCount > 0) {
+            ContactRequestsCard(
+                count = contactRequestCount,
+                onClick = navigateToContactRequests,
+            )
+        }
 
         if (groupedContactList.isEmpty()) {
             EmptyContentContainer(

@@ -18,4 +18,15 @@ interface ContactCallBacks {
      * contact list is waiting on it.
      */
     fun getReservedUsername(): Flow<String?>
+
+    /** How many contact requests are waiting for the user, straight off the local cache. */
+    fun getContactRequestCount(): Flow<Int>
+
+    /**
+     * Pulls the requests addressed to the user into the local cache.
+     *
+     * Failing is not reported: the user keeps seeing the count they already had, which
+     * is what caching it is for.
+     */
+    suspend fun refreshContactRequests()
 }

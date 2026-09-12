@@ -2,6 +2,7 @@ package app.lidory.duckcount.navigation
 
 import AuthenticationFlow
 import ContactDetailScreen
+import ContactRequestListScreen
 import NewContactScreen
 import PendingProfile
 import androidx.compose.animation.SharedTransitionLayout
@@ -32,6 +33,7 @@ import app.lidory.duckcount.groupList.GroupDetailScreen
 import app.lidory.duckcount.groupList.GroupSettingsScreen
 import app.lidory.duckcount.groupList.GroupSettleUpScreen
 import app.lidory.duckcount.navigation.key.ContactDetailScreenKey
+import app.lidory.duckcount.navigation.key.ContactRequestListScreenKey
 import app.lidory.duckcount.navigation.key.CreateExpenseScreenKey
 import app.lidory.duckcount.navigation.key.CreateGroupScreenKey
 import app.lidory.duckcount.navigation.key.DashboardKey
@@ -98,6 +100,11 @@ fun NavigationRoot(
                                 navigateToNewContact = {
                                     backStack.add(
                                         NewContactScreenKey,
+                                    )
+                                },
+                                navigateToContactRequests = {
+                                    backStack.add(
+                                        ContactRequestListScreenKey,
                                     )
                                 },
                                 navigateToCreateGroupScreen = {
@@ -224,6 +231,16 @@ fun NavigationRoot(
                         ) {
                             NewContactScreen(
                                 onBack = dropUnlessResumed { backStack.removeIf { it is NewContactScreenKey } },
+                            )
+                        }
+                    }
+
+                    is ContactRequestListScreenKey -> {
+                        NavEntry(
+                            key = key,
+                        ) {
+                            ContactRequestListScreen(
+                                onBack = dropUnlessResumed { backStack.removeIf { it is ContactRequestListScreenKey } },
                             )
                         }
                     }

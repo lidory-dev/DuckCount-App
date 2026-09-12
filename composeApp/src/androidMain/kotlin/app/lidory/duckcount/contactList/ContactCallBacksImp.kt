@@ -1,16 +1,22 @@
 package app.lidory.duckcount.contactList
 
 import ContactCallBacks
+import android.util.Log
 import authenticationUtils.getDiscoveryUsernameFlow
+import database.data.repository.ContactRequestRepository
 import database.data.repository.UserRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import model.User
+import util.onError
+
+private const val TAG = "ContactCallBacksImp"
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ContactCallBacksImp(
     val userRepository: UserRepository,
+    private val contactRequestRepository: ContactRequestRepository,
 ) : ContactCallBacks {
     override suspend fun getFilteredUsers(filter: String): Flow<List<User>> {
         return userRepository.getAllFiltered(filter)
@@ -47,5 +53,17 @@ class ContactCallBacksImp(
 
     override fun getReservedUsername(): Flow<String?> {
         return getDiscoveryUsernameFlow()
+    }
+
+    override fun getContactRequestCount(): Flow<Int> {
+        return contactRequestRepository.getPendingCount()
+    }
+
+    override suspend fun refreshContactRequests() {
+        contactRequestRepository.refresh().onError { error ->
+            // Nothing to tell the user: they keep seeing the cached count, which is
+            // what it is for.
+            Log.w(TAG, "refreshContactRequests: could not refresh the requests: $error")
+        }
     }
 }

@@ -36,6 +36,13 @@ object DuckCountRoutes {
         val PROFILE = "$USER_BASE_URL/:user_uuid/profile"
     }
 
+    object Contact {
+        private val CONTACT_BASE_URL = "$baseUrl/contacts"
+
+        /** The contact requests addressed to the caller, oldest first. `GET` to list them. */
+        val REQUESTS = "$CONTACT_BASE_URL/requests"
+    }
+
     object Expense {
         private val EXPENSE_BASE_URL = "$baseUrl/expenses"
 
