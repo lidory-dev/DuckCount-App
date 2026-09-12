@@ -60,7 +60,7 @@ fun ExpenseWithBeneficiaries.toOneTimeRequestBody() =
         description = placeholderEncryptedFieldDto(),
         amount = placeholderEncryptedFieldDto(),
         timestamp = placeholderEncryptedFieldDto(),
-        is_settled = placeholderEncryptedFieldDto(),
+        is_settled = false, // TODO.
         beneficiaries = beneficiaries.map { it.toBeneficiaryDto() },
     )
 

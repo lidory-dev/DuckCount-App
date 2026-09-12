@@ -17,6 +17,6 @@ data class OneTimeExpenseRequestBody(
     val description: EncryptedFieldDto,
     val amount: EncryptedFieldDto,
     val timestamp: EncryptedFieldDto,
-    val is_settled: EncryptedFieldDto,
+    val is_settled: Boolean,
     val beneficiaries: List<BeneficiaryDto>,
 )

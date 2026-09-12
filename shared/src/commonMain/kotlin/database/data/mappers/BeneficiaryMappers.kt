@@ -30,4 +30,5 @@ fun Beneficiary.toBeneficiaryEntity() = BeneficiaryEntity(
 fun Beneficiary.toBeneficiaryDto() = BeneficiaryDto(
     user_uuid = userUuid,
     share = placeholderEncryptedFieldDto(), // TODO.
+    is_share_fixed = placeholderEncryptedFieldDto(), // TODO.
 )
