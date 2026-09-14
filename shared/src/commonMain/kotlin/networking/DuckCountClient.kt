@@ -5,6 +5,7 @@ import authenticationUtils.clearSession
 import authenticationUtils.getLongLivedToken
 import authenticationUtils.getShortLivedToken
 import authenticationUtils.setTokens
+import database.clearDatabasePassword
 import database.data.local.dao.LocalDataDao
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -130,7 +131,10 @@ class DuckCountClient(
      * would still carry the previous session's token.
      *
      * The database goes too: it was filled for this account alone, and whoever signs in next on
-     * this device must not find it there.
+     * this device must not find it there. Emptying it clears the rows; dropping the key it is
+     * sealed with clears what SQLite left behind in the pages those rows used to occupy, which no
+     * DELETE reaches. The next launch finds no key, discards the file it can no longer open and
+     * starts a database of its own.
      *
      * Not cancellable once started. A forced log-out runs inside whichever request got the `401`,
      * whose caller can go away at any point, and stopping after the credentials but before the
@@ -144,7 +148,7 @@ class DuckCountClient(
 
             localDataDao.deleteAll()
 
-            // TODO: Delete database password.
+            clearDatabasePassword()
         }
     }
 

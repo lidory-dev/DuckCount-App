@@ -25,3 +25,13 @@ fun getDatabaseBuilder(context: Context): RoomDatabase.Builder<AppDatabase> {
         name = dbFile.absolutePath,
     ).openHelperFactory(factory)
 }
+
+/**
+ * Takes the journal and write-ahead files with it, which is the reason to go through the context
+ * rather than deleting the path [getDatabaseBuilder] builds the database on.
+ */
+internal actual fun deleteDatabaseFile() {
+    val context: Context = getKoin().get()
+
+    context.applicationContext.deleteDatabase(AppDatabase.DATABASE_NAME)
+}

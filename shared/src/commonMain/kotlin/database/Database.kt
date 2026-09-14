@@ -24,6 +24,8 @@ import database.data.local.entity.UserEntity
 import eu.anifantakis.lib.ksafe.KSafe
 import eu.anifantakis.lib.ksafe.KSafeEncryptedProtection
 import eu.anifantakis.lib.ksafe.KSafeWriteMode
+import org.koin.core.qualifier.named
+import org.koin.mp.KoinPlatform.getKoin
 
 @Database(
     // Every entity also needs a DELETE in `LocalDataDao.deleteAll`, or a log-out leaves it behind.
@@ -58,17 +60,29 @@ abstract class AppDatabase : RoomDatabase() {
 }
 
 // The Room compiler generates the `actual` implementations.
-@Suppress("KotlinNoActualForExpect")
 expect object AppDatabaseConstructor : RoomDatabaseConstructor<AppDatabase> {
     override fun initialize(): AppDatabase
 }
 
 expect fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase
 
+/**
+ * The SQLCipher key the local database is opened with, created on first use and kept in the vault
+ * from then on.
+ *
+ * Read once per process on both platforms.
+ *
+ * No key means the last one was dropped at log-out ([clearDatabasePassword]), which leaves a file
+ * on disk sealed under a key that no longer exists anywhere: the rows the log-out deleted are gone,
+ * but whatever SQLite left in freed pages is now unreadable for good. That file cannot be opened
+ * with the key minted here, so it goes first and the new key starts on an empty one.
+ */
 fun getDatabasePassword(vault: KSafe): String {
     var databasePassword = vault.getDirect(AppDatabase.DATABASE_PASSWORD_VAULT_KEY, "")
 
     if (databasePassword == "") {
+        deleteDatabaseFile()
+
         databasePassword = uniffi.lib_duckcount.generateDatabaseEncryptionKey()
 
         vault.putDirect(
@@ -83,3 +97,26 @@ fun getDatabasePassword(vault: KSafe): String {
 
     return databasePassword
 }
+
+/**
+ * Drops the key the local database is sealed with, so the file the log-out just emptied can never
+ * be read again and the next account gets a database of its own.
+ *
+ * Suspends until the key is actually gone rather than using the fire-and-forget `deleteDirect` the
+ * vault also offers: this runs in the non-cancellable tail of a log-out, where a deletion still
+ * queued when the process dies would hand the next launch the previous account's key.
+ */
+suspend fun clearDatabasePassword() {
+    val vault: KSafe = getKoin().get(named("vault"))
+
+    vault.delete(
+        key = AppDatabase.DATABASE_PASSWORD_VAULT_KEY,
+    )
+}
+
+/**
+ * Removes the database and the sidecar files SQLite keeps next to it, if any are there.
+ *
+ * Only ever called with no key in the vault, where nothing on disk can be opened anyway.
+ */
+internal expect fun deleteDatabaseFile()
