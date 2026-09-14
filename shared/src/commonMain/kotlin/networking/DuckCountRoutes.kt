@@ -34,13 +34,25 @@ object DuckCountRoutes {
         val USERNAME = "$USER_BASE_URL/:user_uuid/username"
 
         val PROFILE = "$USER_BASE_URL/:user_uuid/profile"
+
+        /** The caller's MLS key packages. `PUT` to publish them. */
+        val KEY_PACKAGE = "$USER_BASE_URL/:user_uuid/key-package"
     }
 
     object Contact {
         private val CONTACT_BASE_URL = "$baseUrl/contacts"
 
-        /** The contact requests addressed to the caller, oldest first. `GET` to list them. */
+        /**
+         * The contact requests: `GET` lists the ones addressed to the caller, oldest
+         * first, `POST` sends one.
+         */
         val REQUESTS = "$CONTACT_BASE_URL/requests"
+
+        /**
+         * `GET` resolves a discovery username digest to its holder and one of their key
+         * packages, which it consumes.
+         */
+        val LOOKUP = "$CONTACT_BASE_URL/lookup/:username"
     }
 
     object Expense {

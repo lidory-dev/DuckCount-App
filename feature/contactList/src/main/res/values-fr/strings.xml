@@ -13,4 +13,14 @@
     <string name="unresolved_user">Utilisateur inconnu</string>
     <string name="username_reservation_required">Vos contacts ont besoin de votre nom d’utilisateur pour vous ajouter, et vous avez besoin du leur pour les ajouter.\n\nRéservez le vôtre pour commencer à constituer votre liste de contacts.</string>
     <string name="no_contacts_yet">Aucun contact pour le moment</string>
+    <string name="add_contact_request_sent">Demande de contact envoyée</string>
+    <string name="add_contact_error_invalid_username">Ce nom d’utilisateur n’est pas valide</string>
+    <string name="add_contact_error_not_found">Aucun utilisateur trouvé avec ce nom d’utilisateur</string>
+    <string name="add_contact_error_self">Impossible de s’ajouter soi-même comme contact</string>
+    <string name="add_contact_error_already_pending">Une demande de contact est déjà en attente pour cet utilisateur</string>
+    <string name="add_contact_error_rate_limited">Trop de tentatives, réessayez plus tard</string>
+    <string name="add_contact_error_identity_changed">La clé de sécurité de cet utilisateur a changé, la demande n’a pas été envoyée</string>
+    <string name="add_contact_error_no_internet">Aucune connexion Internet</string>
+    <string name="add_contact_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
+    <string name="add_contact_error_unknown">La demande de contact n’a pas pu être envoyée</string>
 </resources>

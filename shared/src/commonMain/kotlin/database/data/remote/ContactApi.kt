@@ -21,4 +21,30 @@ class ContactApi(
         client.get<ListContactRequestsResponse>(
             route = DuckCountRoutes.Contact.REQUESTS,
         )
+
+    /**
+     * Resolves [username], a discovery username digest, to its holder and one of their
+     * key packages.
+     *
+     * A `GET` that mutates: it consumes a one-time key package whether or not a request
+     * follows. A username nobody reserved and a user with no key package are both a
+     * `404`. Rate-limited per caller, failed lookups included, so a `429` can come back.
+     */
+    suspend fun lookupContact(username: String): Result<ContactLookupResponse, NetworkError> =
+        client.get<ContactLookupResponse>(
+            route = DuckCountRoutes.Contact.LOOKUP,
+            pathParams = mapOf("username" to username),
+        )
+
+    /**
+     * Sends a contact request.
+     *
+     * A request to this recipient already pending is a `409`, a recipient that does not
+     * exist a `404`, and the route is rate-limited like the lookup.
+     */
+    suspend fun sendContactRequest(body: SendContactRequestBody): Result<Unit, NetworkError> =
+        client.post<Unit, SendContactRequestBody>(
+            route = DuckCountRoutes.Contact.REQUESTS,
+            body = body,
+        )
 }

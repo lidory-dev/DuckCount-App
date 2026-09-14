@@ -30,7 +30,8 @@ fun clearSession() {
  *
  * State rather than an event stream on purpose: a `401` can land before anything is collecting
  * (during startup, or while the activity is being recreated), and that must not be the one signal
- * that gets dropped. The observer calls [acknowledge] once it has acted on it.
+ * that gets dropped. It is never reset: acting on it restarts the process, like every other end of
+ * a session (see `DuckCountClient.endSession`).
  */
 class SessionExpiry {
     private val _isExpired = MutableStateFlow(false)
@@ -39,9 +40,5 @@ class SessionExpiry {
 
     fun signal() {
         _isExpired.value = true
-    }
-
-    fun acknowledge() {
-        _isExpired.value = false
     }
 }

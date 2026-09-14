@@ -6,6 +6,7 @@ import database.data.repository.UserRepository
 import database.di.dbModule
 import database.di.dbPlatformModule
 import discoveryUsername.di.discoveryModule
+import mls.di.mlsModule
 import networking.di.networkingModule
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
@@ -23,6 +24,7 @@ fun initKoin() {
             vaultModule,
             profileModule,
             discoveryModule,
+            mlsModule,
         )
     }
 }

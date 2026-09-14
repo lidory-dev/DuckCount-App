@@ -31,7 +31,7 @@ internal fun unseal(key: ByteArray, content: EncryptedFieldDto): ByteArray? =
     try {
         decryptUsingSymmetricKey(
             key = key,
-            cipherText = Base64.Default.decode(content.ciphertext),
+            ciphertext = Base64.Default.decode(content.ciphertext),
             nonce = Base64.Default.decode(content.nonce),
         )
     } catch (_: EncryptionException) {

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "e4c976ebf864c9542f9129f86e35f2e4",
+    "identityHash": "5e6edabd6c6fc67e02f2201179011f08",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -286,11 +286,42 @@
             "uuid"
           ]
         }
+      },
+      {
+        "tableName": "MlsRecordEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`namespace` TEXT NOT NULL, `key` BLOB NOT NULL, `value` BLOB NOT NULL, PRIMARY KEY(`namespace`, `key`))",
+        "fields": [
+          {
+            "fieldPath": "namespace",
+            "columnName": "namespace",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "BLOB",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "namespace",
+            "key"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e4c976ebf864c9542f9129f86e35f2e4')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5e6edabd6c6fc67e02f2201179011f08')"
     ]
   }
 }

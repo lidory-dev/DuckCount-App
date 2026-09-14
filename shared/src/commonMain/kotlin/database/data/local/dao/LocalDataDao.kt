@@ -25,6 +25,7 @@ interface LocalDataDao {
         deleteGroups()
         deleteGroupMembers()
         deleteContactRequests()
+        deleteMlsRecords()
     }
 
     @Query("DELETE FROM UserEntity")
@@ -47,4 +48,7 @@ interface LocalDataDao {
 
     @Query("DELETE FROM ContactRequestEntity")
     suspend fun deleteContactRequests()
+
+    @Query("DELETE FROM MlsRecordEntity")
+    suspend fun deleteMlsRecords()
 }

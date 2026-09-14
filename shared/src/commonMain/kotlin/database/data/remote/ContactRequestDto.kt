@@ -6,10 +6,11 @@ import kotlinx.serialization.Serializable
 /**
  * Mirrors the server's `ContactRequest`: one request addressed to the caller.
  *
- * [ciphertext] is the sender's profile encryption key, sealed to one of the caller's
- * MLS key packages. Unsealing it is what lets the caller read the sender's profile
- * and decide whether to accept, so until that exists the app can count requests but
- * not say who sent them.
+ * [ciphertext] is a serialized `contact.ContactRequestEnvelope`: the Welcome into the
+ * MLS group the sender created with one of the caller's key packages, and the sender's
+ * profile encryption key encrypted to that group. Opening it is what lets the caller
+ * read the sender's profile and decide whether to accept, so until that exists the app
+ * can count requests but not say who sent them.
  */
 @Serializable
 data class ContactRequestDto(
@@ -28,4 +29,33 @@ data class ContactRequestDto(
 @Serializable
 data class ListContactRequestsResponse(
     val requests: List<ContactRequestDto>,
+)
+
+/** Body of `GET /contacts/lookup/{username}`. */
+@Serializable
+data class ContactLookupResponse(
+    /** The user holding the looked-up username. */
+    @SerialName("user_uuid")
+    val userUuid: String,
+
+    /**
+     * One of their MLS key packages, Base64 encoded. The lookup consumed it, unless it is
+     * their last-resort one.
+     */
+    @SerialName("key_package")
+    val keyPackage: String,
+)
+
+/** Body of `POST /contacts/requests`. */
+@Serializable
+data class SendContactRequestBody(
+    /**
+     * The user the lookup resolved, rather than the username: the ciphertext is bound to
+     * their key package, so it has to reach them even if the handle changes hands.
+     */
+    @SerialName("recipient_user_uuid")
+    val recipientUserUuid: String,
+
+    /** A serialized `ContactRequestEnvelope`, opaque to the server. */
+    val ciphertext: String,
 )

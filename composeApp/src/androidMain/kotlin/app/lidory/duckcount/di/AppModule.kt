@@ -33,6 +33,7 @@ import di.authenticationModule
 import di.contactListModule
 import di.sharedModule
 import discoveryUsername.di.discoveryModule
+import mls.di.mlsModule
 import networking.di.networkingModule
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.singleOf
@@ -82,6 +83,7 @@ val appModule = listOf(
     vaultModule,
     profileModule,
     discoveryModule,
+    mlsModule,
     expenseListModule,
     authenticationModule,
     authenticationCallBacksModule,

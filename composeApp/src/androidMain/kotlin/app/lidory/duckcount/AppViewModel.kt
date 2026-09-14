@@ -32,8 +32,8 @@ class AppViewModel(
 
     /**
      * Turns true when the server has ended this device's session. The credentials are already gone
-     * by then; all that is left is to take the user off the screens that can no longer load
-     * anything.
+     * by then; all that is left is to restart the app, which takes the user off the screens that
+     * can no longer load anything.
      */
     val isSessionExpired = sessionExpiry.isExpired
 
@@ -47,7 +47,4 @@ class AppViewModel(
             }
         }
     }
-
-    /** Call once the user has been sent back to the authentication flow, so it fires only once. */
-    fun onSessionExpiryHandled() = sessionExpiry.acknowledge()
 }

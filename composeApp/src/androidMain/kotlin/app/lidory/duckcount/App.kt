@@ -1,6 +1,5 @@
 package app.lidory.duckcount
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,16 +44,13 @@ fun App() {
                 val context = LocalContext.current
                 val isSessionExpired by appViewModel.isSessionExpired.collectAsState()
 
-                // The server has ended the session (the refresh token was turned down).
+                // The server has ended the session (the refresh token was turned down). Like
+                // a log-out, that takes a new process, which also lands on the onboarding
+                // screen and tells the user why.
                 LaunchedEffect(isSessionExpired) {
                     if (!isSessionExpired) return@LaunchedEffect
 
-                    Toast.makeText(context, R.string.session_expired, Toast.LENGTH_LONG).show()
-
-                    backStack.add(OnBoardingScreenKey)
-                    backStack.removeIf { it !is OnBoardingScreenKey }
-
-                    appViewModel.onSessionExpiryHandled()
+                    context.restartApp(sessionExpired = true)
                 }
 
                 NavigationRoot(

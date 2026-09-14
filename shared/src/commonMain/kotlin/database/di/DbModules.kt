@@ -33,6 +33,7 @@ val dbModule = module {
     single { get<AppDatabase>().groupDao }
     single { get<AppDatabase>().groupMemberDao }
     single { get<AppDatabase>().contactRequestDao }
+    single { get<AppDatabase>().mlsRecordDao }
 
     single { get<AppDatabase>().localDataDao }
 }

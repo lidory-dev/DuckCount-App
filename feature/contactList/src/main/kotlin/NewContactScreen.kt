@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -21,11 +20,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.contactList.R
-import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedButton
+import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
+import model.messageRes
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.NewContactViewModel
 import app.lidory.duckcount.android.ui.R as SharedR
@@ -85,16 +86,32 @@ fun NewContactScreen(
                 value = state.username,
                 onValueChange = { viewModel.updateUsername(it) },
                 focusManager = focusManager,
+                enabled = !state.isSending,
             )
-            DuckCountElevatedButton(
+            DuckCountLoadingButton(
                 onClick = {
                     focusManager.clearFocus()
-                    // TODO: Search using the unique username to get user information
+                    viewModel.sendContactRequest()
                 },
-                colors = ButtonDefaults.buttonColors()
-                    .copy(containerColor = MaterialTheme.colorScheme.primary),
+                enabled = state.canSend,
+                isLoading = state.isSending,
             ) {
                 Text(text = stringResource(SharedR.string.add))
+            }
+
+            state.error?.let { error ->
+                Text(
+                    text = stringResource(error.messageRes()),
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                )
+            }
+
+            if (state.isSent) {
+                Text(
+                    text = stringResource(R.string.add_contact_request_sent),
+                    textAlign = TextAlign.Center,
+                )
             }
         }
     }

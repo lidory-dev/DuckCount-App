@@ -13,6 +13,7 @@ import database.data.local.dao.ExpenseDao
 import database.data.local.dao.GroupDao
 import database.data.local.dao.GroupMemberDao
 import database.data.local.dao.LocalDataDao
+import database.data.local.dao.MlsRecordDao
 import database.data.local.dao.UserDao
 import database.data.local.entity.BeneficiaryEntity
 import database.data.local.entity.ContactRequestEntity
@@ -20,6 +21,7 @@ import database.data.local.entity.CurrencyEntity
 import database.data.local.entity.ExpenseEntity
 import database.data.local.entity.GroupEntity
 import database.data.local.entity.GroupMemberEntity
+import database.data.local.entity.MlsRecordEntity
 import database.data.local.entity.UserEntity
 import eu.anifantakis.lib.ksafe.KSafe
 import eu.anifantakis.lib.ksafe.KSafeEncryptedProtection
@@ -37,6 +39,7 @@ import org.koin.mp.KoinPlatform.getKoin
         GroupEntity::class,
         GroupMemberEntity::class,
         ContactRequestEntity::class,
+        MlsRecordEntity::class,
     ],
     version = 1,
 )
@@ -50,6 +53,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract val groupDao: GroupDao
     abstract val groupMemberDao: GroupMemberDao
     abstract val contactRequestDao: ContactRequestDao
+    abstract val mlsRecordDao: MlsRecordDao
 
     abstract val localDataDao: LocalDataDao
 
@@ -76,6 +80,10 @@ expect fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatab
  * on disk sealed under a key that no longer exists anywhere: the rows the log-out deleted are gone,
  * but whatever SQLite left in freed pages is now unreadable for good. That file cannot be opened
  * with the key minted here, so it goes first and the new key starts on an empty one.
+ *
+ * Being read once per process is also why a log-out restarts the process: the one that dropped
+ * the key would otherwise keep writing under it, and this would discard all of it at the next
+ * launch.
  */
 fun getDatabasePassword(vault: KSafe): String {
     var databasePassword = vault.getDirect(AppDatabase.DATABASE_PASSWORD_VAULT_KEY, "")

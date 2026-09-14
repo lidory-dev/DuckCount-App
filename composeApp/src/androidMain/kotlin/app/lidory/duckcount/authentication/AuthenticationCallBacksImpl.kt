@@ -21,6 +21,9 @@ import authenticationUtils.setTokens
 import database.data.remote.EncryptedFieldDto
 import database.data.repository.UserRepository
 import discoveryUsername.DiscoveryUsernameRepository
+import mls.KeyPackageError
+import mls.KeyPackageRepository
+import mls.MlsIdentityError
 import networking.DuckCountClient
 import networking.DuckCountRoutes
 import networking.HaveIBeenPwnedClient
@@ -49,6 +52,7 @@ class AuthenticationCallBacksImpl(
     private val haveIBeenPwnedClient: HaveIBeenPwnedClient,
     private val profileRepository: ProfileRepository,
     private val discoveryUsernameRepository: DiscoveryUsernameRepository,
+    private val keyPackageRepository: KeyPackageRepository,
 ) : AuthenticationCallBacks {
 
     override val maxUsernameLength: Int = usernameMaximumLength()
@@ -249,6 +253,12 @@ class AuthenticationCallBacksImpl(
                         Log.w(TAG, "login: could not restore the discovery username: $error")
                     }
 
+                    // Replaces the key packages the server holds, whose secrets a previous
+                    // log-out or install may have taken with it: nobody could open those.
+                    keyPackageRepository.publish().onError { error ->
+                        Log.w(TAG, "login: could not publish the key packages: $error")
+                    }
+
                     AuthOutcome.Success(Unit)
                 }
 
@@ -302,7 +312,19 @@ class AuthenticationCallBacksImpl(
             )
         }
 
-        // Profile completed, drop the saved "resume registration" marker.
+        // Without key packages nobody can send the new account a contact request.
+        val publication = keyPackageRepository.publish()
+
+        if (publication is Result.Error) {
+            Log.w(TAG, "insertUser: could not publish the key packages: ${publication.error}")
+
+            // The marker stays here too, and coming back to this step publishes again.
+            return AuthOutcome.Failure(
+                publication.error.toAuthError(),
+            )
+        }
+
+        // Account set up, drop the saved "resume registration" marker.
         clearPendingRegistration()
 
         return AuthOutcome.Success(Unit)
@@ -347,24 +369,48 @@ class AuthenticationCallBacksImpl(
     private fun ProfileError.toAuthError(): AuthError = when (this) {
         is ProfileError.Network -> error.toAuthError()
 
-        is ProfileError.Vault -> when (val vaultError = error) {
-            is VaultError.Network -> vaultError.error.toAuthError()
-
-            // The root key was set moments ago by the registration that led here, so
-            // its absence is not something the user can be asked to fix.
-            VaultError.MissingRootKey,
-            VaultError.Crypto,
-            VaultError.MalformedKeyRing,
-            VaultError.OrphanedEntry,
-            VaultError.Contended,
-                -> AuthError.CRYPTO_ERROR
-        }
+        is ProfileError.Vault -> error.toAuthError()
 
         // Neither can happen on the way out: NotStored is a read outcome, and a field
         // this device just sealed is one it can seal.
         ProfileError.NotStored,
         ProfileError.Crypto,
             -> AuthError.UNKNOWN
+    }
+
+    /**
+     * Maps a failed key package publication to a user-facing [AuthError].
+     *
+     * The vault and the library are folded in the same way as for the profile: to
+     * somebody finishing a registration, they are all the same unfinished step.
+     */
+    private fun KeyPackageError.toAuthError(): AuthError = when (this) {
+        is KeyPackageError.Network -> error.toAuthError()
+
+        is KeyPackageError.Identity -> when (val identityError = error) {
+            is MlsIdentityError.Vault -> identityError.error.toAuthError()
+
+            // The session was set up moments ago by the registration that led here, so
+            // its absence is not something the user can be asked to fix.
+            MlsIdentityError.MissingSession -> AuthError.CRYPTO_ERROR
+
+            MlsIdentityError.Crypto -> AuthError.CRYPTO_ERROR
+        }
+
+        KeyPackageError.Crypto -> AuthError.CRYPTO_ERROR
+    }
+
+    private fun VaultError.toAuthError(): AuthError = when (this) {
+        is VaultError.Network -> error.toAuthError()
+
+        // The root key was set moments ago by the registration that led here, so its
+        // absence is not something the user can be asked to fix.
+        VaultError.MissingRootKey,
+        VaultError.Crypto,
+        VaultError.MalformedKeyRing,
+        VaultError.OrphanedEntry,
+        VaultError.Contended,
+            -> AuthError.CRYPTO_ERROR
     }
 
     /**

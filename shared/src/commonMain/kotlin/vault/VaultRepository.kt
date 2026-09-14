@@ -107,6 +107,36 @@ class VaultRepository(
         )
     }
 
+    /**
+     * The backed-up MLS signature key pair, still encoded, or null when the vault holds
+     * none because this account never backed one up.
+     */
+    suspend fun getMlsSignatureKey(): Result<ByteArray?, VaultError> {
+        val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
+
+        return readSingleton(rootKey = rootKey, part = VaultEntryKey.MLS_SIGNATURE_KEY)
+            .map { read -> read.plaintext }
+    }
+
+    /**
+     * Backs up the MLS signature key pair, replacing whatever the vault held before.
+     */
+    suspend fun setMlsSignatureKey(signatureKey: ByteArray): EmptyResult<VaultError> {
+        val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
+
+        val keyRing = when (val read = readKeyRing(rootKey = rootKey)) {
+            is Result.Success -> read.data
+            is Result.Error -> return Result.Error(read.error)
+        }
+
+        return writeSingleton(
+            rootKey = rootKey,
+            keyRing = keyRing,
+            part = VaultEntryKey.MLS_SIGNATURE_KEY,
+            plaintext = signatureKey,
+        )
+    }
+
     /** The key ring on its own, which is everything a write needs. */
     private suspend fun readKeyRing(rootKey: ByteArray): Result<KeyRingSnapshot, VaultError> {
         val entries = when (val vault = vaultApi.getVault(VaultEntryKey.KEY_RING)) {

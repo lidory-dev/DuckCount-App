@@ -64,7 +64,18 @@ enum class VaultEntryKey(val wireName: String) {
      * The user's blocklist. Singleton, sealed whole rather than split into an entry
      * per blocked user, so the server never learns how many there are.
      */
-    BLOCKED_USERS("blocked_users");
+    BLOCKED_USERS("blocked_users"),
+
+    /**
+     * The user's long-term MLS signature key pair. Singleton.
+     *
+     * This key is the user's MLS identity: every peer pins its public half the first
+     * time they see it and refuses any other from then on. The device keeps it too,
+     * but a log-out wipes the local database and a reinstall takes it along, and a
+     * freshly generated key would look to every existing contact exactly like an
+     * impersonation attempt. Restoring it from here keeps the same identity instead.
+     */
+    MLS_SIGNATURE_KEY("mls_signature_key");
 
     companion object {
         /** The part [wireName] names, or null for one this build does not know. */

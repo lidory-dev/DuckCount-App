@@ -1,4 +1,5 @@
 import kotlinx.coroutines.flow.Flow
+import model.AddContactError
 import model.User
 
 interface ContactCallBacks {
@@ -29,4 +30,11 @@ interface ContactCallBacks {
      * is what caching it is for.
      */
     suspend fun refreshContactRequests()
+
+    /**
+     * Sends a contact request to whoever reserved the discovery [username].
+     *
+     * Returns null once the request is sent, or why it could not be.
+     */
+    suspend fun sendContactRequest(username: String): AddContactError?
 }

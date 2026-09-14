@@ -2,6 +2,7 @@ package app.lidory.duckcount
 
 import android.os.Bundle
 import android.os.SystemClock
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -23,6 +24,12 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
+        // Only on the launch the restart itself started: an activity recreated afterwards,
+        // by a rotation for instance, carries the same intent and has already said it.
+        if (savedInstanceState == null && intent.getBooleanExtra(EXTRA_SESSION_EXPIRED, false)) {
+            Toast.makeText(this, R.string.session_expired, Toast.LENGTH_LONG).show()
+        }
 
         setContent {
             App()
