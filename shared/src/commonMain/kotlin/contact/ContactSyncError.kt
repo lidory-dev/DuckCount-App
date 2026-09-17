@@ -1,0 +1,33 @@
+package contact
+
+import mls.MlsIdentityError
+import profile.ProfileError
+import util.Error
+import util.NetworkError
+import vault.VaultError
+
+/**
+ * Why bringing the user's contacts or contact requests up to date stopped short.
+ *
+ * Nothing here is final: whatever did not get done is picked up by the next attempt.
+ */
+sealed interface ContactSyncError : Error {
+
+    /** The user's own MLS client could not be opened. */
+    data class Identity(val error: MlsIdentityError) : ContactSyncError
+
+    /**
+     * The user's own MLS storage failed. Nothing was consumed, so trying again later may
+     * work.
+     */
+    data object Storage : ContactSyncError
+
+    /** The contacts could not be read from or written to the vault. */
+    data class Vault(val error: VaultError) : ContactSyncError
+
+    /** A contact's or a sender's profile could not be read. */
+    data class Profile(val error: ProfileError) : ContactSyncError
+
+    /** The server could not be reached, or refused the call. */
+    data class Network(val error: NetworkError) : ContactSyncError
+}

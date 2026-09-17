@@ -17,10 +17,22 @@
     <string name="add_contact_error_invalid_username">This username is not valid</string>
     <string name="add_contact_error_not_found">No user found with this username</string>
     <string name="add_contact_error_self">You can’t add yourself as a contact</string>
+    <string name="add_contact_error_already_contact">This user is already one of your contacts</string>
     <string name="add_contact_error_already_pending">You already sent this user a contact request</string>
     <string name="add_contact_error_rate_limited">Too many attempts, please try again later</string>
     <string name="add_contact_error_identity_changed">This user’s security key has changed, so the request was not sent</string>
     <string name="add_contact_error_no_internet">No internet connection</string>
     <string name="add_contact_error_server_unreachable">The server is unreachable, please try again later</string>
     <string name="add_contact_error_unknown">The contact request could not be sent</string>
+    <string name="no_contact_requests">No contact requests</string>
+    <string name="accept_contact_request">Accept</string>
+    <string name="refuse_contact_request">Decline</string>
+    <string name="answer_contact_request_error_not_found">This contact request no longer exists</string>
+    <string name="answer_contact_request_error_no_internet">No internet connection</string>
+    <string name="answer_contact_request_error_server_unreachable">The server is unreachable, please try again later</string>
+    <string name="answer_contact_request_error_unknown">The contact request could not be answered, please try again</string>
+    <string name="remove_contact_error_rate_limited">Too many attempts, please try again later</string>
+    <string name="remove_contact_error_no_internet">No internet connection</string>
+    <string name="remove_contact_error_server_unreachable">The server is unreachable, please try again later</string>
+    <string name="remove_contact_error_unknown">The contact could not be deleted, please try again</string>
 </resources>

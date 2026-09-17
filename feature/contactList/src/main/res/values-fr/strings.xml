@@ -17,10 +17,22 @@
     <string name="add_contact_error_invalid_username">Ce nom d’utilisateur n’est pas valide</string>
     <string name="add_contact_error_not_found">Aucun utilisateur trouvé avec ce nom d’utilisateur</string>
     <string name="add_contact_error_self">Impossible de s’ajouter soi-même comme contact</string>
+    <string name="add_contact_error_already_contact">Cet utilisateur fait déjà partie de vos contacts</string>
     <string name="add_contact_error_already_pending">Une demande de contact est déjà en attente pour cet utilisateur</string>
     <string name="add_contact_error_rate_limited">Trop de tentatives, réessayez plus tard</string>
     <string name="add_contact_error_identity_changed">La clé de sécurité de cet utilisateur a changé, la demande n’a pas été envoyée</string>
     <string name="add_contact_error_no_internet">Aucune connexion Internet</string>
     <string name="add_contact_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
     <string name="add_contact_error_unknown">La demande de contact n’a pas pu être envoyée</string>
+    <string name="no_contact_requests">Aucune demande de contact</string>
+    <string name="accept_contact_request">Accepter</string>
+    <string name="refuse_contact_request">Refuser</string>
+    <string name="answer_contact_request_error_not_found">Cette demande de contact n’existe plus</string>
+    <string name="answer_contact_request_error_no_internet">Aucune connexion Internet</string>
+    <string name="answer_contact_request_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
+    <string name="answer_contact_request_error_unknown">Impossible de répondre à la demande de contact, réessayez</string>
+    <string name="remove_contact_error_rate_limited">Trop de tentatives, réessayez plus tard</string>
+    <string name="remove_contact_error_no_internet">Aucune connexion Internet</string>
+    <string name="remove_contact_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
+    <string name="remove_contact_error_unknown">Le contact n’a pas pu être supprimé, réessayez</string>
 </resources>

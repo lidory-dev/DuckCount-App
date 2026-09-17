@@ -19,6 +19,7 @@ import authenticationUtils.setPendingRegistration
 import authenticationUtils.setRootKey
 import authenticationUtils.setTokens
 import database.data.remote.EncryptedFieldDto
+import database.data.repository.ContactRepository
 import database.data.repository.UserRepository
 import discoveryUsername.DiscoveryUsernameRepository
 import mls.KeyPackageError
@@ -53,6 +54,7 @@ class AuthenticationCallBacksImpl(
     private val profileRepository: ProfileRepository,
     private val discoveryUsernameRepository: DiscoveryUsernameRepository,
     private val keyPackageRepository: KeyPackageRepository,
+    private val contactRepository: ContactRepository,
 ) : AuthenticationCallBacks {
 
     override val maxUsernameLength: Int = usernameMaximumLength()
@@ -259,6 +261,12 @@ class AuthenticationCallBacksImpl(
                         Log.w(TAG, "login: could not publish the key packages: $error")
                     }
 
+                    // The server keeps no record of who the user's contacts are, so the
+                    // vault is the only place a new device can get them back from.
+                    contactRepository.restore().onError { error ->
+                        Log.w(TAG, "login: could not restore the contacts: $error")
+                    }
+
                     AuthOutcome.Success(Unit)
                 }
 
@@ -408,6 +416,7 @@ class AuthenticationCallBacksImpl(
         VaultError.MissingRootKey,
         VaultError.Crypto,
         VaultError.MalformedKeyRing,
+        VaultError.MalformedContactBook,
         VaultError.OrphanedEntry,
         VaultError.Contended,
             -> AuthError.CRYPTO_ERROR

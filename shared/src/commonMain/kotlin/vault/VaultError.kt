@@ -26,13 +26,21 @@ sealed interface VaultError : Error {
     data object MalformedKeyRing : VaultError
 
     /**
+     * The contacts' plaintext is not the map of contacts it is supposed to be, so it is
+     * left alone rather than overwritten with the contacts this build could make sense
+     * of.
+     */
+    data object MalformedContactBook : VaultError
+
+    /**
      * The vault holds a part whose key the key ring does not carry, so the part can
      * never be read again.
      */
     data object OrphanedEntry : VaultError
 
     /**
-     * Another device has updated the key ring while this one was trying to do the same.
+     * Another device has updated the entry, the key ring or the contacts, while this one
+     * was trying to do the same.
      */
     data object Contended : VaultError
 

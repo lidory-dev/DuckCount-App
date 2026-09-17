@@ -4,10 +4,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -15,15 +19,19 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.contactList.R
 import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.constant.Padding
 import component.ContactDeletionDialog
+import model.RemoveContactError
+import model.messageRes
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.ContactDetailViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
@@ -46,6 +54,22 @@ fun ContactDetailScreen(
         viewModel.navigateBack.collect { onBack() }
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    var pendingError by remember { mutableStateOf<RemoveContactError?>(null) }
+
+    LaunchedEffect(Unit) {
+        viewModel.errors.collect { pendingError = it }
+    }
+
+    pendingError?.let { error ->
+        val message = stringResource(error.messageRes())
+
+        LaunchedEffect(error) {
+            snackbarHostState.showSnackbar(message)
+            pendingError = null
+        }
+    }
+
     val isConfirmDeletionDialogVisible = remember { mutableStateOf(false) }
 
     if (isConfirmDeletionDialogVisible.value) {
@@ -60,6 +84,7 @@ fun ContactDetailScreen(
 
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {},
@@ -76,11 +101,16 @@ fun ContactDetailScreen(
                 actions = {
                     IconButton(
                         onClick = { isConfirmDeletionDialogVisible.value = true },
+                        enabled = !state.isRemoving,
                     ) {
-                        Icon(
-                            painter = painterResource((androidUiR.drawable.ic_delete)),
-                            contentDescription = stringResource(androidUiR.string.remove),
-                        )
+                        if (state.isRemoving) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        } else {
+                            Icon(
+                                painter = painterResource((androidUiR.drawable.ic_delete)),
+                                contentDescription = stringResource(androidUiR.string.remove),
+                            )
+                        }
                     }
                 },
             )

@@ -48,11 +48,30 @@ object DuckCountRoutes {
          */
         val REQUESTS = "$CONTACT_BASE_URL/requests"
 
+        /** One request addressed to the caller. `DELETE` refuses it. */
+        val REQUEST = "$CONTACT_BASE_URL/requests/:request_uuid"
+
+        /** `POST` accepts a request addressed to the caller. */
+        val REQUEST_ACCEPTANCE = "$CONTACT_BASE_URL/requests/:request_uuid/acceptance"
+
         /**
          * `GET` resolves a discovery username digest to its holder and one of their key
          * packages, which it consumes.
          */
         val LOOKUP = "$CONTACT_BASE_URL/lookup/:username"
+    }
+
+    object Message {
+        private val MESSAGE_BASE_URL = "$baseUrl/messages"
+
+        /**
+         * `GET` lists the direct messages waiting for the caller, oldest first, `POST`
+         * sends one.
+         */
+        val MESSAGES = MESSAGE_BASE_URL
+
+        /** `POST` acknowledges direct messages, which deletes them. */
+        val ACKNOWLEDGEMENTS = "$MESSAGE_BASE_URL/acknowledgements"
     }
 
     object Expense {

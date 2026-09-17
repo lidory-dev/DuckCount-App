@@ -2,6 +2,7 @@ package networking.di
 
 import authenticationUtils.SessionExpiry
 import database.data.remote.ContactApi
+import database.data.remote.DirectMessageApi
 import database.data.remote.ExpenseApi
 import database.data.remote.UserApi
 import networking.DuckCountClient
@@ -16,4 +17,5 @@ val networkingModule = module {
     singleOf(::ExpenseApi)
     singleOf(::UserApi)
     singleOf(::ContactApi)
+    singleOf(::DirectMessageApi)
 }

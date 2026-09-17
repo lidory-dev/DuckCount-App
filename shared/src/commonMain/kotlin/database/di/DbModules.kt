@@ -2,6 +2,7 @@ package database.di
 
 import database.AppDatabase
 import database.data.repository.BeneficiaryRepository
+import database.data.repository.ContactRepository
 import database.data.repository.ContactRequestRepository
 import database.data.repository.CurrencyRepository
 import database.data.repository.ExpenseRepository
@@ -23,6 +24,7 @@ val dbModule = module {
     singleOf(::GroupRepository)
     singleOf(::GroupMemberRepository)
     singleOf(::ContactRequestRepository)
+    singleOf(::ContactRepository)
 
     single { getRoomDatabase(get()) }
 
@@ -33,6 +35,7 @@ val dbModule = module {
     single { get<AppDatabase>().groupDao }
     single { get<AppDatabase>().groupMemberDao }
     single { get<AppDatabase>().contactRequestDao }
+    single { get<AppDatabase>().contactDao }
     single { get<AppDatabase>().mlsRecordDao }
 
     single { get<AppDatabase>().localDataDao }

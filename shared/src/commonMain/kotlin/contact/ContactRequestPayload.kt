@@ -86,6 +86,78 @@ class ContactRequestEnvelope(
     }
 }
 
+/**
+ * What a contact sends the other when removing them from their contacts: nothing but the
+ * fact of it.
+ *
+ * It travels as the plaintext of an MLS application message in the group the two of them
+ * share, so MLS authenticates who is leaving. Its `type` is what tells it apart from a
+ * [ContactCard], which travels the same way.
+ */
+object ContactRemoval {
+    private const val TYPE = "contact_removal"
+
+    /** The plaintext to encrypt for the contact being removed. */
+    fun serialize(): ByteArray =
+        json.encodeToString(
+            SerializedContactRemoval.serializer(),
+            SerializedContactRemoval(type = TYPE),
+        ).encodeToByteArray()
+
+    /** Whether a decrypted message is a removal. */
+    fun matches(plaintext: ByteArray): Boolean =
+        runCatching {
+            json.decodeFromString(
+                SerializedContactRemoval.serializer(),
+                plaintext.decodeToString(),
+            ).type == TYPE
+        }.getOrDefault(false)
+}
+
+/**
+ * The `ciphertext` of a direct message between two contacts: an MLS message encrypted to
+ * the group their contact request created.
+ *
+ * The acceptance of a request travels this way, [message] carrying the recipient's own
+ * [ContactCard], and so does a [ContactRemoval]. The client reading one needs that group
+ * to decrypt [message], but may keep no record of which group it was, and a direct
+ * message says nothing about it either, hence [mlsGroupId] next to it.
+ */
+class ContactMessageEnvelope(
+    val mlsGroupId: ByteArray,
+    val message: ByteArray,
+) {
+
+    /** The direct message's `ciphertext`. */
+    fun serialize(): String =
+        json.encodeToString(
+            SerializedContactMessageEnvelope.serializer(),
+            SerializedContactMessageEnvelope(
+                mlsGroupId = Base64.Default.encode(mlsGroupId),
+                message = Base64.Default.encode(message),
+            ),
+        )
+
+    companion object {
+        /**
+         * Reads an envelope back from a direct message's `ciphertext`, or returns null when
+         * it is not one.
+         */
+        fun parse(ciphertext: String): ContactMessageEnvelope? =
+            runCatching {
+                val serialized = json.decodeFromString(
+                    SerializedContactMessageEnvelope.serializer(),
+                    ciphertext,
+                )
+
+                ContactMessageEnvelope(
+                    mlsGroupId = Base64.Default.decode(serialized.mlsGroupId),
+                    message = Base64.Default.decode(serialized.message),
+                )
+            }.getOrNull()
+    }
+}
+
 @Serializable
 private class SerializedContactCard(
     @SerialName("profile_encryption_key")
@@ -95,5 +167,17 @@ private class SerializedContactCard(
 @Serializable
 private class SerializedContactRequestEnvelope(
     val welcome: String,
+    val message: String,
+)
+
+@Serializable
+private class SerializedContactRemoval(
+    val type: String,
+)
+
+@Serializable
+private class SerializedContactMessageEnvelope(
+    @SerialName("mls_group_id")
+    val mlsGroupId: String,
     val message: String,
 )

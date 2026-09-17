@@ -1,5 +1,8 @@
 import kotlinx.coroutines.flow.Flow
 import model.AddContactError
+import model.AnswerContactRequestError
+import model.ContactRequest
+import model.RemoveContactError
 import model.User
 
 interface ContactCallBacks {
@@ -9,7 +12,14 @@ interface ContactCallBacks {
 
     fun getAuthenticatedUserUuid(): String?
 
-    suspend fun removeContact(userUuid: String)
+    /**
+     * Removes the contact [userUuid], here and from the vault, and tells them so that they
+     * remove the user in turn.
+     *
+     * Returns null once removed, or why it could not be. Nothing is removed until they have
+     * been told, so the user can try again.
+     */
+    suspend fun removeContact(userUuid: String): RemoveContactError?
 
     /**
      * Emits the username the user reserved to be discoverable by, or null when they
@@ -23,13 +33,33 @@ interface ContactCallBacks {
     /** How many contact requests are waiting for the user, straight off the local cache. */
     fun getContactRequestCount(): Flow<Int>
 
+    /** The contact requests waiting for the user, oldest first, straight off the local cache. */
+    fun getContactRequests(): Flow<List<ContactRequest>>
+
     /**
-     * Pulls the requests addressed to the user into the local cache.
+     * Brings the contacts and the contact requests up to date: pulls in the requests
+     * addressed to the user, takes in what contacts sent them (the answers to the requests
+     * they sent, and the notices of contacts who removed them), and carries to the vault
+     * the changes it has not taken yet.
      *
-     * Failing is not reported: the user keeps seeing the count they already had, which
-     * is what caching it is for.
+     * Failing is not reported: the user keeps seeing what they already had, which is what
+     * caching it is for, and the next refresh picks up whatever did not get done.
      */
-    suspend fun refreshContactRequests()
+    suspend fun refreshContacts()
+
+    /**
+     * Accepts the contact request [requestUuid], making its sender a contact.
+     *
+     * Returns null once accepted, or why it could not be.
+     */
+    suspend fun acceptContactRequest(requestUuid: String): AnswerContactRequestError?
+
+    /**
+     * Refuses the contact request [requestUuid]. Its sender is not told.
+     *
+     * Returns null once refused, or why it could not be.
+     */
+    suspend fun refuseContactRequest(requestUuid: String): AnswerContactRequestError?
 
     /**
      * Sends a contact request to whoever reserved the discovery [username].

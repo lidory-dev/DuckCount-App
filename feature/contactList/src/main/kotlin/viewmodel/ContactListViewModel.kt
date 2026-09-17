@@ -63,7 +63,7 @@ class ContactListViewModel(
             //
             // Launched rather than awaited: `onStart` runs in the collector's context, so
             // suspending here would hold the first emission back for the whole request.
-            viewModelScope.launch { contactCallBacks.refreshContactRequests() }
+            viewModelScope.launch { contactCallBacks.refreshContacts() }
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000L),

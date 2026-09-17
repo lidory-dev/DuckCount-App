@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import model.RemoveContactError
 import model.User
 
 class ContactDetailViewModel(
@@ -24,6 +25,9 @@ class ContactDetailViewModel(
 
     private val _navigateBack = Channel<Unit>(Channel.BUFFERED)
     val navigateBack: Flow<Unit> = _navigateBack.receiveAsFlow()
+
+    private val _errors = Channel<RemoveContactError>(Channel.BUFFERED)
+    val errors: Flow<RemoveContactError> = _errors.receiveAsFlow()
 
     private val _state = MutableStateFlow(ContactDetailState())
 
@@ -42,8 +46,17 @@ class ContactDetailViewModel(
     fun removeContact() {
         viewModelScope.launch {
             _state.value.user?.let { user ->
-                contactCallBacks.removeContact(user.uuid)
-                _navigateBack.send(Unit)
+                _state.update { it.copy(isRemoving = true) }
+
+                when (val error = contactCallBacks.removeContact(user.uuid)) {
+                    // There is no detail left to show.
+                    null -> _navigateBack.send(Unit)
+
+                    else -> {
+                        _state.update { it.copy(isRemoving = false) }
+                        _errors.send(error)
+                    }
+                }
             }
         }
     }
@@ -52,4 +65,7 @@ class ContactDetailViewModel(
 data class ContactDetailState(
     val isLoading: Boolean = false,
     val user: User? = null,
+
+    /** Whether the contact is being removed, which the user cannot start twice. */
+    val isRemoving: Boolean = false,
 )

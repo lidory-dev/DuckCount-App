@@ -137,6 +137,70 @@ class VaultRepository(
         )
     }
 
+    /**
+     * The key each of the user's contacts handed over, keyed by their user UUID. Empty
+     * when the vault holds no contact yet.
+     */
+    suspend fun getContacts(): Result<Map<String, ByteArray>, VaultError> {
+        val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
+
+        val read = when (val singleton = readSingleton(rootKey = rootKey, part = VaultEntryKey.CONTACTS)) {
+            is Result.Success -> singleton.data
+            is Result.Error -> return Result.Error(singleton.error)
+        }
+
+        val contactBook = when (val plaintext = read.plaintext) {
+            null -> ContactBook.EMPTY
+            else -> ContactBook.parse(plaintext = plaintext)
+                ?: return Result.Error(VaultError.MalformedContactBook)
+        }
+
+        return Result.Success(contactBook.profileEncryptionKeys)
+    }
+
+    /**
+     * Adds the contacts in [added], each key keyed by its contact's user UUID, replacing
+     * the key of any contact the vault already holds, and drops the contacts in [removed].
+     *
+     * The contacts are sealed whole, so any change rewrites all of them, and both kinds go
+     * in one write. The write goes against the version they were read at, so a contact
+     * another device changed in between is refused as [VaultError.Contended] rather than
+     * overwritten.
+     */
+    suspend fun updateContacts(
+        added: Map<String, ByteArray>,
+        removed: Collection<String>,
+    ): EmptyResult<VaultError> {
+        val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
+
+        val read = when (val singleton = readSingleton(rootKey = rootKey, part = VaultEntryKey.CONTACTS)) {
+            is Result.Success -> singleton.data
+            is Result.Error -> return Result.Error(singleton.error)
+        }
+
+        val contactBook = when (val plaintext = read.plaintext) {
+            null -> ContactBook.EMPTY
+            else -> ContactBook.parse(plaintext = plaintext)
+                ?: return Result.Error(VaultError.MalformedContactBook)
+        }
+
+        val withAdditions = added.entries.fold(contactBook) { book, (userUuid, key) ->
+            book.with(userUuid = userUuid, profileEncryptionKey = key)
+        }
+
+        val updated = removed.fold(withAdditions) { book, userUuid ->
+            book.without(userUuid = userUuid)
+        }
+
+        return writeSingleton(
+            rootKey = rootKey,
+            keyRing = read.keyRing,
+            part = VaultEntryKey.CONTACTS,
+            plaintext = updated.serialize(),
+            expectedVersion = read.version,
+        )
+    }
+
     /** The key ring on its own, which is everything a write needs. */
     private suspend fun readKeyRing(rootKey: ByteArray): Result<KeyRingSnapshot, VaultError> {
         val entries = when (val vault = vaultApi.getVault(VaultEntryKey.KEY_RING)) {
@@ -169,7 +233,7 @@ class VaultRepository(
         }
 
         val entry = entries.singleton(part = part)
-            ?: return Result.Success(SingletonRead(keyRing = keyRing, plaintext = null))
+            ?: return Result.Success(SingletonRead(keyRing = keyRing, plaintext = null, version = null))
 
         // The entry is there, so the ring has to name it. Reading is where this is
         // reported rather than repaired: replacing the key would discard whatever the
@@ -180,7 +244,9 @@ class VaultRepository(
         val plaintext = unseal(key = sealingKey, content = entry.content)
             ?: return Result.Error(VaultError.Crypto)
 
-        return Result.Success(SingletonRead(keyRing = keyRing, plaintext = plaintext))
+        return Result.Success(
+            SingletonRead(keyRing = keyRing, plaintext = plaintext, version = entry.version),
+        )
     }
 
     /** Unseals the key ring out of [entries], which must have been read with it. */
@@ -205,13 +271,18 @@ class VaultRepository(
      * it to [keyRing] when the ring does not carry one yet.
      *
      * Reports [VaultError.Contended] when another device grew the key ring in between,
-     * a single attempt with no retry: the caller surfaces it and the user tries again.
+     * or changed the entry since [expectedVersion], a single attempt with no retry: the
+     * caller surfaces it and the user tries again.
+     *
+     * @param expectedVersion The version [part]'s entry was read at, for a write that
+     * builds on what it held. Null writes unconditionally.
      */
     private suspend fun writeSingleton(
         rootKey: ByteArray,
         keyRing: KeyRingSnapshot,
         part: VaultEntryKey,
         plaintext: ByteArray,
+        expectedVersion: Long? = null,
     ): EmptyResult<VaultError> {
         val storedSealingKey = keyRing.keyRing.keyFor(part = part)
 
@@ -222,7 +293,7 @@ class VaultRepository(
             val sealedPart = seal(key = storedSealingKey, plaintext = plaintext)
                 ?: return Result.Error(VaultError.Crypto)
 
-            return savePart(part = part, content = sealedPart)
+            return savePart(part = part, content = sealedPart, expectedVersion = expectedVersion)
         }
 
         val sealingKey = generateSymmetricEncryptionKey()
@@ -284,15 +355,24 @@ class VaultRepository(
     private suspend fun savePart(
         part: VaultEntryKey,
         content: EncryptedFieldDto,
+        expectedVersion: Long? = null,
     ): EmptyResult<VaultError> =
         when (
             val write = vaultApi.saveVaultEntry(
                 entryKey = part,
-                body = SaveVaultEntryRequestBody(content = content),
+                body = SaveVaultEntryRequestBody(content = content, expectedVersion = expectedVersion),
             )
         ) {
             is Result.Success -> Result.Success(Unit)
-            is Result.Error -> Result.Error(VaultError.Network(write.error))
+
+            // The server also answers a full part with a 409, but a singleton holds one
+            // entry at most, so here a conflict can only be the expected version.
+            is Result.Error -> Result.Error(
+                when (write.error) {
+                    NetworkError.CONFLICT -> VaultError.Contended
+                    else -> VaultError.Network(write.error)
+                },
+            )
         }
 
     /** The entry of a singleton part, or null when the vault does not hold it. */
@@ -324,4 +404,10 @@ private class SingletonRead(
 
     /** Null when the vault does not hold the part yet. */
     val plaintext: ByteArray?,
+
+    /**
+     * The version the part's entry was read at, for a write that builds on [plaintext].
+     * Null when the vault does not hold the part yet.
+     */
+    val version: Long?,
 )

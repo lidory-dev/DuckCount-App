@@ -20,6 +20,9 @@ enum class AddContactError {
     /** The username is the user's own. */
     SELF,
 
+    /** The username belongs to one of the user's contacts already. */
+    ALREADY_CONTACT,
+
     /** A request to this user is already waiting for their answer. */
     ALREADY_PENDING,
 
@@ -47,6 +50,7 @@ fun AddContactError.messageRes(): Int = when (this) {
     AddContactError.INVALID_USERNAME -> R.string.add_contact_error_invalid_username
     AddContactError.NOT_FOUND -> R.string.add_contact_error_not_found
     AddContactError.SELF -> R.string.add_contact_error_self
+    AddContactError.ALREADY_CONTACT -> R.string.add_contact_error_already_contact
     AddContactError.ALREADY_PENDING -> R.string.add_contact_error_already_pending
     AddContactError.RATE_LIMITED -> R.string.add_contact_error_rate_limited
     AddContactError.IDENTITY_CHANGED -> R.string.add_contact_error_identity_changed

@@ -75,7 +75,18 @@ enum class VaultEntryKey(val wireName: String) {
      * freshly generated key would look to every existing contact exactly like an
      * impersonation attempt. Restoring it from here keeps the same identity instead.
      */
-    MLS_SIGNATURE_KEY("mls_signature_key");
+    MLS_SIGNATURE_KEY("mls_signature_key"),
+
+    /**
+     * The user's contacts, each with the profile encryption key they handed over.
+     * Singleton, see [ContactBook].
+     *
+     * Sealed whole rather than split into an entry per contact, so the server learns
+     * neither who they are nor how many. It keeps no other record of them: the request
+     * that made someone a contact is deleted once answered, so without this entry a
+     * log-out or a reinstall would lose every key a contact ever handed over.
+     */
+    CONTACTS("contacts");
 
     companion object {
         /** The part [wireName] names, or null for one this build does not know. */

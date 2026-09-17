@@ -3,9 +3,13 @@ package app.lidory.duckcount.contactList
 import contact.SendContactRequestError
 import mls.MlsIdentityError
 import model.AddContactError
+import model.AnswerContactRequestError
+import model.RemoveContactError
 import model.User
 import util.NetworkError
 import vault.VaultError
+import contact.AnswerContactRequestError as SharedAnswerContactRequestError
+import contact.RemoveContactError as SharedRemoveContactError
 import database.domain.User as UserDB
 
 fun User.toDb(): UserDB = UserDB(
@@ -28,6 +32,7 @@ fun SendContactRequestError.toAddContactError(isOnline: Boolean): AddContactErro
     SendContactRequestError.InvalidUsername -> AddContactError.INVALID_USERNAME
     SendContactRequestError.NotFound -> AddContactError.NOT_FOUND
     SendContactRequestError.Self -> AddContactError.SELF
+    SendContactRequestError.AlreadyContact -> AddContactError.ALREADY_CONTACT
     SendContactRequestError.AlreadyPending -> AddContactError.ALREADY_PENDING
     SendContactRequestError.RateLimited -> AddContactError.RATE_LIMITED
     SendContactRequestError.IdentityChanged -> AddContactError.IDENTITY_CHANGED
@@ -53,10 +58,132 @@ private fun VaultError.toAddContactError(isOnline: Boolean): AddContactError = w
     VaultError.MissingRootKey,
     VaultError.Crypto,
     VaultError.MalformedKeyRing,
+    VaultError.MalformedContactBook,
     VaultError.OrphanedEntry,
     VaultError.Contended,
         -> AddContactError.UNKNOWN
 }
+
+/**
+ * Maps a failed answer to a contact request to the reason the UI surfaces.
+ *
+ * Same folding as [toAddContactError]: the user's own key material failing is
+ * [AnswerContactRequestError.UNKNOWN], network failures are reported as such.
+ */
+fun SharedAnswerContactRequestError.toAnswerContactRequestError(
+    isOnline: Boolean,
+): AnswerContactRequestError = when (this) {
+    SharedAnswerContactRequestError.NotFound -> AnswerContactRequestError.NOT_FOUND
+
+    is SharedAnswerContactRequestError.Network -> error.toAnswerContactRequestError(isOnline = isOnline)
+
+    is SharedAnswerContactRequestError.Vault -> error.toAnswerContactRequestError(isOnline = isOnline)
+
+    is SharedAnswerContactRequestError.Identity -> when (val identityError = error) {
+        is MlsIdentityError.Vault -> identityError.error.toAnswerContactRequestError(isOnline = isOnline)
+
+        MlsIdentityError.MissingSession,
+        MlsIdentityError.Crypto,
+            -> AnswerContactRequestError.UNKNOWN
+    }
+
+    SharedAnswerContactRequestError.Crypto -> AnswerContactRequestError.UNKNOWN
+}
+
+private fun VaultError.toAnswerContactRequestError(isOnline: Boolean): AnswerContactRequestError =
+    when (this) {
+        is VaultError.Network -> error.toAnswerContactRequestError(isOnline = isOnline)
+
+        VaultError.MissingRootKey,
+        VaultError.Crypto,
+        VaultError.MalformedKeyRing,
+        VaultError.MalformedContactBook,
+        VaultError.OrphanedEntry,
+        VaultError.Contended,
+            -> AnswerContactRequestError.UNKNOWN
+    }
+
+/**
+ * Maps a failed contact removal to the reason the UI surfaces.
+ *
+ * Same folding as [toAddContactError]: the user's own key material failing is
+ * [RemoveContactError.UNKNOWN], network failures are reported as such.
+ */
+fun SharedRemoveContactError.toRemoveContactError(isOnline: Boolean): RemoveContactError = when (this) {
+    SharedRemoveContactError.RateLimited -> RemoveContactError.RATE_LIMITED
+
+    is SharedRemoveContactError.Network -> error.toRemoveContactError(isOnline = isOnline)
+
+    is SharedRemoveContactError.Identity -> when (val identityError = error) {
+        is MlsIdentityError.Vault -> identityError.error.toRemoveContactError(isOnline = isOnline)
+
+        MlsIdentityError.MissingSession,
+        MlsIdentityError.Crypto,
+            -> RemoveContactError.UNKNOWN
+    }
+
+    SharedRemoveContactError.Storage -> RemoveContactError.UNKNOWN
+}
+
+private fun VaultError.toRemoveContactError(isOnline: Boolean): RemoveContactError = when (this) {
+    is VaultError.Network -> error.toRemoveContactError(isOnline = isOnline)
+
+    VaultError.MissingRootKey,
+    VaultError.Crypto,
+    VaultError.MalformedKeyRing,
+    VaultError.MalformedContactBook,
+    VaultError.OrphanedEntry,
+    VaultError.Contended,
+        -> RemoveContactError.UNKNOWN
+}
+
+/**
+ * The network failures left once the shared layer has mapped the message route's own
+ * outcomes (a recipient that is gone, rate limited).
+ */
+private fun NetworkError.toRemoveContactError(isOnline: Boolean): RemoveContactError = when (this) {
+    NetworkError.NO_INTERNET,
+    NetworkError.REQUEST_TIMEOUT,
+        -> RemoveContactError.NO_INTERNET
+
+    NetworkError.UNREACHABLE ->
+        if (isOnline) RemoveContactError.SERVER_UNREACHABLE else RemoveContactError.NO_INTERNET
+
+    NetworkError.BAD_REQUEST,
+    NetworkError.UNAUTHORIZED,
+    NetworkError.NOT_FOUND,
+    NetworkError.CONFLICT,
+    NetworkError.TOO_MANY_REQUESTS,
+    NetworkError.PAYLOAD_TOO_LARGE,
+    NetworkError.UNPROCESSABLE_ENTITY,
+    NetworkError.SERVER_ERROR,
+    NetworkError.SERIALIZATION,
+    NetworkError.UNKNOWN,
+        -> RemoveContactError.UNKNOWN
+}
+
+/** The network failures left once the shared layer has mapped the request being gone. */
+private fun NetworkError.toAnswerContactRequestError(isOnline: Boolean): AnswerContactRequestError =
+    when (this) {
+        NetworkError.NO_INTERNET,
+        NetworkError.REQUEST_TIMEOUT,
+            -> AnswerContactRequestError.NO_INTERNET
+
+        NetworkError.UNREACHABLE ->
+            if (isOnline) AnswerContactRequestError.SERVER_UNREACHABLE else AnswerContactRequestError.NO_INTERNET
+
+        NetworkError.BAD_REQUEST,
+        NetworkError.UNAUTHORIZED,
+        NetworkError.NOT_FOUND,
+        NetworkError.CONFLICT,
+        NetworkError.TOO_MANY_REQUESTS,
+        NetworkError.PAYLOAD_TOO_LARGE,
+        NetworkError.UNPROCESSABLE_ENTITY,
+        NetworkError.SERVER_ERROR,
+        NetworkError.SERIALIZATION,
+        NetworkError.UNKNOWN,
+            -> AnswerContactRequestError.UNKNOWN
+    }
 
 /**
  * The network failures left once the shared layer has mapped the contact routes' own

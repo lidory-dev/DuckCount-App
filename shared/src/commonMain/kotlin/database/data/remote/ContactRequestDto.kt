@@ -9,8 +9,7 @@ import kotlinx.serialization.Serializable
  * [ciphertext] is a serialized `contact.ContactRequestEnvelope`: the Welcome into the
  * MLS group the sender created with one of the caller's key packages, and the sender's
  * profile encryption key encrypted to that group. Opening it is what lets the caller
- * read the sender's profile and decide whether to accept, so until that exists the app
- * can count requests but not say who sent them.
+ * read the sender's profile and decide whether to accept.
  */
 @Serializable
 data class ContactRequestDto(
@@ -57,5 +56,15 @@ data class SendContactRequestBody(
     val recipientUserUuid: String,
 
     /** A serialized `ContactRequestEnvelope`, opaque to the server. */
+    val ciphertext: String,
+)
+
+/** Body of `POST /contacts/requests/{request_uuid}/acceptance`. */
+@Serializable
+data class AcceptContactRequestBody(
+    /**
+     * A serialized `contact.ContactMessageEnvelope`, opaque to the server, which hands
+     * it to the request's sender as a direct message.
+     */
     val ciphertext: String,
 )

@@ -14,9 +14,11 @@ import vault.unseal
 private val UNSET_FIELD = ByteArray(0)
 
 /**
- * The authenticated user's own profile, as the server holds it.
+ * User profiles as the server holds them: the authenticated user's own, and the ones their
+ * contacts shared with them.
  *
- * The key comes from the vault, and is what a contact is handed to read this profile.
+ * The key to the user's own comes from the vault, and is what a contact is handed to read
+ * this profile.
  */
 class ProfileRepository(
     private val profileApi: ProfileApi,
@@ -75,10 +77,36 @@ class ProfileRepository(
             is Result.Error -> return Result.Error(ProfileError.Vault(outcome.error))
         }
 
+        val fullName = when (val read = getFullName(userUuid = userUuid, profileEncryptionKey = key)) {
+            is Result.Success -> read.data
+            is Result.Error -> return Result.Error(read.error)
+        }
+
+        userRepository.insert(
+            User(
+                uuid = userUuid,
+                username = username,
+                fullName = fullName,
+            ),
+        )
+
+        return Result.Success(Unit)
+    }
+
+    /**
+     * The full name on the profile of [userUuid], which [profileEncryptionKey] seals.
+     *
+     * Reads anybody's profile, the user's own or a contact's, as long as the key is the
+     * one its owner sealed it with.
+     */
+    suspend fun getFullName(
+        userUuid: String,
+        profileEncryptionKey: ByteArray,
+    ): Result<String, ProfileError> {
         val profile = when (
             val fetch = profileApi.getUserProfile(
                 userUuid = userUuid,
-                encryptionKeyPartialHash = profileEncryptionKeyPartialHash(key),
+                encryptionKeyPartialHash = profileEncryptionKeyPartialHash(profileEncryptionKey),
             )
         ) {
             is Result.Success -> fetch.data
@@ -91,18 +119,10 @@ class ProfileRepository(
             )
         }
 
-        val fullName = unseal(key = key, content = profile.fullName)
+        val fullName = unseal(key = profileEncryptionKey, content = profile.fullName)
             ?.decodeToString()
             ?: return Result.Error(ProfileError.Crypto)
 
-        userRepository.insert(
-            User(
-                uuid = userUuid,
-                username = username,
-                fullName = fullName,
-            ),
-        )
-
-        return Result.Success(Unit)
+        return Result.Success(fullName)
     }
 }

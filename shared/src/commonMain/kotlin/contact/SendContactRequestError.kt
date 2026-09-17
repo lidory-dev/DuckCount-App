@@ -20,6 +20,9 @@ sealed interface SendContactRequestError : Error {
     /** The username is the user's own. */
     data object Self : SendContactRequestError
 
+    /** The username belongs to somebody who already is one of the user's contacts. */
+    data object AlreadyContact : SendContactRequestError
+
     /** A request from the user to this recipient is already waiting for an answer. */
     data object AlreadyPending : SendContactRequestError
 

@@ -47,4 +47,34 @@ class ContactApi(
             route = DuckCountRoutes.Contact.REQUESTS,
             body = body,
         )
+
+    /**
+     * Accepts a request addressed to the caller, which the server delivers to its sender as
+     * a direct message.
+     *
+     * Accepting consumes the request, and clears the reverse one too if the sender had a
+     * request from the caller pending. A request that is not, or no longer, waiting for
+     * the caller is a `404`.
+     */
+    suspend fun acceptContactRequest(
+        requestUuid: String,
+        body: AcceptContactRequestBody,
+    ): Result<Unit, NetworkError> =
+        client.post<Unit, AcceptContactRequestBody>(
+            route = DuckCountRoutes.Contact.REQUEST_ACCEPTANCE,
+            pathParams = mapOf("request_uuid" to requestUuid),
+            body = body,
+        )
+
+    /**
+     * Refuses a request addressed to the caller, deleting it. The sender is not told, and
+     * may send another one.
+     *
+     * A request that is not, or no longer, waiting for the caller is a `404`.
+     */
+    suspend fun refuseContactRequest(requestUuid: String): Result<Unit, NetworkError> =
+        client.delete<Unit>(
+            route = DuckCountRoutes.Contact.REQUEST,
+            pathParams = mapOf("request_uuid" to requestUuid),
+        )
 }

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "5e6edabd6c6fc67e02f2201179011f08",
+    "identityHash": "8e7dc15ecfec787b68f38dce80106340",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -253,7 +253,7 @@
       },
       {
         "tableName": "ContactRequestEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `senderUserUuid` TEXT NOT NULL, `ciphertext` TEXT NOT NULL, `createdAt` TEXT NOT NULL, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `senderUserUuid` TEXT NOT NULL, `ciphertext` TEXT NOT NULL, `createdAt` TEXT NOT NULL, `mlsGroupId` BLOB, `profileEncryptionKey` BLOB, `senderFullName` TEXT, PRIMARY KEY(`uuid`))",
         "fields": [
           {
             "fieldPath": "uuid",
@@ -278,12 +278,68 @@
             "columnName": "createdAt",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "mlsGroupId",
+            "columnName": "mlsGroupId",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "profileEncryptionKey",
+            "columnName": "profileEncryptionKey",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "senderFullName",
+            "columnName": "senderFullName",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
           "autoGenerate": false,
           "columnNames": [
             "uuid"
+          ]
+        }
+      },
+      {
+        "tableName": "ContactEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `mlsGroupId` BLOB, `isBackedUp` INTEGER NOT NULL, `isRemoved` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
+        "fields": [
+          {
+            "fieldPath": "userUuid",
+            "columnName": "userUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileEncryptionKey",
+            "columnName": "profileEncryptionKey",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mlsGroupId",
+            "columnName": "mlsGroupId",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "isBackedUp",
+            "columnName": "isBackedUp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isRemoved",
+            "columnName": "isRemoved",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "userUuid"
           ]
         }
       },
@@ -321,7 +377,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5e6edabd6c6fc67e02f2201179011f08')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8e7dc15ecfec787b68f38dce80106340')"
     ]
   }
 }
