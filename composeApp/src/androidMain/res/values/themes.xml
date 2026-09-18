@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shown by the system during cold start. Painting it the same green as the Compose
+         splash makes the handover between the two invisible. -->
+    <style name="Theme.DuckCount.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.DuckCount</item>
+    </style>
+
+    <style name="Theme.DuckCount" parent="@android:style/Theme.Material.Light.NoActionBar" />
+</resources>

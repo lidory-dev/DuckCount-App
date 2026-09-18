@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors `primaryLight` in android-ui Color.kt. The system splash is configured in
+         XML, before Compose runs, so the value has to be duplicated here; keep the two in
+         sync. The Compose splash reads this same resource so both halves always match. -->
+    <color name="splash_background">#36693B</color>
+    <color name="splash_on_background">#FFFFFF</color>
+</resources>

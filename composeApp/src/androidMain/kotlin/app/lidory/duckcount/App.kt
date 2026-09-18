@@ -11,6 +11,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.colorResource
 import androidx.navigation3.runtime.rememberNavBackStack
 import app.lidory.duckcount.android.ui.theme.AppTheme
 import app.lidory.duckcount.navigation.NavigationRoot
@@ -25,14 +26,15 @@ fun App() {
         val startup by appViewModel.startup.collectAsState()
 
         when (val state = startup) {
-            // Brief theme-colored hold while the start destination is resolved from local
-            // storage. This is what prevents the onboarding screen from flashing before we
-            // know where to go.
+            // Brief hold while the start destination is resolved from local storage, which also
+            // keeps the onboarding screen from flashing before we know where to go. Painted in
+            // the splash color rather than the app background so that if it is ever visible it
+            // reads as the splash still being up, not as a second screen.
             Startup.Loading ->
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background),
+                        .background(colorResource(R.color.splash_background)),
                 )
 
             else -> {

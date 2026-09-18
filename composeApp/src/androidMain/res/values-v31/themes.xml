@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The sign-off lives on the system splash itself so it is present in the very first
+         frame, with no second screen. windowSplashScreenBrandingImage is API 31+ only and the
+         compat library cannot draw it, so below Android 12 the splash is background + logo.
+         The image is localized through resource qualifiers (drawable-fr-*). -->
+    <style name="Theme.DuckCount.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
+        <item name="android:windowSplashScreenBrandingImage">@drawable/splash_branding</item>
+        <item name="postSplashScreenTheme">@style/Theme.DuckCount</item>
+    </style>
+</resources>
