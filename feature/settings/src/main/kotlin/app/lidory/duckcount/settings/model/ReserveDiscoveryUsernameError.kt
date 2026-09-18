@@ -35,8 +35,11 @@ enum class ReserveDiscoveryUsernameError {
      */
     RATE_LIMITED,
 
-    /** No connectivity / timed out. */
+    /** No connectivity. */
     NO_INTERNET,
+
+    /** The server took too long to answer. */
+    TIMEOUT,
 
     /** The server is unreachable. */
     SERVER_UNREACHABLE,
@@ -53,6 +56,7 @@ fun ReserveDiscoveryUsernameError.messageRes(): Int = when (this) {
     ReserveDiscoveryUsernameError.CONFLICT -> R.string.reserve_error_conflict
     ReserveDiscoveryUsernameError.RATE_LIMITED -> R.string.reserve_error_rate_limited
     ReserveDiscoveryUsernameError.NO_INTERNET -> R.string.reserve_error_no_internet
+    ReserveDiscoveryUsernameError.TIMEOUT -> R.string.reserve_error_timeout
     ReserveDiscoveryUsernameError.SERVER_UNREACHABLE -> R.string.reserve_error_server_unreachable
     ReserveDiscoveryUsernameError.UNKNOWN -> R.string.reserve_error_unknown
 }

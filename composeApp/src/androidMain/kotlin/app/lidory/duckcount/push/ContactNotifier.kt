@@ -1,0 +1,281 @@
+package app.lidory.duckcount.push
+
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.work.ForegroundInfo
+import app.lidory.duckcount.EXTRA_OPEN_CONTACT_REQUESTS
+import app.lidory.duckcount.MainActivity
+import app.lidory.duckcount.R
+import contact.ContactArrival
+import push.PushSignal
+
+/** The channel the user sees, and can turn off on its own. */
+private const val CONTACTS_CHANNEL = "contacts"
+
+/**
+ * What a notification is about, so that a screen showing that news can take down every
+ * notification carrying it without having to know who they are about.
+ */
+private const val REQUEST_TAG = "contact-request"
+
+private const val ACCEPTED_TAG = "contact-accepted"
+
+/** The channel that only exists to satisfy the system while a sync runs. */
+private const val SYNC_CHANNEL = "sync"
+
+/** The id of the notification that stands for a running sync. */
+private const val SYNC_NOTIFICATION = 1
+
+/**
+ * The id of the notification posted from a signal alone, without a name to put on it.
+ * Fixed, so the one that does have a name replaces it rather than joining it.
+ */
+private const val UNNAMED_REQUEST_NOTIFICATION = 2
+
+/**
+ * Tells the user who turned up.
+ *
+ * What a push carries is a signal with no content, so everything said here comes from
+ * what the device read and decrypted for itself. That is also why there is nothing to
+ * say about a contact who removed the user: their client sends that notice, and being
+ * told about it would not be useful.
+ */
+class ContactNotifier(
+    private val context: Context,
+) {
+    /**
+     * Says what a signal said, for a device too locked to find out more.
+     *
+     * Only a request can be announced this way. A `message` is an acceptance or a
+     * notice that somebody removed the user, and saying "something happened" when it
+     * might be the second would be worse than saying nothing: the sync says which as
+     * soon as the device is unlocked.
+     */
+    fun notifyWhileLocked(signal: PushSignal) {
+        if (signal != PushSignal.CONTACT_REQUEST) return
+
+        createChannel(
+            id = CONTACTS_CHANNEL,
+            name = R.string.push_channel_contacts_name,
+            description = R.string.push_channel_contacts_description,
+            importance = NotificationManager.IMPORTANCE_DEFAULT,
+        )
+
+        val notification = NotificationCompat.Builder(context, CONTACTS_CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.push_contact_request_title))
+            .setContentText(context.getString(R.string.push_contact_request_text_unknown))
+            .setContentIntent(contentIntent(requestUuid = UNNAMED_REQUEST_NOTIFICATION))
+            .setCategory(NotificationCompat.CATEGORY_SOCIAL)
+            .setOnlyAlertOnce(true)
+            .setAutoCancel(true)
+            .build()
+
+        post(tag = REQUEST_TAG, id = UNNAMED_REQUEST_NOTIFICATION, notification = notification)
+    }
+
+    /**
+     * Puts one notification up per person who turned up.
+     *
+     * A request the user has already been told about arrives here with a name on it at
+     * last, and that is the same news rather than more of it. So the first one takes the
+     * stand-in's notification over outright (same id, [NotificationCompat.Builder.setOnlyAlertOnce],
+     * so the text changes where it stands instead of a second notification appearing) and
+     * anything else in that batch goes up without a sound. What the stand-in stood for and
+     * the sync could not name is left alone, since it is still waiting to be named.
+     */
+    fun notify(arrivals: List<ContactArrival>) {
+        if (arrivals.isEmpty()) return
+
+        val alreadyAnnounced = isShowing(tag = REQUEST_TAG, id = UNNAMED_REQUEST_NOTIFICATION)
+
+        var standInIsFree = alreadyAnnounced
+
+        createChannel(
+            id = CONTACTS_CHANNEL,
+            name = R.string.push_channel_contacts_name,
+            description = R.string.push_channel_contacts_description,
+            importance = NotificationManager.IMPORTANCE_DEFAULT,
+        )
+
+        for (arrival in arrivals) {
+            val takesOverStandIn = standInIsFree && arrival.kind == ContactArrival.Kind.REQUEST
+
+            // One notification per person otherwise, replaced rather than stacked: a
+            // second request from somebody who already has one pending is the same news.
+            val id = if (takesOverStandIn) UNNAMED_REQUEST_NOTIFICATION else arrival.userUuid.hashCode()
+
+            if (takesOverStandIn) standInIsFree = false
+
+            val notification = NotificationCompat.Builder(context, CONTACTS_CHANNEL)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(context.getString(titleOf(arrival)))
+                .setContentText(context.getString(textOf(arrival), arrival.fullName))
+                .setContentIntent(
+                    contentIntent(
+                        requestUuid = arrival.userUuid.hashCode(),
+                        openRequests = arrival.kind == ContactArrival.Kind.REQUEST,
+                    ),
+                )
+                .setCategory(NotificationCompat.CATEGORY_SOCIAL)
+                .setOnlyAlertOnce(true)
+                // The stand-in rang for this batch's requests already. An acceptance is
+                // news of its own: nothing announces one while the device is locked.
+                .setSilent(alreadyAnnounced && arrival.kind == ContactArrival.Kind.REQUEST)
+                .setAutoCancel(true)
+                .build()
+
+            post(tag = tagOf(arrival), id = id, notification = notification)
+        }
+    }
+
+    /**
+     * Takes down every notification about a request waiting to be answered.
+     *
+     * The requests are on screen, so anything a notification could say about them the
+     * user is already reading.
+     */
+    fun clearContactRequests() = clear(tag = REQUEST_TAG)
+
+    /** Takes down every notification about somebody who accepted a request. */
+    fun clearAcceptedContacts() = clear(tag = ACCEPTED_TAG)
+
+    /**
+     * Takes down what was said about [userUuids] accepting a request.
+     *
+     * For the ones who removed the user again while the notification was still up: it
+     * announced a contact they no longer have, and tapping it would open a contact that
+     * is gone.
+     */
+    fun forget(userUuids: Collection<String>) {
+        val manager = NotificationManagerCompat.from(context)
+
+        for (userUuid in userUuids) {
+            manager.cancel(ACCEPTED_TAG, userUuid.hashCode())
+        }
+    }
+
+    private fun clear(tag: String) {
+        val manager = NotificationManagerCompat.from(context)
+
+        manager.activeNotifications
+            .filter { it.tag == tag }
+            .forEach { manager.cancel(tag, it.id) }
+    }
+
+    private fun tagOf(arrival: ContactArrival): String = when (arrival.kind) {
+        ContactArrival.Kind.REQUEST -> REQUEST_TAG
+        ContactArrival.Kind.CONTACT -> ACCEPTED_TAG
+    }
+
+    /** Whether the notification [tag]/[id] is one the user can see right now. */
+    private fun isShowing(tag: String, id: Int): Boolean =
+        NotificationManagerCompat.from(context)
+            .activeNotifications
+            .any { it.tag == tag && it.id == id }
+
+    /**
+     * The notification the system shows while an expedited sync runs.
+     *
+     * Only ever seen below Android 12, where expedited work is a foreground service
+     * and a foreground service must show something.
+     */
+    fun syncForegroundInfo(): ForegroundInfo {
+        createChannel(
+            id = SYNC_CHANNEL,
+            name = R.string.push_channel_sync_name,
+            description = R.string.push_channel_sync_description,
+            importance = NotificationManager.IMPORTANCE_MIN,
+        )
+
+        val notification = NotificationCompat.Builder(context, SYNC_CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.push_sync_notification))
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setOngoing(true)
+            .build()
+
+        return ForegroundInfo(SYNC_NOTIFICATION, notification)
+    }
+
+    /**
+     * Posts one notification, if the user has left the app able to.
+     *
+     * The check sits against the call rather than at the top of the callers: it is
+     * the form the platform's own tooling recognizes, and the permission can be taken
+     * away between one notification and the next.
+     */
+    private fun post(tag: String, id: Int, notification: Notification) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        NotificationManagerCompat.from(context).notify(tag, id, notification)
+    }
+
+    private fun createChannel(id: String, name: Int, description: Int, importance: Int) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+
+        val channel = NotificationChannel(id, context.getString(name), importance).apply {
+            this.description = context.getString(description)
+        }
+
+        context.getSystemService(NotificationManager::class.java)
+            ?.createNotificationChannel(channel)
+    }
+
+    private fun titleOf(arrival: ContactArrival): Int = when (arrival.kind) {
+        ContactArrival.Kind.REQUEST -> R.string.push_contact_request_title
+        ContactArrival.Kind.CONTACT -> R.string.push_contact_accepted_title
+    }
+
+    /** The wording without a name, for a profile this device could not read yet. */
+    private fun textOf(arrival: ContactArrival): Int = when (arrival.kind) {
+        ContactArrival.Kind.REQUEST -> when (arrival.fullName) {
+            null -> R.string.push_contact_request_text_unknown
+            else -> R.string.push_contact_request_text
+        }
+
+        ContactArrival.Kind.CONTACT -> when (arrival.fullName) {
+            null -> R.string.push_contact_accepted_text_unknown
+            else -> R.string.push_contact_accepted_text
+        }
+    }
+
+    /**
+     * Opens the app where the news is: the request list for something to answer, the
+     * contact list for somebody who is already a contact.
+     */
+    private fun contentIntent(
+        requestUuid: Int,
+        openRequests: Boolean = true,
+    ): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+
+            if (openRequests) putExtra(EXTRA_OPEN_CONTACT_REQUESTS, true)
+        }
+
+        return PendingIntent.getActivity(
+            context,
+            requestUuid,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+}

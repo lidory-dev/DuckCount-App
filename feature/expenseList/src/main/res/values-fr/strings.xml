@@ -35,12 +35,13 @@
     <string name="label_description">Description</string>
     <string name="description_too_long">Description trop longue (%1$d/%2$d)</string>
     <string name="add_expense">Ajouter la dépense</string>
-    <string name="write_error_no_internet">Aucune connexion. Vérifiez votre connexion et réessayez.</string>
-    <string name="write_error_server_unreachable">Le serveur est injoignable. Réessayez plus tard.</string>
-    <string name="write_error_invalid_data">Cette dépense est invalide.</string>
-    <string name="write_error_conflict">Le nombre maximum de modifications a été atteint.</string>
-    <string name="write_error_unauthorized">Votre session a expiré. Reconnectez-vous.</string>
-    <string name="write_error_unknown">Une erreur est survenue. Réessayez.</string>
+    <string name="write_error_no_internet">Aucune connexion. Vérifiez votre connexion et réessayez</string>
+    <string name="write_error_timeout">Le serveur a mis trop de temps à répondre, réessayez plus tard</string>
+    <string name="write_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
+    <string name="write_error_invalid_data">Cette dépense est invalide</string>
+    <string name="write_error_conflict">Le nombre maximum de modifications a été atteint</string>
+    <string name="write_error_unauthorized">Votre session a expiré, reconnectez-vous</string>
+    <string name="write_error_unknown">Une erreur est survenue, réessayez</string>
 
     <!-- ErrorCard -->
     <string name="no_beneficiaries">Une dépense doit avoir au moins un participant</string>

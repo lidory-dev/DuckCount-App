@@ -142,9 +142,8 @@ private fun VaultError.toRemoveContactError(isOnline: Boolean): RemoveContactErr
  * outcomes (a recipient that is gone, rate limited).
  */
 private fun NetworkError.toRemoveContactError(isOnline: Boolean): RemoveContactError = when (this) {
-    NetworkError.NO_INTERNET,
-    NetworkError.REQUEST_TIMEOUT,
-        -> RemoveContactError.NO_INTERNET
+    NetworkError.NO_INTERNET -> RemoveContactError.NO_INTERNET
+    NetworkError.REQUEST_TIMEOUT -> RemoveContactError.TIMEOUT
 
     NetworkError.UNREACHABLE ->
         if (isOnline) RemoveContactError.SERVER_UNREACHABLE else RemoveContactError.NO_INTERNET
@@ -165,9 +164,8 @@ private fun NetworkError.toRemoveContactError(isOnline: Boolean): RemoveContactE
 /** The network failures left once the shared layer has mapped the request being gone. */
 private fun NetworkError.toAnswerContactRequestError(isOnline: Boolean): AnswerContactRequestError =
     when (this) {
-        NetworkError.NO_INTERNET,
-        NetworkError.REQUEST_TIMEOUT,
-            -> AnswerContactRequestError.NO_INTERNET
+        NetworkError.NO_INTERNET -> AnswerContactRequestError.NO_INTERNET
+        NetworkError.REQUEST_TIMEOUT -> AnswerContactRequestError.TIMEOUT
 
         NetworkError.UNREACHABLE ->
             if (isOnline) AnswerContactRequestError.SERVER_UNREACHABLE else AnswerContactRequestError.NO_INTERNET
@@ -190,9 +188,8 @@ private fun NetworkError.toAnswerContactRequestError(isOnline: Boolean): AnswerC
  * refusals (not found, already pending, rate limited).
  */
 private fun NetworkError.toAddContactError(isOnline: Boolean): AddContactError = when (this) {
-    NetworkError.NO_INTERNET,
-    NetworkError.REQUEST_TIMEOUT,
-        -> AddContactError.NO_INTERNET
+    NetworkError.NO_INTERNET -> AddContactError.NO_INTERNET
+    NetworkError.REQUEST_TIMEOUT -> AddContactError.TIMEOUT
 
     NetworkError.UNREACHABLE ->
         if (isOnline) AddContactError.SERVER_UNREACHABLE else AddContactError.NO_INTERNET

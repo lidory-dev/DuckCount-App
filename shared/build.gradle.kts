@@ -92,8 +92,13 @@ android {
 
     buildTypes {
         // API_BASE_URL is read in androidMain via BuildConfig (see networking/ApiConfig.android.kt).
+        // Debug points at the *device's own* loopback, which `adb reverse tcp:60000 tcp:60000`
+        // forwards to the dev server on the host. Unlike the emulator-only alias 10.0.2.2, this
+        // resolves the same way on an emulator and on real hardware, and it leaves the dev API
+        // bound to the host's loopback instead of the LAN. Re-run `adb reverse` after each
+        // device reconnect.
         getByName("debug") {
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:60000\"")
+            buildConfigField("String", "API_BASE_URL", "\"http://127.0.0.1:60000\"")
         }
         getByName("release") {
             buildConfigField("String", "API_BASE_URL", "\"https://api.duckcount.app\"")

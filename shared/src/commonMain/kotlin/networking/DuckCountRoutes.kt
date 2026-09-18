@@ -1,6 +1,7 @@
 package networking
 
-// dev/emulator on debug, production on release, see apiBaseUrl + shared/build.gradle.kts.
+// dev server (via adb reverse) on debug, production on release, see apiBaseUrl +
+// shared/build.gradle.kts.
 private val baseUrl = apiBaseUrl
 
 object DuckCountRoutes {
@@ -72,6 +73,19 @@ object DuckCountRoutes {
 
         /** `POST` acknowledges direct messages, which deletes them. */
         val ACKNOWLEDGEMENTS = "$MESSAGE_BASE_URL/acknowledgements"
+    }
+
+    object Push {
+        private val PUSH_BASE_URL = "$baseUrl/push"
+
+        /** `GET` returns what a client needs before it can subscribe. */
+        val PARAMETERS = "$PUSH_BASE_URL/parameters"
+
+        /**
+         * `PUT` registers where to wake this device, replacing any earlier
+         * registration, `DELETE` forgets it.
+         */
+        val SUBSCRIPTION = "$PUSH_BASE_URL/subscription"
     }
 
     object Expense {

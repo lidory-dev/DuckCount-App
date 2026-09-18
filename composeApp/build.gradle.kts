@@ -22,6 +22,7 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.ui.tooling.preview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.core.ktx)
             implementation(libs.androidx.core.splashscreen)
 
             // android-ui
@@ -38,6 +39,11 @@ kotlin {
             api(libs.koin.core)
             implementation(libs.koin.android)
             implementation(libs.koin.androidx.compose)
+
+            // Push
+            implementation(libs.unifiedpush.connector)
+            implementation(libs.unifiedpush.fcm.distributor)
+            implementation(libs.androidx.work.runtime)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)

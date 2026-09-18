@@ -48,6 +48,16 @@ interface ContactCallBacks {
     suspend fun refreshContacts()
 
     /**
+     * Called when the contact list is in front of the user.
+     */
+    fun contactsSeen()
+
+    /**
+     * Called when the contact requests are in front of the user.
+     */
+    fun contactRequestsSeen()
+
+    /**
      * Accepts the contact request [requestUuid], making its sender a contact.
      *
      * Returns null once accepted, or why it could not be.

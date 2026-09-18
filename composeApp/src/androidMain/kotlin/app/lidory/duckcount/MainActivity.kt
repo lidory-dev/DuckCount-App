@@ -8,6 +8,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
+/**
+ * Set on the intent a contact-request notification opens, so the app lands on the list
+ * of requests rather than wherever it was left.
+ */
+const val EXTRA_OPEN_CONTACT_REQUESTS = "app.lidory.duckcount.extra.OPEN_CONTACT_REQUESTS"
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // Must run before super.onCreate. Backports the Android 12 splash to API 24+.
@@ -32,7 +38,9 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            App()
+            App(
+                openContactRequests = intent.getBooleanExtra(EXTRA_OPEN_CONTACT_REQUESTS, false),
+            )
         }
     }
 }

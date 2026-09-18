@@ -1,5 +1,7 @@
 package database.di
 
+import contact.ContactArrivals
+import contact.ContactSync
 import database.AppDatabase
 import database.data.repository.BeneficiaryRepository
 import database.data.repository.ContactRepository
@@ -25,6 +27,8 @@ val dbModule = module {
     singleOf(::GroupMemberRepository)
     singleOf(::ContactRequestRepository)
     singleOf(::ContactRepository)
+    singleOf(::ContactSync)
+    singleOf(::ContactArrivals)
 
     single { getRoomDatabase(get()) }
 

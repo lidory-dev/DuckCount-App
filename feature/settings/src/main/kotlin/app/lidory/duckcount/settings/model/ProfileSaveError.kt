@@ -11,8 +11,11 @@ import app.lidory.duckcount.settings.R
  * and a save that did not reach it did not happen.
  */
 enum class ProfileSaveError {
-    /** No connectivity / timed out. */
+    /** No connectivity. */
     NO_INTERNET,
+
+    /** The server took too long to answer. */
+    TIMEOUT,
 
     /** The server is unreachable. */
     SERVER_UNREACHABLE,
@@ -33,6 +36,7 @@ enum class ProfileSaveError {
 @StringRes
 fun ProfileSaveError.messageRes(): Int = when (this) {
     ProfileSaveError.NO_INTERNET -> R.string.profile_error_no_internet
+    ProfileSaveError.TIMEOUT -> R.string.profile_error_timeout
     ProfileSaveError.SERVER_UNREACHABLE -> R.string.profile_error_server_unreachable
     ProfileSaveError.UNAUTHORIZED -> R.string.profile_error_unauthorized
     ProfileSaveError.CONFLICT -> R.string.profile_error_conflict

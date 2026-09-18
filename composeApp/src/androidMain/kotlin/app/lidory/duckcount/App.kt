@@ -14,12 +14,18 @@ import androidx.compose.ui.res.colorResource
 import androidx.navigation3.runtime.rememberNavBackStack
 import app.lidory.duckcount.android.ui.theme.AppTheme
 import app.lidory.duckcount.navigation.NavigationRoot
+import app.lidory.duckcount.navigation.key.ContactRequestListScreenKey
 import app.lidory.duckcount.navigation.key.DashboardKey
+import app.lidory.duckcount.push.PushSetUp
 import navigation.key.OnBoardingScreenKey
 import org.koin.androidx.compose.koinViewModel
 
+/**
+ * [openContactRequests] comes from a notification about a request waiting to be
+ * answered, and is what takes the user straight to it.
+ */
 @Composable
-fun App() {
+fun App(openContactRequests: Boolean = false) {
     AppTheme {
         val appViewModel = koinViewModel<AppViewModel>()
         val startup by appViewModel.startup.collectAsState()
@@ -43,6 +49,16 @@ fun App() {
 
                 val context = LocalContext.current
                 val isSessionExpired by appViewModel.isSessionExpired.collectAsState()
+
+                if (state is Startup.LoggedIn) {
+                    PushSetUp()
+
+                    // Pushed on top of the dashboard rather than instead of it, so that
+                    // going back from the requests lands where the app would have opened.
+                    LaunchedEffect(Unit) {
+                        if (openContactRequests) backStack.add(ContactRequestListScreenKey)
+                    }
+                }
 
                 // The server has ended the session (the refresh token was turned down). Like
                 // a log-out, that takes a new process, which also lands on the onboarding

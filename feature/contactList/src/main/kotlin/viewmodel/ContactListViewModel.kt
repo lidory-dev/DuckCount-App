@@ -57,10 +57,8 @@ class ContactListViewModel(
                 )
             }
         }.onStart {
-            // `WhileSubscribed` is what paces this: once per screen entry and once per
-            // foreground, never per recomposition. `init` would not do, the contacts tab
-            // is never popped, so its ViewModel outlives every tab switch.
-            //
+            contactCallBacks.contactsSeen()
+
             // Launched rather than awaited: `onStart` runs in the collector's context, so
             // suspending here would hold the first emission back for the whole request.
             viewModelScope.launch { contactCallBacks.refreshContacts() }

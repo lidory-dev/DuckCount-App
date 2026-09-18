@@ -43,9 +43,11 @@
     <string name="reserve_error_conflict">Your account changed on another device, please try again</string>
     <string name="reserve_error_rate_limited">Too many attempts, please try again later</string>
     <string name="reserve_error_no_internet">No internet connection</string>
+    <string name="reserve_error_timeout">The server took too long to answer, please try again</string>
     <string name="reserve_error_server_unreachable">The server is unreachable, please try again later</string>
     <string name="reserve_error_unknown">The username could not be reserved</string>
     <string name="profile_error_no_internet">No internet connection</string>
+    <string name="profile_error_timeout">The server took too long to answer, please try again</string>
     <string name="profile_error_server_unreachable">The server is unreachable, please try again later</string>
     <string name="profile_error_unauthorized">Please log in again to change your profile</string>
     <string name="profile_error_conflict">Your profile changed on another device, please try again</string>

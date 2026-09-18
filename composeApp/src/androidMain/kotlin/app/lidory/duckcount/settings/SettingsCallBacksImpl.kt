@@ -17,6 +17,7 @@ import discoveryUsername.DiscoveryUsernameRepository
 import kotlinx.coroutines.flow.Flow
 import networking.DuckCountClient
 import profile.ProfileRepository
+import push.PushRegistrar
 import util.Result
 import util.onError
 import app.lidory.duckcount.normalizeUsername as normalizeUsernameShared
@@ -30,6 +31,7 @@ class SettingsCallBacksImpl(
     private val networkConnectivity: NetworkConnectivity,
     private val profileRepository: ProfileRepository,
     private val discoveryUsernameRepository: DiscoveryUsernameRepository,
+    private val pushRegistrar: PushRegistrar,
 ) : SettingsCallBacks {
 
     override val maxUsernameLength: Int = usernameMaximumLength()
@@ -43,6 +45,11 @@ class SettingsCallBacksImpl(
     override val licences: List<String> = LICENCES_LIST
 
     override suspend fun logOut() {
+        // First, and not inside `endSession`: telling the server to stop pushing to this
+        // device is a call that needs the tokens `endSession` is about to drop, and the
+        // process is killed the moment it returns.
+        pushRegistrar.tearDown()
+
         duckCountClient.endSession()
     }
 

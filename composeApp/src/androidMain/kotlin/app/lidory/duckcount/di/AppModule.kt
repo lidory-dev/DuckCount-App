@@ -24,6 +24,8 @@ import app.lidory.duckcount.groupList.callBacks.GroupSettingsCallBacks
 import app.lidory.duckcount.groupList.callBacks.GroupSettleUpCallBacks
 import app.lidory.duckcount.groupList.di.groupListModule
 import app.lidory.duckcount.networking.NetworkConnectivity
+import app.lidory.duckcount.push.ContactNotifier
+import app.lidory.duckcount.push.UnifiedPushRegistrar
 import app.lidory.duckcount.settings.SettingsCallBacks
 import app.lidory.duckcount.settings.SettingsCallBacksImpl
 import app.lidory.duckcount.settings.di.settingsModule
@@ -41,6 +43,8 @@ import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.bind
 import org.koin.dsl.module
 import profile.di.profileModule
+import push.PushRegistrar
+import push.di.pushModule
 import vault.di.vaultModule
 
 val authenticationCallBacksModule = module {
@@ -53,6 +57,12 @@ val appViewModelModule = module {
 
 val contactCallBacks = module {
     singleOf(::ContactCallBacksImp).bind<ContactCallBacks>()
+}
+
+/** The Android half of push, which the shared layer only knows as an interface. */
+val pushPlatformModule = module {
+    single { UnifiedPushRegistrar(androidContext(), get()) }.bind<PushRegistrar>()
+    single { ContactNotifier(androidContext()) }
 }
 val groupCallBacks = module {
     singleOf(::GroupListCallBacksImpl).bind<GroupListCallBacks>()
@@ -84,6 +94,8 @@ val appModule = listOf(
     profileModule,
     discoveryModule,
     mlsModule,
+    pushModule,
+    pushPlatformModule,
     expenseListModule,
     authenticationModule,
     authenticationCallBacksModule,

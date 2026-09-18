@@ -32,6 +32,15 @@ interface ContactRequestDao {
     )
     fun getOpenedAsFlow(): Flow<List<OpenedContactRequest>>
 
+    /** The same list, read once, for a caller comparing two moments rather than observing. */
+    @Query(
+        """SELECT uuid, senderUserUuid, mlsGroupId, profileEncryptionKey, senderFullName
+        FROM ContactRequestEntity
+        WHERE mlsGroupId IS NOT NULL AND profileEncryptionKey IS NOT NULL
+        ORDER BY createdAt, uuid""",
+    )
+    suspend fun getOpenedOnce(): List<OpenedContactRequest>
+
     @Query(
         """SELECT uuid, senderUserUuid, mlsGroupId, profileEncryptionKey, senderFullName
         FROM ContactRequestEntity

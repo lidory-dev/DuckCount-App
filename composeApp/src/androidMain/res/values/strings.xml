@@ -5,6 +5,17 @@
     <string name="groups">Groups</string>
     <string name="on_boarding_title">Share your expenses, not your data.</string>
     <string name="on_boarding_description">Split bills with your group in seconds. The amounts and what they’re for stay encrypted — we can’t read them.</string>
-    <string name="session_expired">Your session has expired. Please log in again.</string>
+    <string name="session_expired">Your session has expired, please log in again.</string>
+    <string name="push_channel_contacts_name">Contacts</string>
+    <string name="push_channel_contacts_description">New contact requests, and requests other people accepted.</string>
+    <string name="push_channel_sync_name">Catching up</string>
+    <string name="push_channel_sync_description">Shown for a moment while the app fetches what arrived. Older Android versions require it.</string>
+    <string name="push_sync_notification">Catching up…</string>
+    <string name="push_contact_request_title">New contact request</string>
+    <string name="push_contact_request_text">%1$s would like to be your contact</string>
+    <string name="push_contact_request_text_unknown">Someone would like to be your contact</string>
+    <string name="push_contact_accepted_title">New contact</string>
+    <string name="push_contact_accepted_text">%1$s accepted your contact request</string>
+    <string name="push_contact_accepted_text_unknown">Your contact request was accepted</string>
     <string name="settings">Settings</string>
 </resources>

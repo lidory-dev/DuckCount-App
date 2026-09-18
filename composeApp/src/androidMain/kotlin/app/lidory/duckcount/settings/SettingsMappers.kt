@@ -25,9 +25,8 @@ fun SharedUsernameError.toUsernameInputError(): UsernameInputError = when (this)
  * and must be corrected here.
  */
 fun NetworkError.toReserveUsernameError(isOnline: Boolean): ReserveDiscoveryUsernameError = when (this) {
-    NetworkError.NO_INTERNET,
-    NetworkError.REQUEST_TIMEOUT,
-        -> ReserveDiscoveryUsernameError.NO_INTERNET
+    NetworkError.NO_INTERNET -> ReserveDiscoveryUsernameError.NO_INTERNET
+    NetworkError.REQUEST_TIMEOUT -> ReserveDiscoveryUsernameError.TIMEOUT
 
     NetworkError.UNREACHABLE ->
         if (isOnline) ReserveDiscoveryUsernameError.SERVER_UNREACHABLE else ReserveDiscoveryUsernameError.NO_INTERNET
@@ -129,9 +128,8 @@ fun ProfileError.toProfileSaveError(isOnline: Boolean): ProfileSaveError = when 
 }
 
 private fun NetworkError.toProfileSaveError(isOnline: Boolean): ProfileSaveError = when (this) {
-    NetworkError.NO_INTERNET,
-    NetworkError.REQUEST_TIMEOUT,
-        -> ProfileSaveError.NO_INTERNET
+    NetworkError.NO_INTERNET -> ProfileSaveError.NO_INTERNET
+    NetworkError.REQUEST_TIMEOUT -> ProfileSaveError.TIMEOUT
 
     NetworkError.UNREACHABLE ->
         if (isOnline) ProfileSaveError.SERVER_UNREACHABLE else ProfileSaveError.NO_INTERNET

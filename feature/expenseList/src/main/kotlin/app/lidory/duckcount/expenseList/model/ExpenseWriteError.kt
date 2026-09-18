@@ -8,8 +8,11 @@ import app.lidory.duckcount.expenseList.R
  * The composeApp callback impls map the low-level networking error onto this.
  */
 enum class ExpenseWriteError {
-    /** No connectivity / timed out. */
+    /** No connectivity. */
     NO_INTERNET,
+
+    /** The server took too long to answer. */
+    TIMEOUT,
 
     /** The server is unreachable. */
     SERVER_UNREACHABLE,
@@ -30,6 +33,7 @@ enum class ExpenseWriteError {
 @StringRes
 fun ExpenseWriteError.messageRes(): Int = when (this) {
     ExpenseWriteError.NO_INTERNET -> R.string.write_error_no_internet
+    ExpenseWriteError.TIMEOUT -> R.string.write_error_timeout
     ExpenseWriteError.SERVER_UNREACHABLE -> R.string.write_error_server_unreachable
     ExpenseWriteError.INVALID_DATA -> R.string.write_error_invalid_data
     ExpenseWriteError.CONFLICT -> R.string.write_error_conflict

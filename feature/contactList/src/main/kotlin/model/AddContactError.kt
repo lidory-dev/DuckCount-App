@@ -35,8 +35,11 @@ enum class AddContactError {
      */
     IDENTITY_CHANGED,
 
-    /** No connectivity / timed out. */
+    /** No connectivity. */
     NO_INTERNET,
+
+    /** The server took too long to answer. */
+    TIMEOUT,
 
     /** The server is unreachable. */
     SERVER_UNREACHABLE,
@@ -55,6 +58,7 @@ fun AddContactError.messageRes(): Int = when (this) {
     AddContactError.RATE_LIMITED -> R.string.add_contact_error_rate_limited
     AddContactError.IDENTITY_CHANGED -> R.string.add_contact_error_identity_changed
     AddContactError.NO_INTERNET -> R.string.add_contact_error_no_internet
+    AddContactError.TIMEOUT -> R.string.add_contact_error_timeout
     AddContactError.SERVER_UNREACHABLE -> R.string.add_contact_error_server_unreachable
     AddContactError.UNKNOWN -> R.string.add_contact_error_unknown
 }

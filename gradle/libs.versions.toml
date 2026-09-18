@@ -53,6 +53,15 @@ ktor = "3.5.1"
 # About Libraries
 aboutLibraries = "14.1.0"
 
+# Push
+# UnifiedPush works with whatever distributor the user has; the embedded FCM one is
+# the fallback for a phone that has none, and needs no Firebase project since the
+# API signs its pushes with VAPID.
+unifiedpush = "3.3.5"
+unifiedpushFcm = "3.1.0"
+# Held on 2.10.x with the other androidx artifacts, see the AGP note.
+androidx-work = "2.10.5"
+
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
@@ -102,6 +111,11 @@ androidx-room-paging = { module = "androidx.room:room-paging", version.ref = "ro
 # Paging
 androidx-room-paging-runtime = { module = "androidx.paging:paging-runtime", version.ref = "paging" }
 androidx-room-paging-compose = { module = "androidx.paging:paging-compose", version.ref = "paging" }
+
+# Push
+unifiedpush-connector = { module = "org.unifiedpush.android:connector", version.ref = "unifiedpush" }
+unifiedpush-fcm-distributor = { module = "org.unifiedpush.android:embedded-fcm-distributor", version.ref = "unifiedpushFcm" }
+androidx-work-runtime = { module = "androidx.work:work-runtime-ktx", version.ref = "androidx-work" }
 
 # KSafe
 ksafe = { module = "eu.anifantakis:ksafe", version.ref = "ksafe" }

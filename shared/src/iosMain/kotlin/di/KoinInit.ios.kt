@@ -12,6 +12,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
 import org.koin.core.context.startKoin
 import profile.di.profileModule
+import push.di.pushModule
 import vault.di.vaultModule
 
 fun initKoin() {
@@ -25,6 +26,7 @@ fun initKoin() {
             profileModule,
             discoveryModule,
             mlsModule,
+            pushModule,
         )
     }
 }

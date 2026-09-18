@@ -20,6 +20,10 @@ interface ContactDao {
     @Query("SELECT * FROM ContactEntity WHERE userUuid = :userUuid AND isRemoved = false")
     suspend fun get(userUuid: String): ContactEntity?
 
+    /** Who the user's contacts are, removed ones aside. */
+    @Query("SELECT userUuid FROM ContactEntity WHERE isRemoved = false")
+    suspend fun getUserUuids(): List<String>
+
     /** Every change the vault has not taken yet, additions and removals alike. */
     @Query("SELECT * FROM ContactEntity WHERE isBackedUp = false")
     suspend fun getNotBackedUp(): List<ContactEntity>

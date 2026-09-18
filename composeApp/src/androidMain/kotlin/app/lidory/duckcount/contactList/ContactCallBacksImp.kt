@@ -3,7 +3,10 @@ package app.lidory.duckcount.contactList
 import ContactCallBacks
 import android.util.Log
 import app.lidory.duckcount.networking.NetworkConnectivity
+import app.lidory.duckcount.push.ContactNotifier
 import authenticationUtils.getDiscoveryUsernameFlow
+import contact.ContactArrivals
+import contact.ContactSync
 import database.data.repository.ContactRepository
 import database.data.repository.ContactRequestRepository
 import database.data.repository.UserRepository
@@ -25,6 +28,9 @@ class ContactCallBacksImp(
     val userRepository: UserRepository,
     private val contactRequestRepository: ContactRequestRepository,
     private val contactRepository: ContactRepository,
+    private val contactSync: ContactSync,
+    private val contactArrivals: ContactArrivals,
+    private val contactNotifier: ContactNotifier,
     private val networkConnectivity: NetworkConnectivity,
 ) : ContactCallBacks {
     override suspend fun getFilteredUsers(filter: String): Flow<List<User>> {
@@ -63,6 +69,10 @@ class ContactCallBacksImp(
                 // from here on is retried by the next refresh rather than reported.
                 syncContacts(caller = "removeContact")
 
+                // The same rule as for a contact who removed the user: what a notification
+                // announced about them is no longer true, whichever side ended it.
+                contactNotifier.forget(userUuids = listOf(userUuid))
+
                 null
             }
 
@@ -94,18 +104,23 @@ class ContactCallBacksImp(
     }
 
     override suspend fun refreshContacts() {
-        // Nothing to tell the user about any of these: they keep seeing what they already
+        val before = contactArrivals.snapshot()
+
+        // Nothing to tell the user about a failure: they keep seeing what they already
         // had, which is what caching it is for, and the next refresh tries again.
-        contactRequestRepository.refresh().onError { error ->
-            Log.w(TAG, "refreshContacts: could not refresh the requests: $error")
+        contactSync.sync().onError { error ->
+            Log.w(TAG, "refreshContacts: could not sync the contacts: $error")
         }
 
-        contactRepository.receiveMessages().onError { error ->
-            Log.w(TAG, "refreshContacts: could not take in the contacts' messages: $error")
-        }
-
-        syncContacts(caller = "refreshContacts")
+        // Nothing is announced from here, the user is looking at the screen. What this
+        // does have to do is take down what a push announced and this sync just undid:
+        // a contact who removed the user while their notification was still up.
+        contactNotifier.forget(userUuids = contactArrivals.departures(snapshot = before))
     }
+
+    override fun contactsSeen() = contactNotifier.clearAcceptedContacts()
+
+    override fun contactRequestsSeen() = contactNotifier.clearContactRequests()
 
     override suspend fun acceptContactRequest(requestUuid: String): AnswerContactRequestError? =
         when (val acceptance = contactRequestRepository.accept(requestUuid = requestUuid)) {
@@ -148,12 +163,8 @@ class ContactCallBacksImp(
 
     /** Backs up the contacts the vault does not hold yet, and reads the missing names. */
     private suspend fun syncContacts(caller: String) {
-        contactRepository.backUp().onError { error ->
+        contactSync.backUp().onError { error ->
             Log.w(TAG, "$caller: could not back the contacts up: $error")
-        }
-
-        contactRepository.resolveNames().onError { error ->
-            Log.w(TAG, "$caller: could not read the contacts' names: $error")
         }
     }
 }

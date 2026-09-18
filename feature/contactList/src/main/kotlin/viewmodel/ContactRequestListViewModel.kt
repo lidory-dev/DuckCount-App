@@ -41,6 +41,8 @@ class ContactRequestListViewModel(
                 isRefreshing = isRefreshing,
             )
         }.onStart {
+            contactCallBacks.contactRequestsSeen()
+
             // A request only shows once it has been opened, which the refresh does, so the
             // screen asks for one rather than relying on the contact list's.
             viewModelScope.launch {

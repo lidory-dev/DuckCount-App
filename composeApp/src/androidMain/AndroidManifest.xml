@@ -4,6 +4,19 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Asked for at runtime once the user is signed in; without it the app still syncs
+         on a push, it just says nothing about what it found. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Below Android 12 an expedited worker runs as a foreground service, which is how
+         a push signal gets its sync done; from 12 on it is an expedited job and no service
+         is started. Capped at 30 for that reason: asking beyond it would be asking for
+         something never used, and Android 14 would want a service type to go with it.
+         WorkManager declares the same permission unscoped, and this cap overrides it. -->
+    <uses-permission
+        android:name="android.permission.FOREGROUND_SERVICE"
+        android:maxSdkVersion="30" />
+
     <application
         android:name=".MainApplication"
         android:allowBackup="true"
@@ -22,6 +35,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Where the distributor hands over endpoints and messages. Not exported: the
+             distributor is bound to it by the system, never by another app. -->
+        <service
+            android:name=".push.DuckCountPushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.PUSH_EVENT" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

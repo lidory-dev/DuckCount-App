@@ -11,12 +11,17 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * The rest lives in `DuckCountClient.endSession`, which calls this: the bearer tokens the HTTP
  * client caches, which only the client can drop, and the account's data in the local database.
+ *
+ * Dropping the push subscription here only forgets what this device registered. Telling the
+ * server to forget it too is `PushRegistrar.tearDown`, which has to run before this does, while
+ * the tokens that call needs still exist.
  */
 fun clearSession() {
     clearTokens()
     clearAuthenticatedUserUuid()
     clearAuthenticatedUserUsername()
     clearDiscoveryUsername()
+    clearRegisteredPushSubscription()
     clearRootKey()
 }
 

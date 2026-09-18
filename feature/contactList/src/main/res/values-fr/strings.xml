@@ -22,6 +22,7 @@
     <string name="add_contact_error_rate_limited">Trop de tentatives, réessayez plus tard</string>
     <string name="add_contact_error_identity_changed">La clé de sécurité de cet utilisateur a changé, la demande n’a pas été envoyée</string>
     <string name="add_contact_error_no_internet">Aucune connexion Internet</string>
+    <string name="add_contact_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>
     <string name="add_contact_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
     <string name="add_contact_error_unknown">La demande de contact n’a pas pu être envoyée</string>
     <string name="no_contact_requests">Aucune demande de contact</string>
@@ -29,10 +30,12 @@
     <string name="refuse_contact_request">Refuser</string>
     <string name="answer_contact_request_error_not_found">Cette demande de contact n’existe plus</string>
     <string name="answer_contact_request_error_no_internet">Aucune connexion Internet</string>
+    <string name="answer_contact_request_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>
     <string name="answer_contact_request_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
     <string name="answer_contact_request_error_unknown">Impossible de répondre à la demande de contact, réessayez</string>
     <string name="remove_contact_error_rate_limited">Trop de tentatives, réessayez plus tard</string>
     <string name="remove_contact_error_no_internet">Aucune connexion Internet</string>
+    <string name="remove_contact_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>
     <string name="remove_contact_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
     <string name="remove_contact_error_unknown">Le contact n’a pas pu être supprimé, réessayez</string>
 </resources>

@@ -37,6 +37,10 @@ interface UserDao {
     @Query("SELECT fullName FROM UserEntity WHERE uuid = :uuid")
     fun getUserFullNameAsFlow(uuid: String): Flow<String?>
 
+    /** The same name, read once, for a caller that is not observing a screen. */
+    @Query("SELECT fullName FROM UserEntity WHERE uuid = :uuid AND isDeleted = false")
+    suspend fun getFullName(uuid: String): String?
+
     @Query(
         """SELECT UserEntity.* 
         FROM UserEntity 

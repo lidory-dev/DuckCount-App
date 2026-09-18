@@ -25,9 +25,8 @@ import uniffi.lib_duckcount.Currency as CurrencyUniffi
  * and must be corrected here.
  */
 fun NetworkError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError = when (this) {
-    NetworkError.NO_INTERNET,
-    NetworkError.REQUEST_TIMEOUT,
-        -> ExpenseWriteError.NO_INTERNET
+    NetworkError.NO_INTERNET -> ExpenseWriteError.NO_INTERNET
+    NetworkError.REQUEST_TIMEOUT -> ExpenseWriteError.TIMEOUT
 
     NetworkError.UNREACHABLE ->
         if (isOnline) ExpenseWriteError.SERVER_UNREACHABLE else ExpenseWriteError.NO_INTERNET

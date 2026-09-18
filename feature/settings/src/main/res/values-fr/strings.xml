@@ -43,9 +43,11 @@
     <string name="reserve_error_conflict">Votre compte a changé sur un autre appareil, réessayez</string>
     <string name="reserve_error_rate_limited">Trop de tentatives, réessayez plus tard</string>
     <string name="reserve_error_no_internet">Aucune connexion Internet</string>
+    <string name="reserve_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>
     <string name="reserve_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
     <string name="reserve_error_unknown">Le nom d’utilisateur n’a pas pu être réservé</string>
     <string name="profile_error_no_internet">Aucune connexion Internet</string>
+    <string name="profile_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>
     <string name="profile_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
     <string name="profile_error_unauthorized">Reconnectez-vous pour modifier votre profil</string>
     <string name="profile_error_conflict">Votre profil a changé sur un autre appareil, réessayez</string>
