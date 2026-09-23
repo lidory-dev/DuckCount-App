@@ -10,20 +10,26 @@ import database.data.local.dao.BeneficiaryDao
 import database.data.local.dao.ContactDao
 import database.data.local.dao.ContactRequestDao
 import database.data.local.dao.CurrencyDao
+import database.data.local.dao.DirectChannelDao
 import database.data.local.dao.ExpenseDao
 import database.data.local.dao.GroupDao
 import database.data.local.dao.GroupMemberDao
 import database.data.local.dao.LocalDataDao
 import database.data.local.dao.MlsRecordDao
+import database.data.local.dao.OneTimeExpenseKeyDao
+import database.data.local.dao.PendingExpenseKeyDao
 import database.data.local.dao.UserDao
 import database.data.local.entity.BeneficiaryEntity
 import database.data.local.entity.ContactEntity
 import database.data.local.entity.ContactRequestEntity
 import database.data.local.entity.CurrencyEntity
+import database.data.local.entity.DirectChannelEntity
 import database.data.local.entity.ExpenseEntity
 import database.data.local.entity.GroupEntity
 import database.data.local.entity.GroupMemberEntity
 import database.data.local.entity.MlsRecordEntity
+import database.data.local.entity.OneTimeExpenseKeyEntity
+import database.data.local.entity.PendingExpenseKeyEntity
 import database.data.local.entity.UserEntity
 import eu.anifantakis.lib.ksafe.KSafe
 import eu.anifantakis.lib.ksafe.KSafeEncryptedProtection
@@ -42,6 +48,9 @@ import org.koin.mp.KoinPlatform.getKoin
         GroupMemberEntity::class,
         ContactRequestEntity::class,
         ContactEntity::class,
+        DirectChannelEntity::class,
+        OneTimeExpenseKeyEntity::class,
+        PendingExpenseKeyEntity::class,
         MlsRecordEntity::class,
     ],
     version = 1,
@@ -57,6 +66,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract val groupMemberDao: GroupMemberDao
     abstract val contactRequestDao: ContactRequestDao
     abstract val contactDao: ContactDao
+    abstract val directChannelDao: DirectChannelDao
+    abstract val oneTimeExpenseKeyDao: OneTimeExpenseKeyDao
+    abstract val pendingExpenseKeyDao: PendingExpenseKeyDao
     abstract val mlsRecordDao: MlsRecordDao
 
     abstract val localDataDao: LocalDataDao

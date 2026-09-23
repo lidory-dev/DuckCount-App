@@ -29,6 +29,17 @@ enum class PushSignal {
     MESSAGE,
 
     /**
+     * A direct message is waiting that carries the key to a one-time expense, which
+     * is what makes that expense readable.
+     *
+     * The one kind of direct message the server is told anything about, and it is
+     * told so that a locked device has something true to say. Under [MESSAGE] it has
+     * none: the same signal covers a contact removing the user, and a device that
+     * cannot read its own storage cannot tell which arrived.
+     */
+    ONE_TIME_EXPENSE,
+
+    /**
      * Something this build does not know about, including a payload it could not
      * read at all.
      *
@@ -49,6 +60,7 @@ enum class PushSignal {
             return when (serialized.type) {
                 "contact_request" -> CONTACT_REQUEST
                 "message" -> MESSAGE
+                "one_time_expense" -> ONE_TIME_EXPENSE
                 else -> UNKNOWN
             }
         }

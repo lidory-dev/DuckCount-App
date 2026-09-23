@@ -26,6 +26,9 @@ interface LocalDataDao {
         deleteGroupMembers()
         deleteContactRequests()
         deleteContacts()
+        deleteDirectChannels()
+        deleteOneTimeExpenseKeys()
+        deletePendingExpenseKeys()
         deleteMlsRecords()
     }
 
@@ -52,6 +55,15 @@ interface LocalDataDao {
 
     @Query("DELETE FROM ContactEntity")
     suspend fun deleteContacts()
+
+    @Query("DELETE FROM DirectChannelEntity")
+    suspend fun deleteDirectChannels()
+
+    @Query("DELETE FROM OneTimeExpenseKeyEntity")
+    suspend fun deleteOneTimeExpenseKeys()
+
+    @Query("DELETE FROM PendingExpenseKeyEntity")
+    suspend fun deletePendingExpenseKeys()
 
     @Query("DELETE FROM MlsRecordEntity")
     suspend fun deleteMlsRecords()

@@ -114,50 +114,6 @@ object ContactRemoval {
         }.getOrDefault(false)
 }
 
-/**
- * The `ciphertext` of a direct message between two contacts: an MLS message encrypted to
- * the group their contact request created.
- *
- * The acceptance of a request travels this way, [message] carrying the recipient's own
- * [ContactCard], and so does a [ContactRemoval]. The client reading one needs that group
- * to decrypt [message], but may keep no record of which group it was, and a direct
- * message says nothing about it either, hence [mlsGroupId] next to it.
- */
-class ContactMessageEnvelope(
-    val mlsGroupId: ByteArray,
-    val message: ByteArray,
-) {
-
-    /** The direct message's `ciphertext`. */
-    fun serialize(): String =
-        json.encodeToString(
-            SerializedContactMessageEnvelope.serializer(),
-            SerializedContactMessageEnvelope(
-                mlsGroupId = Base64.Default.encode(mlsGroupId),
-                message = Base64.Default.encode(message),
-            ),
-        )
-
-    companion object {
-        /**
-         * Reads an envelope back from a direct message's `ciphertext`, or returns null when
-         * it is not one.
-         */
-        fun parse(ciphertext: String): ContactMessageEnvelope? =
-            runCatching {
-                val serialized = json.decodeFromString(
-                    SerializedContactMessageEnvelope.serializer(),
-                    ciphertext,
-                )
-
-                ContactMessageEnvelope(
-                    mlsGroupId = Base64.Default.decode(serialized.mlsGroupId),
-                    message = Base64.Default.decode(serialized.message),
-                )
-            }.getOrNull()
-    }
-}
-
 @Serializable
 private class SerializedContactCard(
     @SerialName("profile_encryption_key")
@@ -173,11 +129,4 @@ private class SerializedContactRequestEnvelope(
 @Serializable
 private class SerializedContactRemoval(
     val type: String,
-)
-
-@Serializable
-private class SerializedContactMessageEnvelope(
-    @SerialName("mls_group_id")
-    val mlsGroupId: String,
-    val message: String,
 )

@@ -17,5 +17,21 @@
     <string name="push_contact_accepted_title">Nouveau contact</string>
     <string name="push_contact_accepted_text">%1$s a accepté votre demande de contact</string>
     <string name="push_contact_accepted_text_unknown">Votre demande de contact a été acceptée</string>
+    <string name="push_channel_expenses_name">Dépenses partagées</string>
+    <string name="push_channel_expenses_description">Les dépenses que d’autres personnes ont partagées avec vous.</string>
+    <string name="push_expense_title">Nouvelle dépense partagée</string>
+    <string name="push_expense_text_locked">Quelqu’un a partagé une dépense avec vous</string>
+    <plurals name="push_expense_text">
+        <item quantity="one">%1$s a partagé une dépense avec vous</item>
+        <item quantity="other">%1$s a partagé %2$d dépenses avec vous</item>
+    </plurals>
+    <plurals name="push_expense_text_unknown">
+        <item quantity="one">Quelqu’un a partagé une dépense avec vous</item>
+        <item quantity="other">Quelqu’un a partagé %1$d dépenses avec vous</item>
+    </plurals>
+    <plurals name="push_expense_summary">
+        <item quantity="one">%1$d nouvelle dépense partagée</item>
+        <item quantity="other">%1$d nouvelles dépenses partagées</item>
+    </plurals>
     <string name="settings">Paramètres</string>
 </resources>

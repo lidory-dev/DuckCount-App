@@ -32,4 +32,18 @@ interface ExpenseListCallBacks {
     fun getUserFullName(userUuid: String): Flow<String?>
 
     fun getAuthenticatedUserUuid(): String?
+
+    /**
+     * The list of one-time expenses is on screen, scrolled to the newest.
+     *
+     * Until [newestExpensesHidden], an expense somebody shares goes in where the user is
+     * already looking. So the notifications about expenses come down, and no new ones go up.
+     */
+    fun newestExpensesShown()
+
+    /**
+     * The newest one-time expenses left the screen, with the list or by scrolling, so arriving
+     * expenses are announced again.
+     */
+    fun newestExpensesHidden()
 }

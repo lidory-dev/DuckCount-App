@@ -25,6 +25,7 @@ import app.lidory.duckcount.groupList.callBacks.GroupSettleUpCallBacks
 import app.lidory.duckcount.groupList.di.groupListModule
 import app.lidory.duckcount.networking.NetworkConnectivity
 import app.lidory.duckcount.push.ContactNotifier
+import app.lidory.duckcount.push.ExpenseNotifier
 import app.lidory.duckcount.push.UnifiedPushRegistrar
 import app.lidory.duckcount.settings.SettingsCallBacks
 import app.lidory.duckcount.settings.SettingsCallBacksImpl
@@ -35,6 +36,9 @@ import di.authenticationModule
 import di.contactListModule
 import di.sharedModule
 import discoveryUsername.di.discoveryModule
+import channel.di.channelModule
+import message.di.messageModule
+import expense.di.expenseModule
 import mls.di.mlsModule
 import networking.di.networkingModule
 import org.koin.android.ext.koin.androidContext
@@ -63,6 +67,7 @@ val contactCallBacks = module {
 val pushPlatformModule = module {
     single { UnifiedPushRegistrar(androidContext(), get()) }.bind<PushRegistrar>()
     single { ContactNotifier(androidContext()) }
+    single { ExpenseNotifier(androidContext()) }
 }
 val groupCallBacks = module {
     singleOf(::GroupListCallBacksImpl).bind<GroupListCallBacks>()
@@ -94,6 +99,9 @@ val appModule = listOf(
     profileModule,
     discoveryModule,
     mlsModule,
+    expenseModule,
+    messageModule,
+    channelModule,
     pushModule,
     pushPlatformModule,
     expenseListModule,

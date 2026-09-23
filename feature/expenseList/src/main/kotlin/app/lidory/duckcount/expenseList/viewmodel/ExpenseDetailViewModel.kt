@@ -43,13 +43,19 @@ class ExpenseDetailViewModel(
                 initialValue = null,
             )
 
-    private val creditorName: Flow<String> =
+    /**
+     * Null when this device holds no profile for them, which a one-time expense makes
+     * ordinary: the server asks for no relationship between a creditor and the people they
+     * name, and a contact who was removed keeps their expenses. The screen has the strings,
+     * so what to show in their place is decided there.
+     */
+    private val creditorName: Flow<String?> =
         expense
             .map { it?.creditorUuid }
             .distinctUntilChanged()
             .flatMapLatest { uuid ->
-                if (uuid == null) flowOf("")
-                else expenseDetailCallBacks.getUserFullName(uuid).map { it ?: "" }
+                if (uuid == null) flowOf(null)
+                else expenseDetailCallBacks.getUserFullName(uuid)
             }
 
     private val beneficiaryNames: Flow<Map<String, String?>> =
@@ -75,7 +81,7 @@ class ExpenseDetailViewModel(
                     uuid = beneficiary.uuid,
                     userUuid = beneficiary.userUuid,
                     share = beneficiary.share,
-                    fullName = names[beneficiary.userUuid] ?: "",
+                    fullName = names[beneficiary.userUuid],
                     isShareFixed = beneficiary.isShareFixed,
                 )
             }
@@ -126,7 +132,7 @@ sealed interface ExpenseScreenState {
     data object NotFound : ExpenseScreenState
     data class Content(
         val expenseWithBeneficiaries: ExpenseWithBeneficiaries,
-        val creditorFullName: String,
+        val creditorFullName: String?,
         val beneficiaries: List<BeneficiaryUi>,
         val canEdit: Boolean,
         val canDelete: Boolean,

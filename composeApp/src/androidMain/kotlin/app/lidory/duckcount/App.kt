@@ -16,7 +16,6 @@ import app.lidory.duckcount.android.ui.theme.AppTheme
 import app.lidory.duckcount.navigation.NavigationRoot
 import app.lidory.duckcount.navigation.key.ContactRequestListScreenKey
 import app.lidory.duckcount.navigation.key.DashboardKey
-import app.lidory.duckcount.push.PushSetUp
 import navigation.key.OnBoardingScreenKey
 import org.koin.androidx.compose.koinViewModel
 
@@ -51,8 +50,6 @@ fun App(openContactRequests: Boolean = false) {
                 val isSessionExpired by appViewModel.isSessionExpired.collectAsState()
 
                 if (state is Startup.LoggedIn) {
-                    PushSetUp()
-
                     // Pushed on top of the dashboard rather than instead of it, so that
                     // going back from the requests lands where the app would have opened.
                     LaunchedEffect(Unit) {

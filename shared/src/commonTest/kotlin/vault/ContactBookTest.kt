@@ -13,23 +13,30 @@ class ContactBookTest {
 
     private val aliceKey = byteArrayOf(1, 2, 3)
     private val bobKey = byteArrayOf(4, 5, 6)
+    private val aliceSignatureKey = byteArrayOf(7, 7, 7)
+
+    private fun contact(profileEncryptionKey: ByteArray, mlsSignaturePublicKey: ByteArray? = null) =
+        VaultContact(
+            profileEncryptionKey = profileEncryptionKey,
+            mlsSignaturePublicKey = mlsSignaturePublicKey,
+        )
 
     @Test
     fun `an empty book holds no contact`() {
-        assertTrue(ContactBook.EMPTY.profileEncryptionKeys.isEmpty())
+        assertTrue(ContactBook.EMPTY.contacts.isEmpty())
     }
 
     @Test
     fun `contacts survive being sealed and read back`() {
         val book = ContactBook.EMPTY
-            .with(userUuid = alice, profileEncryptionKey = aliceKey)
-            .with(userUuid = bob, profileEncryptionKey = bobKey)
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))
 
-        val reread = ContactBook.parse(plaintext = book.serialize())!!.profileEncryptionKeys
+        val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
 
         assertEquals(setOf(alice, bob), reread.keys)
-        assertContentEquals(aliceKey, reread[alice])
-        assertContentEquals(bobKey, reread[bob])
+        assertContentEquals(aliceKey, reread[alice]?.profileEncryptionKey)
+        assertContentEquals(bobKey, reread[bob]?.profileEncryptionKey)
     }
 
     @Test
@@ -37,24 +44,24 @@ class ContactBookTest {
         val replacement = byteArrayOf(9, 9)
 
         val book = ContactBook.EMPTY
-            .with(userUuid = alice, profileEncryptionKey = aliceKey)
-            .with(userUuid = alice, profileEncryptionKey = replacement)
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = replacement))
 
-        assertEquals(setOf(alice), book.profileEncryptionKeys.keys)
-        assertContentEquals(replacement, book.profileEncryptionKeys[alice])
+        assertEquals(setOf(alice), book.contacts.keys)
+        assertContentEquals(replacement, book.contacts[alice]?.profileEncryptionKey)
     }
 
     @Test
     fun `a removed contact is gone and the others stay`() {
         val book = ContactBook.EMPTY
-            .with(userUuid = alice, profileEncryptionKey = aliceKey)
-            .with(userUuid = bob, profileEncryptionKey = bobKey)
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))
             .without(userUuid = alice)
 
-        val reread = ContactBook.parse(plaintext = book.serialize())!!.profileEncryptionKeys
+        val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
 
         assertEquals(setOf(bob), reread.keys)
-        assertContentEquals(bobKey, reread[bob])
+        assertContentEquals(bobKey, reread[bob]?.profileEncryptionKey)
     }
 
     /**
@@ -63,7 +70,7 @@ class ContactBookTest {
      */
     @Test
     fun `removing somebody who is not a contact changes nothing`() {
-        val book = ContactBook.EMPTY.with(userUuid = alice, profileEncryptionKey = aliceKey)
+        val book = ContactBook.EMPTY.with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))
 
         val rewritten = book.without(userUuid = bob)
 
@@ -107,8 +114,8 @@ class ContactBookTest {
         """.trimIndent().encodeToByteArray()
 
         val rewritten = ContactBook.parse(plaintext = plaintext)!!
-            .with(userUuid = alice, profileEncryptionKey = aliceKey)
-            .with(userUuid = bob, profileEncryptionKey = bobKey)
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))
             .serialize()
             .decodeToString()
 
@@ -129,9 +136,57 @@ class ContactBookTest {
             }
         """.trimIndent().encodeToByteArray()
 
-        val keys = ContactBook.parse(plaintext = plaintext)!!.profileEncryptionKeys
+        val keys = ContactBook.parse(plaintext = plaintext)!!.contacts
 
         assertEquals(setOf(alice), keys.keys)
+    }
+
+    @Test
+    fun `a pinned identity survives being sealed and read back`() {
+        val book = ContactBook.EMPTY.with(
+            userUuid = alice,
+            contact = contact(
+                profileEncryptionKey = aliceKey,
+                mlsSignaturePublicKey = aliceSignatureKey,
+            ),
+        )
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
+
+        assertContentEquals(aliceSignatureKey, reread[alice]?.mlsSignaturePublicKey)
+    }
+
+    /**
+     * A device that has never reached a contact over MLS knows nothing about their
+     * identity, and knowing nothing must not erase what another device recorded.
+     */
+    @Test
+    fun `writing a contact without a pinned identity keeps the one already stored`() {
+        val book = ContactBook.EMPTY
+            .with(
+                userUuid = alice,
+                contact = contact(
+                    profileEncryptionKey = aliceKey,
+                    mlsSignaturePublicKey = aliceSignatureKey,
+                ),
+            )
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = bobKey))
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
+
+        assertContentEquals(bobKey, reread[alice]?.profileEncryptionKey)
+        assertContentEquals(aliceSignatureKey, reread[alice]?.mlsSignaturePublicKey)
+    }
+
+    /** A book written before pins travelled with it still reads. */
+    @Test
+    fun `a contact with no pinned identity is still a contact`() {
+        val plaintext = """{"$alice": {"profile_encryption_key": "AQID"}}""".encodeToByteArray()
+
+        val reread = ContactBook.parse(plaintext = plaintext)!!.contacts
+
+        assertEquals(setOf(alice), reread.keys)
+        assertNull(reread[alice]?.mlsSignaturePublicKey)
     }
 
     @Test

@@ -40,7 +40,7 @@ interface ContactDao {
      * Records that the user no longer has the contact [userUuid], until the vault no longer
      * holds them either.
      */
-    @Query("UPDATE ContactEntity SET isRemoved = true, isBackedUp = false, mlsGroupId = NULL WHERE userUuid = :userUuid")
+    @Query("UPDATE ContactEntity SET isRemoved = true, isBackedUp = false WHERE userUuid = :userUuid")
     suspend fun markRemoved(userUuid: String)
 
     /**

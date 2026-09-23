@@ -67,6 +67,14 @@ interface ExpenseDao {
         hardDelete(expenseUuid = expenseUuid)
     }
 
+    /** Which one-time expenses this device can currently read, which is what it has a key for. */
+    @Query("SELECT uuid FROM ExpenseEntity WHERE groupUuid IS NULL")
+    suspend fun getOneTimeExpenseUuids(): List<String>
+
+    /** Who paid for each of [uuids], which is who a notification about them names. */
+    @Query("SELECT uuid, creditorUuid FROM ExpenseEntity WHERE groupUuid IS NULL AND uuid IN (:uuids)")
+    suspend fun getOneTimeCreditors(uuids: List<String>): List<ExpenseCreditor>
+
     @Query("DELETE FROM ExpenseEntity WHERE groupUuid IS NULL")
     suspend fun deleteAllOneTimeExpenses()
 
@@ -74,13 +82,21 @@ interface ExpenseDao {
     suspend fun deleteOneTimeExpensesNotIn(uuids: List<String>)
 
     /**
-     * Server-authoritative reconciliation of one-time expenses: drop any local
-     * row (groupUuid IS NULL) absent from the server response, then upsert the
-     * rest. Runs in a single transaction.
+     * Server-authoritative reconciliation of one-time expenses: drop any local row
+     * (groupUuid IS NULL) the server no longer lists, then upsert the ones that could be
+     * read. Runs in a single transaction.
+     *
+     * [serverUuids] is **every** expense the server listed, not only the ones in
+     * [expenses]: an expense whose key has not arrived yet cannot be turned into a row, and
+     * deriving what to keep from the readable ones alone would hard-delete a perfectly good
+     * cached row the moment one key read hit a network blip or a device that locked
+     * mid-refresh. What the server no longer lists is what goes.
      */
     @Transaction
-    suspend fun replaceAllOneTimeExpenses(expenses: List<ExpenseWithBeneficiariesEntity>) {
-        val serverUuids = expenses.map { it.expense.uuid }
+    suspend fun replaceAllOneTimeExpenses(
+        expenses: List<ExpenseWithBeneficiariesEntity>,
+        serverUuids: List<String>,
+    ) {
         if (serverUuids.isEmpty()) {
             deleteAllOneTimeExpenses()
         } else {
@@ -127,3 +143,9 @@ interface ExpenseDao {
     @Query("SELECT currency FROM ExpenseEntity WHERE uuid = :expenseUuid")
     fun getCurrency(expenseUuid: String): Flow<Currency?>
 }
+
+/** One expense and who paid for it, which is all a notification needs of it. */
+class ExpenseCreditor(
+    val uuid: String,
+    val creditorUuid: String,
+)

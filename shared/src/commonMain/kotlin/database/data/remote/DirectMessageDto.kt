@@ -8,7 +8,7 @@ import kotlinx.serialization.Serializable
  *
  * Every message is between two contacts today, the acceptance of a request the caller
  * sent or a contact removing the caller, so [ciphertext] is a serialized
- * `contact.ContactMessageEnvelope`. [senderUserUuid] is the server's word for who sent it,
+ * `message.DirectMessageEnvelope`. [senderUserUuid] is the server's word for who sent it,
  * MLS authenticates the actual sender once the message is read.
  */
 @Serializable
@@ -36,9 +36,41 @@ data class SendDirectMessageBody(
     @SerialName("recipient_user_uuid")
     val recipientUserUuid: String,
 
-    /** A serialized `contact.ContactMessageEnvelope`, opaque to the server. */
+    /** A serialized `message.DirectMessageEnvelope`, opaque to the server. */
     val ciphertext: String,
+
+    /**
+     * Which signal to wake the recipient with, and the one thing the server is told
+     * about what is inside.
+     *
+     * Omitted by every caller that has nothing to gain from saying: the default says no
+     * more than that something arrived.
+     */
+    val kind: DirectMessageKindDto = DirectMessageKindDto.MESSAGE,
 )
+
+/**
+ * What a sender is willing to tell the server a direct message is about.
+ *
+ * Deliberately coarse, and closed on the server: it names the screen the recipient's
+ * client would open, never who or what the message concerns.
+ */
+@Serializable
+enum class DirectMessageKindDto {
+    @SerialName("message")
+    MESSAGE,
+
+    /**
+     * The message carries the key to a one-time expense.
+     *
+     * Said out loud because a locked device can read nothing but the signal, and told
+     * only that a message arrived it has nothing safe to show: the same signal covers a
+     * contact removing the user. The server learns nothing new, it already holds the
+     * expense and its beneficiaries in the clear.
+     */
+    @SerialName("one_time_expense")
+    ONE_TIME_EXPENSE,
+}
 
 /** Body of `POST /messages/acknowledgements`. */
 @Serializable

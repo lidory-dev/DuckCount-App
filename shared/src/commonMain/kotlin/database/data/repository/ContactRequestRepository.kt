@@ -3,8 +3,9 @@ package database.data.repository
 import app.lidory.duckcount.hashDiscoveryUsername
 import authenticationUtils.getAuthenticatedUserUuid
 import contact.AnswerContactRequestError
+import channel.DirectChannelRepository
 import contact.ContactCard
-import contact.ContactMessageEnvelope
+import message.DirectMessageEnvelope
 import contact.ContactRequestEnvelope
 import contact.ContactSyncError
 import contact.SendContactRequestError
@@ -55,6 +56,7 @@ class ContactRequestRepository(
     private val mlsIdentityRepository: MlsIdentityRepository,
     private val profileRepository: ProfileRepository,
     private val contactRepository: ContactRepository,
+    private val directChannelRepository: DirectChannelRepository,
 ) {
     /**
      * Serialises the operations on the requests addressed to the user. Each one reads the
@@ -331,7 +333,7 @@ class ContactRequestRepository(
         val acceptance = contactApi.acceptContactRequest(
             requestUuid = request.uuid,
             body = AcceptContactRequestBody(
-                ciphertext = ContactMessageEnvelope(
+                ciphertext = DirectMessageEnvelope(
                     mlsGroupId = request.mlsGroupId,
                     message = message,
                 ).serialize(),
@@ -351,8 +353,14 @@ class ContactRequestRepository(
         contactRepository.add(
             userUuid = request.senderUserUuid,
             profileEncryptionKey = request.profileEncryptionKey,
-            mlsGroupId = request.mlsGroupId,
             fullName = request.senderFullName,
+        )
+
+        // The group the request created is the channel to them from here on, and this is
+        // the only moment its id is known outside the request row about to be deleted.
+        directChannelRepository.adopt(
+            peerUuid = request.senderUserUuid,
+            mlsGroupId = request.mlsGroupId,
         )
 
         contactRequestDao.delete(uuids = listOf(request.uuid))

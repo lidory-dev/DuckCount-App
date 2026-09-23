@@ -51,6 +51,7 @@ import app.lidory.duckcount.settings.navigation.key.SettingsFlowKey
 import navigation.key.OnBoardingScreenKey
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
+import app.lidory.duckcount.push.PushSetUp
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
@@ -78,6 +79,15 @@ fun NavigationRoot(
                         NavEntry(
                             key = key,
                         ) {
+                            // Here rather than keyed off the launch state: `Startup` is
+                            // resolved once, when the app opens, and says where to land.
+                            // Somebody who opens the app signed out and then signs in never
+                            // changes it, so gating on it meant a device registered for push
+                            // on launch or not at all — sign in, and nothing could wake you
+                            // until you restarted the app. The dashboard is the signed-in
+                            // app, however the user arrived at it.
+                            PushSetUp()
+
                             Dashboard(
                                 animatedVisibilityScope = LocalNavAnimatedContentScope.current,
                                 sharedTransitionScope = this@SharedTransitionLayout,

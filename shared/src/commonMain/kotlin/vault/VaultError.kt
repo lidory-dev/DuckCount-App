@@ -44,6 +44,17 @@ sealed interface VaultError : Error {
      */
     data object Contended : VaultError
 
+    /**
+     * A collection part already holds as many items as the server allows, so nothing more
+     * can be written to it until something is deleted.
+     *
+     * Terminal, unlike [Contended]: retrying writes the same item into the same full part
+     * and fails the same way. The server reports both with a `409`, and they are told
+     * apart by whether the write carried an expected version, which only a write built on
+     * a previous read does.
+     */
+    data object PartFull : VaultError
+
     /** The server could not be reached, or refused the call. */
     data class Network(val error: NetworkError) : VaultError
 }

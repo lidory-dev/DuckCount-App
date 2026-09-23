@@ -1,25 +1,23 @@
 package database.data.repository
 
 import contact.ContactCard
-import contact.ContactMessageEnvelope
 import contact.ContactRemoval
 import contact.ContactSyncError
 import contact.RemoveContactError
 import database.data.local.dao.ContactDao
+import database.data.local.dao.DirectChannelDao
 import database.data.local.entity.ContactEntity
-import database.data.remote.AcknowledgeDirectMessagesBody
+import database.data.local.entity.DirectChannelEntity
 import database.data.remote.DirectMessageApi
-import database.data.remote.MAX_ACKNOWLEDGEMENT_BATCH
 import database.data.remote.SendDirectMessageBody
 import database.domain.User
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import mls.ApplicationMessageReading
+import message.DirectMessageEnvelope
 import mls.MlsIdentityRepository
 import mls.deleteGroupQuietly
 import mls.encryptApplicationMessage
 import mls.isRetryable
-import mls.readApplicationMessage
 import profile.ProfileRepository
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
@@ -27,6 +25,9 @@ import util.EmptyResult
 import util.NetworkError
 import util.Result
 import vault.VaultRepository
+import mls.restorePin
+import mls.pinnedSignatureKeyFor
+import vault.VaultContact
 
 /**
  * The user's contacts: the people whose request they accepted, and the ones who accepted
@@ -40,6 +41,7 @@ import vault.VaultRepository
  */
 class ContactRepository(
     private val contactDao: ContactDao,
+    private val directChannelDao: DirectChannelDao,
     private val userRepository: UserRepository,
     private val vaultRepository: VaultRepository,
     private val profileRepository: ProfileRepository,
@@ -58,29 +60,50 @@ class ContactRepository(
     }
 
     /**
-     * Records [userUuid] as a contact on this device, [mlsGroupId] being the group the
-     * request between the two of them created.
+     * Records [userUuid] as a contact on this device.
      *
      * [fullName], the name on their profile, is written along when it is already known,
      * and left to [resolveNames] otherwise. The vault only gets them with the next
      * [backUp].
+     *
+     * The group the two of them talk through is recorded separately, see
+     * [database.data.local.entity.DirectChannelEntity]: a channel outlives the contact, and
+     * whoever knows which group it is records it, either the accept that joined it or the
+     * sync that read a message in it.
      */
     suspend fun add(
         userUuid: String,
         profileEncryptionKey: ByteArray,
-        mlsGroupId: ByteArray,
         fullName: String?,
     ) {
         contactDao.upsert(
             ContactEntity(
                 userUuid = userUuid,
                 profileEncryptionKey = profileEncryptionKey,
-                mlsGroupId = mlsGroupId,
                 isBackedUp = false,
             ),
         )
 
         fullName?.let { saveName(userUuid = userUuid, fullName = it) }
+    }
+
+    /**
+     * Records the contact card [senderUserUuid] sent, which is how the user learns that a
+     * request they sent was accepted.
+     */
+    internal suspend fun receiveCard(senderUserUuid: String, card: ContactCard) {
+        add(
+            userUuid = senderUserUuid,
+            profileEncryptionKey = card.profileEncryptionKey,
+            fullName = null,
+        )
+    }
+
+    /** Acts on [senderUserUuid]'s notice that they removed the user from their contacts. */
+    internal suspend fun receiveRemoval(senderUserUuid: String) {
+        val client = (mlsIdentityRepository.client() as? Result.Success)?.data
+
+        forget(userUuid = senderUserUuid, client = client)
     }
 
     /**
@@ -97,7 +120,7 @@ class ContactRepository(
         // Not a contact any more, which is all removing them was for.
         val contact = contactDao.get(userUuid = userUuid) ?: return Result.Success(Unit)
 
-        val mlsGroupId = contact.mlsGroupId
+        val mlsGroupId = directChannelDao.get(peerUuid = userUuid)?.mlsGroupId
 
         if (mlsGroupId == null) {
             forget(userUuid = userUuid, client = null)
@@ -120,75 +143,13 @@ class ContactRepository(
     }
 
     /**
-     * Takes in what contacts sent the user: the answers to the requests the user sent, which
-     * make their senders contacts, and the notices of contacts who removed the user, which
-     * remove them in turn. Every message is acknowledged once acted on.
+     * Carries to the vault every change it has not taken yet, additions and removals alike.
      *
-     * A message that cannot be read is acknowledged too, since it never will be: typically,
-     * the group it was encrypted to lived in a database a log-out has wiped since. One that
-     * failed on the user's own storage stays for the next call.
+     * The MLS identity pinned for each contact goes along with them. Pins live in the local
+     * database, which a log-out empties, and a device that came back without them would
+     * accept whichever key package the server served next for each contact and pin that,
+     * which is the substitution pinning exists to catch.
      */
-    suspend fun receiveMessages(): EmptyResult<ContactSyncError> {
-        val messages = when (val list = directMessageApi.getDirectMessages()) {
-            is Result.Success -> list.data.messages
-            is Result.Error -> return Result.Error(ContactSyncError.Network(list.error))
-        }
-
-        // Most calls find nothing, and opening the MLS client is not free.
-        if (messages.isEmpty()) return Result.Success(Unit)
-
-        val client = when (val opened = mlsIdentityRepository.client()) {
-            is Result.Success -> opened.data
-            is Result.Error -> return Result.Error(ContactSyncError.Identity(opened.error))
-        }
-
-        val settled = mutableListOf<String>()
-        var failure: ContactSyncError? = null
-
-        for (message in messages) {
-            val envelope = ContactMessageEnvelope.parse(ciphertext = message.ciphertext)
-
-            if (envelope == null) {
-                settled += message.uuid
-
-                continue
-            }
-
-            val reading = client.readApplicationMessage(
-                mlsGroupId = envelope.mlsGroupId,
-                message = envelope.message,
-            )
-
-            when (reading) {
-                is ApplicationMessageReading.Read -> {
-                    receive(client = client, envelope = envelope, reading = reading)
-
-                    settled += message.uuid
-                }
-
-                ApplicationMessageReading.Unreadable -> settled += message.uuid
-
-                ApplicationMessageReading.Retry -> failure = failure ?: ContactSyncError.Storage
-            }
-        }
-
-        // An acknowledgement that does not go through hands the same messages back next
-        // time. Reading one again fails, its key is gone, so it is acknowledged then, and
-        // what it said is already stored.
-        for (batch in settled.chunked(MAX_ACKNOWLEDGEMENT_BATCH)) {
-            val acknowledgement = directMessageApi.acknowledgeDirectMessages(
-                body = AcknowledgeDirectMessagesBody(messageUuids = batch),
-            )
-
-            if (acknowledgement is Result.Error) {
-                return Result.Error(ContactSyncError.Network(acknowledgement.error))
-            }
-        }
-
-        return failure?.let { Result.Error(it) } ?: Result.Success(Unit)
-    }
-
-    /** Carries to the vault every change it has not taken yet, additions and removals alike. */
     suspend fun backUp(): EmptyResult<ContactSyncError> = backUpMutex.withLock {
         val pending = contactDao.getNotBackedUp()
 
@@ -197,8 +158,17 @@ class ContactRepository(
 
         val (removed, added) = pending.partition { it.isRemoved }
 
+        val client = (mlsIdentityRepository.client() as? Result.Success)?.data
+
         val write = vaultRepository.updateContacts(
-            added = added.associate { it.userUuid to it.profileEncryptionKey },
+            added = added.associate { contact ->
+                contact.userUuid to VaultContact(
+                    profileEncryptionKey = contact.profileEncryptionKey,
+                    // Null for a contact this device has never reached over MLS, which
+                    // leaves whatever another device recorded for them alone.
+                    mlsSignaturePublicKey = client?.pinnedSignatureKeyFor(peerUuid = contact.userUuid),
+                )
+            },
             removed = removed.map { it.userUuid },
         )
 
@@ -241,20 +211,30 @@ class ContactRepository(
     /**
      * Brings back the contacts the vault holds, which a log-out or a reinstall took off
      * this device, then reads their names.
+     *
+     * No channel comes back with them: the group's state lived in the database that is
+     * gone, and no Welcome can reach a key package whose secret went with it. The first
+     * message to a restored contact builds a new group instead.
+     *
+     * Their pinned MLS identities do come back, and go back into the MLS client *before*
+     * the rows are visible to anything that would build such a group. Building one fetches
+     * a key package from the server and pins whatever identity it carries, so a client that
+     * had forgotten its pins would let the server decide who each contact is, which is the
+     * one thing pinning is for.
      */
     suspend fun restore(): EmptyResult<ContactSyncError> {
-        val profileEncryptionKeys = when (val read = vaultRepository.getContacts()) {
+        val contacts = when (val read = vaultRepository.getContacts()) {
             is Result.Success -> read.data
             is Result.Error -> return Result.Error(ContactSyncError.Vault(read.error))
         }
 
+        restorePins(contacts = contacts)
+
         contactDao.insertNew(
-            contacts = profileEncryptionKeys.map { (userUuid, profileEncryptionKey) ->
+            contacts = contacts.map { (userUuid, contact) ->
                 ContactEntity(
                     userUuid = userUuid,
-                    profileEncryptionKey = profileEncryptionKey,
-                    // The group's state lived in the database that is gone.
-                    mlsGroupId = null,
+                    profileEncryptionKey = contact.profileEncryptionKey,
                     isBackedUp = true,
                 )
             },
@@ -285,7 +265,7 @@ class ContactRepository(
         val send = directMessageApi.sendDirectMessage(
             body = SendDirectMessageBody(
                 recipientUserUuid = userUuid,
-                ciphertext = ContactMessageEnvelope(mlsGroupId = mlsGroupId, message = message).serialize(),
+                ciphertext = DirectMessageEnvelope(mlsGroupId = mlsGroupId, message = message).serialize(),
             ),
         )
 
@@ -304,51 +284,53 @@ class ContactRepository(
     }
 
     /**
-     * Acts on a message a contact sent, as MLS authenticated it.
-     *
-     * A message that is neither a card nor a removal comes from a newer build this one
-     * cannot act on, and is dropped like an unreadable one.
-     */
-    private suspend fun receive(
-        client: MlsClient,
-        envelope: ContactMessageEnvelope,
-        reading: ApplicationMessageReading.Read,
-    ) {
-        val card = ContactCard.parse(plaintext = reading.payload)
-
-        when {
-            card != null -> add(
-                userUuid = reading.senderUserUuid,
-                profileEncryptionKey = card.profileEncryptionKey,
-                mlsGroupId = envelope.mlsGroupId,
-                fullName = null,
-            )
-
-            ContactRemoval.matches(plaintext = reading.payload) -> {
-                forget(userUuid = reading.senderUserUuid, client = client)
-
-                // Whichever group it came in, it has no use left.
-                client.deleteGroupQuietly(mlsGroupId = envelope.mlsGroupId)
-            }
-        }
-    }
-
-    /**
      * Removes the contact [userUuid] from this device, leaving a tombstone for [backUp] to
-     * carry the removal to the vault, and deletes the group the two of them shared.
+     * carry the removal to the vault, and deletes the groups the two of them shared.
      *
      * Their user stays, hidden from the contact list, rather than being deleted: a user can
-     * be more than a contact, and a group the two of them are in still lists them.
+     * be more than a contact, and a group the two of them are in still lists them. Their
+     * channel row stays too, emptied, see [DirectChannelEntity].
      */
     private suspend fun forget(userUuid: String, client: MlsClient?) {
-        val contact = contactDao.get(userUuid = userUuid) ?: return
+        contactDao.get(userUuid = userUuid) ?: return
 
         contactDao.markRemoved(userUuid = userUuid)
         userRepository.remove(userUuid = userUuid)
 
-        val mlsGroupId = contact.mlsGroupId ?: return
+        val channel = directChannelDao.get(peerUuid = userUuid)
 
-        client?.deleteGroupQuietly(mlsGroupId = mlsGroupId)
+        // The channel row stays, emptied: the two of them may still owe each other money,
+        // and a one-time expense they share is opened with a key only the other one has.
+        // What goes is the MLS state, which has no use until a new group is built.
+        directChannelDao.clear(peerUuid = userUuid)
+
+        listOfNotNull(channel?.mlsGroupId, channel?.previousMlsGroupId).forEach {
+            client?.deleteGroupQuietly(mlsGroupId = it)
+        }
+    }
+
+    /**
+     * Puts back the MLS identities the vault holds for [contacts].
+     *
+     * Best effort by design. A pin that cannot be restored leaves this device where it was
+     * before pins were backed up at all, which is worse than having it but is not a reason
+     * to refuse to restore the contacts themselves.
+     */
+    private suspend fun restorePins(contacts: Map<String, VaultContact>) {
+        val backedUp = contacts.mapNotNull { (userUuid, contact) ->
+            contact.mlsSignaturePublicKey?.let { userUuid to it }
+        }
+
+        if (backedUp.isEmpty()) return
+
+        val client = when (val opened = mlsIdentityRepository.client()) {
+            is Result.Success -> opened.data
+            is Result.Error -> return
+        }
+
+        backedUp.forEach { (userUuid, signatureKey) ->
+            client.restorePin(peerUuid = userUuid, signatureKey = signatureKey)
+        }
     }
 
     private suspend fun saveName(userUuid: String, fullName: String) {

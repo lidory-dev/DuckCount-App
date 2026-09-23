@@ -63,7 +63,7 @@ data class SendContactRequestBody(
 @Serializable
 data class AcceptContactRequestBody(
     /**
-     * A serialized `contact.ContactMessageEnvelope`, opaque to the server, which hands
+     * A serialized `message.DirectMessageEnvelope`, opaque to the server, which hands
      * it to the request's sender as a direct message.
      */
     val ciphertext: String,

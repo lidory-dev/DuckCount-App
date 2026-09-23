@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "8e7dc15ecfec787b68f38dce80106340",
+    "identityHash": "17754607b363f2844ffa23b273ded98b",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -304,7 +304,7 @@
       },
       {
         "tableName": "ContactEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `mlsGroupId` BLOB, `isBackedUp` INTEGER NOT NULL, `isRemoved` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `isBackedUp` INTEGER NOT NULL, `isRemoved` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
         "fields": [
           {
             "fieldPath": "userUuid",
@@ -317,11 +317,6 @@
             "columnName": "profileEncryptionKey",
             "affinity": "BLOB",
             "notNull": true
-          },
-          {
-            "fieldPath": "mlsGroupId",
-            "columnName": "mlsGroupId",
-            "affinity": "BLOB"
           },
           {
             "fieldPath": "isBackedUp",
@@ -340,6 +335,133 @@
           "autoGenerate": false,
           "columnNames": [
             "userUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "DirectChannelEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`peerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `previousMlsGroupId` BLOB, `pendingWelcome` BLOB, `pendingWelcomeSince` INTEGER, `welcomeAttachCount` INTEGER NOT NULL, PRIMARY KEY(`peerUuid`))",
+        "fields": [
+          {
+            "fieldPath": "peerUuid",
+            "columnName": "peerUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mlsGroupId",
+            "columnName": "mlsGroupId",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "previousMlsGroupId",
+            "columnName": "previousMlsGroupId",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "pendingWelcome",
+            "columnName": "pendingWelcome",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "pendingWelcomeSince",
+            "columnName": "pendingWelcomeSince",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "welcomeAttachCount",
+            "columnName": "welcomeAttachCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "peerUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "OneTimeExpenseKeyEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `record` BLOB NOT NULL, `isVerified` INTEGER NOT NULL, `isBackedUp` INTEGER NOT NULL, PRIMARY KEY(`expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "record",
+            "columnName": "record",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isVerified",
+            "columnName": "isVerified",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isBackedUp",
+            "columnName": "isBackedUp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "PendingExpenseKeyEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `firstSeenAt` INTEGER NOT NULL, `lastRequestedAt` INTEGER, `requestCount` INTEGER NOT NULL, `state` TEXT NOT NULL, PRIMARY KEY(`expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "creditorUuid",
+            "columnName": "creditorUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstSeenAt",
+            "columnName": "firstSeenAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastRequestedAt",
+            "columnName": "lastRequestedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "requestCount",
+            "columnName": "requestCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid"
           ]
         }
       },
@@ -377,7 +499,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8e7dc15ecfec787b68f38dce80106340')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '17754607b363f2844ffa23b273ded98b')"
     ]
   }
 }

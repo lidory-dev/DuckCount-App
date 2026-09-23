@@ -56,6 +56,16 @@ class ExpenseListViewModel(
         initialValue = _state.value,
     )
 
+    /**
+     * The newest one-time expenses came on screen.
+     *
+     * Only that list: a group's expenses are never announced by a notification.
+     */
+    fun onNewestShown() = expenseListCallBacks.newestExpensesShown()
+
+    /** The newest one-time expenses left the screen. */
+    fun onNewestHidden() = expenseListCallBacks.newestExpensesHidden()
+
     fun getUserFullName(userUuid: String): Flow<String?> {
         return expenseListCallBacks.getUserFullName(userUuid)
     }

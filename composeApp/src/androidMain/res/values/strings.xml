@@ -17,5 +17,21 @@
     <string name="push_contact_accepted_title">New contact</string>
     <string name="push_contact_accepted_text">%1$s accepted your contact request</string>
     <string name="push_contact_accepted_text_unknown">Your contact request was accepted</string>
+    <string name="push_channel_expenses_name">Shared expenses</string>
+    <string name="push_channel_expenses_description">Expenses other people shared with you.</string>
+    <string name="push_expense_title">New shared expense</string>
+    <string name="push_expense_text_locked">Someone shared an expense with you</string>
+    <plurals name="push_expense_text">
+        <item quantity="one">%1$s shared an expense with you</item>
+        <item quantity="other">%1$s shared %2$d expenses with you</item>
+    </plurals>
+    <plurals name="push_expense_text_unknown">
+        <item quantity="one">Someone shared an expense with you</item>
+        <item quantity="other">Someone shared %1$d expenses with you</item>
+    </plurals>
+    <plurals name="push_expense_summary">
+        <item quantity="one">%1$d new shared expense</item>
+        <item quantity="other">%1$d new shared expenses</item>
+    </plurals>
     <string name="settings">Settings</string>
 </resources>

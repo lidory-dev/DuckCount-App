@@ -27,4 +27,20 @@ class KeyPackageApi(
             pathParams = mapOf("user_uuid" to userUuid),
             body = body,
         )
+
+    /**
+     * Takes one of [userUuid]'s key packages, which is what a group they are to be invited
+     * into is built from.
+     *
+     * Any authenticated caller may ask for any user's. A `404` means the user has never
+     * published any, or no longer exists; the two are the same answer here, nobody can be
+     * invited either way.
+     */
+    suspend fun consumeKeyPackage(
+        userUuid: String,
+    ): Result<ConsumeKeyPackageDto, NetworkError> =
+        client.get<ConsumeKeyPackageDto>(
+            route = DuckCountRoutes.User.KEY_PACKAGE,
+            pathParams = mapOf("user_uuid" to userUuid),
+        )
 }

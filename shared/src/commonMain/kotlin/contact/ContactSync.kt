@@ -2,6 +2,8 @@ package contact
 
 import database.data.repository.ContactRepository
 import database.data.repository.ContactRequestRepository
+import message.DirectMessageSync
+import message.DirectMessageSyncError
 import util.EmptyResult
 import util.Result
 import util.onError
@@ -18,6 +20,7 @@ import util.onError
 class ContactSync(
     private val contactRequestRepository: ContactRequestRepository,
     private val contactRepository: ContactRepository,
+    private val directMessageSync: DirectMessageSync,
 ) {
     /**
      * Takes in what the server holds for the user, then [backUp]s what came of it.
@@ -31,7 +34,7 @@ class ContactSync(
 
         contactRequestRepository.refresh().onError { failure = failure ?: it }
 
-        contactRepository.receiveMessages().onError { failure = failure ?: it }
+        directMessageSync.sync().onError { failure = failure ?: it.toContactSyncError() }
 
         backUp().onError { failure = failure ?: it }
 
@@ -55,3 +58,16 @@ class ContactSync(
         return failure?.let { Result.Error(it) } ?: Result.Success(Unit)
     }
 }
+
+/**
+ * The same failure, told the way a contact sync tells it.
+ *
+ * The messages waiting for a user are no longer only about contacts, so draining them is
+ * its own thing; what it can fail with is still a subset of what this reports.
+ */
+private fun DirectMessageSyncError.toContactSyncError(): ContactSyncError =
+    when (this) {
+        is DirectMessageSyncError.Identity -> ContactSyncError.Identity(error = error)
+        DirectMessageSyncError.Storage -> ContactSyncError.Storage
+        is DirectMessageSyncError.Network -> ContactSyncError.Network(error = error)
+    }

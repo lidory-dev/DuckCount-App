@@ -7,10 +7,18 @@ import kotlinx.serialization.Serializable
 /**
  * Server representation of a one-time expense as returned by `GET /expenses`.
  *
- * Matches the DuckCount-API contract exactly. `title`, `description`, `amount`
- * and `timestamp` are opaque (end-to-end-encrypted) strings;
- * `master_key` and `is_settled` are encrypted `{ field, nonce }` objects.
- * TODO: There is no `currency`, `group_uuid` or `isDeleted` yet.
+ * Matches the DuckCount-API contract exactly. Every content field is an
+ * `EncryptedField` the server cannot read, sealed under the expense's own key,
+ * which reaches its participants over their direct-message channels and lives in
+ * their vaults; see `expense.OneTimeExpenseSealing`.
+ *
+ * `is_settled` is the one exception, a plain boolean the server can read.
+ * `master_key` is a column this protocol does not use: it holds one blob per
+ * expense and hands every reader the same bytes, so there is nothing a creditor
+ * could put there that only a beneficiary could open.
+ *
+ * There is no `group_uuid`: a one-time expense is by definition not in a group.
+ * There is no deletion flag either, the server hard-deletes.
  */
 @Serializable
 data class ExpenseDto(
@@ -20,6 +28,7 @@ data class ExpenseDto(
     val title: EncryptedFieldDto,
     val description: EncryptedFieldDto,
     val amount: EncryptedFieldDto,
+    val currency: EncryptedFieldDto,
     val timestamp: EncryptedFieldDto,
     val is_settled: Boolean,
     val beneficiaries: List<BeneficiaryDto>,

@@ -14,9 +14,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import androidx.paging.map as pagingMap
+import app.lidory.duckcount.push.ExpenseNotifier
 
 class ExpenseListCallBacksImpl(
     private val expenseRepository: ExpenseRepository,
+    private val expenseNotifier: ExpenseNotifier,
     private val userRepository: UserRepository,
     private val beneficiaryRepository: BeneficiaryRepository,
 ) : ExpenseListCallBacks {
@@ -66,4 +68,8 @@ class ExpenseListCallBacksImpl(
     override fun getAuthenticatedUserUuid(): String? {
         return authenticationUtils.getAuthenticatedUserUuid()
     }
+
+    override fun newestExpensesShown() = expenseNotifier.newestShown()
+
+    override fun newestExpensesHidden() = expenseNotifier.newestHidden()
 }

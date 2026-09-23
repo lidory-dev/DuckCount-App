@@ -1,0 +1,300 @@
+package channel
+
+import authenticationUtils.getAuthenticatedUserUuid
+import database.data.local.dao.ContactDao
+import database.data.local.dao.DirectChannelDao
+import database.data.local.entity.DirectChannelEntity
+import mls.KeyPackageApi
+import mls.MlsIdentityRepository
+import mls.createGroupWith
+import mls.deleteGroupQuietly
+import mls.isRetryable
+import mls.withPeerLock
+import uniffi.lib_duckcount.InviteeKeyPackage
+import uniffi.lib_duckcount.MlsClient
+import uniffi.lib_duckcount.MlsException
+import util.NetworkError
+import util.Result
+import util.nowEpochMilliseconds
+import kotlin.io.encoding.Base64
+
+/**
+ * The MLS group this device reaches one other user through, built on demand.
+ *
+ * A channel is not a contact, see [DirectChannelEntity]. It is whatever group the user and
+ * a peer currently share, whether a contact request created it, the peer rebuilt it after
+ * logging out, or this device had to build one because a one-time expense named somebody it
+ * had no way to reach.
+ *
+ * Rebuilding on demand is what makes a log-out survivable at all. The vault restores who the
+ * user's contacts are and the MLS signature key that makes them still recognisable to those
+ * contacts, but never the groups: their state lived in the database the log-out wiped, and
+ * MLS has no way back into a group you have left, since `lib-duckcount` builds its client
+ * with external commits refused. A fresh key package and a fresh group is the only way
+ * back, and this is where that happens.
+ */
+class DirectChannelRepository(
+    private val directChannelDao: DirectChannelDao,
+    private val contactDao: ContactDao,
+    private val keyPackageApi: KeyPackageApi,
+    private val mlsIdentityRepository: MlsIdentityRepository,
+) {
+
+    /**
+     * The channel to [peerUuid], building one when this device holds none.
+     *
+     * The returned [DirectChannel.welcome] is non-null while the peer has not been seen in
+     * the group yet, and every message sent on the channel has to carry it: the server
+     * hands messages back in no order worth relying on, and one that reached the peer
+     * without it would be unreadable, acknowledged, and gone for good.
+     *
+     * A channel whose Welcome has gone unanswered for long enough is given up on rather
+     * than carried forever. It was sealed to a key package whose secret the peer's own
+     * log-out wiped, so resending it can never work, while a new group built from a new key
+     * package can.
+     */
+    suspend fun ensureChannel(peerUuid: String): Result<DirectChannel, DirectChannelError> {
+        val ownUserUuid = getAuthenticatedUserUuid()
+            ?: return Result.Error(DirectChannelError.NoSession)
+
+        // Before anything reaches the network: asking the server for our own key package
+        // would consume one of the twenty this device published for real peers.
+        if (peerUuid == ownUserUuid) return Result.Error(DirectChannelError.Self)
+
+        val client = when (val opened = mlsIdentityRepository.client()) {
+            is Result.Success -> opened.data
+            is Result.Error -> return Result.Error(DirectChannelError.Identity(opened.error))
+        }
+
+        return withPeerLock(peerUuid = peerUuid) {
+            // Read again inside the lock: the caller may have looked before waiting for it.
+            val stored = directChannelDao.get(peerUuid = peerUuid)
+            val storedGroupId = stored?.mlsGroupId
+
+            if (storedGroupId != null && !stored.isWelcomeSpent()) {
+                return@withPeerLock Result.Success(
+                    DirectChannel(mlsGroupId = storedGroupId, welcome = stored.pendingWelcome),
+                )
+            }
+
+            if (stored != null) discard(client = client, channel = stored)
+
+            build(client = client, peerUuid = peerUuid)
+        }
+    }
+
+    /**
+     * Whether this device has any reason to have heard of [peerUuid]: they are a contact,
+     * or there is a channel row for them because the two have exchanged something before.
+     *
+     * What gates acting on a Welcome that arrives unasked. Joining one costs a stored group
+     * and pins whatever identity it carries, so it is not done on the say-so of a stranger
+     * the server named. A true stranger's first Welcome is dropped; the answer is for this
+     * device to build the channel itself, in the direction it controls.
+     */
+    suspend fun isKnownPeer(peerUuid: String): Boolean =
+        directChannelDao.get(peerUuid = peerUuid) != null ||
+            contactDao.get(userUuid = peerUuid) != null
+
+    /** Records that one more message carried the channel's pending Welcome. */
+    suspend fun noteWelcomeAttached(peerUuid: String) {
+        directChannelDao.countWelcomeAttachment(peerUuid = peerUuid)
+    }
+
+    /**
+     * Records that a message from [peerUuid] was read in [mlsGroupId], which is the only
+     * proof this device gets of anything about the other side's state.
+     *
+     * Read in the current group, it says the peer joined it: the Welcome has done its work
+     * and the group this one replaced can go. Read in the group it replaced, it says
+     * nothing yet, that group is kept precisely so those still arrive. Read in neither, the
+     * peer is talking in a group this device does not consider the channel, so the channel
+     * is dropped and the next send builds one they will hear about.
+     *
+     * With nothing stored at all, the group the message was read in becomes the channel.
+     */
+    suspend fun noteReadIn(client: MlsClient, peerUuid: String, mlsGroupId: ByteArray) {
+        val channel = directChannelDao.get(peerUuid = peerUuid)
+
+        if (channel?.mlsGroupId == null) {
+            // Nothing was stored for them, and yet here is a message of theirs this device
+            // just read: whatever else is true, this group reaches them and they are in it.
+            // The side that sends a contact request stores nothing until it is answered,
+            // and this is the answer arriving.
+            directChannelDao.upsert(
+                DirectChannelEntity(
+                    peerUuid = peerUuid,
+                    mlsGroupId = mlsGroupId,
+                    previousMlsGroupId = null,
+                    pendingWelcome = null,
+                    pendingWelcomeSince = null,
+                ),
+            )
+
+            return
+        }
+
+        when {
+            channel.mlsGroupId.contentEquals(mlsGroupId) -> {
+                directChannelDao.markJoined(peerUuid = peerUuid)
+
+                channel.previousMlsGroupId?.let { client.deleteGroupQuietly(mlsGroupId = it) }
+            }
+
+            channel.previousMlsGroupId.contentEquals(mlsGroupId) -> Unit
+
+            else -> directChannelDao.clear(peerUuid = peerUuid)
+        }
+    }
+
+    /**
+     * Records the group [mlsGroupId], which this device has just joined from a Welcome
+     * [peerUuid] sent, as the channel to them.
+     *
+     * The peer's group wins, always. A Welcome only arrives because they built a group,
+     * and they only build one when they hold none: their log-out took the old one with it.
+     * They can certainly read what they just built, and the one this device held they may
+     * not be able to read at all, so keeping ours would mean every later message going
+     * somewhere they cannot follow, and them asking again for each one forever.
+     *
+     * The group it replaces is retired rather than deleted: a group that was dropped would
+     * make every message still in flight in it unreadable, and an unreadable message is
+     * acknowledged and gone, which for the key to an expense means the only copy of it.
+     *
+     * Both sides rebuilding at the same moment is the one case this does not settle in a
+     * single step, and it settles anyway: each adopts the other's, both hold both, so
+     * everything sent either way still opens, and the next thing read in one of them
+     * retires the other.
+     */
+    suspend fun adopt(peerUuid: String, mlsGroupId: ByteArray) {
+        val stored = directChannelDao.get(peerUuid = peerUuid)
+        val storedGroupId = stored?.mlsGroupId
+
+        if (storedGroupId.contentEquals(mlsGroupId)) return
+
+        if (storedGroupId == null) {
+            directChannelDao.upsert(
+                DirectChannelEntity(
+                    peerUuid = peerUuid,
+                    mlsGroupId = mlsGroupId,
+                    previousMlsGroupId = null,
+                    // The peer built this one, so they are in it already.
+                    pendingWelcome = null,
+                    pendingWelcomeSince = null,
+                ),
+            )
+
+            return
+        }
+
+        directChannelDao.upsert(
+            DirectChannelEntity(
+                peerUuid = peerUuid,
+                mlsGroupId = mlsGroupId,
+                previousMlsGroupId = storedGroupId,
+                // The Welcome held was for the group this one replaces, and a Welcome that
+                // does not open the group it rides with is worse than none.
+                pendingWelcome = null,
+                pendingWelcomeSince = null,
+            ),
+        )
+    }
+
+    /** Builds a group with [peerUuid] and records it as the channel to them. */
+    private suspend fun build(
+        client: MlsClient,
+        peerUuid: String,
+    ): Result<DirectChannel, DirectChannelError> {
+        val encoded = when (val consumed = keyPackageApi.consumeKeyPackage(userUuid = peerUuid)) {
+            is Result.Success -> consumed.data.keyPackage
+
+            is Result.Error -> return Result.Error(
+                when (consumed.error) {
+                    // They published none, or their account is gone. Neither is reachable,
+                    // and the client can do nothing differently about either.
+                    NetworkError.NOT_FOUND -> DirectChannelError.Unreachable
+
+                    else -> DirectChannelError.Network(consumed.error)
+                },
+            )
+        }
+
+        val keyPackage = runCatching { Base64.Default.decode(encoded) }.getOrNull()
+            ?: return Result.Error(DirectChannelError.Unreachable)
+
+        val creation = try {
+            client.createGroupWith(
+                invitee = InviteeKeyPackage(userUuid = peerUuid, keyPackage = keyPackage),
+            )
+        } catch (exception: MlsException) {
+            return Result.Error(
+                when {
+                    exception is MlsException.IdentityKeyMismatch -> DirectChannelError.IdentityChanged
+                    exception.isRetryable() -> DirectChannelError.Storage
+                    else -> DirectChannelError.Unreachable
+                },
+            )
+        }
+
+        val welcome = creation.welcomes.firstOrNull { it.userUuid == peerUuid }?.welcome
+
+        if (welcome == null) {
+            // A group the peer was never given a way into is of no use to anybody.
+            client.deleteGroupQuietly(mlsGroupId = creation.mlsGroupId)
+
+            return Result.Error(DirectChannelError.Unreachable)
+        }
+
+        directChannelDao.upsert(
+            DirectChannelEntity(
+                peerUuid = peerUuid,
+                mlsGroupId = creation.mlsGroupId,
+                previousMlsGroupId = null,
+                pendingWelcome = welcome,
+                pendingWelcomeSince = nowEpochMilliseconds(),
+            ),
+        )
+
+        return Result.Success(DirectChannel(mlsGroupId = creation.mlsGroupId, welcome = welcome))
+    }
+
+    /** Drops a channel and the MLS state behind it, so the next send builds a new one. */
+    private suspend fun discard(client: MlsClient, channel: DirectChannelEntity) {
+        listOfNotNull(channel.mlsGroupId, channel.previousMlsGroupId).forEach {
+            client.deleteGroupQuietly(mlsGroupId = it)
+        }
+
+        directChannelDao.clear(peerUuid = channel.peerUuid)
+    }
+}
+
+/** A group to reach a peer through, and the Welcome to attach until they are in it. */
+class DirectChannel(
+    val mlsGroupId: ByteArray,
+
+    /** Null once the peer has been seen in the group, see [DirectChannelRepository]. */
+    val welcome: ByteArray?,
+)
+
+/**
+ * Whether this channel's Welcome has been carried often enough, or long enough, that the
+ * peer is never going to answer it.
+ *
+ * Both bounds are needed: a device that sends nothing would never reach the count, and one
+ * that sends constantly would reach it before a peer on holiday ever opened the app.
+ */
+private fun DirectChannelEntity.isWelcomeSpent(): Boolean {
+    if (pendingWelcome == null) return false
+
+    if (welcomeAttachCount >= MAX_WELCOME_ATTACHMENTS) return true
+
+    val since = pendingWelcomeSince ?: return false
+
+    return nowEpochMilliseconds() - since >= WELCOME_LIFETIME_MILLISECONDS
+}
+
+/** How many messages may carry a Welcome before the channel is treated as never joined. */
+private const val MAX_WELCOME_ATTACHMENTS = 20
+
+/** How long a Welcome may go unanswered before the channel is treated as never joined. */
+private const val WELCOME_LIFETIME_MILLISECONDS = 7L * 24 * 60 * 60 * 1000

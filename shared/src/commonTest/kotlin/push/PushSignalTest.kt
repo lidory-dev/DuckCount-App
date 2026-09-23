@@ -21,6 +21,18 @@ class PushSignalTest {
         )
     }
 
+    /**
+     * The wire name the server sends, which a locked device leans on entirely: told only
+     * `message` it shows nothing, since the same signal covers a contact removing the user.
+     */
+    @Test
+    fun `parses a one-time expense signal`() {
+        assertEquals(
+            PushSignal.ONE_TIME_EXPENSE,
+            PushSignal.parse("""{"type":"one_time_expense"}""".encodeToByteArray()),
+        )
+    }
+
     @Test
     fun `reads a signal a newer server added as unknown`() {
         assertEquals(

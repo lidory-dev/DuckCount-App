@@ -101,6 +101,7 @@ class KeyRingTest {
                 "root_key",
                 "key_ring",
                 "group_master_key",
+                "one_time_expense_key",
                 "profile_encryption_key",
                 "discovery_username",
                 "blocked_users",

@@ -69,36 +69,6 @@ class ContactRequestPayloadTest {
     }
 
     @Test
-    fun `a contact message survives being sent and read back`() {
-        val envelope = ContactMessageEnvelope(mlsGroupId = welcome, message = message)
-
-        val reread = ContactMessageEnvelope.parse(ciphertext = envelope.serialize())
-
-        assertNotNull(reread)
-        assertContentEquals(welcome, reread.mlsGroupId)
-        assertContentEquals(message, reread.message)
-    }
-
-    /** The receiving client reads the group id under this name, whichever build sent it. */
-    @Test
-    fun `a contact message names the group the way its reader reads it`() {
-        val ciphertext = """{"mls_group_id":"AQID","message":"BAUGBw==","sent_at":"ignored"}"""
-
-        val reread = ContactMessageEnvelope.parse(ciphertext = ciphertext)
-
-        assertNotNull(reread)
-        assertContentEquals(welcome, reread.mlsGroupId)
-        assertContentEquals(message, reread.message)
-    }
-
-    @Test
-    fun `a ciphertext that is not a contact message reads as none`() {
-        assertNull(ContactMessageEnvelope.parse(ciphertext = "not a contact message"))
-        assertNull(ContactMessageEnvelope.parse(ciphertext = """{"message":"AQID"}"""))
-        assertNull(ContactMessageEnvelope.parse(ciphertext = """{"welcome":"AQID","message":"BAUGBw=="}"""))
-    }
-
-    @Test
     fun `a removal survives being encrypted and read back`() {
         assertTrue(ContactRemoval.matches(plaintext = ContactRemoval.serialize()))
     }

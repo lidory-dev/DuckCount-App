@@ -23,6 +23,8 @@ private const val TAG = "DuckCountPushService"
 class DuckCountPushService : PushService() {
     private val contactNotifier: ContactNotifier by inject()
 
+    private val expenseNotifier: ExpenseNotifier by inject()
+
     /**
      * The distributor has an endpoint for this device, either the first one or a
      * replacement. Either way the server has to be told before it means anything.
@@ -67,7 +69,10 @@ class DuckCountPushService : PushService() {
         // keys and the database password are all sealed by Keystore entries that
         // require an unlocked device. So the sync waits, and what the signal itself
         // said is said now, since it is all anybody knows at this point.
-        if (isDeviceLocked()) contactNotifier.notifyWhileLocked(signal = signal)
+        if (isDeviceLocked()) {
+            contactNotifier.notifyWhileLocked(signal = signal)
+            expenseNotifier.notifyWhileLocked(signal = signal)
+        }
 
         PushWork.enqueueSync(context = applicationContext)
     }

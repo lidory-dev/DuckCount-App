@@ -16,6 +16,7 @@ import database.domain.Expense as ExpenseDB
 import database.domain.ExpenseWithBeneficiaries as ExpenseWithBeneficiariesDB
 import database.domain.User as UserDB
 import uniffi.lib_duckcount.Currency as CurrencyUniffi
+import expense.OneTimeExpenseWriteError
 
 /**
  * Maps the low-level networking error to the reason the UI surfaces for a failed write.
@@ -24,6 +25,27 @@ import uniffi.lib_duckcount.Currency as CurrencyUniffi
  * connectivity ([isOnline]): airplane mode can surface as UNREACHABLE rather than NO_INTERNET
  * and must be corrected here.
  */
+/**
+ * Why a one-time expense write failed, as the UI explains it.
+ *
+ * Only [OneTimeExpenseWriteError.KeyMissing] earns wording of its own: it is a state the
+ * user can wait out, and it says something true about their own device. The vault and
+ * sealing failures are folded into `UNKNOWN` the way the contact mappers fold theirs, since
+ * there is nothing a user can do differently about any of them.
+ */
+fun OneTimeExpenseWriteError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError =
+    when (this) {
+        is OneTimeExpenseWriteError.Network -> error.toExpenseWriteError(isOnline = isOnline)
+
+        OneTimeExpenseWriteError.KeyMissing -> ExpenseWriteError.KEY_MISSING
+
+        OneTimeExpenseWriteError.NoSession -> ExpenseWriteError.UNAUTHORIZED
+
+        is OneTimeExpenseWriteError.Vault,
+        OneTimeExpenseWriteError.Crypto,
+            -> ExpenseWriteError.UNKNOWN
+    }
+
 fun NetworkError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError = when (this) {
     NetworkError.NO_INTERNET -> ExpenseWriteError.NO_INTERNET
     NetworkError.REQUEST_TIMEOUT -> ExpenseWriteError.TIMEOUT

@@ -26,6 +26,15 @@ enum class ExpenseWriteError {
     /** The session is no longer valid (401). */
     UNAUTHORIZED,
 
+    /**
+     * This device does not hold the key to the expense being edited.
+     *
+     * Re-sealing it under a new key would leave everyone it is shared with holding one
+     * that no longer opens it, so the edit is refused. It clears itself once the key
+     * arrives.
+     */
+    KEY_MISSING,
+
     /** Anything else (server error, unexpected response, …). */
     UNKNOWN,
 }
@@ -38,5 +47,6 @@ fun ExpenseWriteError.messageRes(): Int = when (this) {
     ExpenseWriteError.INVALID_DATA -> R.string.write_error_invalid_data
     ExpenseWriteError.CONFLICT -> R.string.write_error_conflict
     ExpenseWriteError.UNAUTHORIZED -> R.string.write_error_unauthorized
+    ExpenseWriteError.KEY_MISSING -> R.string.write_error_key_missing
     ExpenseWriteError.UNKNOWN -> R.string.write_error_unknown
 }

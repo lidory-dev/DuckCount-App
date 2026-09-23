@@ -19,3 +19,17 @@ data class KeyPackagesPublicationDto(
     @SerialName("one_time_key_packages")
     val oneTimeKeyPackages: List<String>,
 )
+
+/**
+ * Response of `GET /users/{user_uuid}/key-package`, the one key package the server handed
+ * out for that user, Base64 encoded.
+ *
+ * Reading it spends it: the server deletes the one-time key package it returns, and only
+ * falls back to the user's never-deleted last-resort one once the pool is empty. So a
+ * caller asks for one when it is about to build a group, not to find out whether it could.
+ */
+@Serializable
+data class ConsumeKeyPackageDto(
+    @SerialName("key_package")
+    val keyPackage: String,
+)

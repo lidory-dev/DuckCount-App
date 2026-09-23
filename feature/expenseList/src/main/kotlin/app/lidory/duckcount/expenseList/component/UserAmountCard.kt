@@ -16,12 +16,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.model.Currency
+import app.lidory.duckcount.expenseList.R
+import androidx.compose.ui.res.stringResource
 
 @Composable
 fun UserAmountCard(
     modifier: Modifier = Modifier,
     userUuid: String,
-    userFullName: String,
+
+    /** Null for somebody this device holds no profile for. */
+    userFullName: String?,
     amount: String,
     currency: Currency,
 ) {
@@ -42,13 +46,15 @@ fun UserAmountCard(
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val displayName = userFullName ?: stringResource(R.string.unknown_person)
+
                 ProfilePictureCard(
                     uuid = userUuid,
-                    fullName = userFullName,
+                    fullName = displayName,
                 )
 
                 Text(
-                    text = userFullName,
+                    text = displayName,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

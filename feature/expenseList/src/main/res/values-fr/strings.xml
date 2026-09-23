@@ -42,6 +42,8 @@
     <string name="write_error_conflict">Le nombre maximum de modifications a été atteint</string>
     <string name="write_error_unauthorized">Votre session a expiré, reconnectez-vous</string>
     <string name="write_error_unknown">Une erreur est survenue, réessayez</string>
+    <string name="unknown_person">Quelqu’un d’autre</string>
+    <string name="write_error_key_missing">Cette dépense n’est pas encore modifiable sur cet appareil : sa clé n’est pas arrivée</string>
 
     <!-- ErrorCard -->
     <string name="no_beneficiaries">Une dépense doit avoir au moins un participant</string>

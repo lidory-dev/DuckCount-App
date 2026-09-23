@@ -47,7 +47,7 @@ fun BeneficiaryRow(
             Text(
                 overflow = TextOverflow.Ellipsis,
                 maxLines = 1,
-                text = beneficiary.fullName,
+                text = beneficiary.fullName ?: stringResource(R.string.unknown_person),
                 modifier = Modifier
                     .weight(1f, fill = false)
                     .padding(Padding.medium),

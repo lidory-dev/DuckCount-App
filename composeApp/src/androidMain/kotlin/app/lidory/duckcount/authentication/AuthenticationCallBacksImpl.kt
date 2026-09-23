@@ -43,6 +43,7 @@ import util.onError
 import vault.VaultError
 import app.lidory.duckcount.UsernameError as SharedUsernameError
 import app.lidory.duckcount.validateUsername as validateUsernameShared
+import expense.OneTimeExpenseKeyRepository
 
 private const val TAG = "AuthCallBacks"
 
@@ -55,6 +56,7 @@ class AuthenticationCallBacksImpl(
     private val discoveryUsernameRepository: DiscoveryUsernameRepository,
     private val keyPackageRepository: KeyPackageRepository,
     private val contactRepository: ContactRepository,
+    private val oneTimeExpenseKeyRepository: OneTimeExpenseKeyRepository,
 ) : AuthenticationCallBacks {
 
     override val maxUsernameLength: Int = usernameMaximumLength()
@@ -267,6 +269,14 @@ class AuthenticationCallBacksImpl(
                         Log.w(TAG, "login: could not restore the contacts: $error")
                     }
 
+                    // Likewise the keys to the user's one-time expenses. They have to come
+                    // back before anything syncs: an expense whose key is merely not
+                    // restored yet looks exactly like one whose key never arrived, and this
+                    // device would start asking every creditor for keys it already has.
+                    oneTimeExpenseKeyRepository.restore().onError { error ->
+                        Log.w(TAG, "login: could not restore the expense keys: $error")
+                    }
+
                     AuthOutcome.Success(Unit)
                 }
 
@@ -418,6 +428,7 @@ class AuthenticationCallBacksImpl(
         VaultError.MalformedKeyRing,
         VaultError.MalformedContactBook,
         VaultError.OrphanedEntry,
+        VaultError.PartFull,
         VaultError.Contended,
             -> AuthError.CRYPTO_ERROR
     }

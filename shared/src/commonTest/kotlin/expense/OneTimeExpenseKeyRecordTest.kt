@@ -1,0 +1,116 @@
+package expense
+
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+private const val EXPENSE = "11111111-1111-1111-1111-111111111111"
+private const val CREDITOR = "22222222-2222-2222-2222-222222222222"
+private const val BOB = "33333333-3333-3333-3333-333333333333"
+private const val CAROL = "44444444-4444-4444-4444-444444444444"
+private const val STRANGER = "55555555-5555-5555-5555-555555555555"
+
+class OneTimeExpenseKeyRecordTest {
+
+    private val key = ByteArray(32) { it.toByte() }
+
+    private fun record(
+        expenseUuid: String = EXPENSE,
+        creditorUuid: String = CREDITOR,
+        beneficiaryUuids: List<String> = listOf(BOB, CAROL),
+    ) = OneTimeExpenseKeyRecord(
+        expenseUuid = expenseUuid,
+        key = key,
+        creditorUuid = creditorUuid,
+        beneficiaryUuids = beneficiaryUuids,
+    )
+
+    @Test
+    fun `a record survives being sealed and read back`() {
+        val reread = OneTimeExpenseKeyRecord.parse(
+            plaintext = record().serialize(),
+            expenseUuid = EXPENSE,
+        )
+
+        assertNotNull(reread)
+        assertEquals(EXPENSE, reread.expenseUuid)
+        assertContentEquals(key, reread.key)
+        assertEquals(CREDITOR, reread.creditorUuid)
+        assertEquals(listOf(BOB, CAROL), reread.beneficiaryUuids)
+    }
+
+    /**
+     * The one thing stopping a server from copying a record into another expense's slot and
+     * having the creditor unwrap it for somebody who has no claim to that expense.
+     */
+    @Test
+    fun `a record read from another expense's slot is refused`() {
+        assertNull(
+            OneTimeExpenseKeyRecord.parse(
+                plaintext = record().serialize(),
+                expenseUuid = "99999999-9999-9999-9999-999999999999",
+            ),
+        )
+    }
+
+    @Test
+    fun `beneficiaries are written in a fixed order, so two devices write the same bytes`() {
+        val oneWay = record(beneficiaryUuids = listOf(BOB, CAROL)).serialize()
+        val theOther = record(beneficiaryUuids = listOf(CAROL, BOB)).serialize()
+
+        assertContentEquals(oneWay, theOther)
+    }
+
+    @Test
+    fun `plaintext that is not a record reads as none`() {
+        assertNull(OneTimeExpenseKeyRecord.parse("not a record".encodeToByteArray(), EXPENSE))
+        assertNull(OneTimeExpenseKeyRecord.parse("{}".encodeToByteArray(), EXPENSE))
+    }
+
+    /** A record from a build that changed the shape is not guessed at. */
+    @Test
+    fun `a record of an unknown version reads as none`() {
+        val future = """{"v":2,"expense":"$EXPENSE","key":"AAAA","creditor":"$CREDITOR","beneficiaries":[]}"""
+
+        assertNull(OneTimeExpenseKeyRecord.parse(future.encodeToByteArray(), EXPENSE))
+    }
+
+    @Test
+    fun `the creditor and the beneficiaries are participants and nobody else is`() {
+        val record = record()
+
+        assertTrue(record.isParticipant(userUuid = CREDITOR))
+        assertTrue(record.isParticipant(userUuid = BOB))
+        assertTrue(record.isParticipant(userUuid = CAROL))
+        assertFalse(record.isParticipant(userUuid = STRANGER))
+    }
+
+    @Test
+    fun `the creditor hands the key to somebody the record names`() {
+        val answer = record().keyFor(requesterUuid = BOB, ownUserUuid = CREDITOR)
+
+        assertNotNull(answer)
+        assertEquals(EXPENSE, answer.expenseUuid)
+        assertContentEquals(key, answer.key)
+    }
+
+    /**
+     * The attack this exists for: the server adds a beneficiary row of its own and asks the
+     * creditor for the key. The record the creditor wrote does not name them, so there is
+     * no answer, whatever the server's own listing says.
+     */
+    @Test
+    fun `somebody the record does not name gets nothing`() {
+        assertNull(record().keyFor(requesterUuid = STRANGER, ownUserUuid = CREDITOR))
+    }
+
+    /** A key is the creditor's to give. A beneficiary holding one does not pass it on. */
+    @Test
+    fun `a holder who is not the creditor gives out nothing`() {
+        assertNull(record().keyFor(requesterUuid = CAROL, ownUserUuid = BOB))
+    }
+}

@@ -53,6 +53,10 @@ private const val UNNAMED_REQUEST_NOTIFICATION = 2
 class ContactNotifier(
     private val context: Context,
 ) {
+    private val standIns = StandIns(context = context)
+
+    private val posted = PostedNotifications(context = context)
+
     /**
      * Says what a signal said, for a device too locked to find out more.
      *
@@ -71,17 +75,13 @@ class ContactNotifier(
             importance = NotificationManager.IMPORTANCE_DEFAULT,
         )
 
-        val notification = NotificationCompat.Builder(context, CONTACTS_CHANNEL)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(context.getString(R.string.push_contact_request_title))
-            .setContentText(context.getString(R.string.push_contact_request_text_unknown))
-            .setContentIntent(contentIntent(requestUuid = UNNAMED_REQUEST_NOTIFICATION))
-            .setCategory(NotificationCompat.CATEGORY_SOCIAL)
-            .setOnlyAlertOnce(true)
-            .setAutoCancel(true)
-            .build()
+        post(
+            tag = REQUEST_TAG,
+            id = UNNAMED_REQUEST_NOTIFICATION,
+            notification = namelessNotification(kind = ContactArrival.Kind.REQUEST),
+        )
 
-        post(tag = REQUEST_TAG, id = UNNAMED_REQUEST_NOTIFICATION, notification = notification)
+        standIns.markUp(kind = StandIns.Kind.CONTACT_REQUEST)
     }
 
     /**
@@ -89,17 +89,18 @@ class ContactNotifier(
      *
      * A request the user has already been told about arrives here with a name on it at
      * last, and that is the same news rather than more of it. So the first one takes the
-     * stand-in's notification over outright (same id, [NotificationCompat.Builder.setOnlyAlertOnce],
-     * so the text changes where it stands instead of a second notification appearing) and
-     * anything else in that batch goes up without a sound. What the stand-in stood for and
-     * the sync could not name is left alone, since it is still waiting to be named.
+     * stand-in's notification over outright, same id and
+     * [NotificationCompat.Builder.setOnlyAlertOnce], so the text changes where it stands,
+     * in silence, rather than a second notification appearing and ringing again. What the
+     * stand-in stood for and the sync could not name is left alone, since it is still
+     * waiting to be named.
+     *
+     * Everything else rings, except an acceptance: see [isSilent].
      */
     fun notify(arrivals: List<ContactArrival>) {
         if (arrivals.isEmpty()) return
 
-        val alreadyAnnounced = isShowing(tag = REQUEST_TAG, id = UNNAMED_REQUEST_NOTIFICATION)
-
-        var standInIsFree = alreadyAnnounced
+        var standInIsFree = standIns.takeDown(kind = StandIns.Kind.CONTACT_REQUEST)
 
         createChannel(
             id = CONTACTS_CHANNEL,
@@ -128,10 +129,17 @@ class ContactNotifier(
                     ),
                 )
                 .setCategory(NotificationCompat.CATEGORY_SOCIAL)
-                .setOnlyAlertOnce(true)
-                // The stand-in rang for this batch's requests already. An acceptance is
-                // news of its own: nothing announces one while the device is locked.
-                .setSilent(alreadyAnnounced && arrival.kind == ContactArrival.Kind.REQUEST)
+                // Who it is from is the user's business and nobody else's, so a lockscreen
+                // set to hide notification content shows the nameless form instead.
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .setPublicVersion(namelessNotification(kind = arrival.kind))
+                // Only where it is load-bearing: the takeover re-posts a notification that
+                // is already on screen and ringing again for it would be ringing twice for
+                // one request. Anywhere else it would mean that a notification still
+                // sitting in the shade from days ago keeps the next one about that person
+                // quiet, which reads as the app having gone silent.
+                .setOnlyAlertOnce(takesOverStandIn)
+                .setSilent(arrival.isSilent())
                 .setAutoCancel(true)
                 .build()
 
@@ -145,7 +153,11 @@ class ContactNotifier(
      * The requests are on screen, so anything a notification could say about them the
      * user is already reading.
      */
-    fun clearContactRequests() = clear(tag = REQUEST_TAG)
+    fun clearContactRequests() {
+        clear(tag = REQUEST_TAG)
+
+        standIns.takeDown(kind = StandIns.Kind.CONTACT_REQUEST)
+    }
 
     /** Takes down every notification about somebody who accepted a request. */
     fun clearAcceptedContacts() = clear(tag = ACCEPTED_TAG)
@@ -156,6 +168,9 @@ class ContactNotifier(
      * For the ones who removed the user again while the notification was still up: it
      * announced a contact they no longer have, and tapping it would open a contact that
      * is gone.
+     *
+     * Their ids stay in the record [clear] reads. Taking one down a second time does
+     * nothing, and a later notification under the same id is one [clear] should take down.
      */
     fun forget(userUuids: Collection<String>) {
         val manager = NotificationManagerCompat.from(context)
@@ -165,24 +180,65 @@ class ContactNotifier(
         }
     }
 
+    /** Takes down everything this app put up under [tag], from its own record of it. */
     private fun clear(tag: String) {
         val manager = NotificationManagerCompat.from(context)
 
-        manager.activeNotifications
-            .filter { it.tag == tag }
-            .forEach { manager.cancel(tag, it.id) }
+        posted.takeAll(tag = tag).forEach { manager.cancel(tag, it) }
+    }
+
+    /**
+     * Whether this arrival goes up without a sound.
+     *
+     * Somebody asking to be a contact is asking the user for something, and waits on them
+     * until they answer: that is worth a sound. Somebody accepting is the other end of a
+     * request the user sent themselves, needs nothing from them, and is there to be read
+     * whenever they next look.
+     */
+    private fun ContactArrival.isSilent(): Boolean = kind == ContactArrival.Kind.CONTACT
+
+    /**
+     * The form that names nobody: somebody wants to be a contact, or somebody accepted.
+     *
+     * Posted on its own while the device is locked, and carried by every named one as its
+     * [NotificationCompat.Builder.setPublicVersion], which is what a lockscreen shows for a
+     * user who has asked to keep notification content hidden. Without it Android has
+     * nothing safe to fall back on and shows the app's name alone, which tells them only
+     * that DuckCount wanted something.
+     */
+    private fun namelessNotification(kind: ContactArrival.Kind): Notification {
+        val text = when (kind) {
+            ContactArrival.Kind.REQUEST -> R.string.push_contact_request_text_unknown
+            ContactArrival.Kind.CONTACT -> R.string.push_contact_accepted_text_unknown
+        }
+
+        val title = when (kind) {
+            ContactArrival.Kind.REQUEST -> R.string.push_contact_request_title
+            ContactArrival.Kind.CONTACT -> R.string.push_contact_accepted_title
+        }
+
+        return NotificationCompat.Builder(context, CONTACTS_CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(title))
+            .setContentText(context.getString(text))
+            .setContentIntent(
+                contentIntent(
+                    requestUuid = UNNAMED_REQUEST_NOTIFICATION,
+                    openRequests = kind == ContactArrival.Kind.REQUEST,
+                ),
+            )
+            .setCategory(NotificationCompat.CATEGORY_SOCIAL)
+            // It carries no name, so there is nothing here to hide.
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOnlyAlertOnce(true)
+            .setAutoCancel(true)
+            .build()
     }
 
     private fun tagOf(arrival: ContactArrival): String = when (arrival.kind) {
         ContactArrival.Kind.REQUEST -> REQUEST_TAG
         ContactArrival.Kind.CONTACT -> ACCEPTED_TAG
     }
-
-    /** Whether the notification [tag]/[id] is one the user can see right now. */
-    private fun isShowing(tag: String, id: Int): Boolean =
-        NotificationManagerCompat.from(context)
-            .activeNotifications
-            .any { it.tag == tag && it.id == id }
 
     /**
      * The notification the system shows while an expedited sync runs.
@@ -226,6 +282,8 @@ class ContactNotifier(
         }
 
         NotificationManagerCompat.from(context).notify(tag, id, notification)
+
+        posted.record(tag = tag, id = id)
     }
 
     private fun createChannel(id: String, name: Int, description: Int, importance: Int) {
