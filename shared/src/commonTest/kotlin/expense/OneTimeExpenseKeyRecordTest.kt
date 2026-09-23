@@ -17,6 +17,7 @@ private const val STRANGER = "55555555-5555-5555-5555-555555555555"
 class OneTimeExpenseKeyRecordTest {
 
     private val key = ByteArray(32) { it.toByte() }
+    private val creditorSignatureKey = ByteArray(32) { (it + 100).toByte() }
 
     private fun record(
         expenseUuid: String = EXPENSE,
@@ -26,6 +27,7 @@ class OneTimeExpenseKeyRecordTest {
         expenseUuid = expenseUuid,
         key = key,
         creditorUuid = creditorUuid,
+        creditorSignatureKey = creditorSignatureKey,
         beneficiaryUuids = beneficiaryUuids,
     )
 
@@ -40,6 +42,7 @@ class OneTimeExpenseKeyRecordTest {
         assertEquals(EXPENSE, reread.expenseUuid)
         assertContentEquals(key, reread.key)
         assertEquals(CREDITOR, reread.creditorUuid)
+        assertContentEquals(creditorSignatureKey, reread.creditorSignatureKey)
         assertEquals(listOf(BOB, CAROL), reread.beneficiaryUuids)
     }
 
@@ -74,7 +77,8 @@ class OneTimeExpenseKeyRecordTest {
     /** A record from a build that changed the shape is not guessed at. */
     @Test
     fun `a record of an unknown version reads as none`() {
-        val future = """{"v":2,"expense":"$EXPENSE","key":"AAAA","creditor":"$CREDITOR","beneficiaries":[]}"""
+        val future =
+            """{"v":2,"expense":"$EXPENSE","key":"AAAA","creditor":"$CREDITOR","creditor_key":"AAAA","beneficiaries":[]}"""
 
         assertNull(OneTimeExpenseKeyRecord.parse(future.encodeToByteArray(), EXPENSE))
     }

@@ -11,6 +11,7 @@ import androidx.room.Upsert
 import database.data.local.entity.BeneficiaryEntity
 import database.data.local.entity.ExpenseEntity
 import database.data.local.entity.ExpenseWithBeneficiariesEntity
+import database.data.local.entity.OneTimeExpenseRevisionEntity
 import database.domain.Currency
 import kotlinx.coroutines.flow.Flow
 
@@ -91,10 +92,16 @@ interface ExpenseDao {
      * deriving what to keep from the readable ones alone would hard-delete a perfectly good
      * cached row the moment one key read hit a network blip or a device that locked
      * mid-refresh. What the server no longer lists is what goes.
+     *
+     * Each of [expenses] comes with the signed revision it was opened at, and is stored only
+     * when nothing newer has been shown or signed, see [OneTimeExpenseRevisionEntity]: an
+     * older one is what a server putting back an expense from before an edit looks like, and
+     * the row on screen stays. Checked in this transaction, so that no other sync or edit can
+     * store a newer version between the check and the write.
      */
     @Transaction
     suspend fun replaceAllOneTimeExpenses(
-        expenses: List<ExpenseWithBeneficiariesEntity>,
+        expenses: List<Pair<ExpenseWithBeneficiariesEntity, Long>>,
         serverUuids: List<String>,
     ) {
         if (serverUuids.isEmpty()) {
@@ -102,7 +109,39 @@ interface ExpenseDao {
         } else {
             deleteOneTimeExpensesNotIn(uuids = serverUuids)
         }
-        expenses.forEach { upsertWithBeneficiaries(expenseWithBeneficiaries = it) }
+
+        expenses.forEach { (expense, revision) ->
+            val expenseUuid = expense.expense.uuid
+            val newest = getNewestRevision(expenseUuid = expenseUuid)
+
+            if (newest != null && revision < newest) return@forEach
+
+            upsertWithBeneficiaries(expenseWithBeneficiaries = expense)
+            setNewestRevision(OneTimeExpenseRevisionEntity(expenseUuid, newestRevision = revision))
+        }
+    }
+
+    @Query("SELECT newestRevision FROM OneTimeExpenseRevisionEntity WHERE expenseUuid = :expenseUuid")
+    suspend fun getNewestRevision(expenseUuid: String): Long?
+
+    @Upsert
+    suspend fun setNewestRevision(revision: OneTimeExpenseRevisionEntity)
+
+    /**
+     * Reserves the revision an edit of the one-time expense [expenseUuid] is signed at: one
+     * more than the newest this device has shown or signed. Null when it has done neither.
+     *
+     * Recorded before the edit is sent, so that one whose response never arrives, although
+     * the server stored it, cannot be followed by a second, different version under the same
+     * number, which participants could then be switched between.
+     */
+    @Transaction
+    suspend fun reserveNextRevision(expenseUuid: String): Long? {
+        val next = (getNewestRevision(expenseUuid = expenseUuid) ?: return null) + 1
+
+        setNewestRevision(OneTimeExpenseRevisionEntity(expenseUuid, newestRevision = next))
+
+        return next
     }
 
     @Delete

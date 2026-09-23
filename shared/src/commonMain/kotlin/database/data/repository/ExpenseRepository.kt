@@ -5,6 +5,7 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import database.data.local.dao.ExpenseDao
+import database.data.local.entity.OneTimeExpenseRevisionEntity
 import database.data.mappers.toBeneficiaryEntity
 import database.data.mappers.toExpenseEntity
 import database.data.mappers.toExpenseWithBeneficiaries
@@ -21,12 +22,14 @@ import expense.OneTimeExpenseSync
 import expense.OneTimeExpenseWriteError
 import expense.ExpenseKey
 import expense.ExpenseKeyShare
+import expense.FIRST_REVISION
 import expense.sealOneTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import authenticationUtils.getAuthenticatedUserUuid
 import message.DirectMessageSender
 import message.DirectSendError
+import mls.MlsIdentityRepository
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import util.EmptyResult
 import util.NetworkError
@@ -42,6 +45,7 @@ class ExpenseRepository(
     private val oneTimeExpenseKeyRepository: OneTimeExpenseKeyRepository,
     private val oneTimeExpenseSync: OneTimeExpenseSync,
     private val directMessageSender: DirectMessageSender,
+    private val mlsIdentityRepository: MlsIdentityRepository,
 ) {
 
     @OptIn(ExperimentalPagingApi::class)
@@ -60,11 +64,11 @@ class ExpenseRepository(
         }
 
     /**
-     * Creates a one-time expense: seals it under a key of its own, posts it, keeps the key,
-     * and hands it to everyone the expense names.
+     * Creates a one-time expense: seals and signs it under a key of its own, posts it, keeps
+     * the key, and hands it to everyone the expense names.
      *
-     * Only the first three can fail the write. After the expense is on the server it
-     * exists, and reporting a failure would invite a retry that creates a second one.
+     * Only what comes before the post can fail the write. After the expense is on the server
+     * it exists, and reporting a failure would invite a retry that creates a second one.
      * Whatever did not get done, the vault copy or a beneficiary who was not reached, is
      * exactly what the sync looks for and fixes.
      */
@@ -83,10 +87,18 @@ class ExpenseRepository(
             return Result.Error(OneTimeExpenseWriteError.Vault(prepared.error))
         }
 
+        val client = when (val opened = mlsIdentityRepository.client()) {
+            is Result.Success -> opened.data
+            is Result.Error -> return Result.Error(OneTimeExpenseWriteError.Identity(opened.error))
+        }
+
         val expenseKey = generateSymmetricEncryptionKey()
 
-        val body = expenseWithBeneficiaries.sealOneTime(expenseKey = expenseKey)
-            ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
+        val body = expenseWithBeneficiaries.sealOneTime(
+            expenseKey = expenseKey,
+            revision = FIRST_REVISION,
+            client = client,
+        ) ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
 
         val expenseUuid = when (val created = expenseApi.createOneTimeExpense(body = body)) {
             is Result.Success -> created.data
@@ -100,6 +112,7 @@ class ExpenseRepository(
                 expenseUuid = expenseUuid,
                 key = expenseKey,
                 creditorUuid = creditorUuid,
+                creditorSignatureKey = client.signaturePublicKey(),
                 beneficiaryUuids = beneficiaryUuids,
             ),
             verified = true,
@@ -113,6 +126,7 @@ class ExpenseRepository(
             },
         )
 
+        expenseDao.setNewestRevision(OneTimeExpenseRevisionEntity(expenseUuid, FIRST_REVISION))
         expenseDao.insertWithBeneficiaries(
             expenseWithBeneficiaries = synced.toExpenseWithBeneficiariesEntity(),
         )
@@ -128,7 +142,8 @@ class ExpenseRepository(
     }
 
     /**
-     * Edits a one-time expense, re-sealing it under the key it already has.
+     * Edits a one-time expense, re-sealing it under the key it already has and signing it as
+     * a newer version than any this device has shown or signed.
      *
      * Never under a new one: every participant holds the old key and nothing tells them to
      * expect another, so a re-keyed expense would go unreadable on every other phone while
@@ -149,8 +164,21 @@ class ExpenseRepository(
         val record = oneTimeExpenseKeyRepository.record(expenseUuid = expenseUuid)
             ?: return Result.Error(OneTimeExpenseWriteError.KeyMissing)
 
-        val body = expenseWithBeneficiaries.sealOneTime(expenseKey = record.key)
-            ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
+        // Participants who have seen a version refuse anything older as a rollback, so an
+        // edit is signed above every version this device knows of.
+        val revision = expenseDao.reserveNextRevision(expenseUuid = expenseUuid)
+            ?: return Result.Error(OneTimeExpenseWriteError.KeyMissing)
+
+        val client = when (val opened = mlsIdentityRepository.client()) {
+            is Result.Success -> opened.data
+            is Result.Error -> return Result.Error(OneTimeExpenseWriteError.Identity(opened.error))
+        }
+
+        val body = expenseWithBeneficiaries.sealOneTime(
+            expenseKey = record.key,
+            revision = revision,
+            client = client,
+        ) ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
 
         val update = expenseApi.updateOneTimeExpense(uuid = expenseUuid, body = body)
 
@@ -170,6 +198,7 @@ class ExpenseRepository(
                 expenseUuid = expenseUuid,
                 key = record.key,
                 creditorUuid = record.creditorUuid,
+                creditorSignatureKey = record.creditorSignatureKey,
                 beneficiaryUuids = beneficiaryUuids,
             ),
             verified = true,

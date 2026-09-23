@@ -9,8 +9,8 @@ import kotlin.io.encoding.Base64
 private val json = Json { ignoreUnknownKeys = true }
 
 /**
- * What the vault holds for one one-time expense: the key that opens it, and who its
- * creditor meant it for.
+ * What the vault holds for one one-time expense: the key that opens it, whose it is, and
+ * who its creditor meant it for.
  *
  * It is a record rather than the bare key because of what the creditor has to decide later.
  * A beneficiary who logs out loses the key with the rest of their local state and has to
@@ -30,6 +30,14 @@ class OneTimeExpenseKeyRecord(
     val key: ByteArray,
     val creditorUuid: String,
 
+    /**
+     * The creditor's MLS signature public key, which every version of the expense has to
+     * be signed with: the user's own for their own expenses, otherwise taken from the
+     * channel the key arrived over, where MLS authenticated the creditor. Either way,
+     * checking a version later needs nothing the server provides.
+     */
+    val creditorSignatureKey: ByteArray,
+
     /** Sorted, so that two devices writing the same expense write the same bytes. */
     val beneficiaryUuids: List<String>,
 ) {
@@ -47,6 +55,7 @@ class OneTimeExpenseKeyRecord(
                 expenseUuid = expenseUuid,
                 key = Base64.Default.encode(key),
                 creditorUuid = creditorUuid,
+                creditorSignatureKey = Base64.Default.encode(creditorSignatureKey),
                 beneficiaryUuids = beneficiaryUuids.sorted(),
             ),
         ).encodeToByteArray()
@@ -76,6 +85,7 @@ class OneTimeExpenseKeyRecord(
                     expenseUuid = serialized.expenseUuid,
                     key = Base64.Default.decode(serialized.key),
                     creditorUuid = serialized.creditorUuid,
+                    creditorSignatureKey = Base64.Default.decode(serialized.creditorSignatureKey),
                     beneficiaryUuids = serialized.beneficiaryUuids,
                 )
             }.getOrNull()
@@ -94,6 +104,9 @@ private class SerializedOneTimeExpenseKeyRecord(
 
     @SerialName("creditor")
     val creditorUuid: String,
+
+    @SerialName("creditor_key")
+    val creditorSignatureKey: String,
 
     @SerialName("beneficiaries")
     val beneficiaryUuids: List<String>,

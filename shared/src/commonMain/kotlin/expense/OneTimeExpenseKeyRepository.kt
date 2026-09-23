@@ -22,10 +22,11 @@ import vault.VaultRepository
  * cannot rewrite, and handing the key to somebody asking for it is decided against that and
  * nothing else.
  *
- * A key that arrived in a message is kept unverified until it has been shown to open the
- * expense it names, and an unverified key never reaches the vault. Anyone who can reach the
- * user can send them thirty-two bytes, and a device that believed them would stop asking
- * for the real key and never open the expense again.
+ * A key that arrived in a message is kept unverified until the expense it names has been
+ * shown to open under it, signed by the creditor it came from, and an unverified key never
+ * reaches the vault. Anyone who can reach the user can send them thirty-two bytes, and a
+ * device that believed them would stop asking for the real key and never open the expense
+ * again.
  */
 class OneTimeExpenseKeyRepository(
     private val oneTimeExpenseKeyDao: OneTimeExpenseKeyDao,

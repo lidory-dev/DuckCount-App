@@ -24,6 +24,7 @@ val messageModule = module {
             OneTimeExpenseMessageHandler(
                 keyRepository = get(),
                 directMessageSender = get(),
+                mlsIdentityRepository = get(),
             ),
         )
     }

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "17754607b363f2844ffa23b273ded98b",
+    "identityHash": "e9e2661940db19e9004f955f0de2cd96",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -419,6 +419,30 @@
         }
       },
       {
+        "tableName": "OneTimeExpenseRevisionEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `newestRevision` INTEGER NOT NULL, PRIMARY KEY(`expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "newestRevision",
+            "columnName": "newestRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid"
+          ]
+        }
+      },
+      {
         "tableName": "PendingExpenseKeyEntity",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `firstSeenAt` INTEGER NOT NULL, `lastRequestedAt` INTEGER, `requestCount` INTEGER NOT NULL, `state` TEXT NOT NULL, PRIMARY KEY(`expenseUuid`))",
         "fields": [
@@ -499,7 +523,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '17754607b363f2844ffa23b273ded98b')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e9e2661940db19e9004f955f0de2cd96')"
     ]
   }
 }

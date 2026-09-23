@@ -5,6 +5,9 @@ import message.DirectMessageHandler
 import message.DirectMessageHandling
 import message.DirectMessageSender
 import database.data.remote.DirectMessageKindDto
+import mls.MlsIdentityRepository
+import mls.pinnedSignatureKeyFor
+import util.Result
 
 /**
  * The direct messages that carry the keys to one-time expenses: a creditor handing them
@@ -13,9 +16,9 @@ import database.data.remote.DirectMessageKindDto
  * **A share is only ever believed from the creditor.** MLS says who sent a message, and the
  * key to an expense is the creditor's to give: taking one from anybody else would let a
  * co-beneficiary hand over thirty-two bytes of their choosing and have them stored as the
- * key. The bytes still have to open the expense before they are acted on, which is the gate
- * that actually holds, but there is no reason to store a stranger's guess in the first
- * place.
+ * key. The expense still has to open under the key, and carry the signature of the sender
+ * the key is recorded from, before either is acted on, which is the gate that actually
+ * holds, but there is no reason to store a stranger's guess in the first place.
  *
  * **A request is only ever answered by the creditor**, out of the record in their own
  * vault, which is the only account of who an expense was meant for that the server cannot
@@ -25,6 +28,7 @@ import database.data.remote.DirectMessageKindDto
 internal class OneTimeExpenseMessageHandler(
     private val keyRepository: OneTimeExpenseKeyRepository,
     private val directMessageSender: DirectMessageSender,
+    private val mlsIdentityRepository: MlsIdentityRepository,
 ) : DirectMessageHandler {
 
     override suspend fun handle(
@@ -52,19 +56,26 @@ internal class OneTimeExpenseMessageHandler(
     }
 
     /**
-     * Keeps the keys [creditorUuid] handed over, to be believed once they open the expenses
-     * they name.
+     * Keeps the keys [creditorUuid] handed over, to be believed once the expenses they name
+     * open under them and carry [creditorUuid]'s signature.
      *
-     * The record is built from the sender MLS authenticated and the beneficiaries the
-     * message carried, never from what the server says about the expense.
+     * The record is built from the sender MLS authenticated, the signature key it
+     * authenticated them with, and the beneficiaries the message carried, never from what
+     * the server says about the expense.
      */
     private suspend fun receive(creditorUuid: String, share: ExpenseKeyShare) {
+        // Every channel pins its peer, and this message was just read in one, so both are
+        // there: the client read it, and the pin checked its sender.
+        val client = (mlsIdentityRepository.client() as? Result.Success)?.data ?: return
+        val creditorSignatureKey = client.pinnedSignatureKeyFor(peerUuid = creditorUuid) ?: return
+
         share.keys.forEach { key ->
             keyRepository.storeUnverified(
                 record = OneTimeExpenseKeyRecord(
                     expenseUuid = key.expenseUuid,
                     key = key.key,
                     creditorUuid = creditorUuid,
+                    creditorSignatureKey = creditorSignatureKey,
                     beneficiaryUuids = key.beneficiaryUuids,
                 ),
             )

@@ -24,10 +24,10 @@ class OneTimeExpenseKeyEntity(
      *
      * A key arrives in a message from somebody who could be lying, and a device that took
      * any thirty-two bytes at their word would stop asking for the real key and never open
-     * the expense again. So a key is only believed once it has opened the expense's title,
-     * and until then it is kept but not acted on. It can also arrive before the expense it
-     * is for does, which is the ordinary case for a key sent the moment an expense was
-     * created.
+     * the expense again. So a key is only believed once the expense has opened under it,
+     * signed by the creditor it came from, and until then it is kept but not acted on. It
+     * can also arrive before the expense it is for does, which is the ordinary case for a
+     * key sent the moment an expense was created.
      */
     val isVerified: Boolean,
 

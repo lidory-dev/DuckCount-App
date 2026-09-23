@@ -29,6 +29,7 @@ import database.data.local.entity.GroupEntity
 import database.data.local.entity.GroupMemberEntity
 import database.data.local.entity.MlsRecordEntity
 import database.data.local.entity.OneTimeExpenseKeyEntity
+import database.data.local.entity.OneTimeExpenseRevisionEntity
 import database.data.local.entity.PendingExpenseKeyEntity
 import database.data.local.entity.UserEntity
 import eu.anifantakis.lib.ksafe.KSafe
@@ -50,6 +51,7 @@ import org.koin.mp.KoinPlatform.getKoin
         ContactEntity::class,
         DirectChannelEntity::class,
         OneTimeExpenseKeyEntity::class,
+        OneTimeExpenseRevisionEntity::class,
         PendingExpenseKeyEntity::class,
         MlsRecordEntity::class,
     ],

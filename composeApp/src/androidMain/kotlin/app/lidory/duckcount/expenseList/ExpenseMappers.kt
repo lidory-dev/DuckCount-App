@@ -29,8 +29,8 @@ import expense.OneTimeExpenseWriteError
  * Why a one-time expense write failed, as the UI explains it.
  *
  * Only [OneTimeExpenseWriteError.KeyMissing] earns wording of its own: it is a state the
- * user can wait out, and it says something true about their own device. The vault and
- * sealing failures are folded into `UNKNOWN` the way the contact mappers fold theirs, since
+ * user can wait out, and it says something true about their own device. The vault, identity
+ * and sealing failures are folded into `UNKNOWN` the way the contact mappers fold theirs, since
  * there is nothing a user can do differently about any of them.
  */
 fun OneTimeExpenseWriteError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError =
@@ -42,6 +42,7 @@ fun OneTimeExpenseWriteError.toExpenseWriteError(isOnline: Boolean): ExpenseWrit
         OneTimeExpenseWriteError.NoSession -> ExpenseWriteError.UNAUTHORIZED
 
         is OneTimeExpenseWriteError.Vault,
+        is OneTimeExpenseWriteError.Identity,
         OneTimeExpenseWriteError.Crypto,
             -> ExpenseWriteError.UNKNOWN
     }

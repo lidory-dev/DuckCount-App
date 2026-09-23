@@ -66,6 +66,9 @@ class OneTimeExpenseSync(
      * Reads what the server holds, opens what this device has the key for, and records the
      * rest as waiting.
      *
+     * A version older than one this device has shown is not stored over it, see
+     * `ExpenseDao.replaceAllOneTimeExpenses`.
+     *
      * Sends nothing: what is missing is written down here and asked for in
      * [requestMissingKeys], so that the request loop is not run from inside the
      * transaction that stores what it is about.
@@ -95,11 +98,9 @@ class OneTimeExpenseSync(
         val opened = mutableListOf<ExpenseDto>()
         val unopened = mutableListOf<ExpenseDto>()
         val decrypted = expenses.mapNotNull { expense ->
-            val key = held[expense.uuid]?.record?.key
+            val version = held[expense.uuid]?.let { expense.unsealOneTime(record = it.record) }
 
-            val plaintext = key?.let { expense.unsealOneTime(expenseKey = it) }
-
-            if (plaintext == null) {
+            if (version == null) {
                 unopened += expense
 
                 return@mapNotNull null
@@ -107,7 +108,7 @@ class OneTimeExpenseSync(
 
             opened += expense
 
-            plaintext.toExpenseWithBeneficiariesEntity()
+            version.expense.toExpenseWithBeneficiariesEntity() to version.revision
         }
 
         expenseDao.replaceAllOneTimeExpenses(
@@ -118,8 +119,9 @@ class OneTimeExpenseSync(
         reconcilePending(unopened = unopened)
 
         // A key that arrived before its expense did, or before this device could check it,
-        // is believed only once it has opened the expense it names. Done after the rows are
-        // stored, because it writes to the vault and that is a network call.
+        // is believed only once the expense it names has opened under it, signed by the
+        // creditor it came from. Done after the rows are stored, because it writes to the
+        // vault and that is a network call.
         promoteVerifiedKeys(opened = opened, held = held)
 
         return Result.Success(Unit)
@@ -228,7 +230,7 @@ class OneTimeExpenseSync(
         }
     }
 
-    /** Believes the keys that have just been shown to open the expense they name. */
+    /** Believes the keys the expenses they name have just opened under. */
     private suspend fun promoteVerifiedKeys(opened: List<ExpenseDto>, held: Map<String, HeldKey>) {
         opened.forEach { expense ->
             val key = held[expense.uuid] ?: return@forEach

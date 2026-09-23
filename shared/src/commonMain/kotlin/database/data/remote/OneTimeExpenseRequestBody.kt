@@ -12,7 +12,6 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class OneTimeExpenseRequestBody(
-    val master_key: EncryptedFieldDto,
     val title: EncryptedFieldDto,
     val description: EncryptedFieldDto,
     val amount: EncryptedFieldDto,
@@ -20,4 +19,5 @@ data class OneTimeExpenseRequestBody(
     val timestamp: EncryptedFieldDto,
     val is_settled: Boolean,
     val beneficiaries: List<BeneficiaryDto>,
+    val signature: EncryptedFieldDto,
 )

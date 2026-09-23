@@ -13,9 +13,9 @@ import kotlinx.serialization.Serializable
  * their vaults; see `expense.OneTimeExpenseSealing`.
  *
  * `is_settled` is the one exception, a plain boolean the server can read.
- * `master_key` is a column this protocol does not use: it holds one blob per
- * expense and hands every reader the same bytes, so there is nothing a creditor
- * could put there that only a beneficiary could open.
+ * `signature` holds the creditor's signature over all the rest but the `uuid`,
+ * sealed like the other fields. It is what everything here is believed on,
+ * `creditor_uuid`, `is_settled` and the beneficiary list included.
  *
  * There is no `group_uuid`: a one-time expense is by definition not in a group.
  * There is no deletion flag either, the server hard-deletes.
@@ -23,7 +23,6 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ExpenseDto(
     val uuid: String,
-    val master_key: EncryptedFieldDto,
     val creditor_uuid: String,
     val title: EncryptedFieldDto,
     val description: EncryptedFieldDto,
@@ -32,4 +31,5 @@ data class ExpenseDto(
     val timestamp: EncryptedFieldDto,
     val is_settled: Boolean,
     val beneficiaries: List<BeneficiaryDto>,
+    val signature: EncryptedFieldDto,
 )
