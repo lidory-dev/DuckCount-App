@@ -8,9 +8,9 @@ import androidx.room.PrimaryKey
  *
  * It starts as a copy of the server's row, and is **opened** once the user's client has
  * joined the group it created and read the sender's card: [mlsGroupId] and
- * [profileEncryptionKey] are then set together. Opening one is a one-time operation,
- * joining spends the key package the request was sent to, so what it yields is kept here
- * rather than read again from [ciphertext].
+ * [profileEncryptionKey] are then set together. Opening one is a one-time operation, a
+ * group is only ever joined once, so what it yields is kept here rather than read again
+ * from [ciphertext].
  *
  * A plain class rather than a data class: its byte arrays would compare by identity.
  */
@@ -19,8 +19,8 @@ class ContactRequestEntity(
     @PrimaryKey(autoGenerate = false) val uuid: String,
 
     /**
-     * Who sent the request. The server's word for it until the request is opened, then
-     * the member MLS authenticated the sender's card as coming from.
+     * Who sent the request, as the server authenticated them. Opening the request confirms
+     * it: the group the request created is only joined when they are its one other member.
      */
     val senderUserUuid: String,
 

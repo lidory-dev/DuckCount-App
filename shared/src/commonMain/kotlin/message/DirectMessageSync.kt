@@ -101,8 +101,18 @@ class DirectMessageSync internal constructor(
         )
 
         if (reading is ApplicationMessageReading.Unreadable && envelope.welcome != null) {
-            val joined = join(client = client, message = message, envelope = envelope)
-                ?: return DirectMessageHandling.NOT_MINE
+            val joined = try {
+                join(client = client, message = message, welcome = envelope.welcome)
+            } catch (exception: MlsException) {
+                // A Welcome that was already used, was never ours, is for a group already
+                // joined, or seats anybody but the sender, is simply not a way in. Storage
+                // failing says nothing about the Welcome, so that one is tried again.
+                return if (exception.isRetryable()) {
+                    DirectMessageHandling.RETRY
+                } else {
+                    DirectMessageHandling.NOT_MINE
+                }
+            } ?: return DirectMessageHandling.NOT_MINE
 
             mlsGroupId = joined
 
@@ -137,12 +147,15 @@ class DirectMessageSync internal constructor(
     }
 
     /**
-     * Joins the group a Welcome was sealed for, and records it as the channel to its
-     * sender. Returns the group's id, or null when it was not joined.
+     * Joins the group [welcome] was sealed for, and records it as the channel to the
+     * message's sender. Returns the group's id, or null when the sender is nobody this
+     * device knows, and throws [MlsException] when the join fails.
      *
      * The Welcome is acted on only for somebody this device already knows: joining stores a
-     * group and pins whatever MLS identity it carries, which is not something to do because
-     * an unknown name on a server-supplied message asked for it.
+     * group and pins the sender's MLS identity, which is not something to do because an
+     * unknown name on a server-supplied message asked for it. The join itself refuses any
+     * group but one holding exactly the user and that sender, which is what makes it safe
+     * to record as their channel before anything has been read in it.
      *
      * The group is taken from what the join returned, never from what the envelope claimed:
      * the envelope's is a field the sender wrote and nothing authenticates.
@@ -150,21 +163,11 @@ class DirectMessageSync internal constructor(
     private suspend fun join(
         client: MlsClient,
         message: DirectMessageDto,
-        envelope: DirectMessageEnvelope,
+        welcome: ByteArray,
     ): ByteArray? {
-        val welcome = envelope.welcome ?: return null
-
         if (!directChannelRepository.isKnownPeer(peerUuid = message.senderUserUuid)) return null
 
-        val joined = try {
-            client.joinGroupFrom(welcome = welcome)
-        } catch (exception: MlsException) {
-            // A Welcome that was already used, or was never ours, is simply not a way in.
-            // Storage failing is reported by the read that follows, which finds no group.
-            if (exception.isRetryable()) return null
-
-            return null
-        }
+        val joined = client.joinGroupFrom(welcome = welcome, peerUuid = message.senderUserUuid)
 
         directChannelRepository.adopt(peerUuid = message.senderUserUuid, mlsGroupId = joined)
 

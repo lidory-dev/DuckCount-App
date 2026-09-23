@@ -29,6 +29,7 @@ import mls.MlsIdentityRepository
 import mls.deleteGroupQuietly
 import mls.encryptApplicationMessage
 import mls.isRetryable
+import mls.joinGroupFrom
 import mls.readApplicationMessage
 import profile.ProfileRepository
 import uniffi.lib_duckcount.InviteeKeyPackage
@@ -45,9 +46,9 @@ import kotlin.io.encoding.Base64
  * The user's contact requests: the ones addressed to them, and the ones they send.
  *
  * For the incoming ones the server is the only source, and the local table follows it.
- * What the table adds is what opening a request yields: who sent it, and the key to their
- * profile. Opening one joins the group it created, which spends the key package it was
- * sent to, so that can only ever happen once.
+ * What the table adds is what opening a request yields: the group it created, and the key
+ * to its sender's profile. Opening one joins that group, and a group is only ever joined
+ * once, so that can only ever happen once.
  */
 class ContactRequestRepository(
     private val contactRequestDao: ContactRequestDao,
@@ -252,16 +253,18 @@ class ContactRequestRepository(
         val envelope = ContactRequestEnvelope.parse(ciphertext = request.ciphertext)
             ?: return refuseUnreadable(requestUuid = request.uuid)
 
+        // The join refuses any group but one holding exactly the user and the sender the
+        // server authenticated, so every message read in it, the card included, is theirs.
         val mlsGroupId = try {
-            withContext(Dispatchers.IO) { client.joinGroup(welcome = envelope.welcome) }
+            client.joinGroupFrom(welcome = envelope.welcome, peerUuid = request.senderUserUuid)
         } catch (exception: MlsException) {
             if (exception.isRetryable()) return Result.Error(ContactSyncError.Storage)
 
             return refuseUnreadable(requestUuid = request.uuid)
         }
 
-        // Joining spent the key package the request was sent to, so from here on a request
-        // that cannot be read now never will be, whatever the reason.
+        // A group is only ever joined once, so from here on a request that cannot be read
+        // now never will be, whatever the reason.
         val reading = client.readApplicationMessage(mlsGroupId = mlsGroupId, message = envelope.message)
 
         val card = (reading as? ApplicationMessageReading.Read)
@@ -275,7 +278,6 @@ class ContactRequestRepository(
 
         contactRequestDao.markOpened(
             uuid = request.uuid,
-            senderUserUuid = reading.senderUserUuid,
             mlsGroupId = mlsGroupId,
             profileEncryptionKey = card.profileEncryptionKey,
         )

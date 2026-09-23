@@ -74,15 +74,10 @@ interface ContactRequestDao {
 
     @Query(
         """UPDATE ContactRequestEntity
-        SET senderUserUuid = :senderUserUuid, mlsGroupId = :mlsGroupId, profileEncryptionKey = :profileEncryptionKey
+        SET mlsGroupId = :mlsGroupId, profileEncryptionKey = :profileEncryptionKey
         WHERE uuid = :uuid""",
     )
-    suspend fun markOpened(
-        uuid: String,
-        senderUserUuid: String,
-        mlsGroupId: ByteArray,
-        profileEncryptionKey: ByteArray,
-    )
+    suspend fun markOpened(uuid: String, mlsGroupId: ByteArray, profileEncryptionKey: ByteArray)
 
     @Query("UPDATE ContactRequestEntity SET senderFullName = :senderFullName WHERE uuid = :uuid")
     suspend fun setSenderFullName(uuid: String, senderFullName: String)

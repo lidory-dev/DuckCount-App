@@ -112,13 +112,17 @@ internal suspend fun MlsClient.createGroupWith(invitee: InviteeKeyPackage): Grou
 /**
  * Joins the group [welcome] was sealed for, and returns its id.
  *
+ * [peerUuid] is who the server says sent the Welcome, which it knows from their session.
+ * The join is refused unless the group holds exactly the user and [peerUuid], so a
+ * Welcome from one user cannot make a channel to another, or seat anybody else in it.
+ *
  * The other operation [withGroup] cannot cover: the id is only known once the join has
  * stored it, which is also why the id a caller was *told* the group has is worth nothing
  * next to the one this returns.
  */
-internal suspend fun MlsClient.joinGroupFrom(welcome: ByteArray): ByteArray =
+internal suspend fun MlsClient.joinGroupFrom(welcome: ByteArray, peerUuid: String): ByteArray =
     withContext(Dispatchers.IO) {
-        joinGroup(welcome = welcome)
+        joinGroup(welcome = welcome, expectedMembers = listOf(peerUuid))
     }
 
 /**
