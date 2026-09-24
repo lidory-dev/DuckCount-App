@@ -1,5 +1,7 @@
 package database.data.repository
 
+import authenticationUtils.clearContactsToRestore
+import authenticationUtils.hasContactsToRestore
 import contact.ContactCard
 import contact.ContactRemoval
 import contact.ContactSyncError
@@ -24,8 +26,8 @@ import uniffi.lib_duckcount.MlsException
 import util.EmptyResult
 import util.NetworkError
 import util.Result
+import vault.VaultError
 import vault.VaultRepository
-import mls.restorePin
 import mls.pinnedSignatureKeyFor
 import vault.VaultContact
 
@@ -210,25 +212,24 @@ class ContactRepository(
 
     /**
      * Brings back the contacts the vault holds, which a log-out or a reinstall took off
-     * this device, then reads their names.
+     * this device, then reads their names. Does nothing once they are back, see
+     * [authenticationUtils.setContactsToRestore].
      *
      * No channel comes back with them: the group's state lived in the database that is
      * gone, and no Welcome can reach a key package whose secret went with it. The first
-     * message to a restored contact builds a new group instead.
+     * message to a restored contact builds a new group instead. The identities pinned for
+     * them come back with the MLS client, see [MlsIdentityRepository].
      *
-     * Their pinned MLS identities do come back, and go back into the MLS client *before*
-     * the rows are visible to anything that would build such a group. Building one fetches
-     * a key package from the server and pins whatever identity it carries, so a client that
-     * had forgotten its pins would let the server decide who each contact is, which is the
-     * one thing pinning is for.
+     * Only the vault read is reported: a name that could not be read is read again by the
+     * next [ContactSync][contact.ContactSync].
      */
-    suspend fun restore(): EmptyResult<ContactSyncError> {
+    suspend fun restore(): EmptyResult<VaultError> {
+        if (!hasContactsToRestore()) return Result.Success(Unit)
+
         val contacts = when (val read = vaultRepository.getContacts()) {
             is Result.Success -> read.data
-            is Result.Error -> return Result.Error(ContactSyncError.Vault(read.error))
+            is Result.Error -> return Result.Error(read.error)
         }
-
-        restorePins(contacts = contacts)
 
         contactDao.insertNew(
             contacts = contacts.map { (userUuid, contact) ->
@@ -240,7 +241,11 @@ class ContactRepository(
             },
         )
 
-        return resolveNames()
+        clearContactsToRestore()
+
+        resolveNames()
+
+        return Result.Success(Unit)
     }
 
     /** Tells the contact [userUuid], in the group [mlsGroupId], that the user removed them. */
@@ -306,30 +311,6 @@ class ContactRepository(
 
         listOfNotNull(channel?.mlsGroupId, channel?.previousMlsGroupId).forEach {
             client?.deleteGroupQuietly(mlsGroupId = it)
-        }
-    }
-
-    /**
-     * Puts back the MLS identities the vault holds for [contacts].
-     *
-     * Best effort by design. A pin that cannot be restored leaves this device where it was
-     * before pins were backed up at all, which is worse than having it but is not a reason
-     * to refuse to restore the contacts themselves.
-     */
-    private suspend fun restorePins(contacts: Map<String, VaultContact>) {
-        val backedUp = contacts.mapNotNull { (userUuid, contact) ->
-            contact.mlsSignaturePublicKey?.let { userUuid to it }
-        }
-
-        if (backedUp.isEmpty()) return
-
-        val client = when (val opened = mlsIdentityRepository.client()) {
-            is Result.Success -> opened.data
-            is Result.Error -> return
-        }
-
-        backedUp.forEach { (userUuid, signatureKey) ->
-            client.restorePin(peerUuid = userUuid, signatureKey = signatureKey)
         }
     }
 

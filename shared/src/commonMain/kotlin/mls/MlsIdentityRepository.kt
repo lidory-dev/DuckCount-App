@@ -10,6 +10,7 @@ import kotlinx.coroutines.withContext
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.MlsStore
+import util.EmptyResult
 import util.Result
 import vault.VaultRepository
 
@@ -21,6 +22,12 @@ import vault.VaultRepository
  * pinned the key it carries. So the client is always opened from the vault, restoring
  * the backed-up key when there is one, and backing up the device's key the first time
  * there is none.
+ *
+ * The same goes for the identities the user pinned for their contacts, which the vault
+ * holds too and which go back into the client before anything gets hold of it. Building a
+ * channel or joining one pins whatever identity the key package or the Welcome carries, and
+ * all of it goes through this client, so one opened without its pins, as a log-out leaves
+ * it, would let the server decide who each contact is, the one thing pinning is for.
  *
  * One client is opened per process and kept for the rest of it. That is required, not
  * merely cheaper (opening one derives its storage key with Argon2id): two clients over
@@ -48,6 +55,28 @@ class MlsIdentityRepository(
         }
 
     private suspend fun open(): Result<MlsClient, MlsIdentityError> {
+        val client = when (val identity = openIdentity()) {
+            is Result.Success -> identity.data
+            is Result.Error -> return identity
+        }
+
+        val restored = restorePins(client = client)
+
+        if (restored is Result.Error) {
+            // Not kept, since nothing may use it without its pins. The next attempt opens it
+            // again and restores them again.
+            client.close()
+
+            return Result.Error(restored.error)
+        }
+
+        opened = client
+
+        return Result.Success(client)
+    }
+
+    /** Opens the client with the identity the vault holds, or with the device's own. */
+    private suspend fun openIdentity(): Result<MlsClient, MlsIdentityError> {
         val userUuid = getAuthenticatedUserUuid()
             ?: return Result.Error(MlsIdentityError.MissingSession)
 
@@ -71,8 +100,6 @@ class MlsIdentityRepository(
                     signaturePublicKey = backup.publicKey,
                 )
             } ?: return Result.Error(MlsIdentityError.Crypto)
-
-            opened = client
 
             return Result.Success(client)
         }
@@ -99,9 +126,34 @@ class MlsIdentityRepository(
             return Result.Error(MlsIdentityError.Vault(write.error))
         }
 
-        opened = client
-
         return Result.Success(client)
+    }
+
+    /**
+     * Pins in [client] the identity the vault holds for each of the user's contacts.
+     *
+     * On every open rather than once, which costs a vault read and nothing else: pinning a
+     * key already pinned changes nothing, and there is then no state saying the pins are
+     * back that could disagree with the store they live in.
+     */
+    private suspend fun restorePins(client: MlsClient): EmptyResult<MlsIdentityError> {
+        val contacts = when (val read = vaultRepository.getContacts()) {
+            is Result.Success -> read.data
+            is Result.Error -> return Result.Error(MlsIdentityError.Vault(read.error))
+        }
+
+        try {
+            contacts.forEach { (userUuid, contact) ->
+                val signatureKey = contact.mlsSignaturePublicKey ?: return@forEach
+
+                // One that disagrees with a pin already held leaves that pin as it was.
+                client.restorePin(peerUuid = userUuid, signatureKey = signatureKey)
+            }
+        } catch (_: MlsException) {
+            return Result.Error(MlsIdentityError.Crypto)
+        }
+
+        return Result.Success(Unit)
     }
 
     /**

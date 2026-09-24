@@ -12,12 +12,15 @@ sealed interface MlsIdentityError : Error {
      */
     data object MissingSession : MlsIdentityError
 
-    /** The identity backup could not be read from or written to the vault. */
+    /**
+     * The identity backup could not be read from or written to the vault, or the contacts'
+     * pins could not be read from it.
+     */
     data class Vault(val error: VaultError) : MlsIdentityError
 
     /**
-     * The library refused to open the client, or the vault holds a backup that is not a
-     * key pair it can restore.
+     * The library refused to open the client or to store a contact's pin, or the vault holds
+     * a backup that is not a key pair it can restore.
      */
     data object Crypto : MlsIdentityError
 }

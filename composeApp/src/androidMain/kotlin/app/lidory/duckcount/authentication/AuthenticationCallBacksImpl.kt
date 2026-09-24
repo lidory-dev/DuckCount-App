@@ -14,12 +14,12 @@ import authenticationUtils.PendingRegistration
 import authenticationUtils.clearPendingRegistration
 import authenticationUtils.setAuthenticatedUserUsername
 import authenticationUtils.setAuthenticatedUserUuid
+import authenticationUtils.setContactsToRestore
 import authenticationUtils.setHasPasswordBeenChecked
 import authenticationUtils.setPendingRegistration
 import authenticationUtils.setRootKey
 import authenticationUtils.setTokens
 import database.data.remote.EncryptedFieldDto
-import database.data.repository.ContactRepository
 import database.data.repository.UserRepository
 import discoveryUsername.DiscoveryUsernameRepository
 import mls.KeyPackageError
@@ -54,7 +54,6 @@ class AuthenticationCallBacksImpl(
     private val profileRepository: ProfileRepository,
     private val discoveryUsernameRepository: DiscoveryUsernameRepository,
     private val keyPackageRepository: KeyPackageRepository,
-    private val contactRepository: ContactRepository,
 ) : AuthenticationCallBacks {
 
     override val maxUsernameLength: Int = usernameMaximumLength()
@@ -221,6 +220,11 @@ class AuthenticationCallBacksImpl(
                     val shortLivedToken = body.getString("short_lived_token")
                     val longLivedToken = body.getString("long_lived_token")
 
+                    // Before anything that lets a sync run. The server keeps no record of
+                    // who the user's contacts are, so the vault is the only place this device
+                    // gets them back from, and syncs keep trying until it has.
+                    setContactsToRestore()
+
                     setTokens(shortLivedToken = shortLivedToken, longLivedToken = longLivedToken)
 
                     // The server carries the user's UUID in the short-lived token's `sub`.
@@ -259,12 +263,6 @@ class AuthenticationCallBacksImpl(
                     // log-out or install may have taken with it: nobody could open those.
                     keyPackageRepository.publish().onError { error ->
                         Log.w(TAG, "login: could not publish the key packages: $error")
-                    }
-
-                    // The server keeps no record of who the user's contacts are, so the
-                    // vault is the only place a new device can get them back from.
-                    contactRepository.restore().onError { error ->
-                        Log.w(TAG, "login: could not restore the contacts: $error")
                     }
 
                     AuthOutcome.Success(Unit)

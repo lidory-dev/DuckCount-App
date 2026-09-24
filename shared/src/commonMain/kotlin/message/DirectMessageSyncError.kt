@@ -3,6 +3,7 @@ package message
 import mls.MlsIdentityError
 import util.Error
 import util.NetworkError
+import vault.VaultError
 
 /**
  * Why taking in the messages waiting for the user stopped short.
@@ -19,6 +20,9 @@ sealed interface DirectMessageSyncError : Error {
      * The user's own storage failed. Nothing was consumed, so trying again later may work.
      */
     data object Storage : DirectMessageSyncError
+
+    /** The user's contacts could not be brought back from the vault, so nothing was read. */
+    data class Vault(val error: VaultError) : DirectMessageSyncError
 
     /** The server could not be reached, or refused the call. */
     data class Network(val error: NetworkError) : DirectMessageSyncError

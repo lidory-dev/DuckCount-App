@@ -33,6 +33,7 @@ val messageModule = module {
         DirectMessageSync(
             directMessageApi = get(),
             directChannelRepository = get(),
+            contactRepository = get(),
             mlsIdentityRepository = get(),
             handlers = get(),
         )

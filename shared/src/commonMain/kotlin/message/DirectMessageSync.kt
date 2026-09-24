@@ -5,6 +5,7 @@ import database.data.remote.AcknowledgeDirectMessagesBody
 import database.data.remote.DirectMessageApi
 import database.data.remote.DirectMessageDto
 import database.data.remote.MAX_ACKNOWLEDGEMENT_BATCH
+import database.data.repository.ContactRepository
 import mls.ApplicationMessageReading
 import mls.MlsIdentityRepository
 import mls.deleteGroupQuietly
@@ -30,15 +31,24 @@ import util.Result
  * which is the only thing that deletes it server-side. The exception is a message the
  * device could not store the effects of: that one is left alone, since nothing was
  * consumed and the server will hand it back.
+ *
+ * Nothing is read before the user's contacts are back on the device after a login, see
+ * [ContactRepository.restore]: a Welcome is only acted on from somebody this device knows,
+ * and one from a contact it has not restored yet would be dropped for good.
  */
 class DirectMessageSync internal constructor(
     private val directMessageApi: DirectMessageApi,
     private val directChannelRepository: DirectChannelRepository,
+    private val contactRepository: ContactRepository,
     private val mlsIdentityRepository: MlsIdentityRepository,
     private val handlers: List<DirectMessageHandler>,
 ) {
 
     suspend fun sync(): EmptyResult<DirectMessageSyncError> {
+        val restored = contactRepository.restore()
+
+        if (restored is Result.Error) return Result.Error(DirectMessageSyncError.Vault(restored.error))
+
         val messages = when (val list = directMessageApi.getDirectMessages()) {
             is Result.Success -> list.data.messages
             is Result.Error -> return Result.Error(DirectMessageSyncError.Network(list.error))

@@ -22,6 +22,7 @@ fun clearSession() {
     clearAuthenticatedUserUsername()
     clearDiscoveryUsername()
     clearRegisteredPushSubscription()
+    clearContactsToRestore()
     clearRootKey()
 }
 

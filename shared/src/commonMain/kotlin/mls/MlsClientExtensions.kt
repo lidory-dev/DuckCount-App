@@ -148,6 +148,8 @@ internal suspend fun MlsClient.pinnedSignatureKeyFor(peerUuid: String): ByteArra
  * pinning exists to report: something served a different identity for this contact. It is
  * reported rather than resolved, since only the user comparing safety numbers with the peer
  * can say which is right.
+ *
+ * Throws [MlsException] when the pin could not be stored, which leaves it missing.
  */
 internal suspend fun MlsClient.restorePin(peerUuid: String, signatureKey: ByteArray): Boolean =
     withContext(Dispatchers.IO) {
@@ -155,8 +157,8 @@ internal suspend fun MlsClient.restorePin(peerUuid: String, signatureKey: ByteAr
             pinIdentity(userUuid = peerUuid, signatureKey = signatureKey)
 
             true
-        } catch (exception: MlsException) {
-            exception !is MlsException.IdentityKeyMismatch
+        } catch (_: MlsException.IdentityKeyMismatch) {
+            false
         }
     }
 
