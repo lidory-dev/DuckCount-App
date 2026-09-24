@@ -48,7 +48,8 @@ private object Context {
 
 /**
  * Seals this expense under [expenseKey] and signs it as [revision], ready for
- * `POST /expenses` or `PUT /expenses/{uuid}`.
+ * `PUT /expenses/{uuid}` or, with a nonce, `POST /expenses`. [keyCopy] is the creditor's
+ * own copy of the expense's key record, which goes in the same request.
  *
  * Every participant holds [expenseKey] and could seal a version of their own, so the seal
  * alone does not say who wrote it. The signature does: it is made with [client], the
@@ -66,6 +67,7 @@ internal fun ExpenseWithBeneficiaries.sealOneTime(
     expenseKey: ByteArray,
     revision: Long,
     client: MlsClient,
+    keyCopy: EncryptedFieldDto,
 ): OneTimeExpenseRequestBody? {
     val sealedBeneficiaries = beneficiaries.map { beneficiary ->
         BeneficiaryDto(
@@ -121,6 +123,7 @@ internal fun ExpenseWithBeneficiaries.sealOneTime(
             context = Context.SIGNATURE,
             plaintext = SignedRevision(revision = revision, signature = signature).serialize(),
         ) ?: return null,
+        key_copy = keyCopy,
     )
 }
 
@@ -136,7 +139,7 @@ internal class OpenedOneTimeExpense(
  *
  * The signature is checked before any field is decrypted, against
  * [OneTimeExpenseKeyRecord.creditorSignatureKey]. That is what the server's `creditor_uuid`,
- * `is_settled` and beneficiary list are believed on: the signature covers them, and a
+ * `is_settled` and beneficiary list are trusted on: the signature covers them, and a
  * version that the server changed, or that another participant sealed, does not verify.
  *
  * All or nothing on purpose: a half-opened expense would be a row with a real title and a

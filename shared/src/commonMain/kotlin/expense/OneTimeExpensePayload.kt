@@ -88,8 +88,9 @@ class ExpenseKey(
  *
  * A log-out wipes the local database, which is where MLS keeps its groups, so a key message
  * that arrived while somebody was logged out can never be read: the group it was encrypted
- * to is gone, and MLS offers no way back into a group you have left. The vault brings back
- * the keys that had already arrived, and this asks for the ones that had not.
+ * to is gone, and MLS offers no way back into a group you have left. The user's copies on
+ * the server bring back the keys that had already arrived, and this asks for the ones that
+ * had not.
  *
  * It carries no secret, so it can go over a channel built for the occasion: the asker
  * rebuilds one from the creditor's key package, and the answer comes back in that group.
@@ -111,8 +112,8 @@ class ExpenseKeyRequest(
         /**
          * How many expenses one request may name.
          *
-         * A bound on what answering one costs, since the answer is built by unsealing a
-         * vault record per expense named.
+         * A bound on what answering one costs, since the answer is built from a record per
+         * expense named.
          */
         const val MAX_EXPENSES = 100
 

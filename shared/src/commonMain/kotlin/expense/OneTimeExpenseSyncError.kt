@@ -3,7 +3,6 @@ package expense
 import mls.MlsIdentityError
 import util.Error
 import util.NetworkError
-import vault.VaultError
 
 /**
  * Why bringing the user's one-time expenses up to date stopped short.
@@ -14,9 +13,6 @@ sealed interface OneTimeExpenseSyncError : Error {
 
     /** Nobody is signed in, so there is nothing to sync and nobody to sync it for. */
     data object NoSession : OneTimeExpenseSyncError
-
-    /** A key could not be read from or written to the vault. */
-    data class Vault(val error: VaultError) : OneTimeExpenseSyncError
 
     /** The user's own MLS client could not be opened, so nothing could be sent. */
     data class Identity(val error: MlsIdentityError) : OneTimeExpenseSyncError

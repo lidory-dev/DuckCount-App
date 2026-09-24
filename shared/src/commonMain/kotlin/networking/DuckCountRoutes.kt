@@ -24,9 +24,6 @@ object DuckCountRoutes {
 
         /** One part of the vault: `GET` its items, `PUT` one, `DELETE` them all. */
         val VAULT_PART = "$VAULT_BASE_URL/:entry_key"
-
-        /** One item of a part. `DELETE` only: `PUT` carries the item id in its body. */
-        val VAULT_ITEM = "$VAULT_BASE_URL/:entry_key/:item_id"
     }
 
     object User {
@@ -94,5 +91,8 @@ object DuckCountRoutes {
         val EXPENSES = EXPENSE_BASE_URL
 
         val EXPENSE_BY_UUID = "$EXPENSE_BASE_URL/:expense_uuid"
+
+        /** The caller's own copy of an expense's key. `PUT` only: `GET /expenses` lists it. */
+        val EXPENSE_KEY_COPY = "$EXPENSE_BASE_URL/:expense_uuid/key-copy"
     }
 }

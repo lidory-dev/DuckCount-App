@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "e9e2661940db19e9004f955f0de2cd96",
+    "identityHash": "507a89da0204812c43a710e3bf693fce",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -384,7 +384,7 @@
       },
       {
         "tableName": "OneTimeExpenseKeyEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `record` BLOB NOT NULL, `isVerified` INTEGER NOT NULL, `isBackedUp` INTEGER NOT NULL, PRIMARY KEY(`expenseUuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `record` BLOB NOT NULL, `isVerified` INTEGER NOT NULL, PRIMARY KEY(`expenseUuid`))",
         "fields": [
           {
             "fieldPath": "expenseUuid",
@@ -401,12 +401,6 @@
           {
             "fieldPath": "isVerified",
             "columnName": "isVerified",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "isBackedUp",
-            "columnName": "isBackedUp",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -523,7 +517,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e9e2661940db19e9004f955f0de2cd96')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '507a89da0204812c43a710e3bf693fce')"
     ]
   }
 }

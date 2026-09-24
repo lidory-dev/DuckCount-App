@@ -41,17 +41,10 @@ enum class VaultEntryKey(val wireName: String) {
     GROUP_MASTER_KEY("group_master_key"),
 
     /**
-     * The key that opens one one-time expense, and who it belongs to. Collection, keyed by
-     * the expense's UUID.
-     *
-     * A collection rather than one sealed blob because the server already holds the
-     * expense, its creditor and its beneficiaries in the clear, so hiding how many there
-     * are buys nothing, while an item per expense means two expenses created at once never
-     * contend.
-     *
-     * Its plaintext is a whole record rather than the bare key, see `OneTimeExpenseKeyRecord`:
-     * it is the only account of who a creditor meant an expense for that the server cannot
-     * rewrite, and handing the key out is decided against it and nothing else.
+     * The key the user's copies of their one-time expense keys are sealed under, held in
+     * [KEY_RING] like every part's key. The copies themselves are stored by the server with
+     * each expense, not in the vault, so no vault entry carries this name. See
+     * `OneTimeExpenseKeyRepository`.
      */
     ONE_TIME_EXPENSE_KEY("one_time_expense_key"),
 

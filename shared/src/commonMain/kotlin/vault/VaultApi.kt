@@ -92,14 +92,4 @@ class VaultApi(
             route = DuckCountRoutes.Vault.VAULT_PART,
             pathParams = mapOf("entry_key" to entryKey.wireName),
         )
-
-    /** Drops one item of a collection part. */
-    suspend fun deleteVaultEntry(
-        entryKey: VaultEntryKey,
-        itemId: String,
-    ): Result<Unit, NetworkError> =
-        client.delete<Unit>(
-            route = DuckCountRoutes.Vault.VAULT_ITEM,
-            pathParams = mapOf("entry_key" to entryKey.wireName, "item_id" to itemId),
-        )
 }

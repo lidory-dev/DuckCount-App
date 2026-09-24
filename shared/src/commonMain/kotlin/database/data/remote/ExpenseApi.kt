@@ -17,11 +17,11 @@ class ExpenseApi(
     suspend fun getOneTimeExpenses(): Result<List<ExpenseDto>, NetworkError> =
         client.get<List<ExpenseDto>>(route = DuckCountRoutes.Expense.EXPENSES)
 
-    /** Returns the server-generated expense uuid (plain-text body). */
+    /** A `409` means an expense already has the UUID the nonce derives to. */
     suspend fun createOneTimeExpense(
-        body: OneTimeExpenseRequestBody,
-    ): Result<String, NetworkError> =
-        client.post<String, OneTimeExpenseRequestBody>(
+        body: CreateOneTimeExpenseRequestBody,
+    ): Result<Unit, NetworkError> =
+        client.post<Unit, CreateOneTimeExpenseRequestBody>(
             route = DuckCountRoutes.Expense.EXPENSES,
             body = body,
         )
@@ -34,6 +34,20 @@ class ExpenseApi(
             route = DuckCountRoutes.Expense.EXPENSE_BY_UUID,
             pathParams = mapOf("expense_uuid" to uuid),
             body = body,
+        )
+
+    /**
+     * Writes the caller's own copy of the key to the expense [uuid]. A `404` means the
+     * expense is gone, or the caller is no longer part of it.
+     */
+    suspend fun saveKeyCopy(
+        uuid: String,
+        keyCopy: EncryptedFieldDto,
+    ): Result<Unit, NetworkError> =
+        client.put<Unit, KeyCopyRequestBody>(
+            route = DuckCountRoutes.Expense.EXPENSE_KEY_COPY,
+            pathParams = mapOf("expense_uuid" to uuid),
+            body = KeyCopyRequestBody(key_copy = keyCopy),
         )
 
     suspend fun deleteOneTimeExpense(

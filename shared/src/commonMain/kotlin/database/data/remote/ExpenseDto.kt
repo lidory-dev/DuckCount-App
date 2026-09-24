@@ -9,13 +9,16 @@ import kotlinx.serialization.Serializable
  *
  * Matches the DuckCount-API contract exactly. Every content field is an
  * `EncryptedField` the server cannot read, sealed under the expense's own key,
- * which reaches its participants over their direct-message channels and lives in
- * their vaults; see `expense.OneTimeExpenseSealing`.
+ * which reaches its participants over their direct-message channels; see
+ * `expense.OneTimeExpenseSealing`.
  *
  * `is_settled` is the one exception, a plain boolean the server can read.
  * `signature` holds the creditor's signature over all the rest but the `uuid`,
- * sealed like the other fields. It is what everything here is believed on,
+ * sealed like the other fields. It is what everything here is trusted on,
  * `creditor_uuid`, `is_settled` and the beneficiary list included.
+ *
+ * `key_copy` is the caller's own sealed copy of that key, null when they have not
+ * stored one; see `expense.OneTimeExpenseKeyRepository`.
  *
  * There is no `group_uuid`: a one-time expense is by definition not in a group.
  * There is no deletion flag either, the server hard-deletes.
@@ -32,4 +35,5 @@ data class ExpenseDto(
     val is_settled: Boolean,
     val beneficiaries: List<BeneficiaryDto>,
     val signature: EncryptedFieldDto,
+    val key_copy: EncryptedFieldDto?,
 )

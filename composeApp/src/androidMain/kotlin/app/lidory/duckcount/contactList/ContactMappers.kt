@@ -60,7 +60,6 @@ private fun VaultError.toAddContactError(isOnline: Boolean): AddContactError = w
     VaultError.MalformedKeyRing,
     VaultError.MalformedContactBook,
     VaultError.OrphanedEntry,
-    VaultError.PartFull,
     VaultError.Contended,
         -> AddContactError.UNKNOWN
 }
@@ -100,7 +99,6 @@ private fun VaultError.toAnswerContactRequestError(isOnline: Boolean): AnswerCon
         VaultError.MalformedKeyRing,
         VaultError.MalformedContactBook,
         VaultError.OrphanedEntry,
-        VaultError.PartFull,
         VaultError.Contended,
             -> AnswerContactRequestError.UNKNOWN
     }
@@ -135,7 +133,6 @@ private fun VaultError.toRemoveContactError(isOnline: Boolean): RemoveContactErr
     VaultError.MalformedKeyRing,
     VaultError.MalformedContactBook,
     VaultError.OrphanedEntry,
-    VaultError.PartFull,
     VaultError.Contended,
         -> RemoveContactError.UNKNOWN
 }

@@ -8,7 +8,7 @@ import androidx.room.PrimaryKey
  *
  * The server tells every participant an expense exists; only its key tells them what it
  * says. A log-out takes the local MLS state with it, so a key message that arrives while
- * somebody is logged out can never be read, and the vault copy only helps for expenses
+ * somebody is logged out can never be read, and the server's copy only helps for expenses
  * whose key had already arrived. What is left is to ask the creditor again, which is what
  * this row drives.
  *

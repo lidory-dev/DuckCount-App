@@ -13,15 +13,15 @@ import util.Result
  * The direct messages that carry the keys to one-time expenses: a creditor handing them
  * over, and a participant asking for them again.
  *
- * **A share is only ever believed from the creditor.** MLS says who sent a message, and the
+ * **A share is only ever accepted from the creditor.** MLS says who sent a message, and the
  * key to an expense is the creditor's to give: taking one from anybody else would let a
  * co-beneficiary hand over thirty-two bytes of their choosing and have them stored as the
  * key. The expense still has to open under the key, and carry the signature of the sender
  * the key is recorded from, before either is acted on, which is the gate that actually
  * holds, but there is no reason to store a stranger's guess in the first place.
  *
- * **A request is only ever answered by the creditor**, out of the record in their own
- * vault, which is the only account of who an expense was meant for that the server cannot
+ * **A request is only ever answered by the creditor**, out of their own record of the
+ * expense, which is the only account of who it was meant for that the server cannot
  * rewrite. Asking `GET /expenses` instead would mean a server that wanted a key could
  * simply add a beneficiary and ask for it.
  */
@@ -56,7 +56,7 @@ internal class OneTimeExpenseMessageHandler(
     }
 
     /**
-     * Keeps the keys [creditorUuid] handed over, to be believed once the expenses they name
+     * Keeps the keys [creditorUuid] handed over, to be verified once the expenses they name
      * open under them and carry [creditorUuid]'s signature.
      *
      * The record is built from the sender MLS authenticated, the signature key it
@@ -86,7 +86,7 @@ internal class OneTimeExpenseMessageHandler(
      * Hands back the keys [requesterUuid] is entitled to, of those they asked for.
      *
      * The answer goes back in the group the question was authenticated in, not through
-     * whatever this device currently believes the channel to them is: that needs no key
+     * whatever this device currently records as the channel to them: that needs no key
      * package, works whatever state the channel is in, and cannot be pointed at anybody
      * else by the asker.
      *
@@ -127,8 +127,9 @@ internal class OneTimeExpenseMessageHandler(
  * - the requester is somebody this record names.
  *
  * The record is the creditor's own account of who the expense was meant for, written when
- * they created it and sealed in their vault. Deciding this from `GET /expenses` instead
- * would mean a server that wanted the key could add itself a beneficiary row and ask.
+ * they created it and sealed under a key the server does not have. Deciding this from
+ * `GET /expenses` instead would mean a server that wanted the key could add itself a
+ * beneficiary row and ask.
  */
 internal fun OneTimeExpenseKeyRecord.keyFor(
     requesterUuid: String,

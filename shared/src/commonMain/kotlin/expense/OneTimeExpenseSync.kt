@@ -54,11 +54,6 @@ class OneTimeExpenseSync(
             is Result.Error -> failure = failure ?: requested.error
         }
 
-        when (val backedUp = keyRepository.backUp()) {
-            is Result.Success -> Unit
-            is Result.Error -> failure = failure ?: OneTimeExpenseSyncError.Vault(backedUp.error)
-        }
-
         return failure?.let { Result.Error(it) } ?: Result.Success(Unit)
     }
 
@@ -66,10 +61,15 @@ class OneTimeExpenseSync(
      * Reads what the server holds, opens what this device has the key for, and records the
      * rest as waiting.
      *
+     * The keys come and go with the list: the ones this device lost are brought back from
+     * the user's copies it carries, and a copy of every key the server is missing is sent
+     * back, see [OneTimeExpenseKeyRepository]. Neither is reported when it fails: both are
+     * decided afresh from the next listing, and the expenses on screen are fine either way.
+     *
      * A version older than one this device has shown is not stored over it, see
      * `ExpenseDao.replaceAllOneTimeExpenses`.
      *
-     * Sends nothing: what is missing is written down here and asked for in
+     * Sends no message: what is missing is written down here and asked for in
      * [requestMissingKeys], so that the request loop is not run from inside the
      * transaction that stores what it is about.
      */
@@ -92,6 +92,10 @@ class OneTimeExpenseSync(
             is Result.Success -> listed.data
             is Result.Error -> return Result.Error(OneTimeExpenseSyncError.Network(listed.error))
         }
+
+        // Before deciding what is missing: an expense whose key was merely not brought back
+        // yet looks exactly like one whose key never arrived, and would be asked for.
+        keyRepository.restore(expenses = expenses)
 
         val held = keyRepository.held()
 
@@ -119,10 +123,13 @@ class OneTimeExpenseSync(
         reconcilePending(unopened = unopened)
 
         // A key that arrived before its expense did, or before this device could check it,
-        // is believed only once the expense it names has opened under it, signed by the
-        // creditor it came from. Done after the rows are stored, because it writes to the
-        // vault and that is a network call.
+        // is verified only once the expense it names has opened under it, signed by the
+        // creditor it came from.
         promoteVerifiedKeys(opened = opened, held = held)
+
+        // Done after the rows are stored, because it is one request per key, and after the
+        // promotion, so that a key verified just now goes up with this listing.
+        keyRepository.backUp(expenses = expenses)
 
         return Result.Success(Unit)
     }
@@ -230,7 +237,7 @@ class OneTimeExpenseSync(
         }
     }
 
-    /** Believes the keys the expenses they name have just opened under. */
+    /** Marks as verified the keys the expenses they name have just opened under. */
     private suspend fun promoteVerifiedKeys(opened: List<ExpenseDto>, held: Map<String, HeldKey>) {
         opened.forEach { expense ->
             val key = held[expense.uuid] ?: return@forEach

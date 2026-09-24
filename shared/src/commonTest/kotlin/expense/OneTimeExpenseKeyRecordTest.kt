@@ -47,11 +47,11 @@ class OneTimeExpenseKeyRecordTest {
     }
 
     /**
-     * The one thing stopping a server from copying a record into another expense's slot and
-     * having the creditor unwrap it for somebody who has no claim to that expense.
+     * The one thing stopping a server from moving a copy to another expense and having the
+     * creditor unwrap it for somebody who has no claim to that expense.
      */
     @Test
-    fun `a record read from another expense's slot is refused`() {
+    fun `a record that came with another expense is refused`() {
         assertNull(
             OneTimeExpenseKeyRecord.parse(
                 plaintext = record().serialize(),

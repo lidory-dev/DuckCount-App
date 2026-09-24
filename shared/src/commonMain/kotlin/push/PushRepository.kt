@@ -75,7 +75,7 @@ class PushRepository(
      * Tells the server to forget this device.
      *
      * The local copy is dropped whatever the server answers: a device that is on its
-     * way out of a session must not go on believing it is registered, and a row left
+     * way out of a session must not go on assuming it is registered, and a row left
      * behind is replaced by the next login anyway.
      */
     suspend fun unregister(): EmptyResult<PushError> {

@@ -9,21 +9,21 @@ import kotlin.io.encoding.Base64
 private val json = Json { ignoreUnknownKeys = true }
 
 /**
- * What the vault holds for one one-time expense: the key that opens it, whose it is, and
- * who its creditor meant it for.
+ * What a participant keeps for one one-time expense: the key that opens it, whose it is,
+ * and who its creditor meant it for.
  *
  * It is a record rather than the bare key because of what the creditor has to decide later.
  * A beneficiary who logs out loses the key with the rest of their local state and has to
  * ask for it again, and the creditor answering that has to know whether the asker is
  * really one of the expense's beneficiaries. Every other account of that comes from the
  * server: `GET /expenses` is the server's word, and the local rows are filled in from it on
- * every sync, so neither can be believed against a server that wants a key handed out.
+ * every sync, so neither can be trusted against a server that wants a key handed out.
  * This is written once, by the creditor, from what they actually picked, and is sealed
  * under a key the server does not have.
  *
- * [expenseUuid] is carried inside rather than being taken from the slot it was read from,
- * so that a record moved to another expense's slot is refused instead of answering for an
- * expense it was never about.
+ * [expenseUuid] is carried inside rather than being taken from the expense it came with, so
+ * that a copy moved to another expense is refused instead of answering for an expense it
+ * was never about.
  */
 class OneTimeExpenseKeyRecord(
     val expenseUuid: String,
@@ -46,7 +46,7 @@ class OneTimeExpenseKeyRecord(
     fun isParticipant(userUuid: String): Boolean =
         userUuid == creditorUuid || userUuid in beneficiaryUuids
 
-    /** The plaintext to seal into the vault. */
+    /** The plaintext to store, and to seal into the user's copy for the server. */
     fun serialize(): ByteArray =
         json.encodeToString(
             SerializedOneTimeExpenseKeyRecord.serializer(),
@@ -77,8 +77,8 @@ class OneTimeExpenseKeyRecord(
 
                 if (serialized.version != VERSION) return null
 
-                // The slot the record was read from and the expense it names have to agree,
-                // or it is a record about some other expense that has been put here.
+                // The expense the record came with and the one it names have to agree, or
+                // it is a record about some other expense that has been put here.
                 if (serialized.expenseUuid != expenseUuid) return null
 
                 OneTimeExpenseKeyRecord(

@@ -4,40 +4,42 @@ import androidx.paging.ExperimentalPagingApi
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
+import authenticationUtils.getAuthenticatedUserUuid
 import database.data.local.dao.ExpenseDao
 import database.data.local.entity.OneTimeExpenseRevisionEntity
 import database.data.mappers.toBeneficiaryEntity
 import database.data.mappers.toExpenseEntity
 import database.data.mappers.toExpenseWithBeneficiaries
 import database.data.mappers.toExpenseWithBeneficiariesEntity
+import database.data.remote.DirectMessageKindDto
 import database.data.remote.ExpenseApi
 import database.data.remote.ExpenseRemoteMediator
 import database.domain.Beneficiary
 import database.domain.Currency
 import database.domain.Expense
 import database.domain.ExpenseWithBeneficiaries
+import expense.ExpenseKey
+import expense.ExpenseKeyShare
+import expense.FIRST_REVISION
 import expense.OneTimeExpenseKeyRecord
 import expense.OneTimeExpenseKeyRepository
 import expense.OneTimeExpenseSync
 import expense.OneTimeExpenseWriteError
-import expense.ExpenseKey
-import expense.ExpenseKeyShare
-import expense.FIRST_REVISION
 import expense.sealOneTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import authenticationUtils.getAuthenticatedUserUuid
 import message.DirectMessageSender
 import message.DirectSendError
 import mls.MlsIdentityRepository
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
+import uniffi.lib_duckcount.newOneTimeExpenseId
 import util.EmptyResult
 import util.NetworkError
 import util.Result
 import util.asEmptyDataResult
 import util.onSuccess
+import kotlin.io.encoding.Base64
 import androidx.paging.map as pagingMap
-import database.data.remote.DirectMessageKindDto
 
 class ExpenseRepository(
     private val expenseApi: ExpenseApi,
@@ -64,13 +66,15 @@ class ExpenseRepository(
         }
 
     /**
-     * Creates a one-time expense: seals and signs it under a key of its own, posts it, keeps
-     * the key, and hands it to everyone the expense names.
+     * Creates a one-time expense: seals and signs it under a key of its own, posts it with
+     * the creditor's copy of that key, keeps the key, and hands it to everyone the expense
+     * names.
      *
      * Only what comes before the post can fail the write. After the expense is on the server
-     * it exists, and reporting a failure would invite a retry that creates a second one.
-     * Whatever did not get done, the vault copy or a beneficiary who was not reached, is
-     * exactly what the sync looks for and fixes.
+     * it exists, and reporting a failure would invite a retry that creates a second one. A
+     * beneficiary who was not reached is what the sync looks for and fixes, and the key went
+     * to the server with the expense, so a device that never stored it gets it back from
+     * there.
      */
     suspend fun createOneTimeExpense(
         expenseWithBeneficiaries: ExpenseWithBeneficiaries,
@@ -78,61 +82,62 @@ class ExpenseRepository(
         val creditorUuid = getAuthenticatedUserUuid()
             ?: return Result.Error(OneTimeExpenseWriteError.NoSession)
 
-        // Before anything sealed under it leaves this device: a part key that exists only
-        // in memory seals an expense nobody can ever open if the write recording it is the
-        // one that fails.
-        val prepared = oneTimeExpenseKeyRepository.prepareForWrite()
-
-        if (prepared is Result.Error) {
-            return Result.Error(OneTimeExpenseWriteError.Vault(prepared.error))
-        }
-
         val client = when (val opened = mlsIdentityRepository.client()) {
             is Result.Success -> opened.data
             is Result.Error -> return Result.Error(OneTimeExpenseWriteError.Identity(opened.error))
         }
 
+        // Known before the post, so that the copy of the key sent with it can name it.
+        val id = newOneTimeExpenseId(creditorUuid = creditorUuid)
+            ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
+
         val expenseKey = generateSymmetricEncryptionKey()
+        val beneficiaryUuids = expenseWithBeneficiaries.beneficiaries.map { it.userUuid }
+
+        val record = OneTimeExpenseKeyRecord(
+            expenseUuid = id.uuid,
+            key = expenseKey,
+            creditorUuid = creditorUuid,
+            creditorSignatureKey = client.signaturePublicKey(),
+            beneficiaryUuids = beneficiaryUuids,
+        )
+
+        val keyCopy = when (val sealed = oneTimeExpenseKeyRepository.sealCopy(record = record)) {
+            is Result.Success -> sealed.data
+            is Result.Error -> return Result.Error(OneTimeExpenseWriteError.Vault(sealed.error))
+        }
 
         val body = expenseWithBeneficiaries.sealOneTime(
             expenseKey = expenseKey,
             revision = FIRST_REVISION,
             client = client,
+            keyCopy = keyCopy,
         ) ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
 
-        val expenseUuid = when (val created = expenseApi.createOneTimeExpense(body = body)) {
-            is Result.Success -> created.data
-            is Result.Error -> return Result.Error(OneTimeExpenseWriteError.Network(created.error))
-        }
-
-        val beneficiaryUuids = expenseWithBeneficiaries.beneficiaries.map { it.userUuid }
-
-        oneTimeExpenseKeyRepository.store(
-            record = OneTimeExpenseKeyRecord(
-                expenseUuid = expenseUuid,
-                key = expenseKey,
-                creditorUuid = creditorUuid,
-                creditorSignatureKey = client.signaturePublicKey(),
-                beneficiaryUuids = beneficiaryUuids,
-            ),
-            verified = true,
+        val created = expenseApi.createOneTimeExpense(
+            body = body.toCreateBody(nonce = Base64.Default.encode(id.nonce)),
         )
 
-        // The server owns the uuid; cache the row under it.
+        if (created is Result.Error) {
+            return Result.Error(OneTimeExpenseWriteError.Network(created.error))
+        }
+
+        oneTimeExpenseKeyRepository.store(record = record, isVerified = true)
+
         val synced = expenseWithBeneficiaries.copy(
-            uuid = expenseUuid,
+            uuid = id.uuid,
             beneficiaries = expenseWithBeneficiaries.beneficiaries.map {
-                it.copy(expenseUuid = expenseUuid)
+                it.copy(expenseUuid = id.uuid)
             },
         )
 
-        expenseDao.setNewestRevision(OneTimeExpenseRevisionEntity(expenseUuid, FIRST_REVISION))
+        expenseDao.setNewestRevision(OneTimeExpenseRevisionEntity(id.uuid, FIRST_REVISION))
         expenseDao.insertWithBeneficiaries(
             expenseWithBeneficiaries = synced.toExpenseWithBeneficiariesEntity(),
         )
 
         shareKey(
-            expenseUuid = expenseUuid,
+            expenseUuid = id.uuid,
             expenseKey = expenseKey,
             beneficiaryUuids = beneficiaryUuids,
             recipients = beneficiaryUuids.filterNot { it == creditorUuid },
@@ -150,8 +155,8 @@ class ExpenseRepository(
      * its amount quietly changed. An edit this device has no key for is refused outright.
      *
      * The server replaces the beneficiary list wholesale, so anyone newly named is handed
-     * the key. Anyone dropped keeps it: they have already seen the expense, and there is no
-     * taking a key back.
+     * the key, and the creditor's copy of it names the new list. Anyone dropped keeps it:
+     * they have already seen the expense, and there is no taking a key back.
      */
     suspend fun updateOneTimeExpense(
         expenseWithBeneficiaries: ExpenseWithBeneficiaries,
@@ -174,10 +179,26 @@ class ExpenseRepository(
             is Result.Error -> return Result.Error(OneTimeExpenseWriteError.Identity(opened.error))
         }
 
+        val beneficiaryUuids = expenseWithBeneficiaries.beneficiaries.map { it.userUuid }
+
+        val updated = OneTimeExpenseKeyRecord(
+            expenseUuid = expenseUuid,
+            key = record.key,
+            creditorUuid = record.creditorUuid,
+            creditorSignatureKey = record.creditorSignatureKey,
+            beneficiaryUuids = beneficiaryUuids,
+        )
+
+        val keyCopy = when (val sealed = oneTimeExpenseKeyRepository.sealCopy(record = updated)) {
+            is Result.Success -> sealed.data
+            is Result.Error -> return Result.Error(OneTimeExpenseWriteError.Vault(sealed.error))
+        }
+
         val body = expenseWithBeneficiaries.sealOneTime(
             expenseKey = record.key,
             revision = revision,
             client = client,
+            keyCopy = keyCopy,
         ) ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
 
         val update = expenseApi.updateOneTimeExpense(uuid = expenseUuid, body = body)
@@ -190,19 +211,9 @@ class ExpenseRepository(
             expenseWithBeneficiaries = expenseWithBeneficiaries.toExpenseWithBeneficiariesEntity(),
         )
 
-        val beneficiaryUuids = expenseWithBeneficiaries.beneficiaries.map { it.userUuid }
-        val added = beneficiaryUuids - record.beneficiaryUuids.toSet()
+        oneTimeExpenseKeyRepository.store(record = updated, isVerified = true)
 
-        oneTimeExpenseKeyRepository.store(
-            record = OneTimeExpenseKeyRecord(
-                expenseUuid = expenseUuid,
-                key = record.key,
-                creditorUuid = record.creditorUuid,
-                creditorSignatureKey = record.creditorSignatureKey,
-                beneficiaryUuids = beneficiaryUuids,
-            ),
-            verified = true,
-        )
+        val added = beneficiaryUuids - record.beneficiaryUuids.toSet()
 
         shareKey(
             expenseUuid = expenseUuid,

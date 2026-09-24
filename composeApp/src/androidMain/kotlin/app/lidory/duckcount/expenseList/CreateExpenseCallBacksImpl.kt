@@ -54,13 +54,13 @@ class CreateExpenseCallBacksImpl(
     override suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseWriteError? {
         // Group expense: local-only write. Returning early is essential, the one-time
         // branch below must not also run (it would POST the expense to the server and
-        // insert a second local copy under the server uuid).
+        // insert a second local copy).
         if (expenseWithBeneficiaries.groupUuid != null) {
             expenseRepository.insertWithBeneficiaries(expenseWithBeneficiaries.toDb())
             return null
         }
 
-        // One-time expense: online-first write-through (server owns the uuid).
+        // One-time expense: online-first write-through.
         return when (val result = expenseRepository.createOneTimeExpense(expenseWithBeneficiaries.toDb())) {
             is Result.Success -> null
             is Result.Error -> result.error.toExpenseWriteError(networkConnectivity.isOnline())

@@ -16,7 +16,7 @@ internal interface DirectMessageHandler {
      * [senderUserUuid] is the MLS sender, not the one the server attached to the message:
      * those agree or the message is never offered here. [mlsGroupId] is the group it was
      * actually read in, so a handler that answers can answer there rather than wherever
-     * this device currently believes the channel to be.
+     * this device currently records as the channel.
      */
     suspend fun handle(
         senderUserUuid: String,

@@ -20,13 +20,6 @@ interface OneTimeExpenseKeyDao {
     @Query("SELECT * FROM OneTimeExpenseKeyEntity")
     suspend fun getAll(): List<OneTimeExpenseKeyEntity>
 
-    /** The verified keys the vault does not hold yet. */
-    @Query("SELECT * FROM OneTimeExpenseKeyEntity WHERE isVerified = true AND isBackedUp = false")
-    suspend fun getNotBackedUp(): List<OneTimeExpenseKeyEntity>
-
-    @Query("UPDATE OneTimeExpenseKeyEntity SET isBackedUp = true WHERE expenseUuid IN (:expenseUuids)")
-    suspend fun markBackedUp(expenseUuids: List<String>)
-
     @Query("DELETE FROM OneTimeExpenseKeyEntity WHERE expenseUuid = :expenseUuid")
     suspend fun delete(expenseUuid: String)
 }

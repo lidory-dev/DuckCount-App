@@ -86,7 +86,6 @@ fun DiscoveryUsernameError.toReserveUsernameError(isOnline: Boolean): ReserveDis
             VaultError.MalformedKeyRing,
             VaultError.MalformedContactBook,
             VaultError.OrphanedEntry,
-            VaultError.PartFull,
                 -> ReserveDiscoveryUsernameError.UNKNOWN
         }
     }
@@ -120,7 +119,6 @@ fun ProfileError.toProfileSaveError(isOnline: Boolean): ProfileSaveError = when 
         VaultError.MalformedKeyRing,
         VaultError.MalformedContactBook,
         VaultError.OrphanedEntry,
-        VaultError.PartFull,
             -> ProfileSaveError.UNKNOWN
     }
 

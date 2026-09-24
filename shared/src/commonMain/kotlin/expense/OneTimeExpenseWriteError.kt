@@ -10,8 +10,8 @@ import vault.VaultError
  *
  * Only the failures *before* the expense reaches the server are reported to the user as a
  * failed write. Once it is on the server it exists, and the user retrying would create a
- * second one: there is no idempotency key on `POST /expenses`, so a retry is a new expense
- * rather than the same one again. Handing the keys out afterwards is left to the sync,
+ * second one: each attempt draws a new nonce, so a retry is a new expense rather than the
+ * same one again. Handing the keys out afterwards is left to the sync,
  * which is built to find and fix exactly that.
  */
 sealed interface OneTimeExpenseWriteError : Error {
@@ -19,15 +19,18 @@ sealed interface OneTimeExpenseWriteError : Error {
     /** Nobody is signed in. */
     data object NoSession : OneTimeExpenseWriteError
 
-    /** The key that seals this part of the vault could not be read or created. */
+    /**
+     * The creditor's copy of the expense key could not be sealed: the key it is sealed under
+     * could not be read or created, or sealing under it failed.
+     */
     data class Vault(val error: VaultError) : OneTimeExpenseWriteError
 
     /** The user's MLS identity, which signs the expense, could not be opened. */
     data class Identity(val error: MlsIdentityError) : OneTimeExpenseWriteError
 
     /**
-     * The expense could not be sealed or signed: a key of the wrong size or a failed
-     * signature, both bugs rather than states.
+     * The expense could not be given a UUID, sealed or signed: a session UUID that does not
+     * parse, a key of the wrong size or a failed signature, all bugs rather than states.
      */
     data object Crypto : OneTimeExpenseWriteError
 
