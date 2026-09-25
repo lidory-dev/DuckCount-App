@@ -22,16 +22,15 @@ import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.graphics.Color
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.expenseList.model.Currency
-import kotlin.uuid.ExperimentalUuidApi
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalUuidApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CurrencyDropDownMenu(
     currency: String,
     currencies: List<Currency>,
     currencyDisplayName: (String) -> String,
     enabled: Boolean,
-    onValueChange: (String, String, Boolean) -> Unit,
+    onValueChange: (Currency) -> Unit,
     modifier: Modifier = Modifier,
     focusManager: FocusManager,
 ) {
@@ -86,7 +85,7 @@ fun CurrencyDropDownMenu(
                         },
                         enabled = enabled,
                         onClick = {
-                            onValueChange(currency.name, currency.symbol, currency.hasSubunits)
+                            onValueChange(currency)
                             expanded = false
                             focusManager.clearFocus()
                         },

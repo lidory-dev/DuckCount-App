@@ -14,6 +14,7 @@ import message.DirectSendError
 import util.EmptyResult
 import util.Result
 import util.nowEpochMilliseconds
+import kotlin.uuid.Uuid
 
 /**
  * Brings the user's one-time expenses up to date, and chases the keys to the ones this
@@ -89,7 +90,11 @@ class OneTimeExpenseSync(
         directMessageSync.sync()
 
         val expenses = when (val listed = expenseApi.getOneTimeExpenses()) {
-            is Result.Success -> listed.data
+            // Only entries whose UUIDs are written as the server writes them, whether or not
+            // they open. These UUIDs end up in rows, in key requests and in the library, which
+            // throws on a string that is not valid UTF-16 rather than refusing it. An expense's
+            // UUID also keys its row in the list.
+            is Result.Success -> listed.data.filter { it.hasCanonicalUuids() }
             is Result.Error -> return Result.Error(OneTimeExpenseSyncError.Network(listed.error))
         }
 
@@ -162,7 +167,7 @@ class OneTimeExpenseSync(
             // The user's own expense: there is nobody to ask, and the server refuses a
             // message addressed to oneself, so it would fail forever.
             row.creditorUuid != ownUserUuid &&
-                (row.lastRequestedAt == null || now - row.lastRequestedAt >= backoffFor(row.requestCount))
+                    (row.lastRequestedAt == null || now - row.lastRequestedAt >= backoffFor(row.requestCount))
         }
 
         var failure: OneTimeExpenseSyncError? = null
@@ -191,9 +196,9 @@ class OneTimeExpenseSync(
                     DirectSendError.RecipientGone,
                     DirectSendError.Channel(DirectChannelError.Unreachable),
                         -> pendingExpenseKeyDao.setState(
-                            expenseUuids = expenseUuids,
-                            state = PendingExpenseKeyState.CREDITOR_GONE,
-                        )
+                        expenseUuids = expenseUuids,
+                        state = PendingExpenseKeyState.CREDITOR_GONE,
+                    )
 
                     // Sending more only pushes the count further past the limit. The rest
                     // wait for the next sync.
@@ -265,6 +270,14 @@ private fun DirectSendError.toSyncError(): OneTimeExpenseSyncError =
 
         DirectSendError.RecipientGone, DirectSendError.RateLimited -> OneTimeExpenseSyncError.Storage
     }
+
+private fun ExpenseDto.hasCanonicalUuids(): Boolean =
+    uuid.isCanonicalUuid() &&
+            creditor_uuid.isCanonicalUuid() &&
+            beneficiaries.all { it.user_uuid.isCanonicalUuid() }
+
+/** Whether this is a UUID written the one way the server and the app write one. */
+internal fun String.isCanonicalUuid(): Boolean = Uuid.parseHexDashOrNull(this)?.toString() == this
 
 /** How many creditors are asked in one sync, so a re-login does not ask everyone at once. */
 private const val MAX_CREDITORS_PER_SYNC = 3

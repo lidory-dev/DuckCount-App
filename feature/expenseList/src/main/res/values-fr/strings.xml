@@ -52,6 +52,7 @@
     <string name="shares_exceed_total_amount">Le total des parts ne peut pas être supérieur au montant total</string>
     <string name="back">Retour</string>
     <string name="non_positive_amount_share">Chaque participant doit avoir une part supérieure à zéro</string>
+    <string name="invalid_amount">Le montant et les parts doivent être supérieurs à zéro, avec au plus 15 chiffres avant la virgule</string>
     <string name="edit_expense">Modifier la dépense</string>
     <string name="title_too_long">Titre trop long (%1$d/%2$d)</string>
     <string name="remove_fixed_share">Retirer la part fixe</string>

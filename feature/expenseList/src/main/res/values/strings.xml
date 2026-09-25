@@ -52,6 +52,7 @@
     <string name="shares_exceed_total_amount">The total of the shares cannot be greater than the total amount</string>
     <string name="back">Back</string>
     <string name="non_positive_amount_share">Every beneficiary must have a share greater than zero</string>
+    <string name="invalid_amount">Amounts and shares must be greater than zero, with at most 15 digits before the decimal point</string>
     <string name="edit_expense">Edit expense</string>
     <string name="title_too_long">Title too long (%1$d/%2$d)</string>
     <string name="remove_fixed_share">Remove fixed share</string>

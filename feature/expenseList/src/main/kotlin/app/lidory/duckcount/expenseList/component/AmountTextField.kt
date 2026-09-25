@@ -34,7 +34,7 @@ fun AmountTextField(
     currencyDisplayName: (String) -> String,
     enabled: Boolean,
     onAmountValueChange: (String) -> Unit,
-    onCurrencyValueChange: (String, String, Boolean) -> Unit,
+    onCurrencyValueChange: (Currency) -> Unit,
     modifier: Modifier = Modifier,
     focusManager: FocusManager,
     groupUuid: String?,

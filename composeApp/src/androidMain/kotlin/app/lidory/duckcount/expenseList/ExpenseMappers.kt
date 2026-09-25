@@ -168,11 +168,15 @@ fun validateExpenseToMessageRes(
 ).toMessageResOrNull()
 
 private fun ExpenseError?.toMessageResOrNull(): Int? = when (this) {
+    null -> null
+
     ExpenseError.SHARES_BELOW_TOTAL_AMOUNT -> expenseListR.string.shares_below_total_amount
     ExpenseError.SHARES_EXCEED_TOTAL_AMOUNT -> expenseListR.string.shares_exceed_total_amount
     ExpenseError.NON_POSITIVE_SHARE -> expenseListR.string.non_positive_amount_share
     ExpenseError.SHARES_EMPTY -> expenseListR.string.non_positive_amount_share
     ExpenseError.NO_BENEFICIARIES -> expenseListR.string.no_beneficiaries
 
-    else -> null
+    // What a typed amount or share can still be: zero, or too long. Never let through:
+    // everybody an expense names refuses one that does not validate, and would never see it.
+    ExpenseError.OTHER_KNOWN_ERROR -> expenseListR.string.invalid_amount
 }

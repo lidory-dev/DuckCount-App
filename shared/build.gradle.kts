@@ -58,6 +58,9 @@ kotlin {
             // Koin
             implementation(libs.koin.core)
 
+            // Kotlinx DateTime
+            implementation(libs.kotlinx.datetime)
+
             // KSafe
             implementation(libs.ksafe)
             implementation(libs.ksafe.compose)

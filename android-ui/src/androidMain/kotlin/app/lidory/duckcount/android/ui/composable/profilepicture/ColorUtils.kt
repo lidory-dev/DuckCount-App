@@ -61,7 +61,7 @@ fun getColorsForContact(uuid: String, isDarkTheme: Boolean = false): ContactColo
 
     val colors = if (isDarkTheme) darkColors else lightColors
 
-    return colors[hash.absoluteValue % colors.size]
+    return colors[(hash % colors.size).absoluteValue]
 }
 
 data class ContactColors(

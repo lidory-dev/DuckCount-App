@@ -114,6 +114,7 @@ class CreateExpenseViewModel(
 
     private val _state = MutableStateFlow(
         CreateExpenseState(
+            currency = createExpenseCallBacks.getDefaultCurrency(),
             validateExpenseCallBack = { amount, currency, beneficiaries ->
                 createExpenseCallBacks.validateExpense(
                     amount = amount,
@@ -130,10 +131,7 @@ class CreateExpenseViewModel(
 
         groupUuid?.let {
             val groupCurrency = createExpenseCallBacks.getGroupCurrency(groupUuid = it).first()
-            updateCurrency(groupCurrency.name, groupCurrency.symbol, groupCurrency.hasSubunits)
-        } ?: run {
-            val defaultCurrency = createExpenseCallBacks.getDefaultCurrency()
-            updateCurrency(defaultCurrency.name, defaultCurrency.symbol, defaultCurrency.hasSubunits)
+            updateCurrency(groupCurrency)
         }
 
         expenseUuid?.let { uuid ->
@@ -142,7 +140,7 @@ class CreateExpenseViewModel(
             updateTitle(expense.title)
             updateCreditor(expense.creditorUuid)
             updateAmount(expense.amount)
-            updateCurrency(expense.currency.name, expense.currency.symbol, expense.currency.hasSubunits)
+            updateCurrency(expense.currency)
             updateDescription(expense.description)
             updateBeneficiaries(expense.beneficiaries)
             expense.beneficiaries.forEach {
@@ -350,21 +348,18 @@ class CreateExpenseViewModel(
         _state.update { it.copy(amount = newAmount) }
     }
 
-    fun updateCurrency(name: String, symbol: String, hasSubUnits: Boolean) {
-        // TODO: UUID.
-        val newCurrency = Currency(uuid = "", name = name, symbol = symbol, hasSubunits = hasSubUnits)
-
+    fun updateCurrency(currency: Currency) {
         _state.update { state ->
             val reformat: (String) -> String = { value ->
                 when {
                     value.isBlank() -> value
-                    hasSubUnits -> value.roundAmountWithSubunits()
+                    currency.hasSubunits -> value.roundAmountWithSubunits()
                     else -> value.roundAmountWithoutSubunits()
                 }
             }
 
             state.copy(
-                currency = newCurrency,
+                currency = currency,
                 amount = reformat(state.amount),
                 beneficiaries = state.beneficiaries.map { it.copy(share = reformat(it.share)) },
             )
@@ -516,14 +511,16 @@ data class CreateExpenseState(
     val creditorUuid: String = "",
     val creditorFullName: String = "",
     val isSettlement: Boolean = false,
-    // TODO: adapt
-    val currency: Currency = Currency("", "", "", false),
+    val currency: Currency,
     val beneficiaries: List<Beneficiary> = emptyList(),
     val isDeleted: Boolean = false,
     private val validateExpenseCallBack: (String, Currency, List<Beneficiary>) -> Int?,
 ) {
     val error: Int? =
         when {
+            // The amount field says so itself, and nothing is saved without one.
+            amount.isBlank() -> null
+
             (beneficiaries.size == 1 && !beneficiaries.any { it.userUuid != creditorUuid })
                 -> R.string.no_beneficiary_other_than_the_creditor
 

@@ -1,12 +1,17 @@
 package expense
 
+import app.lidory.duckcount.ExpenseLimits.MAX_DESCRIPTION_LENGTH
+import app.lidory.duckcount.ExpenseLimits.MAX_TITLE_LENGTH
+import app.lidory.duckcount.validateExpense
 import database.data.remote.BeneficiaryDto
 import database.data.remote.EncryptedFieldDto
 import database.data.remote.ExpenseDto
 import database.data.remote.OneTimeExpenseRequestBody
 import database.domain.Beneficiary
 import database.domain.Currency
+import database.domain.CurrencyCatalog
 import database.domain.ExpenseWithBeneficiaries
+import kotlinx.datetime.LocalDateTime
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import uniffi.lib_duckcount.MlsClient
@@ -145,6 +150,14 @@ internal class OpenedOneTimeExpense(
  * All or nothing on purpose: a half-opened expense would be a row with a real title and a
  * made-up amount, fed to the debt algorithm as though it were the user's own. One that does
  * not open whole is treated as one whose key is still missing.
+ *
+ * So is one, signed or not, whose title or description is longer than the form allows,
+ * whose timestamp is not written exactly as the app writes one, whose currency is not one the
+ * app ships with, or whose amount or shares [validateExpense] refuses. The screens read these
+ * values as the app writes them, and the expense list is the first thing the app shows: one
+ * timestamp it cannot parse would crash it on every launch, with the expense out of the
+ * user's reach on the server. The uuids are checked before this, in
+ * [OneTimeExpenseSync.refresh], where the listing arrives.
  */
 internal fun ExpenseDto.unsealOneTime(record: OneTimeExpenseKeyRecord): OpenedOneTimeExpense? {
     // Only the creditor who handed the key over can have written a version of this expense.
@@ -199,12 +212,16 @@ internal fun ExpenseDto.unsealOneTime(record: OneTimeExpenseKeyRecord): OpenedOn
 
     val expense = ExpenseWithBeneficiaries(
         uuid = uuid,
-        title = unsealBound(expenseKey, Context.TITLE, title)?.decodeToString() ?: return null,
+        title = unsealBound(expenseKey, Context.TITLE, title)?.decodeToString()
+            ?.takeIf { it.length <= MAX_TITLE_LENGTH }
+            ?: return null,
         description = unsealBound(expenseKey, Context.DESCRIPTION, description)?.decodeToString()
+            ?.takeIf { it.length <= MAX_DESCRIPTION_LENGTH }
             ?: return null,
         amount = unsealBound(expenseKey, Context.AMOUNT, amount)?.decodeToString() ?: return null,
         currency = unsealBound(expenseKey, Context.CURRENCY, currency)?.toCurrency() ?: return null,
         timestamp = unsealBound(expenseKey, Context.TIMESTAMP, timestamp)?.decodeToString()
+            ?.takeIf { it.isCanonicalTimestamp() }
             ?: return null,
         creditorUuid = creditor_uuid,
         isSettlement = is_settled,
@@ -215,8 +232,22 @@ internal fun ExpenseDto.unsealOneTime(record: OneTimeExpenseKeyRecord): OpenedOn
         beneficiaries = openedBeneficiaries,
     )
 
+    // The amount and the shares, by the library's rules for the currency, which also refuse
+    // a beneficiary listed twice.
+    val error = validateExpense(
+        amount = expense.amount,
+        currency = expense.currency,
+        beneficiaries = expense.beneficiaries,
+    )
+
+    if (error != null) return null
+
     return OpenedOneTimeExpense(expense = expense, revision = signed.revision)
 }
+
+/** Whether this is a timestamp written exactly as the app writes one. */
+internal fun String.isCanonicalTimestamp(): Boolean =
+    LocalDateTime.Formats.ISO.parseOrNull(this)?.let { LocalDateTime.Formats.ISO.format(it) } == this
 
 /**
  * What the creditor signs for one version, built from its sealed fields exactly as the
@@ -292,12 +323,30 @@ private class SerializedSignedRevision(
     val signature: String,
 )
 
-/**
- * The currency itself, not a reference to one: a catalogue id is only worth something to a
- * device holding the same catalogue, and a currency the user added is in nobody else's.
- */
-private fun Currency.serialize(): ByteArray =
-    json.encodeToString(Currency.serializer(), this).encodeToByteArray()
+/** The currency whole, sealed with its uuid, which is how a receiver recognises it. */
+@Serializable
+private class SerializedCurrency(
+    val uuid: String,
+    val name: String,
+    val symbol: String,
+    val hasSubunits: Boolean,
+)
 
-private fun ByteArray.toCurrency(): Currency? =
-    runCatching { json.decodeFromString(Currency.serializer(), decodeToString()) }.getOrNull()
+private fun Currency.serialize(): ByteArray =
+    json.encodeToString(
+        SerializedCurrency.serializer(),
+        SerializedCurrency(uuid = uuid, name = name, symbol = symbol, hasSubunits = hasSubunits),
+    ).encodeToByteArray()
+
+/**
+ * The currency of [CurrencyCatalog] whose UUID was sealed, or null for one the app does not
+ * ship with. The receiver's own entry is used, not what was sealed: the UUID is the one field
+ * the catalogue promises never changes between releases.
+ */
+private fun ByteArray.toCurrency(): Currency? {
+    val sealed = runCatching { json.decodeFromString(SerializedCurrency.serializer(), decodeToString()) }
+        .getOrNull()
+        ?: return null
+
+    return CurrencyCatalog.defaultCurrencies.firstOrNull { it.uuid == sealed.uuid }
+}

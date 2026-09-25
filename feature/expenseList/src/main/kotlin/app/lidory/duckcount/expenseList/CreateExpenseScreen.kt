@@ -216,8 +216,8 @@ fun CreateExpenseScreen(
                             viewModel.updateAmount(amount)
                             viewModel.calculateShares()
                         },
-                        onCurrencyValueChange = { name, symbol, hasSubUnit ->
-                            viewModel.updateCurrency(name, symbol, hasSubUnit)
+                        onCurrencyValueChange = { currency ->
+                            viewModel.updateCurrency(currency)
                             focusManager.clearFocus()
                         },
                         focusManager = focusManager,
