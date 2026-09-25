@@ -157,18 +157,10 @@ private fun ContactList(
 
     val groupedContactList = remember(users) {
         users
-            .sortedWith { user1, user2 ->
-                if (user1.fullName.first().isLetter())
-                    user1.fullName.first().compareTo(user2.fullName.first())
-                else
-                    1
-            }
-            .groupBy {
-                val char = it.fullName.first()
-                if (char.isLetter())
-                    Normalizer.normalize(it.fullName, Normalizer.Form.NFD).first().uppercase()
-                else
-                    "#"
+            .groupBy { it.section() }
+            .toSortedMap(compareBy<String> { it == OTHER_SECTION }.thenBy { it })
+            .mapValues { (_, section) ->
+                section.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.fullName })
             }
     }
 
@@ -280,3 +272,17 @@ private fun ContactList(
         }
     }
 }
+
+/** The section for names that do not start with a letter, listed last. */
+private const val OTHER_SECTION = "#"
+
+/**
+ * The section a contact is listed under: the first letter of their name without its accent,
+ * or [OTHER_SECTION]. Contacts pick their own name, so it may be empty or start with anything.
+ */
+private fun User.section(): String =
+    if (fullName.firstOrNull()?.isLetter() == true) {
+        Normalizer.normalize(fullName, Normalizer.Form.NFD).first().uppercase()
+    } else {
+        OTHER_SECTION
+    }
