@@ -69,6 +69,6 @@ private fun DirectMessageSyncError.toContactSyncError(): ContactSyncError =
     when (this) {
         is DirectMessageSyncError.Identity -> ContactSyncError.Identity(error = error)
         DirectMessageSyncError.Storage -> ContactSyncError.Storage
-        is DirectMessageSyncError.Vault -> ContactSyncError.Vault(error = error)
+        is DirectMessageSyncError.Contacts -> error
         is DirectMessageSyncError.Network -> ContactSyncError.Network(error = error)
     }

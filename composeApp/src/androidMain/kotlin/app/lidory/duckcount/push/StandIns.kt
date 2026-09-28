@@ -11,7 +11,7 @@ import android.content.Context
  *
  * Asking the system would be the obvious way to know, and does not work.
  * `NotificationManagerCompat.getActiveNotifications()` answers with an empty list on some
- * builds even while the app's notifications are plainly in the shade — observed on a Pixel
+ * builds even while the app's notifications are plainly in the shade, observed on a Pixel
  * 7 Pro on Android 16, where `dumpsys notification` listed two of this app's own and the
  * API returned none. Getting that answer wrong is not cosmetic: it shows one expense twice,
  * once namelessly and once named.

@@ -32,6 +32,7 @@
     <string name="answer_contact_request_error_no_internet">No internet connection</string>
     <string name="answer_contact_request_error_timeout">The server took too long to answer, please try again</string>
     <string name="answer_contact_request_error_server_unreachable">The server is unreachable, please try again later</string>
+    <string name="answer_contact_request_error_identity_changed">This user’s security key has changed, so the request was not accepted</string>
     <string name="answer_contact_request_error_unknown">The contact request could not be answered, please try again</string>
     <string name="remove_contact_error_rate_limited">Too many attempts, please try again later</string>
     <string name="remove_contact_error_no_internet">No internet connection</string>

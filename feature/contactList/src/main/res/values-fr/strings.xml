@@ -32,6 +32,7 @@
     <string name="answer_contact_request_error_no_internet">Aucune connexion Internet</string>
     <string name="answer_contact_request_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>
     <string name="answer_contact_request_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
+    <string name="answer_contact_request_error_identity_changed">La clé de sécurité de cet utilisateur a changé, la demande n’a pas été acceptée</string>
     <string name="answer_contact_request_error_unknown">Impossible de répondre à la demande de contact, réessayez</string>
     <string name="remove_contact_error_rate_limited">Trop de tentatives, réessayez plus tard</string>
     <string name="remove_contact_error_no_internet">Aucune connexion Internet</string>

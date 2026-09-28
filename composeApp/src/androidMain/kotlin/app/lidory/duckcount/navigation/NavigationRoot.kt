@@ -83,7 +83,7 @@ fun NavigationRoot(
                             // resolved once, when the app opens, and says where to land.
                             // Somebody who opens the app signed out and then signs in never
                             // changes it, so gating on it meant a device registered for push
-                            // on launch or not at all — sign in, and nothing could wake you
+                            // on launch or not at all, sign in, and nothing could wake you
                             // until you restarted the app. The dashboard is the signed-in
                             // app, however the user arrived at it.
                             PushSetUp()

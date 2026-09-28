@@ -23,6 +23,13 @@ sealed interface AnswerContactRequestError : Error {
     /** The answer could not be encrypted to the group the request created. */
     data object Crypto : AnswerContactRequestError
 
+    /**
+     * The sender's MLS identity in the request's group is not the one pinned for them since
+     * the request was opened. Either they legitimately got a new identity, or somebody is
+     * impersonating them, and nothing here can tell which.
+     */
+    data object IdentityChanged : AnswerContactRequestError
+
     /** The server could not be reached, or refused the call. */
     data class Network(val error: NetworkError) : AnswerContactRequestError
 }

@@ -88,6 +88,8 @@ fun SharedAnswerContactRequestError.toAnswerContactRequestError(
     }
 
     SharedAnswerContactRequestError.Crypto -> AnswerContactRequestError.UNKNOWN
+
+    SharedAnswerContactRequestError.IdentityChanged -> AnswerContactRequestError.IDENTITY_CHANGED
 }
 
 private fun VaultError.toAnswerContactRequestError(isOnline: Boolean): AnswerContactRequestError =

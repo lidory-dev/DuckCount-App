@@ -26,9 +26,9 @@ import uniffi.lib_duckcount.MlsException
 import util.EmptyResult
 import util.NetworkError
 import util.Result
-import vault.VaultError
 import vault.VaultRepository
 import mls.pinnedSignatureKeyFor
+import mls.restorePin
 import vault.VaultContact
 
 /**
@@ -217,18 +217,38 @@ class ContactRepository(
      *
      * No channel comes back with them: the group's state lived in the database that is
      * gone, and no Welcome can reach a key package whose secret went with it. The first
-     * message to a restored contact builds a new group instead. The identities pinned for
-     * them come back with the MLS client, see [MlsIdentityRepository].
+     * message to a restored contact builds a new group instead.
      *
-     * Only the vault read is reported: a name that could not be read is read again by the
-     * next [ContactSync][contact.ContactSync].
+     * The identities pinned for them go back into the MLS client first, from the same read
+     * as the contacts themselves. The client puts them back when it opens too, see
+     * [MlsIdentityRepository], but from a read of its own: a server showing the two reads
+     * different books would otherwise bring contacts back without their pins, and the next
+     * Welcome naming one of them would pin whatever identity it carries.
+     *
+     * A name that could not be read is not reported: the next [ContactSync][contact.ContactSync]
+     * reads it again.
      */
-    suspend fun restore(): EmptyResult<VaultError> {
+    suspend fun restore(): EmptyResult<ContactSyncError> {
         if (!hasContactsToRestore()) return Result.Success(Unit)
 
         val contacts = when (val read = vaultRepository.getContacts()) {
             is Result.Success -> read.data
-            is Result.Error -> return Result.Error(read.error)
+            is Result.Error -> return Result.Error(ContactSyncError.Vault(read.error))
+        }
+
+        val client = when (val opened = mlsIdentityRepository.client()) {
+            is Result.Success -> opened.data
+            is Result.Error -> return Result.Error(ContactSyncError.Identity(opened.error))
+        }
+
+        try {
+            contacts.forEach { (userUuid, contact) ->
+                val signatureKey = contact.mlsSignaturePublicKey ?: return@forEach
+
+                client.restorePin(peerUuid = userUuid, signatureKey = signatureKey)
+            }
+        } catch (_: MlsException) {
+            return Result.Error(ContactSyncError.Storage)
         }
 
         contactDao.insertNew(

@@ -79,8 +79,8 @@ class OneTimeExpenseSync(
         // it the other way round means opening the list, finding an expense unreadable, and
         // asking its creditor for a key that was already sitting on the server.
         //
-        // Not left to the push that carried it either. A push can be missed — the device
-        // was off, the distributor dropped the subscription, a log-out took it with it —
+        // Not left to the push that carried it either. A push can be missed (the device
+        // was off, the distributor dropped the subscription, a log-out took it with it),
         // and a key that was only ever going to arrive that way would never arrive at all,
         // leaving an expense invisible with nothing to bring it back. Opening the list is
         // the other moment the user is plainly asking to be up to date.

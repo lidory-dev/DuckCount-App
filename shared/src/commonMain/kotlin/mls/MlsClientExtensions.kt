@@ -16,8 +16,16 @@ import kotlin.io.encoding.Base64
 /** What reading an application message out of a group came to. */
 internal sealed interface ApplicationMessageReading {
 
-    /** The plaintext, from the member MLS authenticated as its sender. */
-    class Read(val senderUserUuid: String, val payload: ByteArray) : ApplicationMessageReading
+    /**
+     * The plaintext, from the member MLS authenticated as its sender, and whether they
+     * signed it with the key pinned for them: false for anybody this device has not chosen
+     * to trust.
+     */
+    class Read(
+        val senderUserUuid: String,
+        val payload: ByteArray,
+        val isSenderPinned: Boolean,
+    ) : ApplicationMessageReading
 
     /**
      * The message will never be read: it is malformed, it is not an application message,
@@ -58,6 +66,7 @@ internal suspend fun MlsClient.readApplicationMessage(
         is ProcessedMessage.ApplicationMessage -> ApplicationMessageReading.Read(
             senderUserUuid = processed.senderUserUuid,
             payload = processed.payload,
+            isSenderPinned = processed.isSenderPinned,
         )
 
         else -> ApplicationMessageReading.Unreadable
@@ -110,7 +119,8 @@ internal suspend fun MlsClient.createGroupWith(invitee: InviteeKeyPackage): Grou
     }
 
 /**
- * Joins the group [welcome] was sealed for, and returns its id.
+ * Joins the group [welcome] was sealed for, and returns its id, pinning [peerUuid] when
+ * [pinPeer] says this device already trusts them, and leaving that to [pinPeerIn] otherwise.
  *
  * [peerUuid] is who the server says sent the Welcome, which it knows from their session.
  * The join is refused unless the group holds exactly the user and [peerUuid], so a
@@ -120,10 +130,25 @@ internal suspend fun MlsClient.createGroupWith(invitee: InviteeKeyPackage): Grou
  * stored it, which is also why the id a caller was *told* the group has is worth nothing
  * next to the one this returns.
  */
-internal suspend fun MlsClient.joinGroupFrom(welcome: ByteArray, peerUuid: String): ByteArray =
+internal suspend fun MlsClient.joinGroupFrom(
+    welcome: ByteArray,
+    peerUuid: String,
+    pinPeer: Boolean,
+): ByteArray =
     withContext(Dispatchers.IO) {
-        joinGroup(welcome = welcome, expectedMembers = listOf(peerUuid))
+        joinGroup(welcome = welcome, expectedMembers = listOf(peerUuid), pinMembers = pinPeer)
     }
+
+/**
+ * Pins [peerUuid] to the identity they hold in the group [mlsGroupId], which was joined
+ * without pinning them, provided it still holds nobody but the user and them.
+ *
+ * Throws [MlsException.UnexpectedMembers] when somebody else was committed into the group
+ * since, and [MlsException.IdentityKeyMismatch] when a different identity was pinned for
+ * [peerUuid] since.
+ */
+internal suspend fun MlsClient.pinPeerIn(mlsGroupId: ByteArray, peerUuid: String) =
+    withGroup(mlsGroupId = mlsGroupId) { it.pinMembers(expectedMembers = listOf(peerUuid)) }
 
 /**
  * The MLS identity this device pinned for [peerUuid], or null when it has never met them.

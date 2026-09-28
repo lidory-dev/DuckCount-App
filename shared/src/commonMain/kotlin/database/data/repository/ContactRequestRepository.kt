@@ -30,6 +30,7 @@ import mls.deleteGroupQuietly
 import mls.encryptApplicationMessage
 import mls.isRetryable
 import mls.joinGroupFrom
+import mls.pinPeerIn
 import mls.readApplicationMessage
 import profile.ProfileRepository
 import uniffi.lib_duckcount.InviteeKeyPackage
@@ -96,8 +97,12 @@ class ContactRequestRepository(
     suspend fun refresh(): EmptyResult<ContactSyncError> = mutex.withLock { refreshLocked() }
 
     /**
-     * Accepts a request: hands its sender the user's own profile encryption key, and makes
-     * them a contact.
+     * Accepts a request: pins the MLS identity its sender holds in the request's group,
+     * hands them the user's own profile encryption key, and makes them a contact.
+     *
+     * Pinned only now, never when the request is opened: opening happens to every request
+     * the server lists, from anyone, and one the user refuses or never answers must not
+     * decide who its sender is.
      *
      * The key travels encrypted to the group the request created, and the server delivers
      * it to the sender as a direct message. The sender becomes a contact on this device once
@@ -255,8 +260,13 @@ class ContactRequestRepository(
 
         // The join refuses any group but one holding exactly the user and the sender the
         // server authenticated, so every message read in it, the card included, is theirs.
+        // It pins nobody: that waits for the user to accept the request.
         val mlsGroupId = try {
-            client.joinGroupFrom(welcome = envelope.welcome, peerUuid = request.senderUserUuid)
+            client.joinGroupFrom(
+                welcome = envelope.welcome,
+                peerUuid = request.senderUserUuid,
+                pinPeer = false,
+            )
         } catch (exception: MlsException) {
             if (exception.isRetryable()) return Result.Error(ContactSyncError.Storage)
 
@@ -324,10 +334,14 @@ class ContactRequestRepository(
         }
 
         val message = try {
+            client.pinPeerIn(mlsGroupId = request.mlsGroupId, peerUuid = request.senderUserUuid)
+
             client.encryptApplicationMessage(
                 mlsGroupId = request.mlsGroupId,
                 payload = ContactCard(profileEncryptionKey = profileEncryptionKey).serialize(),
             )
+        } catch (_: MlsException.IdentityKeyMismatch) {
+            return Result.Error(AnswerContactRequestError.IdentityChanged)
         } catch (_: MlsException) {
             return Result.Error(AnswerContactRequestError.Crypto)
         }
@@ -400,7 +414,8 @@ class ContactRequestRepository(
         when (val opened = mlsIdentityRepository.client()) {
             is Result.Success -> opened.data.deleteGroupQuietly(mlsGroupId = mlsGroupId)
 
-            // The group stays behind, where nothing can reach it any more.
+            // The group stays behind. Nothing its sender sends in it is acted on until this
+            // device pins them, see DirectMessageSync.
             is Result.Error -> Unit
         }
     }

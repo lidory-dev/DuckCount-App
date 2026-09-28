@@ -47,7 +47,7 @@ class DirectMessageSync internal constructor(
     suspend fun sync(): EmptyResult<DirectMessageSyncError> {
         val restored = contactRepository.restore()
 
-        if (restored is Result.Error) return Result.Error(DirectMessageSyncError.Vault(restored.error))
+        if (restored is Result.Error) return Result.Error(DirectMessageSyncError.Contacts(restored.error))
 
         val messages = when (val list = directMessageApi.getDirectMessages()) {
             is Result.Success -> list.data.messages
@@ -145,6 +145,12 @@ class DirectMessageSync internal constructor(
                     return DirectMessageHandling.NOT_MINE
                 }
 
+                // Only somebody this device chose to trust is acted on: the sender of a
+                // request the user has not accepted, or a member somebody else committed
+                // into a group, was never checked against anything, and must not become
+                // somebody this device knows, which the next Welcome from them would pin.
+                if (!reading.isSenderPinned) return DirectMessageHandling.NOT_MINE
+
                 directChannelRepository.noteReadIn(
                     client = client,
                     peerUuid = reading.senderUserUuid,
@@ -177,7 +183,11 @@ class DirectMessageSync internal constructor(
     ): ByteArray? {
         if (!directChannelRepository.isKnownPeer(peerUuid = message.senderUserUuid)) return null
 
-        val joined = client.joinGroupFrom(welcome = welcome, peerUuid = message.senderUserUuid)
+        val joined = client.joinGroupFrom(
+            welcome = welcome,
+            peerUuid = message.senderUserUuid,
+            pinPeer = true,
+        )
 
         directChannelRepository.adopt(peerUuid = message.senderUserUuid, mlsGroupId = joined)
 

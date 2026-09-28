@@ -20,6 +20,12 @@ enum class AnswerContactRequestError {
     /** The server is unreachable. */
     SERVER_UNREACHABLE,
 
+    /**
+     * The sender presented a security key other than the one this device has seen for them
+     * since the request arrived, which is either a new identity or an impersonation attempt.
+     */
+    IDENTITY_CHANGED,
+
     /** Anything else (server error, unusable key material, …). */
     UNKNOWN,
 }
@@ -30,5 +36,6 @@ fun AnswerContactRequestError.messageRes(): Int = when (this) {
     AnswerContactRequestError.NO_INTERNET -> R.string.answer_contact_request_error_no_internet
     AnswerContactRequestError.TIMEOUT -> R.string.answer_contact_request_error_timeout
     AnswerContactRequestError.SERVER_UNREACHABLE -> R.string.answer_contact_request_error_server_unreachable
+    AnswerContactRequestError.IDENTITY_CHANGED -> R.string.answer_contact_request_error_identity_changed
     AnswerContactRequestError.UNKNOWN -> R.string.answer_contact_request_error_unknown
 }

@@ -1,9 +1,9 @@
 package message
 
+import contact.ContactSyncError
 import mls.MlsIdentityError
 import util.Error
 import util.NetworkError
-import vault.VaultError
 
 /**
  * Why taking in the messages waiting for the user stopped short.
@@ -21,8 +21,8 @@ sealed interface DirectMessageSyncError : Error {
      */
     data object Storage : DirectMessageSyncError
 
-    /** The user's contacts could not be brought back from the vault, so nothing was read. */
-    data class Vault(val error: VaultError) : DirectMessageSyncError
+    /** The user's contacts could not be brought back, so nothing was read. */
+    data class Contacts(val error: ContactSyncError) : DirectMessageSyncError
 
     /** The server could not be reached, or refused the call. */
     data class Network(val error: NetworkError) : DirectMessageSyncError
