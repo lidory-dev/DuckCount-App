@@ -23,6 +23,12 @@ sealed interface DirectChannelError : Error {
     data class Identity(val error: MlsIdentityError) : DirectChannelError
 
     /**
+     * This device has pinned no identity for the peer, so a channel would trust whatever key
+     * package the server served for them. Only adding a contact pins somebody new.
+     */
+    data object NotPinned : DirectChannelError
+
+    /**
      * The key package the server served for the peer is signed by a different identity than
      * the one this device pinned for them.
      *

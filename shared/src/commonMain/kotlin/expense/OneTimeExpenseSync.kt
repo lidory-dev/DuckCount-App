@@ -200,6 +200,11 @@ class OneTimeExpenseSync(
                         state = PendingExpenseKeyState.CREDITOR_GONE,
                     )
 
+                    // Nobody this device has pinned, so nobody it can ask: a former contact,
+                    // or one a log-out made it lose track of. No retry changes that, so the
+                    // rows wait until they are pinned, which adding them again does.
+                    DirectSendError.Channel(DirectChannelError.NotPinned) -> Unit
+
                     // Sending more only pushes the count further past the limit. The rest
                     // wait for the next sync.
                     DirectSendError.RateLimited -> return Result.Error(

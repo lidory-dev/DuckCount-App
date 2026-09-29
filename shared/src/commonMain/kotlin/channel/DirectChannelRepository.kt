@@ -9,6 +9,7 @@ import mls.MlsIdentityRepository
 import mls.createGroupWith
 import mls.deleteGroupQuietly
 import mls.isRetryable
+import mls.pinnedSignatureKeyFor
 import mls.withPeerLock
 import uniffi.lib_duckcount.InviteeKeyPackage
 import uniffi.lib_duckcount.MlsClient
@@ -75,6 +76,14 @@ class DirectChannelRepository(
                 return@withPeerLock Result.Success(
                     DirectChannel(mlsGroupId = storedGroupId, welcome = stored.pendingWelcome),
                 )
+            }
+
+            // Building would pin whatever identity the key package carries, so it is only done
+            // for a peer already pinned: adding a contact pins them, and the vault gives their
+            // pin back after a log-out. Otherwise the server would get to name them, and could
+            // arrange that by keeping them out of the vault read that restores the pins.
+            if (client.pinnedSignatureKeyFor(peerUuid = peerUuid) == null) {
+                return@withPeerLock Result.Error(DirectChannelError.NotPinned)
             }
 
             if (stored != null) discard(client = client, channel = stored)

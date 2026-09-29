@@ -160,7 +160,12 @@ class ContactRepository(
 
         val (removed, added) = pending.partition { it.isRemoved }
 
-        val client = (mlsIdentityRepository.client() as? Result.Success)?.data
+        // Nothing is written without it: a contact marked backed up without the pin this
+        // device holds for them would never be written again.
+        val client = when (val opened = mlsIdentityRepository.client()) {
+            is Result.Success -> opened.data
+            is Result.Error -> return@withLock Result.Error(ContactSyncError.Identity(opened.error))
+        }
 
         val write = vaultRepository.updateContacts(
             added = added.associate { contact ->
@@ -168,7 +173,7 @@ class ContactRepository(
                     profileEncryptionKey = contact.profileEncryptionKey,
                     // Null for a contact this device has never reached over MLS, which
                     // leaves whatever another device recorded for them alone.
-                    mlsSignaturePublicKey = client?.pinnedSignatureKeyFor(peerUuid = contact.userUuid),
+                    mlsSignaturePublicKey = client.pinnedSignatureKeyFor(peerUuid = contact.userUuid),
                 )
             },
             removed = removed.map { it.userUuid },
