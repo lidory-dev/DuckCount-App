@@ -6,6 +6,8 @@ import database.data.remote.DirectMessageApi
 import database.data.remote.DirectMessageDto
 import database.data.remote.MAX_ACKNOWLEDGEMENT_BATCH
 import database.data.repository.ContactRepository
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import mls.ApplicationMessageReading
 import mls.MlsIdentityRepository
 import mls.isRetryable
@@ -29,7 +31,8 @@ import util.Result
  * Every message that was read, and every message that never will be, is acknowledged,
  * which is the only thing that deletes it server-side. The exception is a message the
  * device could not store the effects of: that one is left alone, since nothing was
- * consumed and the server will hand it back.
+ * consumed and the server will hand it back, and so is everything after it from the same
+ * sender, which comes back behind it.
  *
  * Nothing is read before the user's contacts are back on the device after a login, see
  * [ContactRepository.restore]: a Welcome is only acted on from somebody this device knows,
@@ -43,7 +46,15 @@ class DirectMessageSync internal constructor(
     private val handlers: List<DirectMessageHandler>,
 ) {
 
-    suspend fun sync(): EmptyResult<DirectMessageSyncError> {
+    /**
+     * Serialises [sync]: two passes interleaved could act on one sender's messages out of
+     * order, noting a read in an old group after the other adopted a newer Welcome.
+     */
+    private val mutex = Mutex()
+
+    suspend fun sync(): EmptyResult<DirectMessageSyncError> = mutex.withLock { syncLocked() }
+
+    private suspend fun syncLocked(): EmptyResult<DirectMessageSyncError> {
         val restored = contactRepository.restore()
 
         if (restored is Result.Error) return Result.Error(DirectMessageSyncError.Contacts(restored.error))
@@ -64,11 +75,21 @@ class DirectMessageSync internal constructor(
         val settled = mutableListOf<String>()
         var failure: DirectMessageSyncError? = null
 
+        // A sender whose message has to be read again is left alone for the rest of this
+        // pass: acted on out of order, an older Welcome of theirs would be adopted after a
+        // newer one, and the channel would end up in a group they have already left.
+        val deferredSenders = mutableSetOf<String>()
+
         messages.forEach { message ->
+            if (message.senderUserUuid in deferredSenders) return@forEach
+
             when (deliver(client = client, message = message)) {
                 DirectMessageHandling.HANDLED, DirectMessageHandling.NOT_MINE -> settled += message.uuid
 
-                DirectMessageHandling.RETRY -> failure = failure ?: DirectMessageSyncError.Storage
+                DirectMessageHandling.RETRY -> {
+                    deferredSenders += message.senderUserUuid
+                    failure = failure ?: DirectMessageSyncError.Storage
+                }
             }
         }
 

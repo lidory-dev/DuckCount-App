@@ -24,49 +24,46 @@ class DirectChannelEntity(
     @PrimaryKey(autoGenerate = false) val peerUuid: String,
 
     /**
-     * The group messages to the peer are encrypted to, or null when this device holds
-     * none.
-     *
-     * Null after a log-out or a reinstall, which take the group's state with them and
-     * leave the contact behind: the vault brings back who the user's contacts are, never
-     * the channel to them. Null too for a peer this device has heard of but never reached.
-     * Either way the next send builds a new one.
+     * The group messages to the peer are encrypted to, or null after the user removed them
+     * as a contact, which drops the groups but keeps the row, see `ContactRepository.forget`.
+     * The next send builds a new one.
      */
     val mlsGroupId: ByteArray?,
 
     /**
-     * The group [mlsGroupId] replaced when this device adopted one the peer built, kept
-     * until another replaces it in turn.
+     * The group [mlsGroupId] replaced, kept until another replaces it in turn: the one this
+     * device held when it adopted a group the peer is in, or the one whose Welcome went
+     * unanswered when it built a new one.
      *
-     * The peer may still send in it, for two reasons. What they sent before it was replaced
-     * is still on its way. And when both sides rebuild at the same moment, each adopts the
-     * other's group, so each receives in the one it built itself. Deleting it would make
-     * those messages unreadable, and an unreadable message is acknowledged and gone for
-     * good, which for an expense key means the only copy of it.
+     * The peer may still send in it, for three reasons. What they sent before it was
+     * replaced is still on its way. When both sides rebuild at the same moment, each adopts
+     * the other's group, so each receives in the one it built itself. And a peer who joined
+     * a group and never said anything looks exactly like one who could not join it.
+     * Deleting it would make those messages unreadable, and an unreadable message is
+     * acknowledged and gone for good, which for an expense key means the only copy of it.
      */
     val previousMlsGroupId: ByteArray?,
 
     /**
      * The Welcome that lets the peer join [mlsGroupId], until they demonstrably have.
      *
-     * It rides along every message sent on the channel while it is set, because the server
-     * hands messages back in no particular order and one that arrived without it would be
-     * unreadable, acknowledged, and gone. It is cleared once something is read from the
-     * peer in that group, which they could not have sent without joining.
+     * It rides along every message sent on the channel while it is set, because sends can
+     * reach the server in either order and one that arrived without it would be unreadable,
+     * acknowledged, and gone. It is cleared once something is read from the peer in that
+     * group, which they could not have sent without joining.
      */
     val pendingWelcome: ByteArray?,
 
     /**
-     * When [pendingWelcome] was created, so a channel the peer never joins can be given up
-     * on rather than carried forever. Null when there is no pending Welcome.
+     * When [pendingWelcome] was created, so a Welcome the peer never answers is not carried
+     * forever, see `DirectChannelRepository.ensureChannel`. Null when there is none.
      */
     val pendingWelcomeSince: Long?,
 
     /**
-     * How many messages have carried [pendingWelcome]. Paired with [pendingWelcomeSince]
-     * to decide a Welcome is never going to be answered: it was sealed to a key package
-     * whose secret the peer's log-out wiped, so no amount of resending can reach them, and
-     * only building a fresh group from a fresh key package will.
+     * How many messages have carried [pendingWelcome]. Paired with [pendingWelcomeSince] to
+     * decide a Welcome has gone unanswered long enough to build a new group, see
+     * `DirectChannelRepository.ensureChannel`.
      */
     val welcomeAttachCount: Int = 0,
 )

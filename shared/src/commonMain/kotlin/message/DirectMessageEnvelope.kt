@@ -33,9 +33,9 @@ class DirectMessageEnvelope(
      * A channel does not survive its owner logging out: the group's state lived in the
      * database the log-out wiped, and MLS offers no way back into a group you have left.
      * So the side that lost it builds a new one and has to hand the other a way in, and it
-     * rides with the message rather than ahead of it because the server returns pending
-     * messages in no order worth relying on. One that arrived before its Welcome would be
-     * unreadable, acknowledged, and gone.
+     * rides with the message rather than ahead of it because sends to one peer can reach
+     * the server in either order. One that arrived before its Welcome would be unreadable,
+     * acknowledged, and gone.
      *
      * Null on a channel whose peer has already been seen in the group, which is the
      * ordinary case.
