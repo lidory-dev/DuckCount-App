@@ -21,13 +21,10 @@ interface DirectChannelDao {
     @Upsert
     suspend fun upsert(channel: DirectChannelEntity)
 
-    /**
-     * Records that the peer is in the group, so nothing more has to carry the Welcome, and
-     * retires the group the channel replaced along with it.
-     */
+    /** Records that the peer is in the group, so nothing more has to carry the Welcome. */
     @Query(
         """UPDATE DirectChannelEntity
-        SET pendingWelcome = NULL, pendingWelcomeSince = NULL, welcomeAttachCount = 0, previousMlsGroupId = NULL
+        SET pendingWelcome = NULL, pendingWelcomeSince = NULL, welcomeAttachCount = 0
         WHERE peerUuid = :peerUuid""",
     )
     suspend fun markJoined(peerUuid: String)

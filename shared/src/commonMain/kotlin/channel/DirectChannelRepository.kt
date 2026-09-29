@@ -114,15 +114,15 @@ class DirectChannelRepository(
      * Records that a message from [peerUuid] was read in [mlsGroupId], which is the only
      * proof this device gets of anything about the other side's state.
      *
-     * Read in the current group, it says the peer joined it: the Welcome has done its work
-     * and the group this one replaced can go. Read in the group it replaced, it says
-     * nothing yet, that group is kept precisely so those still arrive. Read in neither, the
-     * peer is talking in a group this device does not consider the channel, so the channel
-     * is dropped and the next send builds one they will hear about.
+     * Read in the current group, it says the peer joined it, and the Welcome has done its
+     * work. Read in the group it replaced, it says nothing new: that group is kept precisely
+     * so what the peer sends there still opens, see [DirectChannelEntity.previousMlsGroupId].
+     * Read in neither, the peer is talking in a group this device does not consider the
+     * channel, so the channel is dropped and the next send builds one they will hear about.
      *
      * With nothing stored at all, the group the message was read in becomes the channel.
      */
-    suspend fun noteReadIn(client: MlsClient, peerUuid: String, mlsGroupId: ByteArray) {
+    suspend fun noteReadIn(peerUuid: String, mlsGroupId: ByteArray) {
         val channel = directChannelDao.get(peerUuid = peerUuid)
 
         if (channel?.mlsGroupId == null) {
@@ -144,11 +144,7 @@ class DirectChannelRepository(
         }
 
         when {
-            channel.mlsGroupId.contentEquals(mlsGroupId) -> {
-                directChannelDao.markJoined(peerUuid = peerUuid)
-
-                channel.previousMlsGroupId?.let { client.deleteGroupQuietly(mlsGroupId = it) }
-            }
+            channel.mlsGroupId.contentEquals(mlsGroupId) -> directChannelDao.markJoined(peerUuid = peerUuid)
 
             channel.previousMlsGroupId.contentEquals(mlsGroupId) -> Unit
 
@@ -166,14 +162,11 @@ class DirectChannelRepository(
      * not be able to read at all, so keeping ours would mean every later message going
      * somewhere they cannot follow, and them asking again for each one forever.
      *
-     * The group it replaces is retired rather than deleted: a group that was dropped would
-     * make every message still in flight in it unreadable, and an unreadable message is
-     * acknowledged and gone, which for the key to an expense means the only copy of it.
-     *
-     * Both sides rebuilding at the same moment is the one case this does not settle in a
-     * single step, and it settles anyway: each adopts the other's, both hold both, so
-     * everything sent either way still opens, and the next thing read in one of them
-     * retires the other.
+     * The group it replaces is kept as the previous one rather than deleted, see
+     * [DirectChannelEntity.previousMlsGroupId]. The one kept before it is let go of without
+     * being deleted either: after both sides rebuilt at once, it is the group the peer
+     * sends in, which nothing here can tell apart from one they left, and what still
+     * arrives in it has to open.
      */
     suspend fun adopt(peerUuid: String, mlsGroupId: ByteArray) {
         val stored = directChannelDao.get(peerUuid = peerUuid)

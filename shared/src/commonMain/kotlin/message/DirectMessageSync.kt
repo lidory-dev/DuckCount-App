@@ -8,7 +8,6 @@ import database.data.remote.MAX_ACKNOWLEDGEMENT_BATCH
 import database.data.repository.ContactRepository
 import mls.ApplicationMessageReading
 import mls.MlsIdentityRepository
-import mls.deleteGroupQuietly
 import mls.isRetryable
 import mls.joinGroupFrom
 import mls.readApplicationMessage
@@ -152,7 +151,6 @@ class DirectMessageSync internal constructor(
                 if (!reading.isSenderPinned) return DirectMessageHandling.NOT_MINE
 
                 directChannelRepository.noteReadIn(
-                    client = client,
                     peerUuid = reading.senderUserUuid,
                     mlsGroupId = mlsGroupId,
                 )

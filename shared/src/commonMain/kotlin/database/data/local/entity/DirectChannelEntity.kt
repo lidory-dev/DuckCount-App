@@ -35,14 +35,14 @@ class DirectChannelEntity(
     val mlsGroupId: ByteArray?,
 
     /**
-     * The group [mlsGroupId] replaced, kept until a message has been read in the new one.
+     * The group [mlsGroupId] replaced when this device adopted one the peer built, kept
+     * until another replaces it in turn.
      *
-     * Two devices that rebuild the channel at the same moment each adopt the other's
-     * group, and whichever they settle on, messages already sent in the one they left are
-     * still on their way. Deleting it would make them unreadable, and an unreadable
-     * message is acknowledged and gone for good, which for an expense key means the only
-     * copy of it. So the old group is retired rather than deleted, and still opens what
-     * arrives in it.
+     * The peer may still send in it, for two reasons. What they sent before it was replaced
+     * is still on its way. And when both sides rebuild at the same moment, each adopts the
+     * other's group, so each receives in the one it built itself. Deleting it would make
+     * those messages unreadable, and an unreadable message is acknowledged and gone for
+     * good, which for an expense key means the only copy of it.
      */
     val previousMlsGroupId: ByteArray?,
 
