@@ -38,7 +38,8 @@ class DirectChannelEntity(
      * The peer may still send in it, for three reasons. What they sent before it was
      * replaced is still on its way. When both sides rebuild at the same moment, each adopts
      * the other's group, so each receives in the one it built itself. And a peer who joined
-     * a group and never said anything looks exactly like one who could not join it.
+     * a group but whose `ChannelJoined` was lost looks exactly like one who could not join
+     * it.
      * Deleting it would make those messages unreadable, and an unreadable message is
      * acknowledged and gone for good, which for an expense key means the only copy of it.
      */

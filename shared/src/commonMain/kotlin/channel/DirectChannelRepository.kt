@@ -53,8 +53,8 @@ class DirectChannelRepository(
      * A channel whose Welcome has gone unanswered for long enough gets a new group, built
      * from a new key package: the Welcome may have been sealed to one whose secret the
      * peer's own log-out wiped, and resending it could then never work. Its group is kept
-     * as the previous one, see [DirectChannelEntity.previousMlsGroupId]: the peer may just
-     * as well have joined it and never said anything.
+     * as the previous one, see [DirectChannelEntity.previousMlsGroupId]: the peer may have
+     * joined it all the same, and only their [ChannelJoined] has been lost.
      */
     suspend fun ensureChannel(peerUuid: String): Result<DirectChannel, DirectChannelError> {
         val ownUserUuid = getAuthenticatedUserUuid()

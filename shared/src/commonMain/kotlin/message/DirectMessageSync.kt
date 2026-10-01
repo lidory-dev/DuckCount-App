@@ -1,5 +1,6 @@
 package message
 
+import channel.ChannelJoined
 import channel.DirectChannelRepository
 import database.data.remote.AcknowledgeDirectMessagesBody
 import database.data.remote.DirectMessageApi
@@ -42,6 +43,7 @@ class DirectMessageSync internal constructor(
     private val directMessageApi: DirectMessageApi,
     private val directChannelRepository: DirectChannelRepository,
     private val contactRepository: ContactRepository,
+    private val directMessageSender: DirectMessageSender,
     private val mlsIdentityRepository: MlsIdentityRepository,
     private val handlers: List<DirectMessageHandler>,
 ) {
@@ -182,9 +184,10 @@ class DirectMessageSync internal constructor(
     }
 
     /**
-     * Joins the group [welcome] was sealed for, and records it as the channel to the
-     * message's sender. Returns the group's id, or null when the sender is nobody this
-     * device knows, and throws [MlsException] when the join fails.
+     * Joins the group [welcome] was sealed for, records it as the channel to the message's
+     * sender, and tells them this device is in, see [ChannelJoined]. Returns the group's id,
+     * or null when the sender is nobody this device knows, and throws [MlsException] when
+     * the join fails.
      *
      * The Welcome is acted on only for somebody this device already knows: joining stores a
      * group and pins the sender's MLS identity, which is not something to do because an
@@ -210,6 +213,13 @@ class DirectMessageSync internal constructor(
 
         directChannelRepository.adopt(peerUuid = message.senderUserUuid, mlsGroupId = joined)
 
+        // Its result is ignored, see [ChannelJoined].
+        directMessageSender.replyIn(
+            recipientUserUuid = message.senderUserUuid,
+            mlsGroupId = joined,
+            payload = ChannelJoined.serialize(),
+        )
+
         return joined
     }
 
@@ -228,8 +238,9 @@ class DirectMessageSync internal constructor(
             if (handling != DirectMessageHandling.NOT_MINE) return handling
         }
 
-        // From a build that knows something this one does not. Acknowledged rather than
-        // kept: this device will not understand it any better next time.
+        // A [ChannelJoined], whose reading is all it is for, or something from a build that
+        // knows what this one does not. Acknowledged rather than kept either way: this device
+        // will not understand it any better next time.
         return DirectMessageHandling.NOT_MINE
     }
 }
