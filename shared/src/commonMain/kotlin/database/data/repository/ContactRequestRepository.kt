@@ -11,6 +11,7 @@ import contact.ContactSyncError
 import contact.SendContactRequestError
 import database.data.local.dao.ContactRequestDao
 import database.data.local.entity.ContactRequestEntity
+import database.data.local.entity.OutgoingContactRequestEntity
 import database.data.mappers.toContactRequest
 import database.data.mappers.toContactRequestEntity
 import database.data.remote.AcceptContactRequestBody
@@ -131,8 +132,10 @@ class ContactRequestRepository(
      * The request creates the MLS group the two of them will share. The lookup hands over
      * one of the recipient's key packages, the group is created with them in it, and the
      * key travels encrypted to that group next to the Welcome that lets them join it.
-     * Nothing else is recorded: the group, kept by the library on this device, is the
-     * relationship, which is also why a request the server turns down deletes it again.
+     *
+     * The request is recorded with its group before it goes out, see
+     * [OutgoingContactRequestEntity]: only its answer, the recipient's card read in that
+     * group, makes them a contact. A request the server turns down deletes both again.
      */
     suspend fun sendContactRequest(username: String): EmptyResult<SendContactRequestError> {
         val digest = hashDiscoveryUsername(username = username)
@@ -199,6 +202,14 @@ class ContactRequestRepository(
             return Result.Error(SendContactRequestError.Crypto)
         }
 
+        // Before the request goes out, so that no answer can arrive with nothing to match it.
+        val outgoing = OutgoingContactRequestEntity(
+            mlsGroupId = group.mlsGroupId,
+            recipientUserUuid = recipient.userUuid,
+        )
+
+        contactRequestDao.insertOutgoing(request = outgoing)
+
         val send = contactApi.sendContactRequest(
             body = SendContactRequestBody(
                 recipientUserUuid = recipient.userUuid,
@@ -207,12 +218,38 @@ class ContactRequestRepository(
         )
 
         if (send is Result.Error) {
+            contactRequestDao.deleteOutgoing(
+                recipientUserUuid = outgoing.recipientUserUuid,
+                mlsGroupId = outgoing.mlsGroupId,
+            )
             client.deleteGroupQuietly(mlsGroupId = group.mlsGroupId)
 
             return Result.Error(send.error.toSendContactRequestError())
         }
 
         return Result.Success(Unit)
+    }
+
+    /**
+     * Makes [senderUserUuid] a contact on the strength of [card], when it answers a request the
+     * user sent them: read in [mlsGroupId], the group that request created. Any other card is
+     * ignored, since its sender would otherwise become a contact the user never asked for.
+     */
+    internal suspend fun receiveAnswer(senderUserUuid: String, mlsGroupId: ByteArray, card: ContactCard) {
+        val requests = contactRequestDao.deleteOutgoing(
+            recipientUserUuid = senderUserUuid,
+            mlsGroupId = mlsGroupId,
+        )
+
+        if (requests == 0) return
+
+        contactRequestDao.deleteOutgoingTo(recipientUserUuid = senderUserUuid)
+
+        contactRepository.add(
+            userUuid = senderUserUuid,
+            profileEncryptionKey = card.profileEncryptionKey,
+            fullName = null,
+        )
     }
 
     private suspend fun refreshLocked(): EmptyResult<ContactSyncError> {
@@ -371,6 +408,9 @@ class ContactRequestRepository(
             profileEncryptionKey = request.profileEncryptionKey,
             fullName = request.senderFullName,
         )
+
+        // Accepting closed the user's own requests to them as well, server-side.
+        contactRequestDao.deleteOutgoingTo(recipientUserUuid = request.senderUserUuid)
 
         // The group the request created is the channel to them from here on, and this is
         // the only moment its id is known outside the request row about to be deleted.

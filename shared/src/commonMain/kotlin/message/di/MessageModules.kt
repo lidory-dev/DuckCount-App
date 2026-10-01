@@ -20,7 +20,7 @@ val messageModule = module {
      */
     single<List<DirectMessageHandler>> {
         listOf(
-            ContactMessageHandler(contactRepository = get()),
+            ContactMessageHandler(contactRequestRepository = get(), contactRepository = get()),
             OneTimeExpenseMessageHandler(
                 keyRepository = get(),
                 directMessageSender = get(),

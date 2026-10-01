@@ -2,7 +2,6 @@ package database.data.repository
 
 import authenticationUtils.clearContactsToRestore
 import authenticationUtils.hasContactsToRestore
-import contact.ContactCard
 import contact.ContactRemoval
 import contact.ContactSyncError
 import contact.RemoveContactError
@@ -87,18 +86,6 @@ class ContactRepository(
         )
 
         fullName?.let { saveName(userUuid = userUuid, fullName = it) }
-    }
-
-    /**
-     * Records the contact card [senderUserUuid] sent, which is how the user learns that a
-     * request they sent was accepted.
-     */
-    internal suspend fun receiveCard(senderUserUuid: String, card: ContactCard) {
-        add(
-            userUuid = senderUserUuid,
-            profileEncryptionKey = card.profileEncryptionKey,
-            fullName = null,
-        )
     }
 
     /** Acts on [senderUserUuid]'s notice that they removed the user from their contacts. */

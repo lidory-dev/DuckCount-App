@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import database.data.local.entity.ContactRequestEntity
 import database.data.local.entity.OpenedContactRequest
+import database.data.local.entity.OutgoingContactRequestEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -97,4 +98,22 @@ interface ContactRequestDao {
         delete(uuids = vanishedUuids)
         insertNew(contactRequests = listed)
     }
+
+    /** Records a request the user sent, see [OutgoingContactRequestEntity]. */
+    @Insert
+    suspend fun insertOutgoing(request: OutgoingContactRequestEntity)
+
+    /**
+     * Drops the request the user sent [recipientUserUuid] in [mlsGroupId], and returns how many
+     * there were: one for the answer to it, none for a card nobody asked for.
+     */
+    @Query(
+        """DELETE FROM OutgoingContactRequestEntity
+        WHERE recipientUserUuid = :recipientUserUuid AND mlsGroupId = :mlsGroupId""",
+    )
+    suspend fun deleteOutgoing(recipientUserUuid: String, mlsGroupId: ByteArray): Int
+
+    /** Drops every request the user sent [recipientUserUuid], who is a contact now. */
+    @Query("DELETE FROM OutgoingContactRequestEntity WHERE recipientUserUuid = :recipientUserUuid")
+    suspend fun deleteOutgoingTo(recipientUserUuid: String)
 }
