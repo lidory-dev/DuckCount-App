@@ -29,6 +29,7 @@
     <string name="accept_contact_request">Accepter</string>
     <string name="refuse_contact_request">Refuser</string>
     <string name="answer_contact_request_error_not_found">Cette demande de contact n’existe plus</string>
+    <string name="answer_contact_request_error_already_accepted">Cette demande avait déjà été acceptée, cette personne a donc été ajoutée à vos contacts</string>
     <string name="answer_contact_request_error_no_internet">Aucune connexion Internet</string>
     <string name="answer_contact_request_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>
     <string name="answer_contact_request_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>

@@ -10,4 +10,5 @@ class OpenedContactRequest(
     val mlsGroupId: ByteArray,
     val profileEncryptionKey: ByteArray,
     val senderFullName: String?,
+    val isAcceptanceSent: Boolean,
 )

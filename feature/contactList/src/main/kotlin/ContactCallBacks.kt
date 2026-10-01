@@ -67,7 +67,9 @@ interface ContactCallBacks {
     /**
      * Refuses the contact request [requestUuid]. Its sender is not told.
      *
-     * Returns null once refused, or why it could not be.
+     * Returns null once refused, or why it could not be. A request the user accepted
+     * earlier, without hearing back, may turn out to have been taken: its sender is then
+     * added as a contact, which [AnswerContactRequestError.ALREADY_ACCEPTED] says.
      */
     suspend fun refuseContactRequest(requestUuid: String): AnswerContactRequestError?
 

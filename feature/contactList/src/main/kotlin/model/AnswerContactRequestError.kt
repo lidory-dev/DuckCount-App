@@ -11,6 +11,12 @@ enum class AnswerContactRequestError {
     /** The request is no longer waiting for the user. */
     NOT_FOUND,
 
+    /**
+     * The request could not be refused: the user had accepted it already, so its sender was
+     * added as a contact.
+     */
+    ALREADY_ACCEPTED,
+
     /** No connectivity. */
     NO_INTERNET,
 
@@ -33,6 +39,7 @@ enum class AnswerContactRequestError {
 @StringRes
 fun AnswerContactRequestError.messageRes(): Int = when (this) {
     AnswerContactRequestError.NOT_FOUND -> R.string.answer_contact_request_error_not_found
+    AnswerContactRequestError.ALREADY_ACCEPTED -> R.string.answer_contact_request_error_already_accepted
     AnswerContactRequestError.NO_INTERNET -> R.string.answer_contact_request_error_no_internet
     AnswerContactRequestError.TIMEOUT -> R.string.answer_contact_request_error_timeout
     AnswerContactRequestError.SERVER_UNREACHABLE -> R.string.answer_contact_request_error_server_unreachable

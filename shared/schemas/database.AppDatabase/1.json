@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "c1220dd5509929aa7b4c3477d8225b2e",
+    "identityHash": "5884e4750b6e6483eac91754356b233f",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -253,7 +253,7 @@
       },
       {
         "tableName": "ContactRequestEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `senderUserUuid` TEXT NOT NULL, `ciphertext` TEXT NOT NULL, `createdAt` TEXT NOT NULL, `mlsGroupId` BLOB, `profileEncryptionKey` BLOB, `senderFullName` TEXT, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `senderUserUuid` TEXT NOT NULL, `ciphertext` TEXT NOT NULL, `createdAt` TEXT NOT NULL, `mlsGroupId` BLOB, `profileEncryptionKey` BLOB, `senderFullName` TEXT, `isAcceptanceSent` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
         "fields": [
           {
             "fieldPath": "uuid",
@@ -293,6 +293,12 @@
             "fieldPath": "senderFullName",
             "columnName": "senderFullName",
             "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isAcceptanceSent",
+            "columnName": "isAcceptanceSent",
+            "affinity": "INTEGER",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -559,7 +565,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c1220dd5509929aa7b4c3477d8225b2e')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5884e4750b6e6483eac91754356b233f')"
     ]
   }
 }

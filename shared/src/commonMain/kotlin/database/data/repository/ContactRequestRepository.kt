@@ -12,6 +12,7 @@ import contact.SendContactRequestError
 import database.data.local.dao.ContactRequestDao
 import database.data.local.dao.IdentityConflictDao
 import database.data.local.entity.ContactRequestEntity
+import database.data.local.entity.OpenedContactRequest
 import database.data.local.entity.OutgoingContactRequestEntity
 import database.data.mappers.toContactRequest
 import database.data.mappers.toContactRequestEntity
@@ -21,6 +22,7 @@ import database.data.remote.SendContactRequestBody
 import database.domain.ContactRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -41,6 +43,7 @@ import uniffi.lib_duckcount.MlsException
 import util.EmptyResult
 import util.NetworkError
 import util.Result
+import util.map
 import util.onError
 import vault.VaultRepository
 import kotlin.io.encoding.Base64
@@ -51,7 +54,10 @@ import kotlin.io.encoding.Base64
  * For the incoming ones the server is the only source, and the local table follows it.
  * What the table adds is what opening a request yields: the group it created, and the key
  * to its sender's profile. Opening one joins that group, and a group is only ever joined
- * once, so that can only ever happen once.
+ * once, so that can only ever happen once. It also records that the user's acceptance went
+ * out, see [ContactRequestEntity.isAcceptanceSent], which the server keeps no trace of: a
+ * request so marked that vanishes is completed, its sender made a contact, rather than
+ * dropped.
  */
 class ContactRequestRepository(
     private val contactRequestDao: ContactRequestDao,
@@ -72,6 +78,13 @@ class ContactRequestRepository(
      * per group, for every caller.
      */
     private val mutex = Mutex()
+
+    /**
+     * The requests this process completed, see [completeAcceptance], for an answer to one of
+     * them still on its way: a screen can offer a request a refresh is completing, and the
+     * tap then waits for the lock. Only touched under [mutex].
+     */
+    private val completedUuids = HashSet<String>()
 
     /** How many requests are waiting for the user's answer. */
     fun getPendingCount(): Flow<Int> {
@@ -94,6 +107,9 @@ class ContactRequestRepository(
      * reinstall took along. Its sender is not told, and is free to send a new one, which a
      * request left pending would prevent.
      *
+     * A request the user accepted that the server no longer lists is completed: its sender
+     * becomes a contact, see [ContactRequestEntity.isAcceptanceSent].
+     *
      * Every step is attempted even when one fails, and the first failure is reported:
      * whatever did not get done is picked up by the next refresh.
      */
@@ -111,6 +127,11 @@ class ContactRequestRepository(
      * it to the sender as a direct message. The sender becomes a contact on this device once
      * the server has taken the answer, and reaches the vault with the next
      * [ContactRepository.backUp].
+     *
+     * An answer lost on its way back does not lose the sender: the request is marked before
+     * the acceptance goes out, see [ContactRequestEntity.isAcceptanceSent], and completed
+     * when it turns out gone, by the next [refresh], by accepting it again, or by reading a
+     * message from them in its group, see [completeAcceptanceIn].
      */
     suspend fun accept(requestUuid: String): EmptyResult<AnswerContactRequestError> =
         mutex.withLock { acceptLocked(requestUuid = requestUuid) }
@@ -118,14 +139,13 @@ class ContactRequestRepository(
     /**
      * Refuses a request, deleting it along with the group it created. Its sender is not
      * told, and may send another one.
+     *
+     * A request the user accepted before without hearing back, and that has gone since, most
+     * likely went because the server took that acceptance: its sender is made a contact
+     * instead, see [AnswerContactRequestError.AlreadyAccepted].
      */
     suspend fun refuse(requestUuid: String): EmptyResult<AnswerContactRequestError> =
-        mutex.withLock {
-            when (val refusal = refuseLocked(requestUuid = requestUuid)) {
-                is Result.Success -> refusal
-                is Result.Error -> Result.Error(AnswerContactRequestError.Network(refusal.error))
-            }
-        }
+        mutex.withLock { refuseLocked(requestUuid = requestUuid) }
 
     /**
      * Asks the holder of the discovery [username] to become a contact, handing them the
@@ -137,7 +157,11 @@ class ContactRequestRepository(
      *
      * The request is recorded with its group before it goes out, see
      * [OutgoingContactRequestEntity]: only its answer, the recipient's card read in that
-     * group, makes them a contact. A request the server turns down deletes both again.
+     * group, makes them a contact. A request the server provably did not store deletes both
+     * again. Any other failure keeps the group, and its row once written, whether the answer
+     * was lost, timed out or the caller went away: the request may be waiting for the
+     * recipient all the same, their answer can only be read in that group, and sending again
+     * finds it pending.
      */
     suspend fun sendContactRequest(username: String): EmptyResult<SendContactRequestError> {
         val digest = hashDiscoveryUsername(username = username)
@@ -170,8 +194,9 @@ class ContactRequestRepository(
         val keyPackage = runCatching { Base64.Default.decode(recipient.keyPackage) }.getOrNull()
             ?: return Result.Error(SendContactRequestError.Crypto)
 
-        // Everything that can fail without leaving anything behind comes first: once the
-        // group exists, every failure has to delete it.
+        // Everything that can fail without leaving anything behind comes first. Once the group
+        // exists, a failure the library reports deletes it again, and the caller going away
+        // leaves it behind, harmlessly: its Welcome never left the device.
         val profileEncryptionKey = when (val read = vaultRepository.getOrCreateProfileEncryptionKey()) {
             is Result.Success -> read.data
             is Result.Error -> return Result.Error(SendContactRequestError.Vault(read.error))
@@ -233,11 +258,13 @@ class ContactRequestRepository(
         )
 
         if (send is Result.Error) {
-            contactRequestDao.deleteOutgoing(
-                recipientUserUuid = outgoing.recipientUserUuid,
-                mlsGroupId = outgoing.mlsGroupId,
-            )
-            client.deleteGroupQuietly(mlsGroupId = group.mlsGroupId)
+            if (send.error in REQUEST_NEVER_STORED) {
+                contactRequestDao.deleteOutgoing(
+                    recipientUserUuid = outgoing.recipientUserUuid,
+                    mlsGroupId = outgoing.mlsGroupId,
+                )
+                client.deleteGroupQuietly(mlsGroupId = group.mlsGroupId)
+            }
 
             return Result.Error(send.error.toSendContactRequestError())
         }
@@ -267,6 +294,28 @@ class ContactRequestRepository(
         )
     }
 
+    /**
+     * Completes the user's acceptance of the request [senderUserUuid] sent with [mlsGroupId],
+     * on reading a message from them in that group: they only ever send in it once they have
+     * read the card the acceptance carried, so the server took it, whatever answer this
+     * device got back. See [ContactRequestEntity.isAcceptanceSent].
+     *
+     * Before the message is acted on, which may need them as a contact: a notice that they
+     * removed the user would otherwise find nobody to remove, and the next [refresh] would
+     * add them back.
+     */
+    internal suspend fun completeAcceptanceIn(senderUserUuid: String, mlsGroupId: ByteArray) {
+        // Read without the lock first, so that every other message goes on without waiting for
+        // an answer or a refresh in flight. The mark is written before the acceptance goes out,
+        // so it is there before anything the sender can send after reading it.
+        contactRequestDao.getAccepted(senderUserUuid = senderUserUuid, mlsGroupId = mlsGroupId) ?: return
+
+        mutex.withLock {
+            contactRequestDao.getAccepted(senderUserUuid = senderUserUuid, mlsGroupId = mlsGroupId)
+                ?.let { completeAcceptance(request = it) }
+        }
+    }
+
     private suspend fun refreshLocked(): EmptyResult<ContactSyncError> {
         val listed = when (val response = contactApi.getContactRequests()) {
             is Result.Success -> response.data.requests.map { it.toContactRequestEntity() }
@@ -274,6 +323,13 @@ class ContactRequestRepository(
         }
 
         val listedUuids = listed.mapTo(HashSet()) { it.uuid }
+
+        // Most likely gone because the server took the user's acceptance, whose answer never
+        // made it back. See ContactRequestEntity.isAcceptanceSent.
+        contactRequestDao.getOpenedOnce()
+            .filter { it.isAcceptanceSent && it.uuid !in listedUuids }
+            .forEach { completeAcceptance(request = it) }
+
         val vanished = contactRequestDao.getAll().filter { it.uuid !in listedUuids }
 
         contactRequestDao.reconcile(vanishedUuids = vanished.map { it.uuid }, listed = listed)
@@ -371,6 +427,9 @@ class ContactRequestRepository(
     }
 
     private suspend fun acceptLocked(requestUuid: String): EmptyResult<AnswerContactRequestError> {
+        // Completed while the screen still offered it, see completedUuids.
+        if (requestUuid in completedUuids) return Result.Success(Unit)
+
         // Only opened requests are shown, but a refresh can drop one from under the screen.
         val request = contactRequestDao.getOpened(uuid = requestUuid)
             ?: return Result.Error(AnswerContactRequestError.NotFound)
@@ -410,6 +469,10 @@ class ContactRequestRepository(
             return Result.Error(AnswerContactRequestError.Crypto)
         }
 
+        // Before it goes out: once the server takes it, the request is gone, and an answer
+        // lost on the way back would leave nothing saying that it was taken.
+        contactRequestDao.markAcceptanceSent(uuid = request.uuid)
+
         val acceptance = contactApi.acceptContactRequest(
             requestUuid = request.uuid,
             body = AcceptContactRequestBody(
@@ -421,15 +484,83 @@ class ContactRequestRepository(
         )
 
         if (acceptance is Result.Error) {
+            // Provably not taken, so the mark goes again, unless an earlier attempt set it.
+            if (!request.isAcceptanceSent && acceptance.error in ACCEPTANCE_NEVER_TAKEN) {
+                withContext(NonCancellable) { contactRequestDao.clearAcceptanceSent(uuid = request.uuid) }
+            }
+
             if (acceptance.error != NetworkError.NOT_FOUND) {
                 return Result.Error(AnswerContactRequestError.Network(acceptance.error))
             }
 
-            forget(requestUuid = request.uuid)
+            val listed = when (val listing = isListed(requestUuid = request.uuid)) {
+                is Result.Success -> listing.data
+                is Result.Error -> return Result.Error(AnswerContactRequestError.Network(listing.error))
+            }
 
-            return Result.Error(AnswerContactRequestError.NotFound)
+            // The proxy's 404, then: the request is still there for a new attempt to take.
+            if (listed) return Result.Error(AnswerContactRequestError.Network(acceptance.error))
+
+            // Read before this attempt marked it: an earlier acceptance went out, and is most
+            // likely what consumed the request.
+            if (!request.isAcceptanceSent) {
+                forget(requestUuid = request.uuid)
+
+                return Result.Error(AnswerContactRequestError.NotFound)
+            }
         }
 
+        completeAcceptance(request = request)
+
+        return Result.Success(Unit)
+    }
+
+    private suspend fun refuseLocked(requestUuid: String): EmptyResult<AnswerContactRequestError> {
+        // Completed while the screen still offered it, see completedUuids: too late to refuse.
+        if (requestUuid in completedUuids) return Result.Error(AnswerContactRequestError.AlreadyAccepted)
+
+        val refusal = contactApi.refuseContactRequest(requestUuid = requestUuid)
+
+        if (refusal is Result.Error) {
+            if (refusal.error != NetworkError.NOT_FOUND) {
+                return Result.Error(AnswerContactRequestError.Network(refusal.error))
+            }
+
+            val listed = when (val listing = isListed(requestUuid = requestUuid)) {
+                is Result.Success -> listing.data
+                is Result.Error -> return Result.Error(AnswerContactRequestError.Network(listing.error))
+            }
+
+            // The proxy's 404, then: the request is still there for a new attempt to refuse.
+            if (listed) return Result.Error(AnswerContactRequestError.Network(refusal.error))
+
+            // Gone already (its sender deleted their account, or accepted the user's own
+            // request to them), which is all refusing it was for. Unless the user accepted it
+            // before: then the server most likely took that, and its sender has the user as a
+            // contact whatever this device decides now.
+            val accepted = contactRequestDao.getOpened(uuid = requestUuid)?.takeIf { it.isAcceptanceSent }
+
+            if (accepted != null) {
+                completeAcceptance(request = accepted)
+
+                return Result.Error(AnswerContactRequestError.AlreadyAccepted)
+            }
+        }
+
+        forget(requestUuid = requestUuid)
+
+        return Result.Success(Unit)
+    }
+
+    /**
+     * Makes the sender of [request], whose acceptance the server took, a contact, and drops
+     * the request, recording it in [completedUuids].
+     *
+     * Not cancellable: leaving the screen would otherwise leave the sender a contact with no
+     * channel, until a refresh completed the rest. The row goes last, so that even a process
+     * dying halfway leaves the request for the next [refresh] to complete again.
+     */
+    private suspend fun completeAcceptance(request: OpenedContactRequest) = withContext(NonCancellable) {
         contactRepository.add(
             userUuid = request.senderUserUuid,
             profileEncryptionKey = request.profileEncryptionKey,
@@ -448,35 +579,52 @@ class ContactRequestRepository(
 
         contactRequestDao.delete(uuids = listOf(request.uuid))
 
-        return Result.Success(Unit)
+        completedUuids += request.uuid
     }
 
-    private suspend fun refuseLocked(requestUuid: String): EmptyResult<NetworkError> {
+    /**
+     * Whether the server still lists [requestUuid], which one of its routes just answered
+     * `404` about.
+     *
+     * That `404` is no proof on its own: the proxy in front of the API answers one for every
+     * route while the API is being redeployed. A request dropped on its word would come back
+     * with the next refresh and, its group joined already, be refused as unreadable. The
+     * listing, which [refresh] goes by, has the last word.
+     */
+    private suspend fun isListed(requestUuid: String): Result<Boolean, NetworkError> =
+        contactApi.getContactRequests().map { response -> response.requests.any { it.uuid == requestUuid } }
+
+    /**
+     * Refuses a request that can never be opened, see [refresh]. Never accepted either, since
+     * only an opened one can be.
+     */
+    private suspend fun refuseUnreadable(requestUuid: String): EmptyResult<ContactSyncError> {
         val refusal = contactApi.refuseContactRequest(requestUuid = requestUuid)
 
-        // Not found means the request is gone already (its sender deleted their account, or
-        // accepted the user's own request to them), which is all refusing it was for.
-        if (refusal is Result.Error && refusal.error != NetworkError.NOT_FOUND) return refusal
+        // Not found means the request is gone already, which is all refusing it was for, or the
+        // proxy answered while the API was being redeployed: the next refresh then lists it
+        // again, fails to open it again, and refuses it again.
+        if (refusal is Result.Error && refusal.error != NetworkError.NOT_FOUND) {
+            return Result.Error(ContactSyncError.Network(refusal.error))
+        }
 
         forget(requestUuid = requestUuid)
 
         return Result.Success(Unit)
     }
 
-    /** Refuses a request that can never be opened, see [refresh]. */
-    private suspend fun refuseUnreadable(requestUuid: String): EmptyResult<ContactSyncError> =
-        when (val refusal = refuseLocked(requestUuid = requestUuid)) {
-            is Result.Success -> refusal
-            is Result.Error -> Result.Error(ContactSyncError.Network(refusal.error))
-        }
-
-    /** Drops a request the server no longer holds, along with its group if it was opened. */
-    private suspend fun forget(requestUuid: String) {
+    /**
+     * Drops a request the server no longer holds, along with its group if it was opened.
+     *
+     * Not cancellable: a row left behind with an acceptance marked on it would be completed by
+     * the next refresh, which no longer finds it listed.
+     */
+    private suspend fun forget(requestUuid: String) = withContext(NonCancellable) {
         val mlsGroupId = contactRequestDao.get(uuid = requestUuid)?.mlsGroupId
 
         contactRequestDao.delete(uuids = listOf(requestUuid))
 
-        if (mlsGroupId == null) return
+        if (mlsGroupId == null) return@withContext
 
         when (val opened = mlsIdentityRepository.client()) {
             is Result.Success -> opened.data.deleteGroupQuietly(mlsGroupId = mlsGroupId)
@@ -487,6 +635,32 @@ class ContactRequestRepository(
         }
     }
 }
+
+/**
+ * The failures that prove an acceptance was not taken: the host never resolved, so nothing
+ * was sent; the token was turned away before the handler ran; or a `404`, from the handler
+ * finding no request to take, or from the proxy in front of it while the API is being
+ * redeployed. Every other failure of the route (a timeout, a dropped connection, a `5xx` the
+ * proxy may return after the commit) leaves open that it was taken.
+ */
+private val ACCEPTANCE_NEVER_TAKEN = setOf(NetworkError.NO_INTERNET, NetworkError.UNAUTHORIZED, NetworkError.NOT_FOUND)
+
+/**
+ * The failures that prove a contact request was not stored: the host never resolved, so
+ * nothing was sent; the token was turned away before the handler ran; the sender is over
+ * their quota, which is checked before anything is written; or the handler wrote nothing,
+ * the recipient being unknown (`404`, which the proxy in front of it also answers while the
+ * API is being redeployed) or asked already (`409`, about an earlier request, which stays).
+ * Every other failure (a timeout, a dropped connection, a `5xx` the proxy may return after
+ * the commit) leaves open that it was.
+ */
+private val REQUEST_NEVER_STORED = setOf(
+    NetworkError.NO_INTERNET,
+    NetworkError.UNAUTHORIZED,
+    NetworkError.TOO_MANY_REQUESTS,
+    NetworkError.NOT_FOUND,
+    NetworkError.CONFLICT,
+)
 
 /** Maps the lookup's and the request's own refusals, the rest being plain network errors. */
 private fun NetworkError.toSendContactRequestError(): SendContactRequestError = when (this) {

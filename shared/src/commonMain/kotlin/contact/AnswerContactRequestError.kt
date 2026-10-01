@@ -15,6 +15,14 @@ sealed interface AnswerContactRequestError : Error {
     data object NotFound : AnswerContactRequestError
 
     /**
+     * The request could not be refused: the user had accepted it already, without hearing
+     * back, and it has gone since, most likely because the server took that acceptance. Its
+     * sender is made a contact rather than dropped, see
+     * [database.data.local.entity.ContactRequestEntity.isAcceptanceSent].
+     */
+    data object AlreadyAccepted : AnswerContactRequestError
+
+    /**
      * The user's contacts could not be brought back from the vault. Until they are, this
      * device cannot tell whether the sender is one of them, nor which identity is theirs.
      */

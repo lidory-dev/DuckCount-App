@@ -35,4 +35,17 @@ class ContactRequestEntity(
 
     /** The name on the sender's profile, null until it has been read. */
     val senderFullName: String? = null,
+
+    /**
+     * Whether the user's acceptance has gone out, set just before it is sent, and cleared
+     * again only when the server provably did not take it.
+     *
+     * The server consumes a request as it takes the acceptance, and holds no trace of it
+     * afterwards, so an acceptance whose answer never came back, timed out or abandoned by
+     * a screen closing, leaves this device no way to ask whether it landed. A request that
+     * vanishes once this is set most likely did, and is completed rather than dropped: its
+     * sender has the user as a contact by then, and this row holds the only copy of the
+     * group and the profile key that lead back to them.
+     */
+    val isAcceptanceSent: Boolean = false,
 )

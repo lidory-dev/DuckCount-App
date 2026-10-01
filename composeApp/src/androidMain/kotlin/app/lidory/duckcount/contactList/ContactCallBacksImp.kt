@@ -5,6 +5,7 @@ import android.util.Log
 import app.lidory.duckcount.networking.NetworkConnectivity
 import app.lidory.duckcount.push.ContactNotifier
 import authenticationUtils.getDiscoveryUsernameFlow
+import contact.AnswerContactRequestError as SharedAnswerContactRequestError
 import contact.ContactArrivals
 import contact.ContactSync
 import database.data.repository.ContactRepository
@@ -145,6 +146,12 @@ class ContactCallBacksImp(
 
             is Result.Error -> {
                 Log.w(TAG, "refuseContactRequest: could not refuse the request: ${refusal.error}")
+
+                // Not refused, accepted: its sender is a contact now, stored like after an
+                // acceptance, and backed up the same way.
+                if (refusal.error == SharedAnswerContactRequestError.AlreadyAccepted) {
+                    syncContacts(caller = "refuseContactRequest")
+                }
 
                 refusal.error.toAnswerContactRequestError(isOnline = networkConnectivity.isOnline())
             }

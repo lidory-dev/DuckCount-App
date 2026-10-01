@@ -92,6 +92,8 @@ fun SharedAnswerContactRequestError.toAnswerContactRequestError(
 ): AnswerContactRequestError = when (this) {
     SharedAnswerContactRequestError.NotFound -> AnswerContactRequestError.NOT_FOUND
 
+    SharedAnswerContactRequestError.AlreadyAccepted -> AnswerContactRequestError.ALREADY_ACCEPTED
+
     is SharedAnswerContactRequestError.Network -> error.toAnswerContactRequestError(isOnline = isOnline)
 
     is SharedAnswerContactRequestError.Vault -> error.toAnswerContactRequestError(isOnline = isOnline)

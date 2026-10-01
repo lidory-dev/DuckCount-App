@@ -2,6 +2,7 @@ package contact
 
 import database.data.local.dao.ContactDao
 import database.data.local.dao.ContactRequestDao
+import database.data.local.dao.DirectChannelDao
 import database.data.local.dao.UserDao
 
 /**
@@ -27,6 +28,10 @@ data class ContactArrival(
 /** Who this device knew about at one moment, to compare a later one against. */
 class ContactSnapshot internal constructor(
     internal val requestSenders: Set<String>,
+
+    /** The groups of the requests the user had out, by recipient, see [ContactArrivals.since]. */
+    internal val outgoingGroups: Map<String, List<ByteArray>>,
+
     internal val contacts: Set<String>,
 )
 
@@ -41,11 +46,16 @@ class ContactSnapshot internal constructor(
 class ContactArrivals(
     private val contactDao: ContactDao,
     private val contactRequestDao: ContactRequestDao,
+    private val directChannelDao: DirectChannelDao,
     private val userDao: UserDao,
 ) {
     /** Who this device knows about right now. */
     suspend fun snapshot(): ContactSnapshot = ContactSnapshot(
         requestSenders = contactRequestDao.getOpenedOnce().mapTo(HashSet()) { it.senderUserUuid },
+        outgoingGroups = contactRequestDao.getOutgoing().groupBy(
+            keySelector = { it.recipientUserUuid },
+            valueTransform = { it.mlsGroupId },
+        ),
         contacts = contactDao.getUserUuids().toHashSet(),
     )
 
@@ -68,12 +78,27 @@ class ContactArrivals(
      * A request whose sender became a contact in the same sync counts once, as the
      * contact: they accepted before the user got round to answering, and telling them
      * about a request they no longer have would be wrong.
+     *
+     * A new contact is only told about when they answered a request the user sent, which
+     * is what the announcement says. Their answer is read in the group that request created,
+     * which becomes the channel to them, see [channel.DirectChannelRepository.noteReadIn], or
+     * the one before it once a Welcome read later in the same sync replaced it. Anybody else is no news to the user: the user's own acceptance of a request of theirs
+     * leaves the channel in the group *that* request created, however late it landed, even
+     * when the two had asked each other, and a contact the vault gave back is not one the
+     * user has a request out to.
      */
     suspend fun since(snapshot: ContactSnapshot): List<ContactArrival> {
         val contacts = contactDao.getUserUuids()
 
         val newContacts = contacts
             .filterNot { it in snapshot.contacts }
+            .filter { userUuid ->
+                val channel = directChannelDao.get(peerUuid = userUuid)
+
+                snapshot.outgoingGroups[userUuid].orEmpty().any {
+                    it contentEquals channel?.mlsGroupId || it contentEquals channel?.previousMlsGroupId
+                }
+            }
             .map {
                 ContactArrival(
                     userUuid = it,

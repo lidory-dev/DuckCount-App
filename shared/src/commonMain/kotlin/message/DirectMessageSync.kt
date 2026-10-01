@@ -8,6 +8,7 @@ import database.data.remote.DirectMessageApi
 import database.data.remote.DirectMessageDto
 import database.data.remote.MAX_ACKNOWLEDGEMENT_BATCH
 import database.data.repository.ContactRepository
+import database.data.repository.ContactRequestRepository
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import mls.ApplicationMessageReading
@@ -44,6 +45,7 @@ class DirectMessageSync internal constructor(
     private val directMessageApi: DirectMessageApi,
     private val directChannelRepository: DirectChannelRepository,
     private val contactRepository: ContactRepository,
+    private val contactRequestRepository: ContactRequestRepository,
     private val directMessageSender: DirectMessageSender,
     private val mlsIdentityRepository: MlsIdentityRepository,
     private val identityConflictDao: IdentityConflictDao,
@@ -182,6 +184,13 @@ class DirectMessageSync internal constructor(
                 // into a group, was never checked against anything, and must not become
                 // somebody this device knows, which the next Welcome from them would pin.
                 if (!reading.isSenderPinned) return DirectMessageHandling.NOT_MINE
+
+                // Before anything is made of it: read in the group of a request the user
+                // accepted, it proves the acceptance landed, and makes the sender a contact.
+                contactRequestRepository.completeAcceptanceIn(
+                    senderUserUuid = reading.senderUserUuid,
+                    mlsGroupId = mlsGroupId,
+                )
 
                 directChannelRepository.noteReadIn(
                     peerUuid = reading.senderUserUuid,
