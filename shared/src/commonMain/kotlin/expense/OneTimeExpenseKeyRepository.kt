@@ -1,10 +1,17 @@
 package expense
 
+import database.data.local.dao.IdentityConflictDao
 import database.data.local.dao.OneTimeExpenseKeyDao
 import database.data.local.entity.OneTimeExpenseKeyEntity
 import database.data.remote.EncryptedFieldDto
 import database.data.remote.ExpenseApi
 import database.data.remote.ExpenseDto
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.withContext
+import mls.MlsIdentityRepository
+import uniffi.lib_duckcount.MlsClient
+import uniffi.lib_duckcount.MlsException
 import util.Result
 import vault.VaultEntryKey
 import vault.VaultError
@@ -31,10 +38,18 @@ import vault.unseal
  * sent to the server. Anyone who can reach the user can send them thirty-two bytes, and a
  * device that trusted them would stop asking for the real key and never open the expense
  * again.
+ *
+ * A record also fixes the creditor's signature key at the time it was written, apart from
+ * the pin this device holds for them. A creditor who is blocked, see
+ * [database.data.local.entity.IdentityConflictEntity], has none of their keys used to open,
+ * verify or back up anything, and a copy holding a creditor to another key than the one
+ * pinned for them when it comes back is not restored, see [restore].
  */
 class OneTimeExpenseKeyRepository(
     private val oneTimeExpenseKeyDao: OneTimeExpenseKeyDao,
+    private val identityConflictDao: IdentityConflictDao,
     private val vaultRepository: VaultRepository,
+    private val mlsIdentityRepository: MlsIdentityRepository,
     private val expenseApi: ExpenseApi,
 ) {
 
@@ -43,15 +58,21 @@ class OneTimeExpenseKeyRepository(
         oneTimeExpenseKeyDao.get(expenseUuid = expenseUuid)?.toRecord()
 
     /**
-     * Every key this device holds, keyed by expense, whether verified yet or not.
+     * Every key this device holds, keyed by expense, whether verified yet or not, but for
+     * the ones from a blocked creditor: their expenses would open on an identity in doubt.
      *
      * One read for a whole expense list: the alternative is a lookup per expense, and the
      * list is the screen this is for.
      */
-    suspend fun held(): Map<String, HeldKey> =
-        oneTimeExpenseKeyDao.getAll().mapNotNull { entity ->
-            entity.toRecord()?.let { HeldKey(record = it, isVerified = entity.isVerified) }
+    suspend fun held(): Map<String, HeldKey> {
+        val blocked = identityConflictDao.getBlocked().toHashSet()
+
+        return oneTimeExpenseKeyDao.getAll().mapNotNull { entity ->
+            entity.toRecord()
+                ?.takeIf { it.creditorUuid !in blocked }
+                ?.let { HeldKey(record = it, isVerified = entity.isVerified) }
         }.associateBy { it.record.expenseUuid }
+    }
 
     /** Seals [record] as the user's copy for the server to keep with its expense. */
     suspend fun sealCopy(record: OneTimeExpenseKeyRecord): Result<EncryptedFieldDto, VaultError> {
@@ -109,7 +130,15 @@ class OneTimeExpenseKeyRepository(
      * this user holds. A copy naming another expense than the one it came with is dropped
      * rather than trusted: that is what a copy moved from one expense to another looks like.
      *
-     * A copy that could not be opened is left for the next listing, which carries it again.
+     * Nor is a copy restored whose creditor is blocked: the expense waits, unread, for the
+     * log-out that lifts the block, since nothing is asked of a blocked creditor. Nor one
+     * holding the creditor to another signature key than the one pinned for them now: it was
+     * sealed by a device that pinned them otherwise, only one of the two keys is theirs, and
+     * the expense is asked for again, of the creditor as this device pins them. A creditor it
+     * holds no pin for is taken at the copy's word, as there is nothing to hold it against.
+     *
+     * A copy that could not be opened, or held against its creditor's pin, is left for the
+     * next listing, which carries it again.
      */
     suspend fun restore(expenses: List<ExpenseDto>) {
         val verified = oneTimeExpenseKeyDao.getAll()
@@ -125,13 +154,21 @@ class OneTimeExpenseKeyRepository(
 
         val sealingKey = (copySealingKey() as? Result.Success)?.data ?: return
 
+        // Opened before any copy is held against a pin: opening it is what puts the vault's
+        // pins back, and records the conflicts it meets.
+        val client = (mlsIdentityRepository.client() as? Result.Success)?.data ?: return
+        val blocked = identityConflictDao.getBlocked().toHashSet()
+
         val restored = copies.mapNotNull { (expenseUuid, copy) ->
             val plaintext = unseal(key = sealingKey, content = copy) ?: return@mapNotNull null
 
-            // Parsed only to check that the copy is a record about the expense it came
-            // with. The bytes are stored as they were read.
-            OneTimeExpenseKeyRecord.parse(plaintext = plaintext, expenseUuid = expenseUuid)
+            // Parsed to check that the copy is a record about the expense it came with, and
+            // about the creditor as this device knows them. The bytes are stored as they
+            // were read.
+            val record = OneTimeExpenseKeyRecord.parse(plaintext = plaintext, expenseUuid = expenseUuid)
                 ?: return@mapNotNull null
+
+            if (!record.agreesWithPin(client = client, blocked = blocked)) return@mapNotNull null
 
             OneTimeExpenseKeyEntity(expenseUuid = expenseUuid, record = plaintext, isVerified = true)
         }
@@ -148,11 +185,17 @@ class OneTimeExpenseKeyRepository(
      * stale, and the device keeps its key whatever the server answers: a status code is only
      * the server's word, and a key it never held has no other way back. A copy that did not
      * go up is sent again after the next listing, which still shows it missing.
+     *
+     * None goes up for a blocked creditor: it would carry the identity in doubt to every
+     * device that restores it.
      */
     suspend fun backUp(expenses: List<ExpenseDto>) {
         val missing = expenses.filter { it.key_copy == null }.mapTo(HashSet()) { it.uuid }
+        val blocked = identityConflictDao.getBlocked().toHashSet()
 
-        val keys = oneTimeExpenseKeyDao.getAll().filter { it.isVerified && it.expenseUuid in missing }
+        val keys = oneTimeExpenseKeyDao.getAll().filter {
+            it.isVerified && it.expenseUuid in missing && it.toRecord()?.creditorUuid !in blocked
+        }
 
         // Most syncs find nothing to send, and reading the key ring is a request.
         if (keys.isEmpty()) return
@@ -187,6 +230,28 @@ class OneTimeExpenseKeyRepository(
 
     private fun OneTimeExpenseKeyEntity.toRecord(): OneTimeExpenseKeyRecord? =
         OneTimeExpenseKeyRecord.parse(plaintext = record, expenseUuid = expenseUuid)
+
+    /**
+     * Whether this record's creditor is not in [blocked], and pinned in [client], if at all,
+     * to the signature key the record holds their versions to. False as well when the pin
+     * could not be read.
+     */
+    private suspend fun OneTimeExpenseKeyRecord.agreesWithPin(
+        client: MlsClient,
+        blocked: Set<String>,
+    ): Boolean {
+        if (creditorUuid in blocked) return false
+
+        // Not through pinnedSignatureKeyFor, which takes a pin it failed to read for none at
+        // all, and the copy would then be taken at its word.
+        val pinned = try {
+            withContext(Dispatchers.IO) { client.pinnedSignatureKey(userUuid = creditorUuid) }
+        } catch (_: MlsException) {
+            return false
+        }
+
+        return pinned == null || pinned.contentEquals(creditorSignatureKey)
+    }
 }
 
 /** A key this device holds, and whether it has been shown to open its expense. */

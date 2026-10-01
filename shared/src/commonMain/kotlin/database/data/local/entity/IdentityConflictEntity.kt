@@ -10,8 +10,9 @@ import androidx.room.PrimaryKey
  * neither ever replacing its pin with another. No flow in the app changes an identity, so
  * when the two disagree, one of them was most likely served by somebody other than the peer,
  * and nothing here can tell which. So the peer is blocked: no channel is built to them, no
- * key or request goes to them, none of their requests is accepted, and every direct message
- * from them is acknowledged unread.
+ * key or request goes to them, none of their requests is accepted, every direct message
+ * from them is acknowledged unread, and none of their one-time expenses is opened, see
+ * [OneTimeExpenseKeyRepository][expense.OneTimeExpenseKeyRepository].
  *
  * What does not depend on who they are still goes through: removing them sends the notice
  * in the channel the two of them share, and a request from them is opened and listed, since
