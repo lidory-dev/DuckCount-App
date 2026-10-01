@@ -2,6 +2,7 @@ package message
 
 import channel.ChannelJoined
 import channel.DirectChannelRepository
+import database.data.local.dao.IdentityConflictDao
 import database.data.remote.AcknowledgeDirectMessagesBody
 import database.data.remote.DirectMessageApi
 import database.data.remote.DirectMessageDto
@@ -45,6 +46,7 @@ class DirectMessageSync internal constructor(
     private val contactRepository: ContactRepository,
     private val directMessageSender: DirectMessageSender,
     private val mlsIdentityRepository: MlsIdentityRepository,
+    private val identityConflictDao: IdentityConflictDao,
     private val handlers: List<DirectMessageHandler>,
 ) {
 
@@ -116,12 +118,20 @@ class DirectMessageSync internal constructor(
      * sender had to build a new one.
      *
      * [DirectMessageHandling.NOT_MINE] covers both a message no handler wanted and one that
-     * can never be read: neither is worth keeping, so both are acknowledged.
+     * can never be read: neither is worth keeping, so both are acknowledged. So is one from a
+     * blocked sender, see [database.data.local.entity.IdentityConflictEntity], left unread:
+     * only a log-out lifts the block, and the groups it could be read in go with it.
      */
     private suspend fun deliver(
         client: MlsClient,
         message: DirectMessageDto,
     ): DirectMessageHandling {
+        // The server's word for the sender is enough: nothing is acted on unless the one the
+        // message itself names is the same.
+        if (identityConflictDao.isBlocked(peerUuid = message.senderUserUuid)) {
+            return DirectMessageHandling.NOT_MINE
+        }
+
         val envelope = DirectMessageEnvelope.parse(ciphertext = message.ciphertext)
             ?: return DirectMessageHandling.NOT_MINE
 

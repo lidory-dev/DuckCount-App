@@ -36,6 +36,7 @@ val messageModule = module {
             contactRepository = get(),
             directMessageSender = get(),
             mlsIdentityRepository = get(),
+            identityConflictDao = get(),
             handlers = get(),
         )
     }

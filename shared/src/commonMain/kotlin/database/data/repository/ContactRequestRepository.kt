@@ -10,6 +10,7 @@ import contact.ContactRequestEnvelope
 import contact.ContactSyncError
 import contact.SendContactRequestError
 import database.data.local.dao.ContactRequestDao
+import database.data.local.dao.IdentityConflictDao
 import database.data.local.entity.ContactRequestEntity
 import database.data.local.entity.OutgoingContactRequestEntity
 import database.data.mappers.toContactRequest
@@ -54,6 +55,7 @@ import kotlin.io.encoding.Base64
  */
 class ContactRequestRepository(
     private val contactRequestDao: ContactRequestDao,
+    private val identityConflictDao: IdentityConflictDao,
     private val contactApi: ContactApi,
     private val vaultRepository: VaultRepository,
     private val mlsIdentityRepository: MlsIdentityRepository,
@@ -141,6 +143,13 @@ class ContactRequestRepository(
         val digest = hashDiscoveryUsername(username = username)
             ?: return Result.Error(SendContactRequestError.InvalidUsername)
 
+        // Before the lookup spends one of the recipient's key packages: until the contacts
+        // are back, one of them looks like a stranger, and creating the group would pin
+        // them from that key package ahead of the identity the vault holds for them.
+        val restored = contactRepository.restore()
+
+        if (restored is Result.Error) return Result.Error(SendContactRequestError.Contacts(restored.error))
+
         val recipient = when (val lookup = contactApi.lookupContact(username = digest)) {
             is Result.Success -> lookup.data
             is Result.Error -> return Result.Error(lookup.error.toSendContactRequestError())
@@ -171,6 +180,12 @@ class ContactRequestRepository(
         val client = when (val opened = mlsIdentityRepository.client()) {
             is Result.Success -> opened.data
             is Result.Error -> return Result.Error(SendContactRequestError.Identity(opened.error))
+        }
+
+        // A key package matching the identity this device pinned for them would go through,
+        // when it is the one the vault disagrees with. See IdentityConflictEntity.
+        if (identityConflictDao.isBlocked(peerUuid = recipient.userUuid)) {
+            return Result.Error(SendContactRequestError.IdentityChanged)
         }
 
         val group = try {
@@ -360,6 +375,12 @@ class ContactRequestRepository(
         val request = contactRequestDao.getOpened(uuid = requestUuid)
             ?: return Result.Error(AnswerContactRequestError.NotFound)
 
+        // The sender may be a contact whose pin the vault holds, and pinning them first
+        // would leave that pin unable to come back.
+        val restored = contactRepository.restore()
+
+        if (restored is Result.Error) return Result.Error(AnswerContactRequestError.Contacts(restored.error))
+
         val profileEncryptionKey = when (val read = vaultRepository.getOrCreateProfileEncryptionKey()) {
             is Result.Success -> read.data
             is Result.Error -> return Result.Error(AnswerContactRequestError.Vault(read.error))
@@ -368,6 +389,12 @@ class ContactRequestRepository(
         val client = when (val opened = mlsIdentityRepository.client()) {
             is Result.Success -> opened.data
             is Result.Error -> return Result.Error(AnswerContactRequestError.Identity(opened.error))
+        }
+
+        // Pinning would go through for the identity this device holds, when it is the one the
+        // vault disagrees with. See IdentityConflictEntity.
+        if (identityConflictDao.isBlocked(peerUuid = request.senderUserUuid)) {
+            return Result.Error(AnswerContactRequestError.IdentityChanged)
         }
 
         val message = try {

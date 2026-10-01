@@ -31,10 +31,18 @@ sealed interface SendContactRequestError : Error {
 
     /**
      * The recipient's key package carries a signature key other than the one this device
-     * pinned for them. Either they legitimately got a new identity, or somebody is
-     * impersonating them, and nothing here can tell which.
+     * pinned for them, or the vault pins yet another one for them, which blocks them, see
+     * [database.data.local.entity.IdentityConflictEntity]. Either they legitimately got a
+     * new identity, or somebody is impersonating them, and nothing here can tell which.
      */
     data object IdentityChanged : SendContactRequestError
+
+    /**
+     * The user's contacts could not be brought back from the vault. Until they are, this
+     * device can tell neither whether the recipient is one of them, nor which identity is
+     * theirs.
+     */
+    data class Contacts(val error: ContactSyncError) : SendContactRequestError
 
     /** The user's own MLS client could not be opened. */
     data class Identity(val error: MlsIdentityError) : SendContactRequestError

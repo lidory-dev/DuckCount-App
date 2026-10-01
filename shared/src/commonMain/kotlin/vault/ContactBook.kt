@@ -51,15 +51,25 @@ class ContactBook private constructor(private val entries: JsonObject) {
 
     /**
      * This book with [contact] as the contact [userUuid], adding them when they are not in
-     * it yet.
+     * it yet, or null when it pins another identity for them than [contact] does.
      *
      * The other fields of a contact already in it are carried over as they were read, and
      * so is their pinned identity when [contact] carries none: a device that has not met
      * this contact over MLS knows nothing about their identity, and knowing nothing is not
      * grounds for erasing what another device recorded.
+     *
+     * A pinned identity is never replaced. No flow in the app changes one, so one that
+     * differs was most likely served by somebody other than the contact, to whichever device
+     * pinned it, and writing it here would hand it to every device that restores from the
+     * book.
      */
-    fun with(userUuid: String, contact: VaultContact): ContactBook {
+    fun with(userUuid: String, contact: VaultContact): ContactBook? {
         val stored = entries[userUuid] as? JsonObject ?: JsonObject(emptyMap())
+
+        val storedPin = stored.key(field = MLS_SIGNATURE_PUBLIC_KEY)
+        val pin = contact.mlsSignaturePublicKey
+
+        if (storedPin != null && pin != null && !storedPin.contentEquals(pin)) return null
 
         val fields = mutableMapOf<String, JsonElement>()
 
@@ -68,8 +78,8 @@ class ContactBook private constructor(private val entries: JsonObject) {
         fields[PROFILE_ENCRYPTION_KEY] =
             JsonPrimitive(Base64.Default.encode(contact.profileEncryptionKey))
 
-        contact.mlsSignaturePublicKey?.let {
-            fields[MLS_SIGNATURE_PUBLIC_KEY] = JsonPrimitive(Base64.Default.encode(it))
+        if (storedPin == null && pin != null) {
+            fields[MLS_SIGNATURE_PUBLIC_KEY] = JsonPrimitive(Base64.Default.encode(pin))
         }
 
         return ContactBook(JsonObject(entries + (userUuid to JsonObject(fields))))

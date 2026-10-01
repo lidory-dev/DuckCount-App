@@ -7,8 +7,10 @@ import contact.ContactSyncError
 import contact.RemoveContactError
 import database.data.local.dao.ContactDao
 import database.data.local.dao.DirectChannelDao
+import database.data.local.dao.IdentityConflictDao
 import database.data.local.entity.ContactEntity
 import database.data.local.entity.DirectChannelEntity
+import database.data.local.entity.IdentityConflictEntity
 import database.data.remote.DirectMessageApi
 import database.data.remote.SendDirectMessageBody
 import database.domain.User
@@ -43,6 +45,7 @@ import vault.VaultContact
 class ContactRepository(
     private val contactDao: ContactDao,
     private val directChannelDao: DirectChannelDao,
+    private val identityConflictDao: IdentityConflictDao,
     private val userRepository: UserRepository,
     private val vaultRepository: VaultRepository,
     private val profileRepository: ProfileRepository,
@@ -54,6 +57,13 @@ class ContactRepository(
      * would conflict, and the second one would fail for nothing.
      */
     private val backUpMutex = Mutex()
+
+    /**
+     * Serializes [restore], which the message sync and the contact requests can all reach at
+     * once right after a login. A second caller waits for the first one's contacts rather
+     * than reading the vault again and pinning from a read of its own.
+     */
+    private val restoreMutex = Mutex()
 
     /** Whether [userUuid] is one of the user's contacts. */
     suspend fun isContact(userUuid: String): Boolean {
@@ -138,6 +148,10 @@ class ContactRepository(
      * database, which a log-out empties, and a device that came back without them would
      * accept whichever key package the server served next for each contact and pin that,
      * which is the substitution pinning exists to catch.
+     *
+     * The vault never takes a pin over the one it already holds for a contact, see
+     * [ContactBook.with][vault.ContactBook.with]. A contact it pins somebody else for is
+     * blocked instead, see [IdentityConflictEntity], and is not written again.
      */
     suspend fun backUp(): EmptyResult<ContactSyncError> = backUpMutex.withLock {
         val pending = contactDao.getNotBackedUp()
@@ -154,7 +168,7 @@ class ContactRepository(
             is Result.Error -> return@withLock Result.Error(ContactSyncError.Identity(opened.error))
         }
 
-        val write = vaultRepository.updateContacts(
+        val update = vaultRepository.updateContacts(
             added = added.associate { contact ->
                 contact.userUuid to VaultContact(
                     profileEncryptionKey = contact.profileEncryptionKey,
@@ -166,7 +180,12 @@ class ContactRepository(
             removed = removed.map { it.userUuid },
         )
 
-        if (write is Result.Error) return@withLock Result.Error(ContactSyncError.Vault(write.error))
+        val conflicting = when (update) {
+            is Result.Success -> update.data
+            is Result.Error -> return@withLock Result.Error(ContactSyncError.Vault(update.error))
+        }
+
+        conflicting.forEach { identityConflictDao.insert(IdentityConflictEntity(peerUuid = it)) }
 
         // Both only touch rows still in the state they were read in, so a contact removed
         // or added back during the write stays pending for the next one.
@@ -217,12 +236,35 @@ class ContactRepository(
      * different books would otherwise bring contacts back without their pins, and the next
      * Welcome naming one of them would pin whatever identity it carries.
      *
+     * A contact whose pin disagrees with the one this device already holds comes back
+     * blocked, see [IdentityConflictEntity]: the device's pin stays, a pin is never replaced,
+     * and the contact would otherwise be reached through an identity the vault does not
+     * vouch for.
+     *
+     * Whatever needs to know who the contacts are runs this first: reading the messages, see
+     * [DirectMessageSync][message.DirectMessageSync], and sending or accepting a contact
+     * request, see [ContactRequestRepository], which would otherwise pin one of them from
+     * whatever identity the server hands over.
+     *
      * A name that could not be read is not reported: the next [ContactSync][contact.ContactSync]
      * reads it again.
      */
     suspend fun restore(): EmptyResult<ContactSyncError> {
-        if (!hasContactsToRestore()) return Result.Success(Unit)
+        val restored = restoreMutex.withLock {
+            if (!hasContactsToRestore()) return Result.Success(Unit)
 
+            bringBack()
+        }
+
+        // Outside the lock: whoever waits on it needs the contacts and their pins, not their
+        // names.
+        if (restored is Result.Success) resolveNames()
+
+        return restored
+    }
+
+    /** Puts back the contacts the vault holds, and their pins, for [restore]. */
+    private suspend fun bringBack(): EmptyResult<ContactSyncError> {
         val contacts = when (val read = vaultRepository.getContacts()) {
             is Result.Success -> read.data
             is Result.Error -> return Result.Error(ContactSyncError.Vault(read.error))
@@ -237,7 +279,9 @@ class ContactRepository(
             contacts.forEach { (userUuid, contact) ->
                 val signatureKey = contact.mlsSignaturePublicKey ?: return@forEach
 
-                client.restorePin(peerUuid = userUuid, signatureKey = signatureKey)
+                if (!client.restorePin(peerUuid = userUuid, signatureKey = signatureKey)) {
+                    identityConflictDao.insert(IdentityConflictEntity(peerUuid = userUuid))
+                }
             }
         } catch (_: MlsException) {
             return Result.Error(ContactSyncError.Storage)
@@ -254,8 +298,6 @@ class ContactRepository(
         )
 
         clearContactsToRestore()
-
-        resolveNames()
 
         return Result.Success(Unit)
     }

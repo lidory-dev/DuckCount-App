@@ -14,6 +14,7 @@ import database.data.local.dao.DirectChannelDao
 import database.data.local.dao.ExpenseDao
 import database.data.local.dao.GroupDao
 import database.data.local.dao.GroupMemberDao
+import database.data.local.dao.IdentityConflictDao
 import database.data.local.dao.LocalDataDao
 import database.data.local.dao.MlsRecordDao
 import database.data.local.dao.OneTimeExpenseKeyDao
@@ -27,6 +28,7 @@ import database.data.local.entity.DirectChannelEntity
 import database.data.local.entity.ExpenseEntity
 import database.data.local.entity.GroupEntity
 import database.data.local.entity.GroupMemberEntity
+import database.data.local.entity.IdentityConflictEntity
 import database.data.local.entity.MlsRecordEntity
 import database.data.local.entity.OneTimeExpenseKeyEntity
 import database.data.local.entity.OneTimeExpenseRevisionEntity
@@ -52,6 +54,7 @@ import org.koin.mp.KoinPlatform.getKoin
         OutgoingContactRequestEntity::class,
         ContactEntity::class,
         DirectChannelEntity::class,
+        IdentityConflictEntity::class,
         OneTimeExpenseKeyEntity::class,
         OneTimeExpenseRevisionEntity::class,
         PendingExpenseKeyEntity::class,
@@ -71,6 +74,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract val contactRequestDao: ContactRequestDao
     abstract val contactDao: ContactDao
     abstract val directChannelDao: DirectChannelDao
+    abstract val identityConflictDao: IdentityConflictDao
     abstract val oneTimeExpenseKeyDao: OneTimeExpenseKeyDao
     abstract val pendingExpenseKeyDao: PendingExpenseKeyDao
     abstract val mlsRecordDao: MlsRecordDao

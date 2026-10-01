@@ -1,5 +1,6 @@
 package app.lidory.duckcount.contactList
 
+import contact.ContactSyncError
 import contact.SendContactRequestError
 import mls.MlsIdentityError
 import model.AddContactError
@@ -41,15 +42,31 @@ fun SendContactRequestError.toAddContactError(isOnline: Boolean): AddContactErro
 
     is SendContactRequestError.Vault -> error.toAddContactError(isOnline = isOnline)
 
-    is SendContactRequestError.Identity -> when (val identityError = error) {
-        is MlsIdentityError.Vault -> identityError.error.toAddContactError(isOnline = isOnline)
+    is SendContactRequestError.Identity -> error.toAddContactError(isOnline = isOnline)
 
-        MlsIdentityError.MissingSession,
-        MlsIdentityError.Crypto,
-            -> AddContactError.UNKNOWN
-    }
+    is SendContactRequestError.Contacts -> error.toAddContactError(isOnline = isOnline)
 
     SendContactRequestError.Crypto -> AddContactError.UNKNOWN
+}
+
+/** Restoring the contacts fails on the vault or on the MLS client, reported as above. */
+private fun ContactSyncError.toAddContactError(isOnline: Boolean): AddContactError = when (this) {
+    is ContactSyncError.Vault -> error.toAddContactError(isOnline = isOnline)
+
+    is ContactSyncError.Identity -> error.toAddContactError(isOnline = isOnline)
+
+    ContactSyncError.Storage,
+    is ContactSyncError.Profile,
+    is ContactSyncError.Network,
+        -> AddContactError.UNKNOWN
+}
+
+private fun MlsIdentityError.toAddContactError(isOnline: Boolean): AddContactError = when (this) {
+    is MlsIdentityError.Vault -> error.toAddContactError(isOnline = isOnline)
+
+    MlsIdentityError.MissingSession,
+    MlsIdentityError.Crypto,
+        -> AddContactError.UNKNOWN
 }
 
 private fun VaultError.toAddContactError(isOnline: Boolean): AddContactError = when (this) {
@@ -79,18 +96,36 @@ fun SharedAnswerContactRequestError.toAnswerContactRequestError(
 
     is SharedAnswerContactRequestError.Vault -> error.toAnswerContactRequestError(isOnline = isOnline)
 
-    is SharedAnswerContactRequestError.Identity -> when (val identityError = error) {
-        is MlsIdentityError.Vault -> identityError.error.toAnswerContactRequestError(isOnline = isOnline)
+    is SharedAnswerContactRequestError.Identity -> error.toAnswerContactRequestError(isOnline = isOnline)
 
-        MlsIdentityError.MissingSession,
-        MlsIdentityError.Crypto,
-            -> AnswerContactRequestError.UNKNOWN
-    }
+    is SharedAnswerContactRequestError.Contacts -> error.toAnswerContactRequestError(isOnline = isOnline)
 
     SharedAnswerContactRequestError.Crypto -> AnswerContactRequestError.UNKNOWN
 
     SharedAnswerContactRequestError.IdentityChanged -> AnswerContactRequestError.IDENTITY_CHANGED
 }
+
+/** Same folding as for a contact request, see [toAddContactError]. */
+private fun ContactSyncError.toAnswerContactRequestError(isOnline: Boolean): AnswerContactRequestError =
+    when (this) {
+        is ContactSyncError.Vault -> error.toAnswerContactRequestError(isOnline = isOnline)
+
+        is ContactSyncError.Identity -> error.toAnswerContactRequestError(isOnline = isOnline)
+
+        ContactSyncError.Storage,
+        is ContactSyncError.Profile,
+        is ContactSyncError.Network,
+            -> AnswerContactRequestError.UNKNOWN
+    }
+
+private fun MlsIdentityError.toAnswerContactRequestError(isOnline: Boolean): AnswerContactRequestError =
+    when (this) {
+        is MlsIdentityError.Vault -> error.toAnswerContactRequestError(isOnline = isOnline)
+
+        MlsIdentityError.MissingSession,
+        MlsIdentityError.Crypto,
+            -> AnswerContactRequestError.UNKNOWN
+    }
 
 private fun VaultError.toAnswerContactRequestError(isOnline: Boolean): AnswerContactRequestError =
     when (this) {

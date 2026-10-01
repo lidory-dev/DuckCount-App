@@ -3,6 +3,7 @@ package channel
 import authenticationUtils.getAuthenticatedUserUuid
 import database.data.local.dao.ContactDao
 import database.data.local.dao.DirectChannelDao
+import database.data.local.dao.IdentityConflictDao
 import database.data.local.entity.DirectChannelEntity
 import mls.KeyPackageApi
 import mls.MlsIdentityRepository
@@ -37,6 +38,7 @@ import kotlin.io.encoding.Base64
 class DirectChannelRepository(
     private val directChannelDao: DirectChannelDao,
     private val contactDao: ContactDao,
+    private val identityConflictDao: IdentityConflictDao,
     private val keyPackageApi: KeyPackageApi,
     private val mlsIdentityRepository: MlsIdentityRepository,
 ) {
@@ -70,6 +72,12 @@ class DirectChannelRepository(
         }
 
         return withPeerLock(peerUuid = peerUuid) {
+            // Before the stored channel too, which may predate the conflict. Checked once the
+            // client is open, since opening it is one of the places a conflict comes to light.
+            if (identityConflictDao.isBlocked(peerUuid = peerUuid)) {
+                return@withPeerLock Result.Error(DirectChannelError.IdentityChanged)
+            }
+
             // Read again inside the lock: the caller may have looked before waiting for it.
             val stored = directChannelDao.get(peerUuid = peerUuid)
             val storedGroupId = stored?.mlsGroupId

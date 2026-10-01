@@ -30,7 +30,8 @@ sealed interface DirectChannelError : Error {
 
     /**
      * The key package the server served for the peer is signed by a different identity than
-     * the one this device pinned for them.
+     * the one this device pinned for them, or the vault pins yet another one for them, which
+     * blocks them, see [database.data.local.entity.IdentityConflictEntity].
      *
      * Either they lost their MLS signature key, or somebody is standing in for them. Not
      * something to work around silently.

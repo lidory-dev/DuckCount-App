@@ -14,6 +14,12 @@ sealed interface AnswerContactRequestError : Error {
      */
     data object NotFound : AnswerContactRequestError
 
+    /**
+     * The user's contacts could not be brought back from the vault. Until they are, this
+     * device cannot tell whether the sender is one of them, nor which identity is theirs.
+     */
+    data class Contacts(val error: ContactSyncError) : AnswerContactRequestError
+
     /** The user's own MLS client could not be opened. */
     data class Identity(val error: MlsIdentityError) : AnswerContactRequestError
 
@@ -25,8 +31,9 @@ sealed interface AnswerContactRequestError : Error {
 
     /**
      * The sender's MLS identity in the request's group is not the one pinned for them since
-     * the request was opened. Either they legitimately got a new identity, or somebody is
-     * impersonating them, and nothing here can tell which.
+     * the request was opened, or the vault pins yet another one for them, which blocks them,
+     * see [database.data.local.entity.IdentityConflictEntity]. Either they legitimately got
+     * a new identity, or somebody is impersonating them, and nothing here can tell which.
      */
     data object IdentityChanged : AnswerContactRequestError
 

@@ -2,6 +2,8 @@ package mls
 
 import authenticationUtils.getAuthenticatedUserUuid
 import authenticationUtils.getRootKey
+import database.data.local.dao.IdentityConflictDao
+import database.data.local.entity.IdentityConflictEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.sync.Mutex
@@ -38,6 +40,7 @@ import vault.VaultRepository
 class MlsIdentityRepository(
     private val mlsStore: MlsStore,
     private val vaultRepository: VaultRepository,
+    private val identityConflictDao: IdentityConflictDao,
 ) {
     private val mutex = Mutex()
 
@@ -135,6 +138,9 @@ class MlsIdentityRepository(
      * On every open rather than once, which costs a vault read and nothing else: pinning a
      * key already pinned changes nothing, and there is then no state saying the pins are
      * back that could disagree with the store they live in.
+     *
+     * One that disagrees with a pin already held leaves that pin as it was, and blocks the
+     * contact, see [IdentityConflictEntity].
      */
     private suspend fun restorePins(client: MlsClient): EmptyResult<MlsIdentityError> {
         val contacts = when (val read = vaultRepository.getContacts()) {
@@ -146,8 +152,9 @@ class MlsIdentityRepository(
             contacts.forEach { (userUuid, contact) ->
                 val signatureKey = contact.mlsSignaturePublicKey ?: return@forEach
 
-                // One that disagrees with a pin already held leaves that pin as it was.
-                client.restorePin(peerUuid = userUuid, signatureKey = signatureKey)
+                if (!client.restorePin(peerUuid = userUuid, signatureKey = signatureKey)) {
+                    identityConflictDao.insert(IdentityConflictEntity(peerUuid = userUuid))
+                }
             }
         } catch (_: MlsException) {
             return Result.Error(MlsIdentityError.Crypto)

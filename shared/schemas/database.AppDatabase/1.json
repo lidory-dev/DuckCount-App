@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "f89e188b1024e04b79574387a767d65c",
+    "identityHash": "c1220dd5509929aa7b4c3477d8225b2e",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -407,6 +407,24 @@
         }
       },
       {
+        "tableName": "IdentityConflictEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`peerUuid` TEXT NOT NULL, PRIMARY KEY(`peerUuid`))",
+        "fields": [
+          {
+            "fieldPath": "peerUuid",
+            "columnName": "peerUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "peerUuid"
+          ]
+        }
+      },
+      {
         "tableName": "OneTimeExpenseKeyEntity",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `record` BLOB NOT NULL, `isVerified` INTEGER NOT NULL, PRIMARY KEY(`expenseUuid`))",
         "fields": [
@@ -541,7 +559,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f89e188b1024e04b79574387a767d65c')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c1220dd5509929aa7b4c3477d8225b2e')"
     ]
   }
 }

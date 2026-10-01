@@ -162,6 +162,9 @@ class VaultRepository(
      * Adds the contacts in [added], keyed by their user UUID, replacing what the vault
      * already holds for any of them, and drops the contacts in [removed].
      *
+     * Returns the contacts in [added] the vault pins another identity for than the one they
+     * come with, which stay as the vault held them, see [ContactBook.with].
+     *
      * The contacts are sealed whole, so any change rewrites all of them, and both kinds go
      * in one write. The write goes against the version they were read at, so a contact
      * another device changed in between is refused as [VaultError.Contended] rather than
@@ -170,7 +173,7 @@ class VaultRepository(
     suspend fun updateContacts(
         added: Map<String, VaultContact>,
         removed: Collection<String>,
-    ): EmptyResult<VaultError> {
+    ): Result<Set<String>, VaultError> {
         val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
 
         val read = when (val singleton = readPart(rootKey = rootKey, part = VaultEntryKey.CONTACTS)) {
@@ -184,21 +187,28 @@ class VaultRepository(
                 ?: return Result.Error(VaultError.MalformedContactBook)
         }
 
+        val conflicting = mutableSetOf<String>()
+
         val withAdditions = added.entries.fold(contactBook) { book, (userUuid, contact) ->
-            book.with(userUuid = userUuid, contact = contact)
+            book.with(userUuid = userUuid, contact = contact) ?: book.also { conflicting += userUuid }
         }
 
         val updated = removed.fold(withAdditions) { book, userUuid ->
             book.without(userUuid = userUuid)
         }
 
-        return writePart(
+        val write = writePart(
             rootKey = rootKey,
             keyRing = read.keyRing,
             part = VaultEntryKey.CONTACTS,
             plaintext = updated.serialize(),
             expectedVersion = read.version,
         )
+
+        return when (write) {
+            is Result.Success -> Result.Success(conflicting)
+            is Result.Error -> write
+        }
     }
 
     /**

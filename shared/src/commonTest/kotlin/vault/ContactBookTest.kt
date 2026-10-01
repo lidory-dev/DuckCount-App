@@ -29,8 +29,8 @@ class ContactBookTest {
     @Test
     fun `contacts survive being sealed and read back`() {
         val book = ContactBook.EMPTY
-            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))
-            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))!!
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
 
         val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
 
@@ -44,8 +44,8 @@ class ContactBookTest {
         val replacement = byteArrayOf(9, 9)
 
         val book = ContactBook.EMPTY
-            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))
-            .with(userUuid = alice, contact = contact(profileEncryptionKey = replacement))
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))!!
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = replacement))!!
 
         assertEquals(setOf(alice), book.contacts.keys)
         assertContentEquals(replacement, book.contacts[alice]?.profileEncryptionKey)
@@ -54,8 +54,8 @@ class ContactBookTest {
     @Test
     fun `a removed contact is gone and the others stay`() {
         val book = ContactBook.EMPTY
-            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))
-            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))!!
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
             .without(userUuid = alice)
 
         val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
@@ -70,7 +70,7 @@ class ContactBookTest {
      */
     @Test
     fun `removing somebody who is not a contact changes nothing`() {
-        val book = ContactBook.EMPTY.with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))
+        val book = ContactBook.EMPTY.with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))!!
 
         val rewritten = book.without(userUuid = bob)
 
@@ -114,8 +114,8 @@ class ContactBookTest {
         """.trimIndent().encodeToByteArray()
 
         val rewritten = ContactBook.parse(plaintext = plaintext)!!
-            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))
-            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))!!
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
             .serialize()
             .decodeToString()
 
@@ -149,7 +149,7 @@ class ContactBookTest {
                 profileEncryptionKey = aliceKey,
                 mlsSignaturePublicKey = aliceSignatureKey,
             ),
-        )
+        )!!
 
         val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
 
@@ -169,12 +169,64 @@ class ContactBookTest {
                     profileEncryptionKey = aliceKey,
                     mlsSignaturePublicKey = aliceSignatureKey,
                 ),
-            )
-            .with(userUuid = alice, contact = contact(profileEncryptionKey = bobKey))
+            )!!
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = bobKey))!!
 
         val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
 
         assertContentEquals(bobKey, reread[alice]?.profileEncryptionKey)
+        assertContentEquals(aliceSignatureKey, reread[alice]?.mlsSignaturePublicKey)
+    }
+
+    /**
+     * No flow in the app changes a pin, so a different one was most likely served by
+     * somebody other than the contact, and writing it would hand it to every device that
+     * restores.
+     */
+    @Test
+    fun `writing a contact with another pinned identity is refused`() {
+        val book = ContactBook.EMPTY.with(
+            userUuid = alice,
+            contact = contact(profileEncryptionKey = aliceKey, mlsSignaturePublicKey = aliceSignatureKey),
+        )!!
+
+        val rewritten = book.with(
+            userUuid = alice,
+            contact = contact(profileEncryptionKey = bobKey, mlsSignaturePublicKey = byteArrayOf(8, 8, 8)),
+        )
+
+        assertNull(rewritten)
+    }
+
+    @Test
+    fun `writing a contact with the identity already pinned replaces their key`() {
+        val book = ContactBook.EMPTY
+            .with(
+                userUuid = alice,
+                contact = contact(profileEncryptionKey = aliceKey, mlsSignaturePublicKey = aliceSignatureKey),
+            )!!
+            .with(
+                userUuid = alice,
+                contact = contact(profileEncryptionKey = bobKey, mlsSignaturePublicKey = aliceSignatureKey.copyOf()),
+            )!!
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
+
+        assertContentEquals(bobKey, reread[alice]?.profileEncryptionKey)
+        assertContentEquals(aliceSignatureKey, reread[alice]?.mlsSignaturePublicKey)
+    }
+
+    @Test
+    fun `a contact stored without a pinned identity takes the one written`() {
+        val plaintext = """{"$alice": {"profile_encryption_key": "AQID"}}""".encodeToByteArray()
+
+        val book = ContactBook.parse(plaintext = plaintext)!!.with(
+            userUuid = alice,
+            contact = contact(profileEncryptionKey = aliceKey, mlsSignaturePublicKey = aliceSignatureKey),
+        )!!
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
+
         assertContentEquals(aliceSignatureKey, reread[alice]?.mlsSignaturePublicKey)
     }
 

@@ -41,6 +41,7 @@ val dbModule = module {
     single { get<AppDatabase>().contactRequestDao }
     single { get<AppDatabase>().contactDao }
     single { get<AppDatabase>().directChannelDao }
+    single { get<AppDatabase>().identityConflictDao }
     single { get<AppDatabase>().oneTimeExpenseKeyDao }
     single { get<AppDatabase>().pendingExpenseKeyDao }
     single { get<AppDatabase>().mlsRecordDao }

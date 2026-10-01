@@ -205,6 +205,10 @@ class OneTimeExpenseSync(
                     // rows wait until they are pinned, which adding them again does.
                     DirectSendError.Channel(DirectChannelError.NotPinned) -> Unit
 
+                    // Somebody whose identity is in doubt, who is not asked for anything until
+                    // that is settled, which no retry does.
+                    DirectSendError.Channel(DirectChannelError.IdentityChanged) -> Unit
+
                     // Sending more only pushes the count further past the limit. The rest
                     // wait for the next sync.
                     DirectSendError.RateLimited -> return Result.Error(
