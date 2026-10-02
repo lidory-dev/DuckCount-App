@@ -23,6 +23,7 @@ val messageModule = module {
             ContactMessageHandler(contactRequestRepository = get(), contactRepository = get()),
             OneTimeExpenseMessageHandler(
                 keyRepository = get(),
+                owedExpenseKeyDao = get(),
                 directMessageSender = get(),
                 mlsIdentityRepository = get(),
             ),

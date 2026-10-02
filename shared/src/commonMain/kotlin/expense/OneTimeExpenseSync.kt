@@ -3,15 +3,20 @@ package expense
 import authenticationUtils.getAuthenticatedUserUuid
 import channel.DirectChannelError
 import database.data.local.dao.ExpenseDao
+import database.data.local.dao.OwedExpenseKeyDao
 import database.data.local.dao.PendingExpenseKeyDao
 import database.data.local.entity.PendingExpenseKeyState
 import database.data.mappers.toExpenseWithBeneficiariesEntity
+import database.data.remote.DirectMessageKindDto
 import database.data.remote.ExpenseApi
 import database.data.remote.ExpenseDto
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import message.DirectMessageSender
 import message.DirectMessageSync
 import message.DirectSendError
 import util.EmptyResult
+import util.NetworkError
 import util.Result
 import util.nowEpochMilliseconds
 import kotlin.uuid.Uuid
@@ -21,22 +26,32 @@ import kotlin.uuid.Uuid
  * device cannot open.
  *
  * The server tells every participant that an expense exists and who else is on it; only its
- * key says what it is for or what it costs. So a sync is two halves: read what the server
- * has and open what can be opened, then ask about the rest.
+ * key says what it is for or what it costs. So a sync reads what the server has and opens
+ * what can be opened, then asks about the rest.
  *
  * Asking is driven by what is missing rather than by what arrived, which is what makes it
  * cover more than the case it was written for. A key message that was never sent, one that
  * was lost, and one that reached a device that had logged out and could never be read all
  * look the same from here: an expense the user is on, with no key for it.
+ *
+ * The other direction is the keys the user owes: the ones to their own expenses that
+ * somebody named on them has not been handed yet, which a sync hands over in between, see
+ * [shareOwedKeys].
  */
 class OneTimeExpenseSync(
     private val expenseApi: ExpenseApi,
     private val expenseDao: ExpenseDao,
     private val pendingExpenseKeyDao: PendingExpenseKeyDao,
+    private val owedExpenseKeyDao: OwedExpenseKeyDao,
     private val keyRepository: OneTimeExpenseKeyRepository,
     private val directMessageSender: DirectMessageSender,
     private val directMessageSync: DirectMessageSync,
 ) {
+    /**
+     * Serializes [shareOwedKeys], which an expense being written and a sync can both reach
+     * at once. Each would read the same keys as still owed, and hand them over twice.
+     */
+    private val shareMutex = Mutex()
 
     /**
      * Every step is attempted even when one fails, and the first failure is reported: they
@@ -48,6 +63,11 @@ class OneTimeExpenseSync(
         when (val refreshed = refresh()) {
             is Result.Success -> Unit
             is Result.Error -> failure = refreshed.error
+        }
+
+        when (val shared = shareOwedKeys()) {
+            is Result.Success -> Unit
+            is Result.Error -> failure = failure ?: shared.error
         }
 
         when (val requested = requestMissingKeys()) {
@@ -212,7 +232,7 @@ class OneTimeExpenseSync(
                     // Sending more only pushes the count further past the limit. The rest
                     // wait for the next sync.
                     DirectSendError.RateLimited -> return Result.Error(
-                        OneTimeExpenseSyncError.Network(util.NetworkError.TOO_MANY_REQUESTS),
+                        OneTimeExpenseSyncError.Network(NetworkError.TOO_MANY_REQUESTS),
                     )
 
                     else -> failure = failure ?: request.error.toSyncError()
@@ -221,6 +241,80 @@ class OneTimeExpenseSync(
         }
 
         return failure?.let { Result.Error(it) } ?: Result.Success(Unit)
+    }
+
+    /**
+     * Hands over the keys to the user's own expenses that somebody named on them has not
+     * been handed yet, see [database.data.local.entity.OwedExpenseKeyEntity], once the
+     * expense, as this device shows it, names them.
+     *
+     * Each key goes only to somebody the creditor's own record names, see [keyFor], and not
+     * on the strength of the expense's rows alone: those are refilled from the server.
+     *
+     * One message per person, however many keys it carries, and one person at a time: the
+     * server counts messages against an allowance, and running past it only pushes the count
+     * further out, so the first refusal stops the pass and the rest wait for the next one.
+     */
+    suspend fun shareOwedKeys(): EmptyResult<OneTimeExpenseSyncError> = shareMutex.withLock {
+        val ownUserUuid = getAuthenticatedUserUuid()
+            ?: return@withLock Result.Error(OneTimeExpenseSyncError.NoSession)
+
+        val owed = owedExpenseKeyDao.getListed()
+
+        if (owed.isEmpty()) return@withLock Result.Success(Unit)
+
+        var failure: OneTimeExpenseSyncError? = null
+
+        for ((recipientUuid, rows) in owed.groupBy { it.recipientUuid }) {
+            val keys = rows.mapNotNull { row ->
+                keyRepository.record(expenseUuid = row.expenseUuid)
+                    ?.keyFor(requesterUuid = recipientUuid, ownUserUuid = ownUserUuid)
+            }
+
+            if (keys.isEmpty()) continue
+
+            val expenseUuids = keys.map { it.expenseUuid }
+
+            val sent = directMessageSender.send(
+                recipientUserUuid = recipientUuid,
+                payload = ExpenseKeyShare(keys = keys).serialize(),
+                // So a locked phone can say an expense arrived rather than nothing.
+                kind = DirectMessageKindDto.ONE_TIME_EXPENSE,
+            )
+
+            when (sent) {
+                is Result.Success -> owedExpenseKeyDao.delete(
+                    recipientUuid = recipientUuid,
+                    expenseUuids = expenseUuids,
+                )
+
+                is Result.Error -> when (sent.error) {
+                    // Nobody to hand the key to: their account is gone, or the server offers
+                    // no way to reach them that this build can use. If they come back, they
+                    // ask for the key, and the record answers them.
+                    DirectSendError.RecipientGone,
+                    DirectSendError.Channel(DirectChannelError.Unreachable),
+                        -> owedExpenseKeyDao.delete(
+                        recipientUuid = recipientUuid,
+                        expenseUuids = expenseUuids,
+                    )
+
+                    // Somebody this device no longer has pinned, or whose identity is in
+                    // doubt. No retry changes either, so the keys wait until that does.
+                    DirectSendError.Channel(DirectChannelError.NotPinned),
+                    DirectSendError.Channel(DirectChannelError.IdentityChanged),
+                        -> Unit
+
+                    DirectSendError.RateLimited -> return@withLock Result.Error(
+                        OneTimeExpenseSyncError.Network(NetworkError.TOO_MANY_REQUESTS),
+                    )
+
+                    else -> failure = failure ?: sent.error.toSyncError()
+                }
+            }
+        }
+
+        failure?.let { Result.Error(it) } ?: Result.Success(Unit)
     }
 
     /**

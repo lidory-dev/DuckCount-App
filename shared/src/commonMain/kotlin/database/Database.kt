@@ -18,6 +18,7 @@ import database.data.local.dao.IdentityConflictDao
 import database.data.local.dao.LocalDataDao
 import database.data.local.dao.MlsRecordDao
 import database.data.local.dao.OneTimeExpenseKeyDao
+import database.data.local.dao.OwedExpenseKeyDao
 import database.data.local.dao.PendingExpenseKeyDao
 import database.data.local.dao.UserDao
 import database.data.local.entity.BeneficiaryEntity
@@ -33,6 +34,7 @@ import database.data.local.entity.MlsRecordEntity
 import database.data.local.entity.OneTimeExpenseKeyEntity
 import database.data.local.entity.OneTimeExpenseRevisionEntity
 import database.data.local.entity.OutgoingContactRequestEntity
+import database.data.local.entity.OwedExpenseKeyEntity
 import database.data.local.entity.PendingExpenseKeyEntity
 import database.data.local.entity.UserEntity
 import eu.anifantakis.lib.ksafe.KSafe
@@ -58,6 +60,7 @@ import org.koin.mp.KoinPlatform.getKoin
         OneTimeExpenseKeyEntity::class,
         OneTimeExpenseRevisionEntity::class,
         PendingExpenseKeyEntity::class,
+        OwedExpenseKeyEntity::class,
         MlsRecordEntity::class,
     ],
     version = 1,
@@ -77,6 +80,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract val identityConflictDao: IdentityConflictDao
     abstract val oneTimeExpenseKeyDao: OneTimeExpenseKeyDao
     abstract val pendingExpenseKeyDao: PendingExpenseKeyDao
+    abstract val owedExpenseKeyDao: OwedExpenseKeyDao
     abstract val mlsRecordDao: MlsRecordDao
 
     abstract val localDataDao: LocalDataDao

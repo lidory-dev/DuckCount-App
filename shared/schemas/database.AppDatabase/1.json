@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "5884e4750b6e6483eac91754356b233f",
+    "identityHash": "204650f16ee4b7b8a4b4cf244cde89df",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -532,6 +532,31 @@
         }
       },
       {
+        "tableName": "OwedExpenseKeyEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `recipientUuid` TEXT NOT NULL, PRIMARY KEY(`expenseUuid`, `recipientUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recipientUuid",
+            "columnName": "recipientUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid",
+            "recipientUuid"
+          ]
+        }
+      },
+      {
         "tableName": "MlsRecordEntity",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`namespace` TEXT NOT NULL, `key` BLOB NOT NULL, `value` BLOB NOT NULL, PRIMARY KEY(`namespace`, `key`))",
         "fields": [
@@ -565,7 +590,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5884e4750b6e6483eac91754356b233f')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '204650f16ee4b7b8a4b4cf244cde89df')"
     ]
   }
 }

@@ -6,20 +6,19 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import authenticationUtils.getAuthenticatedUserUuid
 import database.data.local.dao.ExpenseDao
+import database.data.local.dao.OwedExpenseKeyDao
 import database.data.local.entity.OneTimeExpenseRevisionEntity
+import database.data.local.entity.OwedExpenseKeyEntity
 import database.data.mappers.toBeneficiaryEntity
 import database.data.mappers.toExpenseEntity
 import database.data.mappers.toExpenseWithBeneficiaries
 import database.data.mappers.toExpenseWithBeneficiariesEntity
-import database.data.remote.DirectMessageKindDto
 import database.data.remote.ExpenseApi
 import database.data.remote.ExpenseRemoteMediator
 import database.domain.Beneficiary
 import database.domain.Currency
 import database.domain.Expense
 import database.domain.ExpenseWithBeneficiaries
-import expense.ExpenseKey
-import expense.ExpenseKeyShare
 import expense.FIRST_REVISION
 import expense.OneTimeExpenseKeyRecord
 import expense.OneTimeExpenseKeyRepository
@@ -28,8 +27,6 @@ import expense.OneTimeExpenseWriteError
 import expense.sealOneTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import message.DirectMessageSender
-import message.DirectSendError
 import mls.MlsIdentityRepository
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import uniffi.lib_duckcount.newOneTimeExpenseId
@@ -44,9 +41,9 @@ import androidx.paging.map as pagingMap
 class ExpenseRepository(
     private val expenseApi: ExpenseApi,
     private val expenseDao: ExpenseDao,
+    private val owedExpenseKeyDao: OwedExpenseKeyDao,
     private val oneTimeExpenseKeyRepository: OneTimeExpenseKeyRepository,
     private val oneTimeExpenseSync: OneTimeExpenseSync,
-    private val directMessageSender: DirectMessageSender,
     private val mlsIdentityRepository: MlsIdentityRepository,
 ) {
 
@@ -66,21 +63,22 @@ class ExpenseRepository(
         }
 
     /**
-     * Creates a one-time expense: seals and signs it under a key of its own, keeps the key,
-     * posts the expense with the creditor's copy of that key, and hands it to everyone the
-     * expense names.
+     * Creates a one-time expense: seals and signs it under a key of its own, keeps the key
+     * and notes that everyone the expense names is owed it, posts the expense with the
+     * creditor's copy of that key, and hands the key over.
      *
-     * The key is kept before the post and not after it. The expense exists from the moment
-     * the server stores it, which can be before an answer that never arrives, and until the
-     * next sync brings the creditor's copy back, a creditor without the key drops every
-     * request for it. A failed post is no proof that the expense was never stored, so the
-     * key stays either way: one to an expense that does not exist costs a row and nothing
-     * else.
+     * The key, and who is owed it, are kept before the post and not after it. The expense
+     * exists from the moment the server stores it, which can be before an answer that never
+     * arrives. Until the next sync brings the creditor's copy back, a creditor without the
+     * key drops every request for it, and a share known only in memory is never sent, see
+     * [OwedExpenseKeyEntity]. A failed post is no proof that the expense was never stored,
+     * so both stay either way: for an expense that does not exist, they cost a few rows and
+     * nothing else.
      *
      * Only what comes before the post can fail the write. After the expense is on the server
      * it exists, and reporting a failure would invite a retry that creates a second one. A
-     * beneficiary who was not reached is what the sync looks for and fixes, and the key went
-     * to the server with the expense, so a device that lost it gets it back from there.
+     * beneficiary the key did not reach is handed it by a later sync, and the key went to the
+     * server with the expense, so a device that lost it gets it back from there.
      */
     suspend fun createOneTimeExpense(
         expenseWithBeneficiaries: ExpenseWithBeneficiaries,
@@ -121,6 +119,7 @@ class ExpenseRepository(
         ) ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
 
         oneTimeExpenseKeyRepository.store(record = record, isVerified = true)
+        owe(expenseUuid = id.uuid, recipientUuids = beneficiaryUuids - creditorUuid)
 
         val created = expenseApi.createOneTimeExpense(
             body = body.toCreateBody(nonce = Base64.Default.encode(id.nonce)),
@@ -142,12 +141,8 @@ class ExpenseRepository(
             expenseWithBeneficiaries = synced.toExpenseWithBeneficiariesEntity(),
         )
 
-        shareKey(
-            expenseUuid = id.uuid,
-            expenseKey = expenseKey,
-            beneficiaryUuids = beneficiaryUuids,
-            recipients = beneficiaryUuids.filterNot { it == creditorUuid },
-        )
+        // Best effort: whatever does not go out now is left to the next sync.
+        oneTimeExpenseSync.shareOwedKeys()
 
         return Result.Success(Unit)
     }
@@ -172,14 +167,14 @@ class ExpenseRepository(
      * narrowed to the new list. When no answer comes, it keeps naming both, since either may
      * be the one the server holds.
      *
-     * Who is newly named is decided against the beneficiaries this device last saw the server
-     * list, and not against the record, which after an edit that got no answer names people
-     * who may never have been handed the key. Retrying that edit hands it to them, unless a
-     * sync has meanwhile shown the version it landed, which makes them look listed already.
-     * The server's account is good enough for this, because it only decides who is handed
-     * the key unasked, never who may have it. Everybody it goes to is somebody the creditor
-     * has just picked, and anybody it is not handed to gets it by asking, which the record
-     * answers.
+     * Anybody newly named is owed the key from before the PUT, see [OwedExpenseKeyEntity],
+     * and is handed it once the expense names them as this device shows it: right after the
+     * edit, or once a sync shows the version that an edit with no answer landed. Newly named
+     * is anybody the record and the expense as shown do not both name: being named by both
+     * means an edit naming them landed, and owed them the key then. The record alone would
+     * not do, since after a removal with no answer it goes on naming somebody the server has
+     * dropped, who would then not be handed the key when added back. An edit the server
+     * accepts settles it for anybody it no longer names, who is owed nothing.
      */
     suspend fun updateOneTimeExpense(
         expenseWithBeneficiaries: ExpenseWithBeneficiaries,
@@ -218,9 +213,10 @@ class ExpenseRepository(
             keyCopy = keyCopy,
         ) ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
 
-        // Read before the PUT: once it lands, a sync that sees the new version can put the
-        // newly named in the rows before they have been handed anything.
-        val added = beneficiaryUuids - expenseDao.getBeneficiaryUuids(expenseUuid = expenseUuid).toSet()
+        val named = record.beneficiaryUuids.toSet() intersect
+                expenseDao.getBeneficiaryUuids(expenseUuid = expenseUuid).toSet()
+
+        owe(expenseUuid = expenseUuid, recipientUuids = beneficiaryUuids - named - creditorUuid)
 
         oneTimeExpenseKeyRepository.store(
             record = record.withBeneficiaries(
@@ -240,13 +236,10 @@ class ExpenseRepository(
         )
 
         oneTimeExpenseKeyRepository.store(record = updated, isVerified = true)
+        owedExpenseKeyDao.deleteNotIn(expenseUuid = expenseUuid, recipientUuids = beneficiaryUuids)
 
-        shareKey(
-            expenseUuid = expenseUuid,
-            expenseKey = record.key,
-            beneficiaryUuids = beneficiaryUuids,
-            recipients = added.filterNot { it == creditorUuid },
-        )
+        // Best effort: whatever does not go out now is left to the next sync.
+        oneTimeExpenseSync.shareOwedKeys()
 
         return Result.Success(Unit)
     }
@@ -255,6 +248,7 @@ class ExpenseRepository(
         expenseApi.deleteOneTimeExpense(uuid = uuid)
             .onSuccess {
                 expenseDao.hardDelete(expenseUuid = uuid)
+                owedExpenseKeyDao.deleteFor(expenseUuid = uuid)
 
                 // The server accepted the deletion, which is the only evidence that makes
                 // dropping a key safe: it is the one thing here with no way back.
@@ -262,42 +256,11 @@ class ExpenseRepository(
             }
             .asEmptyDataResult()
 
-    /**
-     * Hands the key to [expenseUuid] to each of [recipients].
-     *
-     * Best effort, and deliberately one at a time: a user action is one message per person
-     * named, and the server counts those against an allowance. Running past it only pushes
-     * the count further out, so the first refusal stops the pass and the rest is left to
-     * the sync, which asks for what never arrived.
-     */
-    private suspend fun shareKey(
-        expenseUuid: String,
-        expenseKey: ByteArray,
-        beneficiaryUuids: List<String>,
-        recipients: List<String>,
-    ) {
-        if (recipients.isEmpty()) return
-
-        val payload = ExpenseKeyShare(
-            keys = listOf(
-                ExpenseKey(
-                    expenseUuid = expenseUuid,
-                    key = expenseKey,
-                    beneficiaryUuids = beneficiaryUuids,
-                ),
-            ),
-        ).serialize()
-
-        for (recipient in recipients) {
-            val sent = directMessageSender.send(
-                recipientUserUuid = recipient,
-                payload = payload,
-                // So a locked phone can say an expense arrived rather than nothing.
-                kind = DirectMessageKindDto.ONE_TIME_EXPENSE,
-            )
-
-            if (sent is Result.Error && sent.error == DirectSendError.RateLimited) return
-        }
+    /** Notes that each of [recipientUuids] is owed the key to [expenseUuid]. */
+    private suspend fun owe(expenseUuid: String, recipientUuids: List<String>) {
+        owedExpenseKeyDao.insertAll(
+            keys = recipientUuids.map { OwedExpenseKeyEntity(expenseUuid = expenseUuid, recipientUuid = it) },
+        )
     }
 
     suspend fun insert(expense: Expense) {

@@ -1,6 +1,7 @@
 package expense
 
 import authenticationUtils.getAuthenticatedUserUuid
+import database.data.local.dao.OwedExpenseKeyDao
 import message.DirectMessageHandler
 import message.DirectMessageHandling
 import message.DirectMessageSender
@@ -27,6 +28,7 @@ import util.Result
  */
 internal class OneTimeExpenseMessageHandler(
     private val keyRepository: OneTimeExpenseKeyRepository,
+    private val owedExpenseKeyDao: OwedExpenseKeyDao,
     private val directMessageSender: DirectMessageSender,
     private val mlsIdentityRepository: MlsIdentityRepository,
 ) : DirectMessageHandler {
@@ -92,6 +94,10 @@ internal class OneTimeExpenseMessageHandler(
      *
      * An entitlement that does not hold is silently nothing. Telling an asker that an
      * expense exists but is not theirs is telling them something.
+     *
+     * A key the answer hands over is no longer owed to the asker, see
+     * [database.data.local.entity.OwedExpenseKeyEntity], or the next sync would hand it
+     * over again.
      */
     private suspend fun answer(
         requesterUuid: String,
@@ -107,13 +113,20 @@ internal class OneTimeExpenseMessageHandler(
 
         if (answers.isEmpty()) return
 
-        directMessageSender.replyIn(
+        val replied = directMessageSender.replyIn(
             recipientUserUuid = requesterUuid,
             mlsGroupId = mlsGroupId,
             payload = ExpenseKeyShare(keys = answers).serialize(),
             // The answer makes an expense readable just as the first share did.
             kind = DirectMessageKindDto.ONE_TIME_EXPENSE,
         )
+
+        if (replied is Result.Success) {
+            owedExpenseKeyDao.delete(
+                recipientUuid = requesterUuid,
+                expenseUuids = answers.map { it.expenseUuid },
+            )
+        }
     }
 }
 
