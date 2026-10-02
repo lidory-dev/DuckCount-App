@@ -61,6 +61,9 @@ interface ExpenseDao {
     @Query("DELETE FROM BeneficiaryEntity WHERE expenseUuid = :expenseUuid")
     suspend fun deleteBeneficiariesFor(expenseUuid: String)
 
+    @Query("SELECT userUuid FROM BeneficiaryEntity WHERE expenseUuid = :expenseUuid")
+    suspend fun getBeneficiaryUuids(expenseUuid: String): List<String>
+
     /** Hard-deletes an expense and its beneficiaries in a single transaction (no restore). */
     @Transaction
     suspend fun hardDeleteWithBeneficiaries(expenseUuid: String) {

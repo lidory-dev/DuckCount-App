@@ -13,6 +13,7 @@ private const val CREDITOR = "22222222-2222-2222-2222-222222222222"
 private const val BOB = "33333333-3333-3333-3333-333333333333"
 private const val CAROL = "44444444-4444-4444-4444-444444444444"
 private const val STRANGER = "55555555-5555-5555-5555-555555555555"
+private const val DAVE = "66666666-6666-6666-6666-666666666666"
 
 class OneTimeExpenseKeyRecordTest {
 
@@ -81,6 +82,19 @@ class OneTimeExpenseKeyRecordTest {
             """{"v":2,"expense":"$EXPENSE","key":"AAAA","creditor":"$CREDITOR","creditor_key":"AAAA","beneficiaries":[]}"""
 
         assertNull(OneTimeExpenseKeyRecord.parse(future.encodeToByteArray(), EXPENSE))
+    }
+
+    /** An edit changes who an expense is for, never its key or whose it is. */
+    @Test
+    fun `a record meant for other beneficiaries keeps its key and its creditor`() {
+        val edited = record(beneficiaryUuids = listOf(BOB, CAROL))
+            .withBeneficiaries(beneficiaryUuids = listOf(CAROL, DAVE))
+
+        assertEquals(EXPENSE, edited.expenseUuid)
+        assertContentEquals(key, edited.key)
+        assertEquals(CREDITOR, edited.creditorUuid)
+        assertContentEquals(creditorSignatureKey, edited.creditorSignatureKey)
+        assertEquals(listOf(CAROL, DAVE), edited.beneficiaryUuids)
     }
 
     @Test

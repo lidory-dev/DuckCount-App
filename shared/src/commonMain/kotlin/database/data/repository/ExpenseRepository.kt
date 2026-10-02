@@ -66,15 +66,21 @@ class ExpenseRepository(
         }
 
     /**
-     * Creates a one-time expense: seals and signs it under a key of its own, posts it with
-     * the creditor's copy of that key, keeps the key, and hands it to everyone the expense
-     * names.
+     * Creates a one-time expense: seals and signs it under a key of its own, keeps the key,
+     * posts the expense with the creditor's copy of that key, and hands it to everyone the
+     * expense names.
+     *
+     * The key is kept before the post and not after it. The expense exists from the moment
+     * the server stores it, which can be before an answer that never arrives, and until the
+     * next sync brings the creditor's copy back, a creditor without the key drops every
+     * request for it. A failed post is no proof that the expense was never stored, so the
+     * key stays either way: one to an expense that does not exist costs a row and nothing
+     * else.
      *
      * Only what comes before the post can fail the write. After the expense is on the server
      * it exists, and reporting a failure would invite a retry that creates a second one. A
      * beneficiary who was not reached is what the sync looks for and fixes, and the key went
-     * to the server with the expense, so a device that never stored it gets it back from
-     * there.
+     * to the server with the expense, so a device that lost it gets it back from there.
      */
     suspend fun createOneTimeExpense(
         expenseWithBeneficiaries: ExpenseWithBeneficiaries,
@@ -114,6 +120,8 @@ class ExpenseRepository(
             keyCopy = keyCopy,
         ) ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
 
+        oneTimeExpenseKeyRepository.store(record = record, isVerified = true)
+
         val created = expenseApi.createOneTimeExpense(
             body = body.toCreateBody(nonce = Base64.Default.encode(id.nonce)),
         )
@@ -121,8 +129,6 @@ class ExpenseRepository(
         if (created is Result.Error) {
             return Result.Error(OneTimeExpenseWriteError.Network(created.error))
         }
-
-        oneTimeExpenseKeyRepository.store(record = record, isVerified = true)
 
         val synced = expenseWithBeneficiaries.copy(
             uuid = id.uuid,
@@ -157,6 +163,23 @@ class ExpenseRepository(
      * The server replaces the beneficiary list wholesale, so anyone newly named is handed
      * the key, and the creditor's copy of it names the new list. Anyone dropped keeps it:
      * they have already seen the expense, and there is no taking a key back.
+     *
+     * Until the server answers, the record this device keeps names everybody on either list.
+     * The server holds the new list from the moment the PUT lands, which can be before an
+     * answer that never arrives, and a sync never replaces a verified record with the
+     * server's copy, so a record still naming only the old list would refuse the newly named
+     * until another edit or a log-out. Once the server accepts the edit, the record is
+     * narrowed to the new list. When no answer comes, it keeps naming both, since either may
+     * be the one the server holds.
+     *
+     * Who is newly named is decided against the beneficiaries this device last saw the server
+     * list, and not against the record, which after an edit that got no answer names people
+     * who may never have been handed the key. Retrying that edit hands it to them, unless a
+     * sync has meanwhile shown the version it landed, which makes them look listed already.
+     * The server's account is good enough for this, because it only decides who is handed
+     * the key unasked, never who may have it. Everybody it goes to is somebody the creditor
+     * has just picked, and anybody it is not handed to gets it by asking, which the record
+     * answers.
      */
     suspend fun updateOneTimeExpense(
         expenseWithBeneficiaries: ExpenseWithBeneficiaries,
@@ -181,13 +204,7 @@ class ExpenseRepository(
 
         val beneficiaryUuids = expenseWithBeneficiaries.beneficiaries.map { it.userUuid }
 
-        val updated = OneTimeExpenseKeyRecord(
-            expenseUuid = expenseUuid,
-            key = record.key,
-            creditorUuid = record.creditorUuid,
-            creditorSignatureKey = record.creditorSignatureKey,
-            beneficiaryUuids = beneficiaryUuids,
-        )
+        val updated = record.withBeneficiaries(beneficiaryUuids = beneficiaryUuids)
 
         val keyCopy = when (val sealed = oneTimeExpenseKeyRepository.sealCopy(record = updated)) {
             is Result.Success -> sealed.data
@@ -201,6 +218,17 @@ class ExpenseRepository(
             keyCopy = keyCopy,
         ) ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
 
+        // Read before the PUT: once it lands, a sync that sees the new version can put the
+        // newly named in the rows before they have been handed anything.
+        val added = beneficiaryUuids - expenseDao.getBeneficiaryUuids(expenseUuid = expenseUuid).toSet()
+
+        oneTimeExpenseKeyRepository.store(
+            record = record.withBeneficiaries(
+                beneficiaryUuids = (record.beneficiaryUuids + beneficiaryUuids).distinct(),
+            ),
+            isVerified = true,
+        )
+
         val update = expenseApi.updateOneTimeExpense(uuid = expenseUuid, body = body)
 
         if (update is Result.Error) {
@@ -212,8 +240,6 @@ class ExpenseRepository(
         )
 
         oneTimeExpenseKeyRepository.store(record = updated, isVerified = true)
-
-        val added = beneficiaryUuids - record.beneficiaryUuids.toSet()
 
         shareKey(
             expenseUuid = expenseUuid,

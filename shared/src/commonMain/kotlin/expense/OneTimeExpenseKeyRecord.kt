@@ -46,6 +46,16 @@ class OneTimeExpenseKeyRecord(
     fun isParticipant(userUuid: String): Boolean =
         userUuid == creditorUuid || userUuid in beneficiaryUuids
 
+    /** The same key to the same expense, meant for [beneficiaryUuids] instead. */
+    fun withBeneficiaries(beneficiaryUuids: List<String>): OneTimeExpenseKeyRecord =
+        OneTimeExpenseKeyRecord(
+            expenseUuid = expenseUuid,
+            key = key,
+            creditorUuid = creditorUuid,
+            creditorSignatureKey = creditorSignatureKey,
+            beneficiaryUuids = beneficiaryUuids,
+        )
+
     /** The plaintext to store, and to seal into the user's copy for the server. */
     fun serialize(): ByteArray =
         json.encodeToString(
