@@ -2,6 +2,7 @@ package expense
 
 import authenticationUtils.getAuthenticatedUserUuid
 import channel.DirectChannelError
+import channel.DirectChannelRepository
 import database.data.local.dao.ExpenseDao
 import database.data.local.dao.OwedExpenseKeyDao
 import database.data.local.dao.PendingExpenseKeyDao
@@ -46,6 +47,7 @@ class OneTimeExpenseSync(
     private val keyRepository: OneTimeExpenseKeyRepository,
     private val directMessageSender: DirectMessageSender,
     private val directMessageSync: DirectMessageSync,
+    private val directChannelRepository: DirectChannelRepository,
 ) {
     /**
      * Serializes [shareOwedKeys], which an expense being written and a sync can both reach
@@ -174,7 +176,7 @@ class OneTimeExpenseSync(
     }
 
     /**
-     * Asks each creditor for the keys this device is still missing from them.
+     * Asks each creditor this device knows for the keys it is still missing from them.
      *
      * One message per creditor rather than per expense: somebody coming back from a log-out
      * is missing everything a creditor ever sent them, and the allowance the server enforces
@@ -210,6 +212,13 @@ class OneTimeExpenseSync(
         for ((creditorUuid, rows) in due.groupBy { it.creditorUuid }) {
             if (sent >= MAX_CREDITORS_PER_SYNC) break
 
+            // Only somebody this device already knows, see [DirectChannelRepository.isKnownPeer]:
+            // the creditor is the server's word, and anybody can name the user on an expense.
+            // Being pinned is not enough. Sending a contact request pins whoever the server
+            // said the username was, and the pin stays whether they answer or not, and whether
+            // the server stored the request or not. Their rows wait, unasked, until that changes.
+            if (!directChannelRepository.isKnownPeer(peerUuid = creditorUuid)) continue
+
             val expenseUuids = rows.map { it.expenseUuid }.take(ExpenseKeyRequest.MAX_EXPENSES)
 
             val request = directMessageSender.send(
@@ -234,9 +243,9 @@ class OneTimeExpenseSync(
                         state = PendingExpenseKeyState.CREDITOR_GONE,
                     )
 
-                    // Nobody this device has pinned, so nobody it can ask: a former contact,
-                    // or one a log-out made it lose track of. No retry changes that, so the
-                    // rows wait until they are pinned, which adding them again does.
+                    // Somebody this device knows but holds no pin for: a contact the vault gave
+                    // back without one, see [vault.VaultContact]. Building would pin whatever the
+                    // server served for them, so the rows wait until they are pinned.
                     DirectSendError.Channel(DirectChannelError.NotPinned) -> Unit
 
                     // Somebody whose identity is in doubt, who is not asked for anything until
