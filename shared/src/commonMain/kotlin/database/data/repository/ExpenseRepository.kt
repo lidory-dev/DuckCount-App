@@ -102,6 +102,7 @@ class ExpenseRepository(
             expenseUuid = id.uuid,
             key = expenseKey,
             creditorUuid = creditorUuid,
+            nonce = id.nonce,
             creditorSignatureKey = client.signaturePublicKey(),
             beneficiaryUuids = beneficiaryUuids,
         )
@@ -118,7 +119,7 @@ class ExpenseRepository(
             keyCopy = keyCopy,
         ) ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
 
-        oneTimeExpenseKeyRepository.store(record = record, isVerified = true)
+        oneTimeExpenseKeyRepository.store(record = record)
         owe(expenseUuid = id.uuid, recipientUuids = beneficiaryUuids - creditorUuid)
 
         val created = expenseApi.createOneTimeExpense(
@@ -222,7 +223,6 @@ class ExpenseRepository(
             record = record.withBeneficiaries(
                 beneficiaryUuids = (record.beneficiaryUuids + beneficiaryUuids).distinct(),
             ),
-            isVerified = true,
         )
 
         val update = expenseApi.updateOneTimeExpense(uuid = expenseUuid, body = body)
@@ -235,7 +235,7 @@ class ExpenseRepository(
             expenseWithBeneficiaries = expenseWithBeneficiaries.toExpenseWithBeneficiariesEntity(),
         )
 
-        oneTimeExpenseKeyRepository.store(record = updated, isVerified = true)
+        oneTimeExpenseKeyRepository.store(record = updated)
         owedExpenseKeyDao.deleteNotIn(expenseUuid = expenseUuid, recipientUuids = beneficiaryUuids)
 
         // Best effort: whatever does not go out now is left to the next sync.

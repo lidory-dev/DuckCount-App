@@ -3,6 +3,7 @@ package expense
 import database.data.local.dao.IdentityConflictDao
 import database.data.local.dao.OneTimeExpenseKeyDao
 import database.data.local.entity.OneTimeExpenseKeyEntity
+import database.data.local.entity.UnverifiedExpenseKeyEntity
 import database.data.remote.EncryptedFieldDto
 import database.data.remote.ExpenseApi
 import database.data.remote.ExpenseDto
@@ -33,11 +34,13 @@ import vault.unseal
  * cannot rewrite, and handing the key to somebody asking for it is decided against that and
  * nothing else.
  *
- * A key that arrived in a message is kept unverified until the expense it names has been
- * shown to open under it, signed by the creditor it came from, and an unverified key is never
- * sent to the server. Anyone who can reach the user can send them thirty-two bytes, and a
- * device that trusted them would stop asking for the real key and never open the expense
- * again.
+ * A key that arrived in a message is only kept from the expense's creditor, see
+ * [OneTimeExpenseMessageHandler], and then unverified until the expense it names has been
+ * shown to open under it, signed by the creditor it came from: its nonce shows whose expense
+ * it is a key to, not that there is one, see
+ * [database.data.local.entity.UnverifiedExpenseKeyEntity]. An unverified key is never sent
+ * to the server, and is not kept if it was already held when a listing was asked for that
+ * shows the user on no such expense, see [forgetUnverified].
  *
  * A record also fixes the creditor's signature key at the time it was written, apart from
  * the pin this device holds for them. A creditor who is blocked, see
@@ -53,25 +56,37 @@ class OneTimeExpenseKeyRepository(
     private val expenseApi: ExpenseApi,
 ) {
 
-    /** The record for [expenseUuid] as this device holds it, or null when it holds none. */
+    /**
+     * The record for [expenseUuid] that this device holds as working, or null when it holds
+     * none: the user's own, one that has opened its expense, or one brought back from the
+     * user's copy, see [restore].
+     */
     suspend fun record(expenseUuid: String): OneTimeExpenseKeyRecord? =
         oneTimeExpenseKeyDao.get(expenseUuid = expenseUuid)?.toRecord()
 
     /**
-     * Every key this device holds, keyed by expense, whether verified yet or not, but for
-     * the ones from a blocked creditor: their expenses would open on an identity in doubt.
+     * The key each of [expenses] is to be opened with, keyed by expense: the one this device
+     * holds as working, see [record], or else the one its creditor handed over. None from a
+     * blocked creditor: their expenses would open on an identity in doubt.
      *
-     * One read for a whole expense list: the alternative is a lookup per expense, and the
-     * list is the screen this is for.
+     * One read of each table for a whole expense list: the alternative is a lookup per
+     * expense, and the list is the screen this is for.
      */
-    suspend fun held(): Map<String, HeldKey> {
+    suspend fun keysFor(expenses: List<ExpenseDto>): Map<String, HeldKey> {
         val blocked = identityConflictDao.getBlocked().toHashSet()
 
-        return oneTimeExpenseKeyDao.getAll().mapNotNull { entity ->
-            entity.toRecord()
-                ?.takeIf { it.creditorUuid !in blocked }
-                ?.let { HeldKey(record = it, isVerified = entity.isVerified) }
-        }.associateBy { it.record.expenseUuid }
+        // The unverified first: a key only ever moves from there to the other, in one
+        // transaction, so one a sync alongside this one verifies in between is still read.
+        val unverified = oneTimeExpenseKeyDao.getAllUnverified().associateBy { it.expenseUuid }
+        val verified = oneTimeExpenseKeyDao.getAll().associateBy { it.expenseUuid }
+
+        return expenses.mapNotNull { expense ->
+            val key = verified[expense.uuid]?.toRecord()?.let { HeldKey(record = it, isVerified = true) }
+                ?: unverified[expense.uuid]?.toRecord()
+                    ?.let { HeldKey(record = it, isVerified = false) }
+
+            key?.takeIf { it.record.creditorUuid !in blocked }?.let { expense.uuid to it }
+        }.toMap()
     }
 
     /** Seals [record] as the user's copy for the server to keep with its expense. */
@@ -86,32 +101,27 @@ class OneTimeExpenseKeyRepository(
             ?: Result.Error(VaultError.Crypto)
     }
 
-    /** Stores [record] on this device. */
-    suspend fun store(record: OneTimeExpenseKeyRecord, isVerified: Boolean) {
-        oneTimeExpenseKeyDao.upsert(
-            OneTimeExpenseKeyEntity(
-                expenseUuid = record.expenseUuid,
-                record = record.serialize(),
-                isVerified = isVerified,
-            ),
+    /**
+     * Stores [record] on this device as one that works: the user's own, or one that has
+     * opened its expense, see [record].
+     */
+    suspend fun store(record: OneTimeExpenseKeyRecord) {
+        oneTimeExpenseKeyDao.upsertVerified(
+            keys = listOf(OneTimeExpenseKeyEntity(expenseUuid = record.expenseUuid, record = record.serialize())),
         )
     }
 
     /**
-     * Stores a key that arrived in a message, unless this device already holds one it has
-     * seen work.
+     * Stores a key its creditor handed over, in place of any earlier one from them, unless
+     * this device already holds one that works.
      *
-     * Unverified, always: anyone who can reach the user can send them thirty-two bytes, and
-     * a device that trusted them would stop asking for the real key and never open the
-     * expense again. It becomes verified when it opens the expense it names, and not before.
+     * Unverified, always: it becomes verified when it opens the expense it names, and not
+     * before, see [database.data.local.entity.UnverifiedExpenseKeyEntity].
      */
     suspend fun storeUnverified(record: OneTimeExpenseKeyRecord) {
-        val held = oneTimeExpenseKeyDao.get(expenseUuid = record.expenseUuid)
-
-        // A key that has been shown to work is never displaced by one that has not.
-        if (held?.isVerified == true) return
-
-        store(record = record, isVerified = false)
+        oneTimeExpenseKeyDao.upsertUnverifiedUnlessVerified(
+            key = UnverifiedExpenseKeyEntity(expenseUuid = record.expenseUuid, record = record.serialize()),
+        )
     }
 
     /**
@@ -119,7 +129,7 @@ class OneTimeExpenseKeyRepository(
      * it becomes worth keeping, and [backUp] sends the server a copy of it.
      */
     suspend fun markVerified(record: OneTimeExpenseKeyRecord) {
-        store(record = record, isVerified = true)
+        store(record = record)
     }
 
     /**
@@ -141,9 +151,7 @@ class OneTimeExpenseKeyRepository(
      * next listing, which carries it again.
      */
     suspend fun restore(expenses: List<ExpenseDto>) {
-        val verified = oneTimeExpenseKeyDao.getAll()
-            .filter { it.isVerified }
-            .mapTo(HashSet()) { it.expenseUuid }
+        val verified = oneTimeExpenseKeyDao.getAll().mapTo(HashSet()) { it.expenseUuid }
 
         val copies = expenses.mapNotNull { expense ->
             expense.key_copy?.takeIf { expense.uuid !in verified }?.let { expense.uuid to it }
@@ -170,10 +178,10 @@ class OneTimeExpenseKeyRepository(
 
             if (!record.agreesWithPin(client = client, blocked = blocked)) return@mapNotNull null
 
-            OneTimeExpenseKeyEntity(expenseUuid = expenseUuid, record = plaintext, isVerified = true)
+            OneTimeExpenseKeyEntity(expenseUuid = expenseUuid, record = plaintext)
         }
 
-        oneTimeExpenseKeyDao.upsertAll(keys = restored)
+        oneTimeExpenseKeyDao.upsertVerified(keys = restored)
     }
 
     /**
@@ -194,7 +202,7 @@ class OneTimeExpenseKeyRepository(
         val blocked = identityConflictDao.getBlocked().toHashSet()
 
         val keys = oneTimeExpenseKeyDao.getAll().filter {
-            it.isVerified && it.expenseUuid in missing && it.toRecord()?.creditorUuid !in blocked
+            it.expenseUuid in missing && it.toRecord()?.creditorUuid !in blocked
         }
 
         // Most syncs find nothing to send, and reading the key ring is a request.
@@ -221,6 +229,21 @@ class OneTimeExpenseKeyRepository(
         oneTimeExpenseKeyDao.delete(expenseUuid = expenseUuid)
     }
 
+    /** The expenses this device holds a key to that it has not seen work yet. */
+    suspend fun unverifiedExpenseUuids(): Set<String> =
+        oneTimeExpenseKeyDao.getUnverifiedExpenseUuids().toHashSet()
+
+    /**
+     * Drops the keys held unverified to [expenseUuids].
+     *
+     * Unlike [forget], this needs no proof that an expense is gone. An unverified key is not
+     * the user's way back to anything: a key to an expense they turn out to be on after all
+     * is asked of its creditor, as for any expense this device cannot open.
+     */
+    suspend fun forgetUnverified(expenseUuids: Collection<String>) {
+        oneTimeExpenseKeyDao.deleteUnverified(expenseUuids = expenseUuids.toList())
+    }
+
     /**
      * The key the user's copies are sealed under, created and written to the key ring the
      * first time, before any copy sealed under it can leave the device.
@@ -229,6 +252,9 @@ class OneTimeExpenseKeyRepository(
         vaultRepository.getOrCreatePartKey(part = VaultEntryKey.ONE_TIME_EXPENSE_KEY)
 
     private fun OneTimeExpenseKeyEntity.toRecord(): OneTimeExpenseKeyRecord? =
+        OneTimeExpenseKeyRecord.parse(plaintext = record, expenseUuid = expenseUuid)
+
+    private fun UnverifiedExpenseKeyEntity.toRecord(): OneTimeExpenseKeyRecord? =
         OneTimeExpenseKeyRecord.parse(plaintext = record, expenseUuid = expenseUuid)
 
     /**

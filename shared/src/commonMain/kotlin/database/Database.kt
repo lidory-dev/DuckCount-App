@@ -36,6 +36,7 @@ import database.data.local.entity.OneTimeExpenseRevisionEntity
 import database.data.local.entity.OutgoingContactRequestEntity
 import database.data.local.entity.OwedExpenseKeyEntity
 import database.data.local.entity.PendingExpenseKeyEntity
+import database.data.local.entity.UnverifiedExpenseKeyEntity
 import database.data.local.entity.UserEntity
 import eu.anifantakis.lib.ksafe.KSafe
 import eu.anifantakis.lib.ksafe.KSafeEncryptedProtection
@@ -58,6 +59,7 @@ import org.koin.mp.KoinPlatform.getKoin
         DirectChannelEntity::class,
         IdentityConflictEntity::class,
         OneTimeExpenseKeyEntity::class,
+        UnverifiedExpenseKeyEntity::class,
         OneTimeExpenseRevisionEntity::class,
         PendingExpenseKeyEntity::class,
         OwedExpenseKeyEntity::class,

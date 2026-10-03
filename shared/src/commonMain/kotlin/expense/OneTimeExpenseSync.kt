@@ -109,6 +109,10 @@ class OneTimeExpenseSync(
         // expenses below are worth reading either way.
         directMessageSync.sync()
 
+        // Read before the listing is asked for. A sync running alongside this one can store a
+        // key while it is in flight, to an expense created since, which it could not show.
+        val unverified = keyRepository.unverifiedExpenseUuids()
+
         val expenses = when (val listed = expenseApi.getOneTimeExpenses()) {
             // Only entries whose UUIDs are written as the server writes them, whether or not
             // they open. These UUIDs end up in rows, in key requests and in the library, which
@@ -118,11 +122,21 @@ class OneTimeExpenseSync(
             is Result.Error -> return Result.Error(OneTimeExpenseSyncError.Network(listed.error))
         }
 
+        // A key held unverified to an expense the user is not on can never be checked, and its
+        // nonce shows whose expense it would be, not that there is one: anybody who can reach
+        // the user can send them as many keys to expenses of theirs that were never created
+        // as they like. A creditor hands a key over only once the server names the user on
+        // the expense, so one that arrived before this listing was asked for names an expense
+        // it shows, unless the user has been taken off it or it has been deleted since, which
+        // leaves the key nothing to open either. Or the server left it out, which costs no
+        // more than withholding it: listed again, it does not open, and its creditor is asked.
+        keyRepository.forgetUnverified(expenseUuids = unverified - expenses.mapTo(HashSet()) { it.uuid })
+
         // Before deciding what is missing: an expense whose key was merely not brought back
         // yet looks exactly like one whose key never arrived, and would be asked for.
         keyRepository.restore(expenses = expenses)
 
-        val held = keyRepository.held()
+        val held = keyRepository.keysFor(expenses = expenses)
 
         val opened = mutableListOf<ExpenseDto>()
         val unopened = mutableListOf<ExpenseDto>()
@@ -251,9 +265,10 @@ class OneTimeExpenseSync(
      * Each key goes only to somebody the creditor's own record names, see [keyFor], and not
      * on the strength of the expense's rows alone: those are refilled from the server.
      *
-     * One message per person, however many keys it carries, and one person at a time: the
-     * server counts messages against an allowance, and running past it only pushes the count
-     * further out, so the first refusal stops the pass and the rest wait for the next one.
+     * One message per person, and one person at a time: the server counts messages against an
+     * allowance, and running past it only pushes the count further out, so the first refusal
+     * stops the pass and the rest wait for the next one. A message carries no more keys than
+     * a recipient reads of one, see [ExpenseKeyShare.MAX_KEYS], and the rest wait the same way.
      */
     suspend fun shareOwedKeys(): EmptyResult<OneTimeExpenseSyncError> = shareMutex.withLock {
         val ownUserUuid = getAuthenticatedUserUuid()
@@ -269,7 +284,7 @@ class OneTimeExpenseSync(
             val keys = rows.mapNotNull { row ->
                 keyRepository.record(expenseUuid = row.expenseUuid)
                     ?.keyFor(requesterUuid = recipientUuid, ownUserUuid = ownUserUuid)
-            }
+            }.take(ExpenseKeyShare.MAX_KEYS)
 
             if (keys.isEmpty()) continue
 

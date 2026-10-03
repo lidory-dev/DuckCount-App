@@ -31,6 +31,19 @@ class OneTimeExpenseKeyRecord(
     val creditorUuid: String,
 
     /**
+     * The nonce the expense's UUID was derived from, with [creditorUuid]'s, see
+     * `new_one_time_expense_id` in lib-duckcount. Nobody else can find one that derives it
+     * from theirs, so it travels with the key, and shows whoever receives it whether the
+     * sender MLS authenticated is the creditor, see `is_one_time_expense_creditor`.
+     *
+     * The server is told it once, when the expense is created, and keeps only the UUID. From
+     * then on it lives in the records: the creditor's, which hands it over with every key,
+     * and that of everybody it was handed to. So it is no secret from anybody on the expense,
+     * and says who sent a key only together with who MLS says that was.
+     */
+    val nonce: ByteArray,
+
+    /**
      * The creditor's MLS signature public key, which every version of the expense has to
      * be signed with: the user's own for their own expenses, otherwise taken from the
      * channel the key arrived over, where MLS authenticated the creditor. Either way,
@@ -52,6 +65,7 @@ class OneTimeExpenseKeyRecord(
             expenseUuid = expenseUuid,
             key = key,
             creditorUuid = creditorUuid,
+            nonce = nonce,
             creditorSignatureKey = creditorSignatureKey,
             beneficiaryUuids = beneficiaryUuids,
         )
@@ -65,6 +79,7 @@ class OneTimeExpenseKeyRecord(
                 expenseUuid = expenseUuid,
                 key = Base64.Default.encode(key),
                 creditorUuid = creditorUuid,
+                nonce = Base64.Default.encode(nonce),
                 creditorSignatureKey = Base64.Default.encode(creditorSignatureKey),
                 beneficiaryUuids = beneficiaryUuids.sorted(),
             ),
@@ -95,6 +110,7 @@ class OneTimeExpenseKeyRecord(
                     expenseUuid = serialized.expenseUuid,
                     key = Base64.Default.decode(serialized.key),
                     creditorUuid = serialized.creditorUuid,
+                    nonce = Base64.Default.decode(serialized.nonce),
                     creditorSignatureKey = Base64.Default.decode(serialized.creditorSignatureKey),
                     beneficiaryUuids = serialized.beneficiaryUuids,
                 )
@@ -114,6 +130,8 @@ private class SerializedOneTimeExpenseKeyRecord(
 
     @SerialName("creditor")
     val creditorUuid: String,
+
+    val nonce: String,
 
     @SerialName("creditor_key")
     val creditorSignatureKey: String,

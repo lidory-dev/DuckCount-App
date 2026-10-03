@@ -8,6 +8,7 @@ import message.DirectMessageSender
 import database.data.remote.DirectMessageKindDto
 import mls.MlsIdentityRepository
 import mls.pinnedSignatureKeyFor
+import uniffi.lib_duckcount.isOneTimeExpenseCreditor
 import util.Result
 
 /**
@@ -16,10 +17,14 @@ import util.Result
  *
  * **A share is only ever accepted from the creditor.** MLS says who sent a message, and the
  * key to an expense is the creditor's to give: taking one from anybody else would let a
- * co-beneficiary hand over thirty-two bytes of their choosing and have them stored as the
- * key. The expense still has to open under the key, and carry the signature of the sender
- * the key is recorded from, before either is acted on, which is the gate that actually
- * holds, but there is no reason to store a stranger's guess in the first place.
+ * co-beneficiary hand over thirty-two bytes of their choosing in place of the creditor's.
+ * The expense's UUID says who the creditor is, with no need to ask the server: it was
+ * derived from their UUID and a nonce they drew, which travels with each key, and nobody
+ * else can find a nonce that derives it from their own, see [OneTimeExpenseKeyRecord.nonce].
+ * A key the nonce does not show its sender to be the creditor of is dropped as it arrives.
+ *
+ * Even the creditor's is only kept unverified until the expense opens under it, see
+ * [database.data.local.entity.UnverifiedExpenseKeyEntity].
  *
  * **A request is only ever answered by the creditor**, out of their own record of the
  * expense, which is the only account of who it was meant for that the server cannot
@@ -39,7 +44,7 @@ internal class OneTimeExpenseMessageHandler(
         payload: ByteArray,
     ): DirectMessageHandling {
         ExpenseKeyShare.parse(plaintext = payload)?.let { share ->
-            receive(creditorUuid = senderUserUuid, share = share)
+            receive(senderUuid = senderUserUuid, share = share)
 
             return DirectMessageHandling.HANDLED
         }
@@ -58,26 +63,41 @@ internal class OneTimeExpenseMessageHandler(
     }
 
     /**
-     * Keeps the keys [creditorUuid] handed over, to be verified once the expenses they name
-     * open under them and carry [creditorUuid]'s signature.
+     * Keeps the keys [senderUuid] handed over to expenses they are the creditor of, to be
+     * verified once those open under them and carry [senderUuid]'s signature.
      *
      * The record is built from the sender MLS authenticated, the signature key it
      * authenticated them with, and the beneficiaries the message carried, never from what
      * the server says about the expense.
      */
-    private suspend fun receive(creditorUuid: String, share: ExpenseKeyShare) {
+    private suspend fun receive(senderUuid: String, share: ExpenseKeyShare) {
         // Every channel pins its peer, and this message was just read in one, so both are
         // there: the client read it, and the pin checked its sender.
         val client = (mlsIdentityRepository.client() as? Result.Success)?.data ?: return
-        val creditorSignatureKey = client.pinnedSignatureKeyFor(peerUuid = creditorUuid) ?: return
+        val senderSignatureKey = client.pinnedSignatureKeyFor(peerUuid = senderUuid) ?: return
 
         share.keys.forEach { key ->
+            // Only a UUID written as the server writes one, which is the only kind the check
+            // below can show anybody to be the creditor of anyway. Anything else would reach
+            // the library, which throws on a string that is not valid UTF-16 rather than
+            // refusing it, and a contact could crash the sync with one.
+            if (!key.expenseUuid.isCanonicalUuid()) return@forEach
+
+            val isCreditor = isOneTimeExpenseCreditor(
+                expenseUuid = key.expenseUuid,
+                creditorUuid = senderUuid,
+                nonce = key.nonce,
+            )
+
+            if (!isCreditor) return@forEach
+
             keyRepository.storeUnverified(
                 record = OneTimeExpenseKeyRecord(
                     expenseUuid = key.expenseUuid,
                     key = key.key,
-                    creditorUuid = creditorUuid,
-                    creditorSignatureKey = creditorSignatureKey,
+                    creditorUuid = senderUuid,
+                    nonce = key.nonce,
+                    creditorSignatureKey = senderSignatureKey,
                     beneficiaryUuids = key.beneficiaryUuids,
                 ),
             )
@@ -155,6 +175,7 @@ internal fun OneTimeExpenseKeyRecord.keyFor(
     return ExpenseKey(
         expenseUuid = expenseUuid,
         key = key,
+        nonce = nonce,
         beneficiaryUuids = beneficiaryUuids,
     )
 }

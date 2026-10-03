@@ -34,6 +34,7 @@ class ExpenseKeyShare(
                     SerializedExpenseKey(
                         expenseUuid = it.expenseUuid,
                         key = Base64.Default.encode(it.key),
+                        nonce = Base64.Default.encode(it.nonce),
                         beneficiaryUuids = it.beneficiaryUuids.sorted(),
                     )
                 },
@@ -42,6 +43,15 @@ class ExpenseKeyShare(
 
     companion object {
         private const val TYPE = "one_time_expense_key"
+
+        /**
+         * How many keys one share may carry: as many as one request may ask for, which is
+         * the most an answer to one holds.
+         *
+         * A bound on what receiving one stores, since a key is kept until a listing says
+         * whether the user is on the expense it names.
+         */
+        const val MAX_KEYS = ExpenseKeyRequest.MAX_EXPENSES
 
         /** Reads a share back from a decrypted message, or returns null when it is not one. */
         fun parse(plaintext: ByteArray): ExpenseKeyShare? =
@@ -54,10 +64,11 @@ class ExpenseKeyShare(
                 if (serialized.type != TYPE) return null
 
                 ExpenseKeyShare(
-                    keys = serialized.keys.map {
+                    keys = serialized.keys.take(MAX_KEYS).map {
                         ExpenseKey(
                             expenseUuid = it.expenseUuid,
                             key = Base64.Default.decode(it.key),
+                            nonce = Base64.Default.decode(it.nonce),
                             beneficiaryUuids = it.beneficiaryUuids,
                         )
                     },
@@ -71,15 +82,23 @@ class ExpenseKeyShare(
  *
  * The beneficiaries travel with the key because the recipient has to keep them: the same
  * list reaches them from the server on every sync, and the server is exactly what a record
- * of who an expense was meant for must not depend on. Here it arrives inside a message only
- * the creditor could have sent, which the server can neither read nor forge.
+ * of who an expense was meant for must not depend on. Here it arrives inside a message the
+ * server can neither read nor forge, and the only list ever acted on is one the creditor sent.
  *
- * The creditor is not a field: a share is only ever accepted from the creditor, so it is
- * whoever MLS says sent the message, and a field could only ever disagree with that.
+ * The creditor is not a field: it is whoever MLS says sent the share, and [nonce] shows
+ * whether that is the creditor, so a field could only ever disagree with them both.
  */
 class ExpenseKey(
     val expenseUuid: String,
     val key: ByteArray,
+
+    /**
+     * The nonce [expenseUuid] was derived from, with the creditor's UUID: what shows the
+     * recipient whether whoever MLS says sent the share is the creditor, see
+     * [OneTimeExpenseKeyRecord.nonce].
+     */
+    val nonce: ByteArray,
+
     val beneficiaryUuids: List<String>,
 )
 
@@ -145,8 +164,10 @@ private class SerializedExpenseKey(
 
     val key: String,
 
+    val nonce: String,
+
     @SerialName("beneficiaries")
-    val beneficiaryUuids: List<String> = emptyList(),
+    val beneficiaryUuids: List<String>,
 )
 
 @Serializable

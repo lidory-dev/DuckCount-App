@@ -9,6 +9,7 @@ import kotlin.test.assertNull
 class OneTimeExpensePayloadTest {
 
     private val key = ByteArray(32) { it.toByte() }
+    private val nonce = ByteArray(16) { (it + 50).toByte() }
     private val expenseUuid = "11111111-1111-1111-1111-111111111111"
     private val beneficiaries = listOf(
         "22222222-2222-2222-2222-222222222222",
@@ -19,7 +20,7 @@ class OneTimeExpensePayloadTest {
     fun `a key share survives being encrypted and read back`() {
         val share = ExpenseKeyShare(
             keys = listOf(
-                ExpenseKey(expenseUuid = expenseUuid, key = key, beneficiaryUuids = beneficiaries),
+                ExpenseKey(expenseUuid = expenseUuid, key = key, nonce = nonce, beneficiaryUuids = beneficiaries),
             ),
         )
 
@@ -28,6 +29,7 @@ class OneTimeExpensePayloadTest {
         assertNotNull(reread)
         assertEquals(expenseUuid, reread.keys.single().expenseUuid)
         assertContentEquals(key, reread.keys.single().key)
+        assertContentEquals(nonce, reread.keys.single().nonce)
         assertEquals(beneficiaries, reread.keys.single().beneficiaryUuids)
     }
 
@@ -48,7 +50,9 @@ class OneTimeExpensePayloadTest {
     @Test
     fun `a share and a request are never taken for one another`() {
         val share = ExpenseKeyShare(
-            keys = listOf(ExpenseKey(expenseUuid, key, beneficiaries)),
+            keys = listOf(
+                ExpenseKey(expenseUuid = expenseUuid, key = key, nonce = nonce, beneficiaryUuids = beneficiaries),
+            ),
         ).serialize()
 
         val request = ExpenseKeyRequest(expenseUuids = listOf(expenseUuid)).serialize()
@@ -72,25 +76,10 @@ class OneTimeExpensePayloadTest {
     @Test
     fun `a field a newer build added does not make a payload unreadable`() {
         val withExtra = """
-            {"type":"one_time_expense_key","keys":[{"expense_uuid":"$expenseUuid","key":"AQID","beneficiaries":[],"note":"later"}],"sent_at":"ignored"}
+            {"type":"one_time_expense_key","keys":[{"expense_uuid":"$expenseUuid","key":"AQID","nonce":"AQID","beneficiaries":[],"note":"later"}],"sent_at":"ignored"}
         """.trimIndent().encodeToByteArray()
 
         assertNotNull(ExpenseKeyShare.parse(plaintext = withExtra))
-    }
-
-    /**
-     * A share written before beneficiaries travelled with the key still reads. It leaves
-     * the recipient unable to answer anyone else's request for that expense, which is the
-     * honest outcome: they were never told who it was for.
-     */
-    @Test
-    fun `a share without beneficiaries still reads`() {
-        val old = """{"type":"one_time_expense_key","keys":[{"expense_uuid":"$expenseUuid","key":"AQID"}]}"""
-
-        val reread = ExpenseKeyShare.parse(plaintext = old.encodeToByteArray())
-
-        assertNotNull(reread)
-        assertEquals(emptyList(), reread.keys.single().beneficiaryUuids)
     }
 
     /** A request naming more than can be answered is cut rather than refused. */
@@ -104,6 +93,34 @@ class OneTimeExpensePayloadTest {
 
         assertNotNull(reread)
         assertEquals(ExpenseKeyRequest.MAX_EXPENSES, reread.expenseUuids.size)
+    }
+
+    /**
+     * A key a share carries can be kept until a listing says whether the user is on its
+     * expense, so a share naming more than any sender puts in one is cut too.
+     */
+    @Test
+    fun `a share is capped at what one request can ask for`() {
+        val many = (1..ExpenseKeyShare.MAX_KEYS + 50).map {
+            ExpenseKey(expenseUuid = "expense-$it", key = key, nonce = nonce, beneficiaryUuids = beneficiaries)
+        }
+
+        val reread = ExpenseKeyShare.parse(plaintext = ExpenseKeyShare(keys = many).serialize())
+
+        assertNotNull(reread)
+        assertEquals(many.take(ExpenseKeyShare.MAX_KEYS).map { it.expenseUuid }, reread.keys.map { it.expenseUuid })
+    }
+
+    /**
+     * Without its nonce a key cannot show that whoever sent it is the expense's creditor, and
+     * is not one the recipient could ever keep.
+     */
+    @Test
+    fun `a share with a key that has no nonce reads as none`() {
+        val withoutNonce =
+            """{"type":"one_time_expense_key","keys":[{"expense_uuid":"$expenseUuid","key":"AQID","beneficiaries":[]}]}"""
+
+        assertNull(ExpenseKeyShare.parse(plaintext = withoutNonce.encodeToByteArray()))
     }
 
     @Test

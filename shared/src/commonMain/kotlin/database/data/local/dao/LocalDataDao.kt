@@ -30,6 +30,7 @@ interface LocalDataDao {
         deleteDirectChannels()
         deleteIdentityConflicts()
         deleteOneTimeExpenseKeys()
+        deleteUnverifiedExpenseKeys()
         deleteOneTimeExpenseRevisions()
         deletePendingExpenseKeys()
         deleteOwedExpenseKeys()
@@ -71,6 +72,9 @@ interface LocalDataDao {
 
     @Query("DELETE FROM OneTimeExpenseKeyEntity")
     suspend fun deleteOneTimeExpenseKeys()
+
+    @Query("DELETE FROM UnverifiedExpenseKeyEntity")
+    suspend fun deleteUnverifiedExpenseKeys()
 
     @Query("DELETE FROM OneTimeExpenseRevisionEntity")
     suspend fun deleteOneTimeExpenseRevisions()

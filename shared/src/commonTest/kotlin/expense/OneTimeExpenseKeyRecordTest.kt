@@ -18,6 +18,7 @@ private const val DAVE = "66666666-6666-6666-6666-666666666666"
 class OneTimeExpenseKeyRecordTest {
 
     private val key = ByteArray(32) { it.toByte() }
+    private val nonce = ByteArray(16) { (it + 50).toByte() }
     private val creditorSignatureKey = ByteArray(32) { (it + 100).toByte() }
 
     private fun record(
@@ -28,6 +29,7 @@ class OneTimeExpenseKeyRecordTest {
         expenseUuid = expenseUuid,
         key = key,
         creditorUuid = creditorUuid,
+        nonce = nonce,
         creditorSignatureKey = creditorSignatureKey,
         beneficiaryUuids = beneficiaryUuids,
     )
@@ -43,6 +45,7 @@ class OneTimeExpenseKeyRecordTest {
         assertEquals(EXPENSE, reread.expenseUuid)
         assertContentEquals(key, reread.key)
         assertEquals(CREDITOR, reread.creditorUuid)
+        assertContentEquals(nonce, reread.nonce)
         assertContentEquals(creditorSignatureKey, reread.creditorSignatureKey)
         assertEquals(listOf(BOB, CAROL), reread.beneficiaryUuids)
     }
@@ -79,9 +82,21 @@ class OneTimeExpenseKeyRecordTest {
     @Test
     fun `a record of an unknown version reads as none`() {
         val future =
-            """{"v":2,"expense":"$EXPENSE","key":"AAAA","creditor":"$CREDITOR","creditor_key":"AAAA","beneficiaries":[]}"""
+            """{"v":2,"expense":"$EXPENSE","key":"AAAA","creditor":"$CREDITOR","nonce":"AAAA","creditor_key":"AAAA","beneficiaries":[]}"""
 
         assertNull(OneTimeExpenseKeyRecord.parse(future.encodeToByteArray(), EXPENSE))
+    }
+
+    /**
+     * Without the nonce, the creditor could hand the key over to nobody who would take it, so
+     * a record that has none is not one.
+     */
+    @Test
+    fun `a record without a nonce reads as none`() {
+        val withoutNonce =
+            """{"v":1,"expense":"$EXPENSE","key":"AAAA","creditor":"$CREDITOR","creditor_key":"AAAA","beneficiaries":[]}"""
+
+        assertNull(OneTimeExpenseKeyRecord.parse(withoutNonce.encodeToByteArray(), EXPENSE))
     }
 
     /** An edit changes who an expense is for, never its key or whose it is. */
@@ -93,6 +108,7 @@ class OneTimeExpenseKeyRecordTest {
         assertEquals(EXPENSE, edited.expenseUuid)
         assertContentEquals(key, edited.key)
         assertEquals(CREDITOR, edited.creditorUuid)
+        assertContentEquals(nonce, edited.nonce)
         assertContentEquals(creditorSignatureKey, edited.creditorSignatureKey)
         assertEquals(listOf(CAROL, DAVE), edited.beneficiaryUuids)
     }
@@ -114,6 +130,7 @@ class OneTimeExpenseKeyRecordTest {
         assertNotNull(answer)
         assertEquals(EXPENSE, answer.expenseUuid)
         assertContentEquals(key, answer.key)
+        assertContentEquals(nonce, answer.nonce)
     }
 
     /**
