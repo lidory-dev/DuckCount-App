@@ -22,6 +22,7 @@ import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
 import app.lidory.duckcount.R
 import app.lidory.duckcount.android.ui.theme.isAppInDarkTheme
+import app.lidory.duckcount.authentication.KeyPackageSetUp
 import app.lidory.duckcount.expenseList.CreateExpenseScreen
 import app.lidory.duckcount.expenseList.ExpenseDetailScreen
 import app.lidory.duckcount.expenseList.ExpenseHistoryDetailScreen
@@ -87,6 +88,7 @@ fun NavigationRoot(
                             // until you restarted the app. The dashboard is the signed-in
                             // app, however the user arrived at it.
                             PushSetUp()
+                            KeyPackageSetUp()
 
                             Dashboard(
                                 animatedVisibilityScope = LocalNavAnimatedContentScope.current,

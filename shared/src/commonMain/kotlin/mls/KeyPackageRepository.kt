@@ -1,5 +1,7 @@
 package mls
 
+import authenticationUtils.clearKeyPackagesToPublish
+import authenticationUtils.hasKeyPackagesToPublish
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
@@ -30,6 +32,9 @@ class KeyPackageRepository(
     private val mlsIdentityRepository: MlsIdentityRepository,
 ) {
 
+    /** Whether [publishIfOwed] has already tried in this process. */
+    private var hasTriedOwed = false
+
     /**
      * Generates a fresh bundle, last-resort key package included, and publishes it.
      */
@@ -56,8 +61,40 @@ class KeyPackageRepository(
         )
 
         return when (publication) {
-            is Result.Success -> Result.Success(Unit)
+            is Result.Success -> {
+                clearKeyPackagesToPublish()
+
+                Result.Success(Unit)
+            }
+
             is Result.Error -> Result.Error(KeyPackageError.Network(publication.error))
         }
+    }
+
+    /**
+     * Publishes a fresh bundle if none has gone up since the user logged in, see
+     * [authenticationUtils.setKeyPackagesToPublish].
+     *
+     * Login publishes too, but only logs a failure, and the next login is up to the end of the
+     * session away. That is what this catches.
+     *
+     * Tries once per process, so at most once per launch. Generating a bundle stores the
+     * secret of every key package in it, which nothing deletes until a Welcome uses it or the
+     * session ends, so a publication that kept failing would otherwise pile up a bundle's
+     * worth of secrets nobody can use every time it was tried. Sending the same bundle again
+     * instead is no better: a publication whose response was lost may have landed, and some
+     * of its one-time packages been handed out since, which would put them back on offer.
+     *
+     * Not on a timer: a session ends ninety days after the login that started it, and a
+     * login publishes key packages that last exactly as long. Publishing again mid-session
+     * would only leave packages on the server that outlive it, whose secrets the wipe that
+     * ends the session takes, so a peer could build a group from one the user never joins.
+     */
+    suspend fun publishIfOwed(): EmptyResult<KeyPackageError> {
+        if (hasTriedOwed || !hasKeyPackagesToPublish()) return Result.Success(Unit)
+
+        hasTriedOwed = true
+
+        return publish()
     }
 }

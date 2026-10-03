@@ -235,12 +235,23 @@ class OneTimeExpenseSync(
 
                 is Result.Error -> when (request.error) {
                     // The server knows of no such user, which for an account is final: an
-                    // expense outlives its creditor, and the key does not.
-                    DirectSendError.RecipientGone,
-                    DirectSendError.Channel(DirectChannelError.Unreachable),
-                        -> pendingExpenseKeyDao.setState(
-                        expenseUuids = expenseUuids,
+                    // expense outlives its creditor, and the key does not. True of every
+                    // expense of theirs, not only the ones this request named.
+                    DirectSendError.RecipientGone -> pendingExpenseKeyDao.setState(
+                        expenseUuids = rows.map { it.expenseUuid },
                         state = PendingExpenseKeyState.CREDITOR_GONE,
+                    )
+
+                    // No channel could be built to them, which is never final: they have
+                    // published no key package yet, the one served has outlived its lifetime
+                    // because their session ran out before they logged in again, or their
+                    // account is gone, which the lookup answers the same way. So their rows
+                    // wait on the backoff, all of them, or the next sync would fetch another
+                    // key package for the rest. Not reported: a retry would find nothing due.
+                    DirectSendError.Channel(DirectChannelError.Unreachable),
+                        -> pendingExpenseKeyDao.markRequested(
+                        expenseUuids = rows.map { it.expenseUuid },
+                        requestedAt = now,
                     )
 
                     // Somebody this device knows but holds no pin for: a contact the vault gave

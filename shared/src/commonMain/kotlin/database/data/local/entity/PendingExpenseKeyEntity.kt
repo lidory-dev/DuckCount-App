@@ -34,10 +34,14 @@ class PendingExpenseKeyEntity(
      */
     val firstSeenAt: Long,
 
-    /** When the last request went out, or null when none has. */
+    /**
+     * When this device last tried asking, or null when it has not. A try counts whether the
+     * request went out or the server offered no key package a channel to the creditor could
+     * be built from.
+     */
     val lastRequestedAt: Long?,
 
-    /** How many requests have gone out, which the backoff between them grows with. */
+    /** How many times this device has tried asking, which the backoff between tries grows with. */
     val requestCount: Int = 0,
 
     val state: PendingExpenseKeyState = PendingExpenseKeyState.PENDING,
@@ -61,6 +65,10 @@ enum class PendingExpenseKeyState {
      * Reached only on the server saying so outright, never on a guess: an expense survives
      * its creditor deleting their account, so the row stays and stays unreadable. It is
      * the one thing asking again cannot fix.
+     *
+     * The server says so only to a message addressed to them. With no channel to the
+     * creditor, the key-package lookup that comes first answers a deleted account just as
+     * it answers one that has published nothing, and the row stays [PENDING].
      */
     CREDITOR_GONE,
 }

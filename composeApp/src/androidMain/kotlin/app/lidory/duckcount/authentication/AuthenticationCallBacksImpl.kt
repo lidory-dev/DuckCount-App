@@ -16,6 +16,7 @@ import authenticationUtils.setAuthenticatedUserUsername
 import authenticationUtils.setAuthenticatedUserUuid
 import authenticationUtils.setContactsToRestore
 import authenticationUtils.setHasPasswordBeenChecked
+import authenticationUtils.setKeyPackagesToPublish
 import authenticationUtils.setPendingRegistration
 import authenticationUtils.setRootKey
 import authenticationUtils.setTokens
@@ -225,6 +226,10 @@ class AuthenticationCallBacksImpl(
                     // gets them back from, and syncs keep trying until it has.
                     setContactsToRestore()
 
+                    // Before the tokens too, so a process that dies before the publication
+                    // below has gone up still leaves it owed, see [KeyPackageRepository.publishIfOwed].
+                    setKeyPackagesToPublish()
+
                     setTokens(shortLivedToken = shortLivedToken, longLivedToken = longLivedToken)
 
                     // The server carries the user's UUID in the short-lived token's `sub`.
@@ -261,6 +266,7 @@ class AuthenticationCallBacksImpl(
 
                     // Replaces the key packages the server holds, whose secrets a previous
                     // log-out or install may have taken with it: nobody could open those.
+                    // A failure leaves them owed, and the dashboard publishes them.
                     keyPackageRepository.publish().onError { error ->
                         Log.w(TAG, "login: could not publish the key packages: $error")
                     }

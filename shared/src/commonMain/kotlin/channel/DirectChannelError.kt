@@ -39,8 +39,12 @@ sealed interface DirectChannelError : Error {
     data object IdentityChanged : DirectChannelError
 
     /**
-     * There is no reaching the peer: they have published no key package, their account is
-     * gone, or what the server served is not one this build can use.
+     * There is no reaching the peer right now: they have published no key package, their
+     * account is gone, or what the server served is not one this build can use, one whose
+     * lifetime has run out included.
+     *
+     * Not final: the server answers a deleted account just as it answers one that has
+     * published nothing, and a peer who publishes again can be reached again.
      */
     data object Unreachable : DirectChannelError
 
