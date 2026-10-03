@@ -23,7 +23,7 @@ fun clearSession() {
     clearDiscoveryUsername()
     clearRegisteredPushSubscription()
     clearContactsToRestore()
-    clearKeyPackagesToPublish()
+    clearKeyPackagesPublishedAt()
     clearRootKey()
 }
 

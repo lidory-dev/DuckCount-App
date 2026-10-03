@@ -1,13 +1,15 @@
 package mls
 
-import authenticationUtils.clearKeyPackagesToPublish
-import authenticationUtils.hasKeyPackagesToPublish
+import authenticationUtils.getKeyPackagesPublishedAt
+import authenticationUtils.setKeyPackagesPublishedAt
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import uniffi.lib_duckcount.MlsException
 import util.EmptyResult
 import util.Result
+import util.nowEpochMilliseconds
 import kotlin.io.encoding.Base64
 
 /**
@@ -18,6 +20,15 @@ import kotlin.io.encoding.Base64
  * pool is replaced at every publication anyway, which is when it gets refilled.
  */
 private const val ONE_TIME_KEY_PACKAGE_COUNT = 20u
+
+/**
+ * How old the last publication gets before the next one is due.
+ *
+ * A third of the ninety days a key package lasts (`KEY_PACKAGE_LIFETIME` in `lib-duckcount`),
+ * so an install opened only every couple of months still gets to replace its packages
+ * before they run out.
+ */
+private const val REPUBLISH_AFTER_MILLISECONDS = 30L * 24 * 60 * 60 * 1000
 
 /**
  * The user's published MLS key packages.
@@ -32,8 +43,8 @@ class KeyPackageRepository(
     private val mlsIdentityRepository: MlsIdentityRepository,
 ) {
 
-    /** Whether [publishIfOwed] has already tried in this process. */
-    private var hasTriedOwed = false
+    /** Whether [publishIfDue] has already tried in this process. */
+    private var hasTriedDue = false
 
     /**
      * Generates a fresh bundle, last-resort key package included, and publishes it.
@@ -62,7 +73,7 @@ class KeyPackageRepository(
 
         return when (publication) {
             is Result.Success -> {
-                clearKeyPackagesToPublish()
+                setKeyPackagesPublishedAt(publishedAt = nowEpochMilliseconds())
 
                 Result.Success(Unit)
             }
@@ -72,29 +83,48 @@ class KeyPackageRepository(
     }
 
     /**
-     * Publishes a fresh bundle if none has gone up since the user logged in, see
-     * [authenticationUtils.setKeyPackagesToPublish].
+     * Publishes a fresh bundle when the last one is due for replacing, or none has gone up
+     * since the user logged in, see [authenticationUtils.setKeyPackagesPublishedAt].
      *
-     * Login publishes too, but only logs a failure, and the next login is up to the end of the
-     * session away. That is what this catches.
+     * A session lasts as long as it is used, and a key package ninety days, so the ones a
+     * login put up would run out under a session still going, and nobody could start a
+     * channel with the user any more: a contact request or an expense key sent their way
+     * would fail on them. So they are replaced once they are [REPUBLISH_AFTER_MILLISECONDS]
+     * old. Each publication leaves behind the secrets of the packages it replaced that nobody
+     * used, which nothing deletes until the session ends.
+     *
+     * It also catches a login whose own publication failed, which only logs it.
      *
      * Tries once per process, so at most once per launch. Generating a bundle stores the
-     * secret of every key package in it, which nothing deletes until a Welcome uses it or the
-     * session ends, so a publication that kept failing would otherwise pile up a bundle's
-     * worth of secrets nobody can use every time it was tried. Sending the same bundle again
-     * instead is no better: a publication whose response was lost may have landed, and some
-     * of its one-time packages been handed out since, which would put them back on offer.
-     *
-     * Not on a timer: a session ends ninety days after the login that started it, and a
-     * login publishes key packages that last exactly as long. Publishing again mid-session
-     * would only leave packages on the server that outlive it, whose secrets the wipe that
-     * ends the session takes, so a peer could build a group from one the user never joins.
+     * secret of every key package in it, so a publication that kept failing would otherwise
+     * pile up a bundle's worth of secrets nobody can use every time it was tried. Sending the
+     * same bundle again instead is no better: a publication whose response was lost may have
+     * landed, and some of its one-time packages been handed out since, which would put them
+     * back on offer. A try that was cancelled rather than failed does not count: the screen
+     * that started it went away, and the next one to call this tries again.
      */
-    suspend fun publishIfOwed(): EmptyResult<KeyPackageError> {
-        if (hasTriedOwed || !hasKeyPackagesToPublish()) return Result.Success(Unit)
+    suspend fun publishIfDue(): EmptyResult<KeyPackageError> {
+        if (hasTriedDue || !isDue()) return Result.Success(Unit)
 
-        hasTriedOwed = true
+        hasTriedDue = true
 
-        return publish()
+        return try {
+            publish()
+        } catch (exception: CancellationException) {
+            hasTriedDue = false
+
+            throw exception
+        }
+    }
+
+    private suspend fun isDue(): Boolean {
+        val publishedAt = getKeyPackagesPublishedAt() ?: return true
+
+        // Negative when the clock was set back since, which leaves no telling how old the
+        // packages are, so they are replaced rather than trusted for however long it takes
+        // the clock to catch up.
+        val age = nowEpochMilliseconds() - publishedAt
+
+        return age !in 0..<REPUBLISH_AFTER_MILLISECONDS
     }
 }

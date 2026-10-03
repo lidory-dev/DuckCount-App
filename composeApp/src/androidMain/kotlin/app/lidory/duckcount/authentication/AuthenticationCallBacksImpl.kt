@@ -11,12 +11,12 @@ import app.lidory.duckcount.hashLoginUsername
 import app.lidory.duckcount.networking.NetworkConnectivity
 import app.lidory.duckcount.usernameMaximumLength
 import authenticationUtils.PendingRegistration
+import authenticationUtils.clearKeyPackagesPublishedAt
 import authenticationUtils.clearPendingRegistration
 import authenticationUtils.setAuthenticatedUserUsername
 import authenticationUtils.setAuthenticatedUserUuid
 import authenticationUtils.setContactsToRestore
 import authenticationUtils.setHasPasswordBeenChecked
-import authenticationUtils.setKeyPackagesToPublish
 import authenticationUtils.setPendingRegistration
 import authenticationUtils.setRootKey
 import authenticationUtils.setTokens
@@ -226,9 +226,10 @@ class AuthenticationCallBacksImpl(
                     // gets them back from, and syncs keep trying until it has.
                     setContactsToRestore()
 
-                    // Before the tokens too, so a process that dies before the publication
-                    // below has gone up still leaves it owed, see [KeyPackageRepository.publishIfOwed].
-                    setKeyPackagesToPublish()
+                    // A session starts with nothing published, whatever a publication that
+                    // finished as the last one was ending recorded, see
+                    // [KeyPackageRepository.publishIfDue].
+                    clearKeyPackagesPublishedAt()
 
                     setTokens(shortLivedToken = shortLivedToken, longLivedToken = longLivedToken)
 
@@ -266,7 +267,8 @@ class AuthenticationCallBacksImpl(
 
                     // Replaces the key packages the server holds, whose secrets a previous
                     // log-out or install may have taken with it: nobody could open those.
-                    // A failure leaves them owed, and the dashboard publishes them.
+                    // A failure leaves them due, and the dashboard publishes them, see
+                    // [KeyPackageRepository.publishIfDue].
                     keyPackageRepository.publish().onError { error ->
                         Log.w(TAG, "login: could not publish the key packages: $error")
                     }

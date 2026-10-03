@@ -244,8 +244,8 @@ class OneTimeExpenseSync(
 
                     // No channel could be built to them, which is never final: they have
                     // published no key package yet, the one served has outlived its lifetime
-                    // because their session ran out before they logged in again, or their
-                    // account is gone, which the lookup answers the same way. So their rows
+                    // because they have not opened the app in months, or their account is
+                    // gone, which the lookup answers the same way. So their rows
                     // wait on the backoff, all of them, or the next sync would fetch another
                     // key package for the rest. Not reported: a retry would find nothing due.
                     DirectSendError.Channel(DirectChannelError.Unreachable),
