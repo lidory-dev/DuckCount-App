@@ -50,7 +50,6 @@ kotlin {
             // Room
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.room.paging)
-            implementation(libs.androidx.sqlite.bundled)
 
             // Paging
             implementation(libs.androidx.room.paging.compose)
@@ -69,6 +68,9 @@ kotlin {
             implementation(libs.bundles.ktor)
         }
         iosMain.dependencies {
+            // SQLite driver, run on the SQLCipher the app links: see database/SqlCipherDriver.kt
+            implementation(libs.androidx.sqlite.framework)
+
             // Ktor engine
             implementation(libs.ktor.client.darwin)
         }

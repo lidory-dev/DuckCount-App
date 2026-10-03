@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A11C710B2ED5EF2400CC845E /* ExpenseList in Frameworks */ = {isa = PBXBuildFile; productRef = A11C710A2ED5EF2400CC845E /* ExpenseList */; };
 		CA17C0A12ED5EF2400CC845E /* ContactList in Frameworks */ = {isa = PBXBuildFile; productRef = CA17C0A22ED5EF2400CC845E /* ContactList */; };
+		416EC95582E244E030191CBF /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 32AAC9ED64381F7DBF4B5996 /* SQLCipher */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,6 +51,7 @@
 			files = (
 				A11C710B2ED5EF2400CC845E /* ExpenseList in Frameworks */,
 				CA17C0A12ED5EF2400CC845E /* ContactList in Frameworks */,
+				416EC95582E244E030191CBF /* SQLCipher in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -128,6 +130,7 @@
 			packageProductDependencies = (
 				A11C710A2ED5EF2400CC845E /* ExpenseList */,
 				CA17C0A22ED5EF2400CC845E /* ContactList */,
+				32AAC9ED64381F7DBF4B5996 /* SQLCipher */,
 			);
 			productName = iosApp;
 			productReference = 0E1729D1EFD855FAB38C8E9C /* DuckCount.app */;
@@ -158,6 +161,9 @@
 			);
 			mainGroup = 5E44587733091BFCBB2FA8B9;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				55FFDC114F4F8015FA670756 /* XCRemoteSwiftPackageReference "SQLCipher.swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3A1538368316C6171B5C8701 /* Products */;
 			projectDirPath = "";
@@ -417,6 +423,17 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		55FFDC114F4F8015FA670756 /* XCRemoteSwiftPackageReference "SQLCipher.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sqlcipher/SQLCipher.swift";
+			requirement = {
+				kind = exactVersion;
+				version = 4.19.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		A11C710A2ED5EF2400CC845E /* ExpenseList */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -425,6 +442,11 @@
 		CA17C0A22ED5EF2400CC845E /* ContactList */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ContactList;
+		};
+		32AAC9ED64381F7DBF4B5996 /* SQLCipher */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 55FFDC114F4F8015FA670756 /* XCRemoteSwiftPackageReference "SQLCipher.swift" */;
+			productName = SQLCipher;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

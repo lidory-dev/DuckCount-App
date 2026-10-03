@@ -20,7 +20,7 @@ class OneTimeExpenseFieldTest {
     }
 
     @Test
-    fun `a timestamp written any other way is not, even when it parses`() {
+    fun `a timestamp written any other way is not one even when it parses`() {
         // The first five parse, to a time the app writes differently. Only the app's own
         // spelling keeps a date's expenses together when sorted as text (a signed year sorts
         // away from its date), and the list relies on that to head each date once.

@@ -65,7 +65,7 @@ class OneTimeExpenseKeyRecordTest {
     }
 
     @Test
-    fun `beneficiaries are written in a fixed order, so two devices write the same bytes`() {
+    fun `beneficiaries are written in a fixed order so two devices write the same bytes`() {
         val oneWay = record(beneficiaryUuids = listOf(BOB, CAROL)).serialize()
         val theOther = record(beneficiaryUuids = listOf(CAROL, BOB)).serialize()
 
