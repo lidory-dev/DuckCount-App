@@ -34,7 +34,7 @@ class PushRegistrationWorker(
         // The session is sealed by Keystore entries that require an unlocked device, so
         // a locked one cannot even tell whether it is signed in. A distributor hands out
         // endpoints whenever it likes, a locked screen included, so this waits.
-        if (isDeviceLocked()) return retryOrGiveUp()
+        if (isDeviceLocked()) return waitForUnlock()
 
         return try {
             register()
@@ -42,10 +42,26 @@ class PushRegistrationWorker(
             // WorkManager stopping the worker, see [PushSyncWorker.doWork].
             throw exception
         } catch (exception: IllegalStateException) {
+            // The device locked while this was running, so the same applies.
             Log.w(TAG, "doWork: could not read this device's storage", exception)
 
-            retryOrGiveUp()
+            waitForUnlock()
         }
+    }
+
+    /**
+     * Waits for the device to be unlocked, however long that takes, with the same request.
+     *
+     * Not counted against [MAX_ATTEMPTS], for the reason the sync gives, see
+     * [PushSyncWorker]: a locked device is not a failure but the normal state of a phone in
+     * a pocket, and counting it gave up about a quarter of an hour after the screen went
+     * off. Here giving up leaves the server with an endpoint the distributor has replaced
+     * or dropped, so the device hears nothing until the next login.
+     */
+    private fun waitForUnlock(): Result {
+        PushWork.enqueueRegistrationAfterUnlockWait(context = applicationContext, inputData = inputData)
+
+        return Result.success()
     }
 
     private suspend fun register(): Result {
@@ -81,7 +97,8 @@ class PushRegistrationWorker(
 }
 
 /**
- * How many times a failed call is retried.
+ * How many times a failed call is retried. A locked device is not a failed call, see
+ * [PushRegistrationWorker.waitForUnlock].
  *
  * More than the sync gets: nothing else will do this, whereas a missed sync is picked
  * up by the next screen that opens.

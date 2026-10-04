@@ -3,6 +3,7 @@ package app.lidory.duckcount.push
 import android.content.Context
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
+import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
@@ -113,6 +114,32 @@ object PushWork {
 
         WorkManager.getInstance(context).enqueueUniqueWork(
             REGISTRATION_WORK,
+            ExistingWorkPolicy.REPLACE,
+            request,
+        )
+    }
+
+    /**
+     * Tries the registration or unregistration [inputData] describes again shortly, for one
+     * that found the device locked and could not tell whether it is signed in.
+     *
+     * A fresh request on a fixed interval rather than a retry, for the reasons
+     * [enqueueSyncAfterUnlockWait] gives: a retry's backoff doubles, and its attempts run
+     * out, while the phone sits in a pocket.
+     */
+    fun enqueueRegistrationAfterUnlockWait(context: Context, inputData: Data) {
+        val request = OneTimeWorkRequestBuilder<PushRegistrationWorker>()
+            .setInputData(inputData)
+            .setInitialDelay(UNLOCK_WAIT_SECONDS, TimeUnit.SECONDS)
+            .setConstraints(
+                Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build(),
+            )
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, BACKOFF_SECONDS, TimeUnit.SECONDS)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            REGISTRATION_WORK,
+            // Replacing the one that is finishing as it asks for this.
             ExistingWorkPolicy.REPLACE,
             request,
         )
