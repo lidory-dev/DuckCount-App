@@ -100,7 +100,11 @@ class ContactNotifier(
     fun notify(arrivals: List<ContactArrival>) {
         if (arrivals.isEmpty()) return
 
-        var standInIsFree = standIns.takeDown(kind = StandIns.Kind.CONTACT_REQUEST)
+        // The record only goes with a request to take the stand-in over. An acceptance
+        // that came in alone, with the requests failing to refresh for instance, leaves
+        // it for the sync that does bring the request in.
+        var standInIsFree = arrivals.any { it.kind == ContactArrival.Kind.REQUEST } &&
+            standIns.takeDown(kind = StandIns.Kind.CONTACT_REQUEST)
 
         createChannel(
             id = CONTACTS_CHANNEL,
