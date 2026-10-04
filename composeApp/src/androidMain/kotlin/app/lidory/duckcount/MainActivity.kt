@@ -37,10 +37,13 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, R.string.session_expired, Toast.LENGTH_LONG).show()
         }
 
+        // Likewise only on the launch the notification started: a recreated activity gets
+        // its back stack restored, request list included, and would push it a second time.
+        val openContactRequests = savedInstanceState == null &&
+            intent.getBooleanExtra(EXTRA_OPEN_CONTACT_REQUESTS, false)
+
         setContent {
-            App(
-                openContactRequests = intent.getBooleanExtra(EXTRA_OPEN_CONTACT_REQUESTS, false),
-            )
+            App(openContactRequests = openContactRequests)
         }
     }
 }
