@@ -105,6 +105,22 @@ internal suspend fun MlsClient.deleteGroupQuietly(mlsGroupId: ByteArray) {
 }
 
 /**
+ * Deletes the secrets of the user's key packages that expired long enough ago that no
+ * Welcome can still need them, see [MlsClient.pruneKeyPackages].
+ *
+ * A failure is not reported: whatever is not deleted now, the next publication deletes.
+ */
+internal suspend fun MlsClient.pruneKeyPackagesQuietly() {
+    withContext(Dispatchers.IO) {
+        try {
+            pruneKeyPackages()
+        } catch (_: MlsException) {
+            // See above.
+        }
+    }
+}
+
+/**
  * Builds a group holding the user and [invitee], and returns it with the Welcome that lets
  * them in.
  *

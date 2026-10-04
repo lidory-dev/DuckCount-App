@@ -116,6 +116,26 @@ class ContactRequestRepository(
     suspend fun refresh(): EmptyResult<ContactSyncError> = mutex.withLock { refreshLocked() }
 
     /**
+     * Whether every request the server lists for the user has been opened on this device.
+     * One still to be opened needs the secret of the key package its Welcome was sealed to,
+     * see [mls.KeyPackageRepository]. False when the server could not be asked.
+     *
+     * Only looks: opening them is [refresh]'s.
+     */
+    suspend fun hasOpenedEveryRequest(): Boolean = mutex.withLock {
+        val listed = when (val response = contactApi.getContactRequests()) {
+            is Result.Success -> response.data.requests
+            is Result.Error -> return@withLock false
+        }
+
+        val opened = contactRequestDao.getAll()
+            .filter { it.mlsGroupId != null }
+            .mapTo(HashSet()) { it.uuid }
+
+        listed.all { it.uuid in opened }
+    }
+
+    /**
      * Accepts a request: pins the MLS identity its sender holds in the request's group,
      * hands them the user's own profile encryption key, and makes them a contact.
      *

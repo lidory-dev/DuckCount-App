@@ -60,6 +60,20 @@ class DirectMessageSync internal constructor(
 
     suspend fun sync(): EmptyResult<DirectMessageSyncError> = mutex.withLock { syncLocked() }
 
+    /**
+     * Whether the server holds no message for the user that this device has yet to read.
+     * One could carry a Welcome needing the secret of one of the user's key packages, see
+     * [mls.KeyPackageRepository]. False when the server could not be asked.
+     *
+     * Waits for a [sync] already running, whose messages would otherwise still be listed.
+     * Only looks: reading them is [sync]'s.
+     */
+    suspend fun hasNothingWaiting(): Boolean = mutex.withLock {
+        val listed = directMessageApi.getDirectMessages()
+
+        listed is Result.Success && listed.data.messages.isEmpty()
+    }
+
     private suspend fun syncLocked(): EmptyResult<DirectMessageSyncError> {
         val restored = contactRepository.restore()
 

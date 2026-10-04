@@ -2,6 +2,8 @@ package mls
 
 import authenticationUtils.getKeyPackagesPublishedAt
 import authenticationUtils.setKeyPackagesPublishedAt
+import database.data.repository.ContactRequestRepository
+import message.DirectMessageSync
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -41,6 +43,8 @@ private const val REPUBLISH_AFTER_MILLISECONDS = 30L * 24 * 60 * 60 * 1000
 class KeyPackageRepository(
     private val keyPackageApi: KeyPackageApi,
     private val mlsIdentityRepository: MlsIdentityRepository,
+    private val contactRequestRepository: ContactRequestRepository,
+    private val directMessageSync: DirectMessageSync,
 ) {
 
     /** Whether [publishIfDue] has already tried in this process. */
@@ -91,7 +95,7 @@ class KeyPackageRepository(
      * channel with the user any more: a contact request or an expense key sent their way
      * would fail on them. So they are replaced once they are [REPUBLISH_AFTER_MILLISECONDS]
      * old. Each publication leaves behind the secrets of the packages it replaced that nobody
-     * used, which nothing deletes until the session ends.
+     * used, which stay until they are long expired, see [prune].
      *
      * It also catches a login whose own publication failed, which only logs it.
      *
@@ -108,13 +112,42 @@ class KeyPackageRepository(
 
         hasTriedDue = true
 
-        return try {
+        val published = try {
             publish()
         } catch (exception: CancellationException) {
             hasTriedDue = false
 
             throw exception
         }
+
+        if (published is Result.Success) prune()
+
+        return published
+    }
+
+    /**
+     * Deletes the secrets of the key packages that expired long enough ago that no Welcome
+     * can still need them, see [pruneKeyPackagesQuietly], provided nothing addressed to the
+     * user waits on the server unread.
+     *
+     * A Welcome waits there until this device reads it, and how long that takes is up to the
+     * device: a direct message until the next sync, a contact request until the contacts are
+     * next refreshed, however long that is. Once neither holds anything unread, every Welcome
+     * sealed to a key package expired long enough to be pruned has been read: one is only
+     * built from a key package still on offer, and peers stop attaching it within days.
+     * Otherwise pruning waits for the next publication.
+     *
+     * Only after the publications of [publishIfDue], which is when the secrets pile up: after
+     * a login or a registration there is nothing to prune yet.
+     */
+    private suspend fun prune() {
+        if (!directMessageSync.hasNothingWaiting()) return
+
+        if (!contactRequestRepository.hasOpenedEveryRequest()) return
+
+        val client = (mlsIdentityRepository.client() as? Result.Success)?.data ?: return
+
+        client.pruneKeyPackagesQuietly()
     }
 
     private suspend fun isDue(): Boolean {
