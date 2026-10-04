@@ -168,15 +168,23 @@ class ContactRepository(
             is Result.Error -> return@withLock Result.Error(ContactSyncError.Identity(opened.error))
         }
 
-        val update = vaultRepository.updateContacts(
-            added = added.associate { contact ->
+        // Nor without the pins themselves, for the same reason: one that could not be read
+        // is not the same as none.
+        val contacts = try {
+            added.associate { contact ->
                 contact.userUuid to VaultContact(
                     profileEncryptionKey = contact.profileEncryptionKey,
                     // Null for a contact this device has never reached over MLS, which
                     // leaves whatever another device recorded for them alone.
                     mlsSignaturePublicKey = client.pinnedSignatureKeyFor(peerUuid = contact.userUuid),
                 )
-            },
+            }
+        } catch (_: MlsException) {
+            return@withLock Result.Error(ContactSyncError.Storage)
+        }
+
+        val update = vaultRepository.updateContacts(
+            added = contacts,
             removed = removed.map { it.userUuid },
         )
 

@@ -8,6 +8,7 @@ import message.DirectMessageSender
 import database.data.remote.DirectMessageKindDto
 import mls.MlsIdentityRepository
 import mls.pinnedSignatureKeyFor
+import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.isOneTimeExpenseCreditor
 import util.Result
 
@@ -74,7 +75,13 @@ internal class OneTimeExpenseMessageHandler(
         // Every channel pins its peer, and this message was just read in one, so both are
         // there: the client read it, and the pin checked its sender.
         val client = (mlsIdentityRepository.client() as? Result.Success)?.data ?: return
-        val senderSignatureKey = client.pinnedSignatureKeyFor(peerUuid = senderUuid) ?: return
+        // A pin that cannot be read leaves the keys unkept, with nothing to check them
+        // against. The expenses stay unopened, and their keys are asked for again.
+        val senderSignatureKey = try {
+            client.pinnedSignatureKeyFor(peerUuid = senderUuid)
+        } catch (_: MlsException) {
+            return
+        } ?: return
 
         share.keys.forEach { key ->
             // Only a UUID written as the server writes one, which is the only kind the check

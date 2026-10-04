@@ -92,9 +92,13 @@ class DirectChannelRepository(
             // for a peer already pinned: adding a contact pins them, and the vault gives their
             // pin back after a log-out. Otherwise the server would get to name them, and could
             // arrange that by keeping them out of the vault read that restores the pins.
-            if (client.pinnedSignatureKeyFor(peerUuid = peerUuid) == null) {
-                return@withPeerLock Result.Error(DirectChannelError.NotPinned)
+            val pinned = try {
+                client.pinnedSignatureKeyFor(peerUuid = peerUuid)
+            } catch (_: MlsException) {
+                return@withPeerLock Result.Error(DirectChannelError.Storage)
             }
+
+            if (pinned == null) return@withPeerLock Result.Error(DirectChannelError.NotPinned)
 
             val built = build(client = client, peerUuid = peerUuid, previousMlsGroupId = storedGroupId)
 

@@ -171,15 +171,13 @@ internal suspend fun MlsClient.pinPeerIn(mlsGroupId: ByteArray, peerUuid: String
  *
  * What gets backed up, so that a log-out does not leave the next login pinning whichever
  * key package the server happens to serve.
+ *
+ * Throws [MlsException] when the pin could not be read, which every caller has to tell
+ * apart from there being none: taken for none, it would be backed up as missing for good,
+ * or a key checked against nothing at all.
  */
 internal suspend fun MlsClient.pinnedSignatureKeyFor(peerUuid: String): ByteArray? =
-    withContext(Dispatchers.IO) {
-        try {
-            pinnedSignatureKey(userUuid = peerUuid)
-        } catch (_: MlsException) {
-            null
-        }
-    }
+    withContext(Dispatchers.IO) { pinnedSignatureKey(userUuid = peerUuid) }
 
 /**
  * Puts back the identity pinned for [peerUuid], and says whether it agreed with what this

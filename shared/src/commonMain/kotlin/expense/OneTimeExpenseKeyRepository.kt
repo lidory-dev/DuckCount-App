@@ -7,10 +7,8 @@ import database.data.local.entity.UnverifiedExpenseKeyEntity
 import database.data.remote.EncryptedFieldDto
 import database.data.remote.ExpenseApi
 import database.data.remote.ExpenseDto
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
-import kotlinx.coroutines.withContext
 import mls.MlsIdentityRepository
+import mls.pinnedSignatureKeyFor
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import util.Result
@@ -268,10 +266,8 @@ class OneTimeExpenseKeyRepository(
     ): Boolean {
         if (creditorUuid in blocked) return false
 
-        // Not through pinnedSignatureKeyFor, which takes a pin it failed to read for none at
-        // all, and the copy would then be taken at its word.
         val pinned = try {
-            withContext(Dispatchers.IO) { client.pinnedSignatureKey(userUuid = creditorUuid) }
+            client.pinnedSignatureKeyFor(peerUuid = creditorUuid)
         } catch (_: MlsException) {
             return false
         }
