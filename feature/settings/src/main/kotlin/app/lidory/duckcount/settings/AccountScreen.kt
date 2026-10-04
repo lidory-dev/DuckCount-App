@@ -15,7 +15,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -40,15 +39,10 @@ fun AccountScreen(
     onBack: () -> Unit,
     navigateToPasswordChangeScreen: () -> Unit,
     navigateToAccountDeletionScreen: () -> Unit,
-    onLogout: () -> Unit,
 ) {
     val viewModel: AccountViewModel = koinViewModel()
 
     val openLogOutDialog = remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        viewModel.navigateBack.collect { onLogout() }
-    }
 
     when {
         openLogOutDialog.value -> {

@@ -9,13 +9,11 @@ import app.lidory.duckcount.settings.navigation.NavigationRoot
 fun SettingsFlow(
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
-    onLogout: () -> Unit,
     startOnNavKey: NavKey? = null,
 ) {
     NavigationRoot(
         modifier = modifier,
         onBack = onBack,
-        onLogout = onLogout,
         startOnNavKey = startOnNavKey,
     )
 }

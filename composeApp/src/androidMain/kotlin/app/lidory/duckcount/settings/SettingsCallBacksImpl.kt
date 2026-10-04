@@ -1,5 +1,6 @@
 package app.lidory.duckcount.settings
 
+import android.content.Context
 import android.util.Log
 import app.lidory.duckcount.BuildConfig
 import app.lidory.duckcount.ExternalLinks.LIDORY_WEBSITE
@@ -20,12 +21,16 @@ import profile.ProfileRepository
 import push.PushRegistrar
 import util.Result
 import util.onError
+import app.lidory.duckcount.restartApp
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import app.lidory.duckcount.normalizeUsername as normalizeUsernameShared
 import app.lidory.duckcount.validateUsername as validateUsernameShared
 
 private const val TAG = "SettingsCallBacks"
 
 class SettingsCallBacksImpl(
+    private val context: Context,
     private val userRepository: UserRepository,
     private val duckCountClient: DuckCountClient,
     private val networkConnectivity: NetworkConnectivity,
@@ -44,13 +49,24 @@ class SettingsCallBacksImpl(
 
     override val licences: List<String> = LICENCES_LIST
 
+    /**
+     * Not cancellable, restart included: the screen that asked can be left while the server
+     * call below is still running, and a log-out it took with it would leave the session and
+     * its keys on the device, with the user believing they were gone. The restart goes through
+     * the application for the same reason, since the screen is no longer there to do it.
+     */
     override suspend fun logOut() {
-        // First, and not inside `endSession`: telling the server to stop pushing to this
-        // device is a call that needs the tokens `endSession` is about to drop, and the
-        // process is killed the moment it returns.
-        pushRegistrar.tearDown()
+        withContext(NonCancellable) {
+            // First, and not inside `endSession`: telling the server to stop pushing to this
+            // device is a call that needs the tokens `endSession` is about to drop.
+            pushRegistrar.tearDown()
 
-        duckCountClient.endSession()
+            duckCountClient.endSession()
+
+            // The session has ended, so the next one needs a process of its own, which
+            // starts on the onboarding screen.
+            context.restartApp()
+        }
     }
 
     override fun getAuthenticatedUserUuid(): String? {

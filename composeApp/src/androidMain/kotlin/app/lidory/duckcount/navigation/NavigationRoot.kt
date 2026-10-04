@@ -11,7 +11,6 @@ import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
@@ -45,7 +44,6 @@ import app.lidory.duckcount.navigation.key.ExpenseHistoryScreenKey
 import app.lidory.duckcount.navigation.key.GroupDetailScreenKey
 import app.lidory.duckcount.navigation.key.GroupSettingsScreenKey
 import app.lidory.duckcount.navigation.key.NewContactScreenKey
-import app.lidory.duckcount.restartApp
 import app.lidory.duckcount.settings.SettingsFlow
 import app.lidory.duckcount.settings.navigation.key.ReserveDiscoveryUsernameScreenKey
 import app.lidory.duckcount.settings.navigation.key.SettingsFlowKey
@@ -63,8 +61,6 @@ fun NavigationRoot(
     resumeRegistration: PendingProfile? = null,
 ) {
     val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>()
-
-    val context = LocalContext.current
 
     SharedTransitionLayout {
         NavDisplay(
@@ -159,9 +155,6 @@ fun NavigationRoot(
                                 onBack = {
                                     backStack.removeIf { it is SettingsFlowKey }
                                 },
-                                // The session has ended, so the next one needs a process of its
-                                // own, which starts on the onboarding screen.
-                                onLogout = { context.restartApp() },
                             )
                         }
                     }

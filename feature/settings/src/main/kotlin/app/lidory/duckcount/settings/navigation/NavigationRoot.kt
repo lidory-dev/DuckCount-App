@@ -33,7 +33,6 @@ import app.lidory.duckcount.settings.navigation.key.UserProfileScreenKey
 fun NavigationRoot(
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
-    onLogout: () -> Unit,
     startOnNavKey: NavKey? = null,
 ) {
     // Landing straight on the startOnNavKey keeps the settings list underneath,
@@ -111,7 +110,6 @@ fun NavigationRoot(
                     navigateToAccountDeletionScreen = {
                         backStack.add(AccountDeletionScreenKey)
                     },
-                    onLogout = onLogout,
                 )
             }
 

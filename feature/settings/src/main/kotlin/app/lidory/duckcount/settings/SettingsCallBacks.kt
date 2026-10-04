@@ -18,7 +18,10 @@ interface SettingsCallBacks {
 
     val licences: List<String>
 
-    /** Ends the session and empties the local database, returning once both are done. */
+    /**
+     * Ends the session, empties the local database and restarts the app, whatever becomes of
+     * the screen that asked. Does not return.
+     */
     suspend fun logOut()
 
     fun getAuthenticatedUserUuid(): String?
