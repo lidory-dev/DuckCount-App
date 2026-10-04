@@ -17,21 +17,17 @@ import database.domain.ExpenseWithBeneficiaries as ExpenseWithBeneficiariesDB
 import database.domain.User as UserDB
 import uniffi.lib_duckcount.Currency as CurrencyUniffi
 import expense.OneTimeExpenseWriteError
+import vault.VaultError
 
-/**
- * Maps the low-level networking error to the reason the UI surfaces for a failed write.
- *
- * The "couldn't connect" case ([NetworkError.UNREACHABLE]) is resolved against real device
- * connectivity ([isOnline]): airplane mode can surface as UNREACHABLE rather than NO_INTERNET
- * and must be corrected here.
- */
 /**
  * Why a one-time expense write failed, as the UI explains it.
  *
  * Only [OneTimeExpenseWriteError.KeyMissing] earns wording of its own: it is a state the
- * user can wait out, and it says something true about their own device. The vault, identity
- * and sealing failures are folded into `UNKNOWN` the way the contact mappers fold theirs, since
- * there is nothing a user can do differently about any of them.
+ * user can wait out, and it says something true about their own device. A vault that could
+ * not be reached is told apart like the server itself, and a missing root key like a session
+ * that is gone. The other vault, identity and sealing failures are folded into `UNKNOWN` the
+ * way the contact mappers fold theirs, since there is nothing a user can do differently about
+ * any of them.
  */
 fun OneTimeExpenseWriteError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError =
     when (this) {
@@ -41,12 +37,35 @@ fun OneTimeExpenseWriteError.toExpenseWriteError(isOnline: Boolean): ExpenseWrit
 
         OneTimeExpenseWriteError.NoSession -> ExpenseWriteError.UNAUTHORIZED
 
-        is OneTimeExpenseWriteError.Vault,
+        is OneTimeExpenseWriteError.Vault -> when (val vaultError = error) {
+            // Creating or editing reads the key ring from the server before the expense is
+            // sent, so this is usually where being offline shows.
+            is VaultError.Network -> vaultError.error.toExpenseWriteError(isOnline = isOnline)
+
+            // Only ever unsealed during a registration or a login, so logging in again is
+            // the only way back.
+            VaultError.MissingRootKey -> ExpenseWriteError.UNAUTHORIZED
+
+            VaultError.Contended,
+            VaultError.Crypto,
+            VaultError.MalformedKeyRing,
+            VaultError.MalformedContactBook,
+            VaultError.OrphanedEntry,
+                -> ExpenseWriteError.UNKNOWN
+        }
+
         is OneTimeExpenseWriteError.Identity,
         OneTimeExpenseWriteError.Crypto,
             -> ExpenseWriteError.UNKNOWN
     }
 
+/**
+ * Maps the low-level networking error to the reason the UI surfaces for a failed write.
+ *
+ * The "couldn't connect" case ([NetworkError.UNREACHABLE]) is resolved against real device
+ * connectivity ([isOnline]): airplane mode can surface as UNREACHABLE rather than NO_INTERNET
+ * and must be corrected here.
+ */
 fun NetworkError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError = when (this) {
     NetworkError.NO_INTERNET -> ExpenseWriteError.NO_INTERNET
     NetworkError.REQUEST_TIMEOUT -> ExpenseWriteError.TIMEOUT
