@@ -111,6 +111,10 @@ class PushSyncWorker(
             return retryOrGiveUp()
         }
 
+        // Only now, with everything read: a sync that failed leaves the stand-in to the
+        // retry, which may yet bring in the expense it announced.
+        expenseNotifier.retireStandIn()
+
         return Result.success()
     }
 
@@ -143,8 +147,16 @@ class PushSyncWorker(
      * having a bad minute. Past a few attempts the app stops paying for it, since the
      * screens sync when they open and nothing is lost by giving up here.
      */
-    private fun retryOrGiveUp(): Result =
-        if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.success()
+    private fun retryOrGiveUp(): Result {
+        if (runAttemptCount < MAX_ATTEMPTS) return Result.retry()
+
+        // No retry is coming to take the stand-in over either. Kept up regardless, it would
+        // be anybody's to keep: a contact request whose sender cannot be named fails every
+        // contact sync, and costs nothing to send.
+        expenseNotifier.retireStandIn()
+
+        return Result.success()
+    }
 
     private fun isDeviceLocked(): Boolean =
         applicationContext.getSystemService(KeyguardManager::class.java)?.isDeviceLocked == true

@@ -167,6 +167,25 @@ class ExpenseNotifier(
     }
 
     /**
+     * Takes the stand-in down once a sync is done, and nothing it read took the stand-in
+     * over.
+     *
+     * Whatever it announced is either in by then, a screen's own sync having got there
+     * first, or never was: the signal is the sender's word alone, and anybody who can reach
+     * the user can send one for an expense that does not exist. Left up, it would stay up
+     * for good, and the next expense to arrive would take it over without a sound, see
+     * [notify]. A sync that gave up may have left the expense unread, and lets the stand-in
+     * go all the same: the next sync to read it announces it by name.
+     */
+    @Synchronized
+    fun retireStandIn() {
+        if (standIns.takeDown(kind = StandIns.Kind.ONE_TIME_EXPENSE)) {
+            NotificationManagerCompat.from(context)
+                .cancel(EXPENSE_TAG, UNNAMED_EXPENSE_NOTIFICATION)
+        }
+    }
+
+    /**
      * Says what a signal said, for a device too locked to find out more.
      *
      * Only an expense signal is announced this way. A plain `message` is an acceptance or
@@ -216,7 +235,8 @@ class ExpenseNotifier(
      * What a stand-in announced is not in the list yet: the sync that reads it waits for the
      * unlock that also brought the user here. Taken down now, the named notification that
      * sync puts up if the user has moved on would find nothing to replace, and would ring a
-     * second time for the same expense. [notify] takes it down once its expense is in.
+     * second time for the same expense. [notify] takes it over once its expense is in, and
+     * [retireStandIn] takes it down when the sync ends without one.
      */
     private fun clearExpenses() {
         val manager = NotificationManagerCompat.from(context)
