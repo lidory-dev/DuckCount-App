@@ -23,6 +23,8 @@ import database.domain.ContactRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -370,6 +372,9 @@ class ContactRequestRepository(
                     abandonedGroupIds.forEach { opened.data.deleteGroupQuietly(mlsGroupId = it) }
 
                     for (request in unopened) {
+                        // A refresh stops between requests, never inside one, see [join].
+                        currentCoroutineContext().ensureActive()
+
                         open(client = opened.data, request = request).onError { failure = failure ?: it }
                     }
                 }
@@ -386,6 +391,27 @@ class ContactRequestRepository(
         val envelope = ContactRequestEnvelope.parse(ciphertext = request.ciphertext)
             ?: return refuseUnreadable(requestUuid = request.uuid)
 
+        return when (join(client = client, request = request, envelope = envelope)) {
+            Opening.OPENED -> Result.Success(Unit)
+            Opening.RETRY -> Result.Error(ContactSyncError.Storage)
+            Opening.UNREADABLE -> refuseUnreadable(requestUuid = request.uuid)
+        }
+    }
+
+    /**
+     * Joins the group [request] created, reads the card it carries and records the request as
+     * opened.
+     *
+     * Not cancellable: once the join has run, the same Welcome is refused ever after, the group
+     * being recorded as held and a one-time key package spent. Left unmarked, the request would
+     * be tried again by the next refresh, fail, and be refused as unreadable, its sender never
+     * told.
+     */
+    private suspend fun join(
+        client: MlsClient,
+        request: ContactRequestEntity,
+        envelope: ContactRequestEnvelope,
+    ): Opening = withContext(NonCancellable) {
         // The join refuses any group but one holding exactly the user and the sender the
         // server authenticated, so every message read in it, the card included, is theirs.
         // It pins nobody: that waits for the user to accept the request.
@@ -396,9 +422,7 @@ class ContactRequestRepository(
                 pinPeer = false,
             )
         } catch (exception: MlsException) {
-            if (exception.isRetryable()) return Result.Error(ContactSyncError.Storage)
-
-            return refuseUnreadable(requestUuid = request.uuid)
+            return@withContext if (exception.isRetryable()) Opening.RETRY else Opening.UNREADABLE
         }
 
         // A group is only ever joined once, so from here on a request that cannot be read
@@ -411,7 +435,7 @@ class ContactRequestRepository(
         if (reading !is ApplicationMessageReading.Read || card == null) {
             client.deleteGroupQuietly(mlsGroupId = mlsGroupId)
 
-            return refuseUnreadable(requestUuid = request.uuid)
+            return@withContext Opening.UNREADABLE
         }
 
         contactRequestDao.markOpened(
@@ -420,7 +444,7 @@ class ContactRequestRepository(
             profileEncryptionKey = card.profileEncryptionKey,
         )
 
-        return Result.Success(Unit)
+        Opening.OPENED
     }
 
     /** Reads the name of every sender this device has none for yet. */
@@ -688,4 +712,15 @@ private fun NetworkError.toSendContactRequestError(): SendContactRequestError = 
     NetworkError.CONFLICT -> SendContactRequestError.AlreadyPending
     NetworkError.TOO_MANY_REQUESTS -> SendContactRequestError.RateLimited
     else -> SendContactRequestError.Network(this)
+}
+
+/** How far [ContactRequestRepository] got opening a request. */
+private enum class Opening {
+    OPENED,
+
+    /** The join failed in a way that trying again can fix, see [mls.isRetryable]. */
+    RETRY,
+
+    /** It can never be opened, and is refused. */
+    UNREADABLE,
 }

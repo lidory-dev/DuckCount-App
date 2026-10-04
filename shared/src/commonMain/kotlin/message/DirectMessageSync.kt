@@ -9,8 +9,12 @@ import database.data.remote.DirectMessageDto
 import database.data.remote.MAX_ACKNOWLEDGEMENT_BATCH
 import database.data.repository.ContactRepository
 import database.data.repository.ContactRequestRepository
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import mls.ApplicationMessageReading
 import mls.MlsIdentityRepository
 import mls.isRetryable
@@ -103,7 +107,12 @@ class DirectMessageSync internal constructor(
         messages.forEach { message ->
             if (message.senderUserUuid in deferredSenders) return@forEach
 
-            when (deliver(client = client, message = message)) {
+            // A pass stops between messages, never inside one. Reading a message spends its
+            // key, so one cancelled after its read and before what it said was stored could
+            // never be read again, and the next pass would acknowledge it as unreadable.
+            currentCoroutineContext().ensureActive()
+
+            when (withContext(NonCancellable) { deliver(client = client, message = message) }) {
                 DirectMessageHandling.HANDLED, DirectMessageHandling.NOT_MINE -> settled += message.uuid
 
                 DirectMessageHandling.RETRY -> {
