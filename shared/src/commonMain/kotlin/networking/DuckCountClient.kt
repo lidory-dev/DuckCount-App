@@ -10,6 +10,7 @@ import database.clearDatabasePassword
 import database.data.local.dao.LocalDataDao
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpSend
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.clearAuthTokens
@@ -18,6 +19,7 @@ import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.plugins.plugin
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -26,8 +28,12 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlin.concurrent.Volatile
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Hard cap on a call to our own backend.
@@ -39,6 +45,25 @@ class DuckCountClient(
     private val localDataDao: LocalDataDao,
     private val sessionLeftovers: List<SessionLeftovers>,
 ) : Client() {
+    /**
+     * The pair a refresh could not store, which nothing else holds but the plugin. A process
+     * that ended now would start the next one from the pair the server retired, so it is stored
+     * before the next request goes out. Written under [tokenStorage] only, and read outside it
+     * by the check most requests stop at, and by a refresh.
+     */
+    @Volatile
+    private var unstoredTokens: TokenResponse? = null
+
+    /**
+     * Set by [endSession], after which no pair is stored again: a refresh that was in flight as
+     * the session ended would otherwise put one back in the vault, and the next launch would
+     * take it for a session. Only touched under [tokenStorage].
+     */
+    private var sessionEnded = false
+
+    /** Keeps an older pair from being stored over a newer one, or over an ended session. */
+    private val tokenStorage = Mutex()
+
     override val httpClient = HttpClient {
         install(HttpTimeout) {
             requestTimeoutMillis = REQUEST_TIMEOUT_MILLIS
@@ -56,6 +81,10 @@ class DuckCountClient(
         }
         install(Auth) {
             bearer {
+                // Once the server has answered a refresh, the token this device held is gone:
+                // a caller going away part-way must not take the only pair that works with it.
+                nonCancellableRefresh = true
+
                 loadTokens {
                     getShortLivedToken()?.let { shortLivedToken ->
                         BearerTokens(
@@ -65,11 +94,26 @@ class DuckCountClient(
                     }
                 }
                 refreshTokens {
+                    // The vault is a pair behind when the device locked before the last one could
+                    // be stored, and the server no longer takes that one. Read before the vault:
+                    // it is only set from in here, under the plugin's lock, and only cleared once
+                    // the vault holds it, so one of the two reads has the newest.
+                    //
+                    // Not the pair the plugin holds, which can be older than the vault: one
+                    // loaded before a login the same process went on to replace it with.
+                    val unstoredToken = unstoredTokens?.longLivedToken
+
                     // Nothing to refresh with: this device is not (or no longer) logged in, so the
                     // `401` that got us here is final. Returning null stops the plugin from
                     // retrying and hands the caller the original response.
-                    val refreshToken = getLongLivedToken()?.takeIf { it.isNotBlank() }
+                    //
+                    // Read even when the unstored one is what gets sent, because a locked device
+                    // cannot read it, and throws: it could not store what the server sends back
+                    // either, and the server would have retired the token all the same.
+                    val storedToken = getLongLivedToken()?.takeIf { it.isNotBlank() }
                         ?: return@refreshTokens null
+
+                    val refreshToken = unstoredToken ?: storedToken
 
                     val response = client.post(
                         urlString = DuckCountRoutes.Auth.TOKEN,
@@ -94,17 +138,59 @@ class DuckCountClient(
 
                     val accessTokens = response.body<TokenResponse>()
 
-                    setTokens(
-                        accessTokens.shortLivedToken,
-                        accessTokens.longLivedToken,
-                    )
+                    storeTokens(tokens = accessTokens)
 
+                    // Returned whether or not it could be stored: it is the only pair the server
+                    // takes now, and the plugin keeps what this returns.
                     BearerTokens(
                         accessToken = accessTokens.shortLivedToken,
                         refreshToken = accessTokens.longLivedToken,
                     )
                 }
             }
+        }
+    }.also { client ->
+        client.plugin(HttpSend).intercept { request ->
+            storeUnstoredTokens()
+
+            execute(request)
+        }
+    }
+
+    /**
+     * Stores [tokens], or keeps them for [storeUnstoredTokens] when the device is locked.
+     *
+     * Never throws for it: the refresh that got them has already retired the pair before them,
+     * and one that threw would leave the plugin holding that one, see `refreshTokens`.
+     */
+    private suspend fun storeTokens(tokens: TokenResponse) = tokenStorage.withLock {
+        if (sessionEnded) return@withLock
+
+        unstoredTokens = tokens
+
+        store(tokens = tokens)
+    }
+
+    /** Stores the pair a refresh could not, now that the device may be unlocked. */
+    private suspend fun storeUnstoredTokens() {
+        if (unstoredTokens == null) return
+
+        tokenStorage.withLock {
+            store(tokens = unstoredTokens ?: return@withLock)
+        }
+    }
+
+    /** Only under [tokenStorage]. Leaves [unstoredTokens] set for as long as it fails. */
+    private suspend fun store(tokens: TokenResponse) {
+        try {
+            setTokens(shortLivedToken = tokens.shortLivedToken, longLivedToken = tokens.longLivedToken)
+
+            unstoredTokens = null
+        } catch (exception: CancellationException) {
+            // The caller going away, which the catch below would otherwise swallow.
+            throw exception
+        } catch (_: Exception) {
+            // Kept for the next request: a locked device, most likely, see setTokens.
         }
     }
 
@@ -153,6 +239,12 @@ class DuckCountClient(
      */
     suspend fun endSession() {
         withContext(NonCancellable) {
+            // First, or a pair still to be stored would go back in the vault once it was cleared.
+            tokenStorage.withLock {
+                unstoredTokens = null
+                sessionEnded = true
+            }
+
             clearSession()
 
             httpClient.clearAuthTokens()

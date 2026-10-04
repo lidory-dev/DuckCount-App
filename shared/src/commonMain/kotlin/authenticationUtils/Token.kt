@@ -14,21 +14,32 @@ abstract class Token {
     }
 }
 
-fun setTokens(shortLivedToken: String, longLivedToken: String) {
+/**
+ * Stores a pair the server issued, and returns once both are on disk.
+ *
+ * Awaited, unlike the rest of the vault's writes: the server stops taking the previous
+ * long-lived token the moment it issues a new one, so one this throws for is one the caller has
+ * to keep hold of itself. A locked device is the usual reason, with an [IllegalStateException].
+ *
+ * The long-lived token goes first. Stored alone, it still gets the next refresh through, where
+ * a short-lived one stored alone would leave the vault on a long-lived token the server turned
+ * down.
+ */
+suspend fun setTokens(shortLivedToken: String, longLivedToken: String) {
     val vault: KSafe = getKoin().get(named("vault"))
 
-    vault.putDirect(
-        key = Token.SHORT_LIVED_TOKEN,
-        value = shortLivedToken,
+    vault.put(
+        key = Token.LONG_LIVED_TOKEN,
+        value = longLivedToken,
         mode = KSafeWriteMode.Encrypted(
             protection = KSafeEncryptedProtection.DEFAULT,
             requireUnlockedDevice = true,
         ),
     )
 
-    vault.putDirect(
-        key = Token.LONG_LIVED_TOKEN,
-        value = longLivedToken,
+    vault.put(
+        key = Token.SHORT_LIVED_TOKEN,
+        value = shortLivedToken,
         mode = KSafeWriteMode.Encrypted(
             protection = KSafeEncryptedProtection.DEFAULT,
             requireUnlockedDevice = true,

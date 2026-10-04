@@ -13,6 +13,7 @@ import app.lidory.duckcount.usernameMaximumLength
 import authenticationUtils.PendingRegistration
 import authenticationUtils.clearKeyPackagesPublishedAt
 import authenticationUtils.clearPendingRegistration
+import authenticationUtils.clearTokens
 import authenticationUtils.setAuthenticatedUserUsername
 import authenticationUtils.setAuthenticatedUserUuid
 import authenticationUtils.setContactsToRestore
@@ -25,6 +26,7 @@ import database.data.repository.UserRepository
 import discoveryUsername.DiscoveryUsernameRepository
 import mls.KeyPackageError
 import mls.KeyPackageRepository
+import kotlinx.coroutines.CancellationException
 import mls.MlsIdentityError
 import networking.DuckCountClient
 import networking.DuckCountRoutes
@@ -148,13 +150,13 @@ class AuthenticationCallBacksImpl(
                             return AuthOutcome.Failure(AuthError.UNKNOWN)
                         }
 
-                    setTokens(
-                        shortLivedToken = shortLivedToken,
-                        longLivedToken = longLivedToken,
-                    )
                     setAuthenticatedUserUuid(uuid)
                     setAuthenticatedUserUsername(username = username)
                     setRootKey(registrationFinish.rootKey())
+
+                    if (!storeTokens(shortLivedToken = shortLivedToken, longLivedToken = longLivedToken)) {
+                        return AuthOutcome.Failure(AuthError.UNKNOWN)
+                    }
 
                     AuthOutcome.Success(uuid)
                 }
@@ -231,8 +233,6 @@ class AuthenticationCallBacksImpl(
                     // [KeyPackageRepository.publishIfDue].
                     clearKeyPackagesPublishedAt()
 
-                    setTokens(shortLivedToken = shortLivedToken, longLivedToken = longLivedToken)
-
                     // The server carries the user's UUID in the short-lived token's `sub`.
                     val uuid = shortLivedToken.jwtClaim(claim = "sub")
                     uuid?.let {
@@ -253,6 +253,11 @@ class AuthenticationCallBacksImpl(
                             ),
                         )
                     } ?: Log.w(TAG, "login: the server returned no root key")
+
+                    // Before the calls below, which need it to authenticate.
+                    if (!storeTokens(shortLivedToken = shortLivedToken, longLivedToken = longLivedToken)) {
+                        return AuthOutcome.Failure(AuthError.UNKNOWN)
+                    }
 
                     uuid?.let {
                         profileRepository.restoreProfile(userUuid = it, username = username)
@@ -366,6 +371,33 @@ class AuthenticationCallBacksImpl(
     // "not logged in" when it's merely expired, the vault doesn't exist yet, or we're offline.
     override suspend fun isLoggedIn(): Boolean =
         getLongLivedToken()?.isNotBlank() ?: false
+
+    /**
+     * Stores the session's tokens, and says whether it could.
+     *
+     * Last of what a login or a registration stores: the long-lived token is what marks a
+     * session, see [isLoggedIn], and stored ahead of the rest, a failure or the process ending
+     * in between would leave the next launch a session without the user it belongs to.
+     *
+     * A session whose tokens this device did not keep is not one either, so a failure clears
+     * them, the long-lived one being written first and able to go in alone. The device locking
+     * in between is the usual reason, see [setTokens].
+     */
+    private suspend fun storeTokens(shortLivedToken: String, longLivedToken: String): Boolean =
+        try {
+            setTokens(shortLivedToken = shortLivedToken, longLivedToken = longLivedToken)
+
+            true
+        } catch (exception: CancellationException) {
+            // The caller going away, which the catch below would otherwise swallow.
+            throw exception
+        } catch (exception: Exception) {
+            Log.e(TAG, "could not store the session's tokens", exception)
+
+            clearTokens()
+
+            false
+        }
 
     private fun SharedUsernameError.toUsernameInputError(): UsernameInputError = when (this) {
         SharedUsernameError.EMPTY -> UsernameInputError.EMPTY
