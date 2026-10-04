@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import authenticationUtils.getAuthenticatedUserUuid
+import kotlinx.coroutines.CancellationException
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import push.PushRepository
@@ -37,6 +38,9 @@ class PushRegistrationWorker(
 
         return try {
             register()
+        } catch (exception: CancellationException) {
+            // WorkManager stopping the worker, see [PushSyncWorker.doWork].
+            throw exception
         } catch (exception: IllegalStateException) {
             Log.w(TAG, "doWork: could not read this device's storage", exception)
 

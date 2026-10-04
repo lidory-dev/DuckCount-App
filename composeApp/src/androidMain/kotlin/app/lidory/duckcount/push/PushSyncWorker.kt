@@ -11,6 +11,7 @@ import contact.ContactArrivals
 import contact.ContactSync
 import expense.ExpenseArrivals
 import expense.OneTimeExpenseSync
+import kotlinx.coroutines.CancellationException
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
@@ -49,6 +50,11 @@ class PushSyncWorker(
 
         return try {
             sync()
+        } catch (exception: CancellationException) {
+            // WorkManager stopping the worker, which the catch below would otherwise take for
+            // a locked device, a CancellationException being an IllegalStateException on the
+            // JVM. WorkManager reschedules stopped work itself, unless it was stopped for good.
+            throw exception
         } catch (exception: IllegalStateException) {
             // The device locked while this was running, so the same applies.
             Log.w(TAG, "doWork: could not read this device's storage", exception)
