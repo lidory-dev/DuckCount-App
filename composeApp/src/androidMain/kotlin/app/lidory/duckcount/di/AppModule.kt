@@ -26,10 +26,12 @@ import app.lidory.duckcount.groupList.di.groupListModule
 import app.lidory.duckcount.networking.NetworkConnectivity
 import app.lidory.duckcount.push.ContactNotifier
 import app.lidory.duckcount.push.ExpenseNotifier
+import app.lidory.duckcount.push.NotificationLeftovers
 import app.lidory.duckcount.push.UnifiedPushRegistrar
 import app.lidory.duckcount.settings.SettingsCallBacks
 import app.lidory.duckcount.settings.SettingsCallBacksImpl
 import app.lidory.duckcount.settings.di.settingsModule
+import authenticationUtils.SessionLeftovers
 import database.di.dbModule
 import database.di.dbPlatformModule
 import di.authenticationModule
@@ -66,6 +68,7 @@ val contactCallBacks = module {
 /** The Android half of push, which the shared layer only knows as an interface. */
 val pushPlatformModule = module {
     single { UnifiedPushRegistrar(androidContext(), get()) }.bind<PushRegistrar>()
+    single { NotificationLeftovers(androidContext()) }.bind<SessionLeftovers>()
     single { ContactNotifier(androidContext()) }
     single { ExpenseNotifier(androidContext()) }
 }

@@ -47,6 +47,16 @@ internal class StandIns(context: Context) {
         return wasUp
     }
 
+    /**
+     * Forgets every stand-in, as the session that put them up ends.
+     *
+     * Written before this returns rather than queued, since the process is usually killed
+     * right after, see [authenticationUtils.SessionLeftovers.clear].
+     */
+    fun clear() {
+        preferences.edit().clear().commit()
+    }
+
     /** What a stand-in can stand for. */
     enum class Kind(val key: String) {
         CONTACT_REQUEST("contact-request"),

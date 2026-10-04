@@ -1,6 +1,7 @@
 package networking
 
 import authenticationUtils.SessionExpiry
+import authenticationUtils.SessionLeftovers
 import authenticationUtils.clearSession
 import authenticationUtils.getLongLivedToken
 import authenticationUtils.getShortLivedToken
@@ -36,6 +37,7 @@ private const val REQUEST_TIMEOUT_MILLIS = 5_000L
 class DuckCountClient(
     private val sessionExpiry: SessionExpiry,
     private val localDataDao: LocalDataDao,
+    private val sessionLeftovers: List<SessionLeftovers>,
 ) : Client() {
     override val httpClient = HttpClient {
         install(HttpTimeout) {
@@ -124,7 +126,11 @@ class DuckCountClient(
 
     /**
      * Ends the session on this device: the credentials in the vault, the bearer tokens the [Auth]
-     * plugin caches in memory, and everything the database holds for the account.
+     * plugin caches in memory, everything the database holds for the account, and whatever the
+     * platform keeps of it elsewhere, see [SessionLeftovers].
+     *
+     * Here rather than in whatever restarts the app, because a session does not always end in
+     * front of the user: a worker whose refresh is turned down ends it with no screen up.
      *
      * The cached half matters as much as the stored one. Tokens are read once through `loadTokens`
      * and then kept until a `401` forces a refresh, so without this the requests that follow a log-out
@@ -154,6 +160,8 @@ class DuckCountClient(
             localDataDao.deleteAll()
 
             clearDatabasePassword()
+
+            sessionLeftovers.forEach { it.clear() }
         }
     }
 

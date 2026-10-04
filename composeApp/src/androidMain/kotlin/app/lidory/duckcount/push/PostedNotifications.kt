@@ -37,6 +37,17 @@ internal class PostedNotifications(context: Context) {
         return ids.mapTo(mutableSetOf()) { it.toInt() }
     }
 
+    /**
+     * Forgets every notification recorded, as the session that put them up ends.
+     *
+     * Written before this returns rather than queued, since the process is usually killed
+     * right after, see [authenticationUtils.SessionLeftovers.clear].
+     */
+    @Synchronized
+    fun clear() {
+        preferences.edit().clear().commit()
+    }
+
     private companion object {
         const val PREFERENCES = "push-posted"
     }
