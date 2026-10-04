@@ -10,8 +10,9 @@ import kotlinx.serialization.Serializable
  *
  * All three are required by the server even though the app only collects a name so
  * far, so the two it has no screen for carry a sealed empty string rather than being
- * omitted. Sealed, not blank: a field the owner has not filled in has to look exactly
- * like one they have, or its ciphertext length would say which is which.
+ * omitted. Sealing it keeps every field one the owner's key opens. It does not hide that
+ * the field is empty: AES-GCM adds no padding, so an empty field seals to its 16-byte tag
+ * alone, shorter than any filled one.
  */
 @Serializable
 data class UserProfileDto(
