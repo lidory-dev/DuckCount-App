@@ -7,11 +7,25 @@ import util.EmptyResult
 import util.NetworkError
 import util.Result
 import vault.VaultRepository
-import vault.seal
-import vault.unseal
+import vault.sealBound
+import vault.unsealBound
 
 /** Sealed in place of a field the app has no screen for yet. */
 private val UNSET_FIELD = ByteArray(0)
+
+/**
+ * What each sealed field of a profile is bound to.
+ *
+ * Every field of one profile is sealed under the same key, so without this they would all
+ * be interchangeable: the server could serve the empty phone number where the name was,
+ * and it would decrypt perfectly into a blank name, or later the bank details into it.
+ * The key already binds the owner; naming the field binds the rest.
+ */
+private object Context {
+    const val FULL_NAME = "profile:full_name"
+    const val PHONE_NUMBER = "profile:phone_number"
+    const val BANK_DETAILS = "profile:bank_details"
+}
 
 /**
  * User profiles as the server holds them: the authenticated user's own, and the ones their
@@ -41,11 +55,14 @@ class ProfileRepository(
         }
 
         val profile = UserProfileDto(
-            fullName = seal(key = key, plaintext = fullName.encodeToByteArray())
+            fullName = sealBound(
+                key = key,
+                context = Context.FULL_NAME,
+                plaintext = fullName.encodeToByteArray(),
+            ) ?: return Result.Error(ProfileError.Crypto),
+            phoneNumber = sealBound(key = key, context = Context.PHONE_NUMBER, plaintext = UNSET_FIELD)
                 ?: return Result.Error(ProfileError.Crypto),
-            phoneNumber = seal(key = key, plaintext = UNSET_FIELD)
-                ?: return Result.Error(ProfileError.Crypto),
-            bankDetails = seal(key = key, plaintext = UNSET_FIELD)
+            bankDetails = sealBound(key = key, context = Context.BANK_DETAILS, plaintext = UNSET_FIELD)
                 ?: return Result.Error(ProfileError.Crypto),
         )
 
@@ -119,9 +136,11 @@ class ProfileRepository(
             )
         }
 
-        val fullName = unseal(key = profileEncryptionKey, content = profile.fullName)
-            ?.decodeToString()
-            ?: return Result.Error(ProfileError.Crypto)
+        val fullName = unsealBound(
+            key = profileEncryptionKey,
+            context = Context.FULL_NAME,
+            content = profile.fullName,
+        )?.decodeToString() ?: return Result.Error(ProfileError.Crypto)
 
         return Result.Success(fullName)
     }
