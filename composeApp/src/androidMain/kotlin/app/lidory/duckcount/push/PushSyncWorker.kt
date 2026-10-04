@@ -84,6 +84,10 @@ class PushSyncWorker(
         val contactsBefore = contactArrivals.snapshot()
         val expensesBefore = expenseArrivals.snapshot()
 
+        // Before the first message is read, so that a stand-in going up from here on is
+        // known for one this sync may not have read.
+        val standInsBefore = expenseNotifier.standInCount()
+
         // Order matters. Draining the messages comes first because that is where the keys
         // to expenses arrive, and the expense sync asks creditors for the ones it finds
         // missing: run the other way round, it would ask for keys sitting unread in the
@@ -102,18 +106,18 @@ class PushSyncWorker(
         if (contacts is util.Result.Error) {
             Log.w(TAG, "doWork: could not sync the contacts: ${contacts.error}")
 
-            return retryOrGiveUp()
+            return retryOrGiveUp(standInsBefore = standInsBefore)
         }
 
         if (expenses is util.Result.Error) {
             Log.w(TAG, "doWork: could not sync the expenses: ${expenses.error}")
 
-            return retryOrGiveUp()
+            return retryOrGiveUp(standInsBefore = standInsBefore)
         }
 
         // Only now, with everything read: a sync that failed leaves the stand-in to the
         // retry, which may yet bring in the expense it announced.
-        expenseNotifier.retireStandIn()
+        expenseNotifier.retireStandIn(countBefore = standInsBefore)
 
         return Result.success()
     }
@@ -147,13 +151,13 @@ class PushSyncWorker(
      * having a bad minute. Past a few attempts the app stops paying for it, since the
      * screens sync when they open and nothing is lost by giving up here.
      */
-    private fun retryOrGiveUp(): Result {
+    private fun retryOrGiveUp(standInsBefore: Long): Result {
         if (runAttemptCount < MAX_ATTEMPTS) return Result.retry()
 
         // No retry is coming to take the stand-in over either. Kept up regardless, it would
         // be anybody's to keep: a contact request whose sender cannot be named fails every
         // contact sync, and costs nothing to send.
-        expenseNotifier.retireStandIn()
+        expenseNotifier.retireStandIn(countBefore = standInsBefore)
 
         return Result.success()
     }

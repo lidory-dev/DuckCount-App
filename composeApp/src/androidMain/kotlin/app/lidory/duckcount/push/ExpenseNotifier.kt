@@ -167,6 +167,12 @@ class ExpenseNotifier(
     }
 
     /**
+     * How many stand-ins have gone up so far, for a sync to read before it reads anything
+     * else and hand back to [retireStandIn].
+     */
+    fun standInCount(): Long = standIns.count(kind = StandIns.Kind.ONE_TIME_EXPENSE)
+
+    /**
      * Takes the stand-in down once a sync is done, and nothing it read took the stand-in
      * over.
      *
@@ -176,9 +182,16 @@ class ExpenseNotifier(
      * for good, and the next expense to arrive would take it over without a sound, see
      * [notify]. A sync that gave up may have left the expense unread, and lets the stand-in
      * go all the same: the next sync to read it announces it by name.
+     *
+     * Except one that went up while the sync ran, which [countBefore], the
+     * [standInCount] read as it began, tells apart. The server signals once the message is
+     * stored, so a stand-in counted before the sync read anything is for a message it read,
+     * but a later one may be for a message it had already gone past.
      */
     @Synchronized
-    fun retireStandIn() {
+    fun retireStandIn(countBefore: Long) {
+        if (standInCount() != countBefore) return
+
         if (standIns.takeDown(kind = StandIns.Kind.ONE_TIME_EXPENSE)) {
             NotificationManagerCompat.from(context)
                 .cancel(EXPENSE_TAG, UNNAMED_EXPENSE_NOTIFICATION)
@@ -191,7 +204,12 @@ class ExpenseNotifier(
      * Only an expense signal is announced this way. A plain `message` is an acceptance or
      * a notice that somebody removed the user, and saying "something happened" when it
      * might be the second would be worse than saying nothing.
+     *
+     * Synchronized with [notify] and [retireStandIn], so that a stand-in cannot go up in
+     * the middle of either: between [notify] taking the last one over and putting up the
+     * named notification in its place, or between [retireStandIn] counting and taking down.
      */
+    @Synchronized
     fun notifyWhileLocked(signal: PushSignal) {
         if (signal != PushSignal.ONE_TIME_EXPENSE) return
 

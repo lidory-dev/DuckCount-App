@@ -25,13 +25,25 @@ internal class StandIns(context: Context) {
     private val preferences =
         context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
 
-    /** Records that the stand-in for [kind] is on screen. */
+    /** Records that the stand-in for [kind] is on screen, and counts it, see [count]. */
     fun markUp(kind: Kind) {
-        preferences.edit().putBoolean(kind.key, true).apply()
+        preferences.edit()
+            .putBoolean(kind.key, true)
+            .putLong(kind.countKey, count(kind = kind) + 1)
+            .apply()
     }
 
     /** Whether the stand-in for [kind] is on screen, leaving the record as it is. */
     fun isUp(kind: Kind): Boolean = preferences.getBoolean(kind.key, false)
+
+    /**
+     * How many times a stand-in for [kind] has gone up, which only grows until [clear].
+     *
+     * They all go up under one id, so whether one is up cannot say which. Read before a
+     * sync and again after it, this says whether one went up in between, for a message the
+     * sync may already have gone past.
+     */
+    fun count(kind: Kind): Long = preferences.getLong(kind.countKey, 0L)
 
     /**
      * Whether the stand-in for [kind] was on screen, clearing the record either way.
@@ -60,7 +72,9 @@ internal class StandIns(context: Context) {
     /** What a stand-in can stand for. */
     enum class Kind(val key: String) {
         CONTACT_REQUEST("contact-request"),
-        ONE_TIME_EXPENSE("one-time-expense"),
+        ONE_TIME_EXPENSE("one-time-expense");
+
+        val countKey: String get() = "$key-count"
     }
 
     private companion object {
