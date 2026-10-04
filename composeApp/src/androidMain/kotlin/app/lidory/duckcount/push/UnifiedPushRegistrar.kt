@@ -3,6 +3,8 @@ package app.lidory.duckcount.push
 import android.app.Activity
 import android.content.Context
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.unifiedpush.android.connector.UnifiedPush
 import push.PushRegistrar
 import push.PushRepository
@@ -68,16 +70,40 @@ class UnifiedPushRegistrar(
         }
     }
 
+    /**
+     * Tells the server to forget this device. The distributor's side is dropped once the app
+     * is up again with nobody signed in, see [dropSubscription].
+     */
     override suspend fun tearDown() {
-        // The server first, while the tokens that call needs still exist.
         pushRepository.unregister().let { outcome ->
             if (outcome is Result.Error) {
                 Log.w(TAG, "tearDown: could not tell the server: ${outcome.error}")
             }
         }
+    }
 
-        // The distributor keeps being this device's distributor, it just stops holding
-        // a subscription for this app, so the next login does not ask the user again.
-        UnifiedPush.unregister(context = context)
+    /**
+     * Drops the subscription the distributor holds for this app, on a device nobody is signed
+     * in on any more, so that it stops waking this device for an account that is gone.
+     *
+     * After an expiry, or a log-out that could not reach the server, the server still holds
+     * the subscription and cannot be told any more, the session's tokens having gone with it.
+     * It keeps pushing to it until that fails, which with some distributors it never does, but
+     * those pushes no longer reach this device.
+     *
+     * Not part of ending the session, which is followed by killing the process whenever a
+     * screen is up: the connector forgets the subscription at once but only tells the
+     * distributor, and the embedded one acts on that later, in this very process, trying
+     * Google once. Killed first, or offline, it never gets through, and the connector has
+     * nothing left to try again with. So this is left to a process that lives on, and is
+     * online, see [PushTearDown] and [PushSyncWorker].
+     *
+     * The distributor itself is forgotten with the last subscription the connector held for
+     * the app, so the next login picks one the way the first did, see [ensureRegistered].
+     */
+    suspend fun dropSubscription() {
+        withContext(Dispatchers.IO) {
+            UnifiedPush.unregister(context = context)
+        }
     }
 }

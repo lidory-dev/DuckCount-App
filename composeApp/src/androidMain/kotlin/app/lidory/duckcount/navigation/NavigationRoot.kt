@@ -53,6 +53,7 @@ import navigation.key.OnBoardingScreenKey
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import app.lidory.duckcount.push.PushSetUp
+import app.lidory.duckcount.push.PushTearDown
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
@@ -227,6 +228,10 @@ fun NavigationRoot(
                         NavEntry(
                             key = key,
                         ) {
+                            // The signed-out app, as the dashboard is the signed-in one: the
+                            // process a log-out or an expiry relaunches into lands here.
+                            PushTearDown()
+
                             AuthenticationFlow(
                                 appName = R.string.app_name,
                                 onBoardingTitle = R.string.on_boarding_title,

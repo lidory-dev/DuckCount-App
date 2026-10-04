@@ -14,10 +14,11 @@ package push
 interface PushRegistrar {
 
     /**
-     * Gives up the endpoint, with the server and with the platform both.
+     * Tells the server to stop pushing to this device.
      *
-     * Called before the session ends, while the tokens the server call needs still
-     * exist.
+     * Called before the session ends, while the tokens that call needs still exist. The
+     * platform's own side is the platform's to drop once nobody is signed in: a session the
+     * server ends gets no chance to call this.
      */
     suspend fun tearDown()
 }

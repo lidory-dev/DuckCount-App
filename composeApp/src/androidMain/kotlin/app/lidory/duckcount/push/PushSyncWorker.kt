@@ -44,6 +44,8 @@ class PushSyncWorker(
 
     private val notificationLeftovers: NotificationLeftovers by inject()
 
+    private val pushRegistrar: UnifiedPushRegistrar by inject()
+
     override suspend fun doWork(): Result {
         // Nothing this device stores can be read while it is locked, so the sync waits
         // for an unlock. Telling the user what the signal said is
@@ -66,14 +68,15 @@ class PushSyncWorker(
     }
 
     private suspend fun sync(): Result {
-        // A signal can outlive the session it was sent for: the user logged out while
-        // it was in flight, or the server ended the session, which leaves it pushing to
-        // this device all the same. There is nothing to sync and nobody to sync it for.
-        // A stand-in the signal put up while the device was locked stands for an account
-        // that is gone, so it goes, with its record, or the next session would take it
-        // for one of its own.
+        // A signal can outlive the session it was sent for: in flight as the user logged
+        // out, or sent after the server ended the session, through a subscription nothing
+        // has dropped yet. There is nothing to sync and nobody to sync it for. A stand-in
+        // the signal put up while the device was locked stands for an account that is
+        // gone, so it goes, with its record, or the next session would take it for one of
+        // its own. So does the subscription, while this process is up to see it through.
         if (getAuthenticatedUserUuid() == null) {
             notificationLeftovers.clear()
+            pushRegistrar.dropSubscription()
 
             return Result.success()
         }
