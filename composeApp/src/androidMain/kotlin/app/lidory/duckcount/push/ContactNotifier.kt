@@ -38,7 +38,8 @@ private const val SYNC_NOTIFICATION = 1
 
 /**
  * The id of the notification posted from a signal alone, without a name to put on it.
- * Fixed, so the one that does have a name replaces it rather than joining it.
+ * Fixed, so a second stand-in replaces the first rather than joining it, and used for
+ * nothing else: a named notification under it would be replaced by the next stand-in.
  */
 private const val UNNAMED_REQUEST_NOTIFICATION = 2
 
@@ -89,10 +90,9 @@ class ContactNotifier(
      *
      * A request the user has already been told about arrives here with a name on it at
      * last, and that is the same news rather than more of it. So the first one takes the
-     * stand-in's notification over outright, same id and
-     * [NotificationCompat.Builder.setOnlyAlertOnce], so the text changes where it stands,
-     * in silence, rather than a second notification appearing and ringing again. What the
-     * stand-in stood for and the sync could not name is left alone, since it is still
+     * stand-in's place: it goes up in silence, under the id of the person it names, and the
+     * stand-in comes down, rather than a second notification ringing again beside it. What
+     * the stand-in stood for and the sync could not name is left alone, since it is still
      * waiting to be named.
      *
      * Everything else rings, except an acceptance: see [isSilent].
@@ -116,10 +116,6 @@ class ContactNotifier(
         for (arrival in arrivals) {
             val takesOverStandIn = standInIsFree && arrival.kind == ContactArrival.Kind.REQUEST
 
-            // One notification per person otherwise, replaced rather than stacked: a
-            // second request from somebody who already has one pending is the same news.
-            val id = if (takesOverStandIn) UNNAMED_REQUEST_NOTIFICATION else arrival.userUuid.hashCode()
-
             if (takesOverStandIn) standInIsFree = false
 
             val notification = NotificationCompat.Builder(context, CONTACTS_CHANNEL)
@@ -137,17 +133,23 @@ class ContactNotifier(
                 // set to hide notification content shows the nameless form instead.
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
                 .setPublicVersion(namelessNotification(kind = arrival.kind))
-                // Only where it is load-bearing: the takeover re-posts a notification that
-                // is already on screen and ringing again for it would be ringing twice for
-                // one request. Anywhere else it would mean that a notification still
-                // sitting in the shade from days ago keeps the next one about that person
-                // quiet, which reads as the app having gone silent.
-                .setOnlyAlertOnce(takesOverStandIn)
-                .setSilent(arrival.isSilent())
+                // In the stand-in's place it would be ringing twice for one request: the
+                // stand-in rang for it already.
+                .setSilent(takesOverStandIn || arrival.isSilent())
                 .setAutoCancel(true)
                 .build()
 
-            post(tag = tagOf(arrival), id = id, notification = notification)
+            // One notification per person, replaced rather than stacked: a second request
+            // from somebody who already has one pending is the same news. Never under the
+            // stand-in's id, even taking its place: the next stand-in goes up there, and
+            // would replace it before it was read.
+            post(tag = tagOf(arrival), id = arrival.userUuid.hashCode(), notification = notification)
+
+            // Only once the named one is up, so that there is no moment with neither.
+            if (takesOverStandIn) {
+                NotificationManagerCompat.from(context)
+                    .cancel(REQUEST_TAG, UNNAMED_REQUEST_NOTIFICATION)
+            }
         }
     }
 

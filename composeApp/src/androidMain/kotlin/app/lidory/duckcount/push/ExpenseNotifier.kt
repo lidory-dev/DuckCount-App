@@ -38,7 +38,8 @@ private const val EXPENSE_SUMMARY_NOTIFICATION = 3
 /**
  * The id of the notification posted from a signal alone, with nobody's name on it.
  *
- * Fixed, so the one that does have a name replaces it rather than joining it.
+ * Fixed, so a second stand-in replaces the first rather than joining it, and used for
+ * nothing else: a named notification under it would be replaced by the next stand-in.
  */
 private const val UNNAMED_EXPENSE_NOTIFICATION = 4
 
@@ -60,8 +61,8 @@ private const val MAX_CREDITORS_ANNOUNCED = 4
  * A locked device is told as much as the signal says, and no more. Nothing on a locked
  * phone can read the app's storage, so there is no finding out who shared what: the server
  * sends a signal that says an expense arrived, and that is what goes up, without a name on
- * it. The named one replaces it in place once the device is unlocked and the sync can read
- * what it was.
+ * it. The named one takes its place, in silence, once the device is unlocked and the sync
+ * can read what it was.
  *
  * These ring. Somebody sharing an expense is telling the user they owe or are owed money,
  * which is the app's whole subject; the only thing that goes up quietly is a contact
@@ -142,17 +143,18 @@ class ExpenseNotifier(
 
         announced.forEach { (creditorUuid, expenses) ->
             // The nameless one the locked device put up was about this, so the first
-            // named one takes it over outright rather than appearing beside it.
+            // named one takes its place rather than appearing beside it.
             val takesOverStandIn = standInIsShowing
 
             if (takesOverStandIn) standInIsShowing = false
 
             post(
                 tag = EXPENSE_TAG,
-                // One per person otherwise, replaced rather than stacked: more expenses
-                // from somebody who already has a notification up is the same news,
-                // counted higher.
-                id = if (takesOverStandIn) UNNAMED_EXPENSE_NOTIFICATION else creditorUuid.hashCode(),
+                // One per person, replaced rather than stacked: more expenses from somebody
+                // who already has a notification up is the same news, counted higher. Never
+                // under the stand-in's id, even taking its place: the next stand-in goes up
+                // there, and would replace it before it was read.
+                id = creditorUuid.hashCode(),
                 notification = notificationFor(
                     creditorFullName = expenses.first().creditorFullName,
                     count = expenses.size,
@@ -161,6 +163,12 @@ class ExpenseNotifier(
                     replacesStandIn = takesOverStandIn,
                 ),
             )
+
+            // Only once the named one is up, so that there is no moment with neither.
+            if (takesOverStandIn) {
+                NotificationManagerCompat.from(context)
+                    .cancel(EXPENSE_TAG, UNNAMED_EXPENSE_NOTIFICATION)
+            }
         }
 
         if (byCreditor.size > 1) postSummary(total = arrivals.size)
@@ -206,8 +214,7 @@ class ExpenseNotifier(
      * might be the second would be worse than saying nothing.
      *
      * Synchronized with [notify] and [retireStandIn], so that a stand-in cannot go up in
-     * the middle of either: between [notify] taking the last one over and putting up the
-     * named notification in its place, or between [retireStandIn] counting and taking down.
+     * the middle of either, and be taken down by what was meant for the last one.
      */
     @Synchronized
     fun notifyWhileLocked(signal: PushSignal) {
@@ -299,11 +306,13 @@ class ExpenseNotifier(
             // to hide notification content shows the nameless form instead of this one.
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(namelessNotification())
-            // Deliberately not `setOnlyAlertOnce` otherwise: this replaces the notification
+            // Silent only in a stand-in's place, which `setOnlyAlertOnce` cannot say: it
+            // quiets an update to a notification still up under the same id, and this goes
+            // up under its own. Deliberately not otherwise: this replaces the notification
             // already up for that person, with a higher count, and more expenses from them
             // is more news rather than the same news. Suppressing it would also mean that
             // one left sitting in the shade kept every later expense from them quiet.
-            .setOnlyAlertOnce(replacesStandIn)
+            .setSilent(replacesStandIn)
             .setAutoCancel(true)
             .build()
     }
