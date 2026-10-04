@@ -25,7 +25,15 @@ sealed interface ContactSyncError : Error {
     /** The contacts could not be read from or written to the vault. */
     data class Vault(val error: VaultError) : ContactSyncError
 
-    /** A contact's or a sender's profile could not be read. */
+    /**
+     * A contact's or a sender's profile could not be asked for.
+     *
+     * Never what the server answered: a profile it holds none of under the key this device
+     * has, or one that does not open with that key, is its owner's to put right, and
+     * failing on it would fail every sync until they did. Anybody can send the user a
+     * request whose key opens nothing. The name is asked for again by the next sync either
+     * way, since the owner can store their profile at any time.
+     */
     data class Profile(val error: ProfileError) : ContactSyncError
 
     /** The server could not be reached, or refused the call. */

@@ -155,8 +155,7 @@ class PushSyncWorker(
         if (runAttemptCount < MAX_ATTEMPTS) return Result.retry()
 
         // No retry is coming to take the stand-in over either. Kept up regardless, it would
-        // be anybody's to keep: a contact request whose sender cannot be named fails every
-        // contact sync, and costs nothing to send.
+        // be up to whatever failed to say when it goes, which may be nothing ever.
         expenseNotifier.retireStandIn(countBefore = standInsBefore)
 
         return Result.success()

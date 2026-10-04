@@ -21,6 +21,7 @@ import mls.MlsIdentityRepository
 import mls.deleteGroupQuietly
 import mls.encryptApplicationMessage
 import mls.isRetryable
+import profile.ProfileError
 import profile.ProfileRepository
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
@@ -206,7 +207,8 @@ class ContactRepository(
     /**
      * Reads the name on the profile of every contact this device has none for.
      *
-     * Every contact is attempted, and the first failure is reported.
+     * Every contact is attempted, and the first failure is reported. Only a profile that
+     * could not be asked for is one, see [ContactSyncError.Profile].
      */
     suspend fun resolveNames(): EmptyResult<ContactSyncError> {
         var failure: ContactSyncError? = null
@@ -220,9 +222,12 @@ class ContactRepository(
             when (read) {
                 is Result.Success -> saveName(userUuid = contact.userUuid, fullName = read.data)
 
-                // One contact's profile failing, gone with its owner's account for
-                // instance, says nothing about the next one's.
-                is Result.Error -> failure = failure ?: ContactSyncError.Profile(read.error)
+                // One contact's profile failing says nothing about the next one's. And
+                // one gone with its owner's account stays gone: not a failure, or every
+                // sync would report it from then on.
+                is Result.Error -> if (read.error is ProfileError.Network) {
+                    failure = failure ?: ContactSyncError.Profile(read.error)
+                }
             }
         }
 

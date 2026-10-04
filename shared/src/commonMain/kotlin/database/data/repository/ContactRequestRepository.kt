@@ -38,6 +38,7 @@ import mls.isRetryable
 import mls.joinGroupFrom
 import mls.pinPeerIn
 import mls.readApplicationMessage
+import profile.ProfileError
 import profile.ProfileRepository
 import uniffi.lib_duckcount.InviteeKeyPackage
 import uniffi.lib_duckcount.MlsClient
@@ -447,7 +448,11 @@ class ContactRequestRepository(
         Opening.OPENED
     }
 
-    /** Reads the name of every sender this device has none for yet. */
+    /**
+     * Reads the name of every sender this device has none for yet.
+     *
+     * Only a profile that could not be asked for is reported, see [ContactSyncError.Profile].
+     */
     private suspend fun nameSenders(): EmptyResult<ContactSyncError> {
         var failure: ContactSyncError? = null
 
@@ -463,7 +468,9 @@ class ContactRequestRepository(
                     senderFullName = read.data,
                 )
 
-                is Result.Error -> failure = failure ?: ContactSyncError.Profile(read.error)
+                is Result.Error -> if (read.error is ProfileError.Network) {
+                    failure = failure ?: ContactSyncError.Profile(read.error)
+                }
             }
         }
 
