@@ -17,6 +17,9 @@ internal interface DirectMessageHandler {
      * those agree or the message is never offered here. [mlsGroupId] is the group it was
      * actually read in, so a handler that answers can answer there rather than wherever
      * this device currently records as the channel.
+     *
+     * The message is consumed by then: reading it spent the key that opened it, so whatever
+     * a handler fails to store of what it said is lost, see [DirectMessageSync].
      */
     suspend fun handle(
         senderUserUuid: String,
@@ -33,13 +36,4 @@ internal enum class DirectMessageHandling {
 
     /** Not this handler's kind of message. The next one is offered it. */
     NOT_MINE,
-
-    /**
-     * It was this handler's, but the device could not store what it said.
-     *
-     * The message is left unacknowledged so the server hands it back, which is the only
-     * way to get it again: reading an MLS message consumes the key that opened it, so this
-     * has to mean nothing was consumed.
-     */
-    RETRY,
 }
