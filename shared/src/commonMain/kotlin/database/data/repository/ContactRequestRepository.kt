@@ -509,12 +509,17 @@ class ContactRequestRepository(
         }
 
         val message = try {
-            client.pinPeerIn(mlsGroupId = request.mlsGroupId, peerUuid = request.senderUserUuid)
-
-            client.encryptApplicationMessage(
+            // Encrypted before the sender is pinned: their messages can fill the group until
+            // the user's first message in it no longer fits, and a card that could not even be
+            // encrypted must not leave them pinned. The card goes nowhere unless the pin holds.
+            val card = client.encryptApplicationMessage(
                 mlsGroupId = request.mlsGroupId,
                 payload = ContactCard(profileEncryptionKey = profileEncryptionKey).serialize(),
             )
+
+            client.pinPeerIn(mlsGroupId = request.mlsGroupId, peerUuid = request.senderUserUuid)
+
+            card
         } catch (_: MlsException.IdentityKeyMismatch) {
             return Result.Error(AnswerContactRequestError.IdentityChanged)
         } catch (_: MlsException) {

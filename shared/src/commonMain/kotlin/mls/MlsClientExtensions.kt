@@ -28,7 +28,8 @@ internal sealed interface ApplicationMessageReading {
 
     /**
      * The message will never be read: it is malformed, it is not an application message,
-     * or the group it belongs to is not on this device.
+     * the group it belongs to is not on this device, or reading it would grow that group
+     * past the most a group may store, its sender having skipped too many messages.
      */
     data object Unreadable : ApplicationMessageReading
 
@@ -225,9 +226,9 @@ internal suspend fun <T> withPeerLock(peerUuid: String, block: suspend () -> T):
 /**
  * Whether the operation that threw may succeed if tried again later.
  *
- * Only the user's own storage failing, or a lock poisoned for the rest of this process,
- * leaves the stored state as it was. Every other refusal is about the message or the group
- * itself, and trying again will not change the answer.
+ * Only the user's own storage failing, or a lock poisoned by a panic, which a restart
+ * clears, is worth trying again later. Every other refusal is about the message or the
+ * group itself, a group grown too large included, and is taken as final.
  */
 internal fun MlsException.isRetryable(): Boolean =
     this is MlsException.StorageFailed || this is MlsException.LockPoisoned
