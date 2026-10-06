@@ -30,7 +30,8 @@ import viewmodel.ContactRequestAnswer
  * One contact request: who sent it, and the two ways to answer it.
  *
  * Both buttons stay disabled while either answer is being sent, the request can only
- * be answered once.
+ * be answered once. Accept also stays disabled until the sender's name could be read:
+ * without it the card shows nothing about who would be handed the user's profile.
  */
 @Composable
 fun ContactRequestCard(
@@ -85,7 +86,7 @@ fun ContactRequestCard(
                 DuckCountLoadingButton(
                     modifier = Modifier.weight(1f),
                     onClick = onAccept,
-                    enabled = answer == null,
+                    enabled = answer == null && request.senderFullName != null,
                     isLoading = answer == ContactRequestAnswer.ACCEPT,
                 ) {
                     Text(text = stringResource(R.string.accept_contact_request))
