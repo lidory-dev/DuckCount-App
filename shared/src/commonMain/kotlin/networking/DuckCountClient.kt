@@ -21,8 +21,10 @@ import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.http.encodedPath
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.NonCancellable
@@ -35,6 +37,9 @@ import kotlinx.serialization.json.Json
  * Hard cap on a call to our own backend.
  */
 private const val REQUEST_TIMEOUT_MILLIS = 5_000L
+
+/** Where every authentication route lives, see [DuckCountRoutes.Auth]. */
+private const val AUTH_PATH = "/auth/"
 
 class DuckCountClient(
     private val sessionExpiry: SessionExpiry,
@@ -55,9 +60,19 @@ class DuckCountClient(
         install(HttpTimeout) {
             requestTimeoutMillis = REQUEST_TIMEOUT_MILLIS
         }
-        install(Logging) {
-            logger = httpLogger
-            level = LogLevel.ALL
+        if (logsHttpTraffic) {
+            install(Logging) {
+                logger = httpLogger
+                level = LogLevel.ALL
+
+                // Even in a debug build, nothing that would let whoever reads the log act as
+                // the user: the bearer token on every request, and the calls to the
+                // authentication routes, whose bodies carry the long-lived token one way or the
+                // other. Their failures still show, logged by whatever made the call. A route
+                // added later that returns tokens belongs with them, as the password change will.
+                sanitizeHeader { it.equals(HttpHeaders.Authorization, ignoreCase = true) }
+                filter { !it.url.encodedPath.startsWith(AUTH_PATH) }
+            }
         }
         install(ContentNegotiation) {
             json(
