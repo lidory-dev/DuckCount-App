@@ -20,8 +20,7 @@ class ContactRequestEntity(
 
     /**
      * Who sent the request, as the server authenticated them. Opening the request confirms
-     * it: the group the request created is only joined when they are its one other member,
-     * and the card it carries only read when they sent it.
+     * it: the group the request created is only joined when they are its one other member.
      */
     val senderUserUuid: String,
 

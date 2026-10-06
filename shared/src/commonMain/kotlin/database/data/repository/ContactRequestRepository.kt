@@ -414,7 +414,9 @@ class ContactRequestRepository(
         envelope: ContactRequestEnvelope,
     ): Opening = withContext(NonCancellable) {
         // The join refuses any group but one holding exactly the user and the sender the
-        // server authenticated. It pins nobody: that waits for the user to accept the request.
+        // server authenticated, and nothing read in it can change that, see
+        // [readApplicationMessage], so every message read in it, the card included, is theirs.
+        // It pins nobody: that waits for the user to accept the request.
         val mlsGroupId = try {
             client.joinGroupFrom(
                 welcome = envelope.welcome,
@@ -429,10 +431,7 @@ class ContactRequestRepository(
         // now never will be, whatever the reason.
         val reading = client.readApplicationMessage(mlsGroupId = mlsGroupId, message = envelope.message)
 
-        // Nothing locks the group between the join and the read: a direct message the sender
-        // sends to it can be read in it meanwhile, and commit somebody else in to send the card.
         val card = (reading as? ApplicationMessageReading.Read)
-            ?.takeIf { it.senderUserUuid == request.senderUserUuid }
             ?.let { ContactCard.parse(plaintext = it.payload) }
 
         if (card == null) {

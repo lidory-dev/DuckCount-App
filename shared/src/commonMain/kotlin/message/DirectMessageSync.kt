@@ -205,9 +205,9 @@ class DirectMessageSync internal constructor(
                 }
 
                 // Only somebody this device chose to trust is acted on: the sender of a
-                // request the user has not accepted, or a member somebody else committed
-                // into a group, was never checked against anything, and must not become
-                // somebody this device knows, which the next Welcome from them would pin.
+                // request the user has not accepted was never checked against anything,
+                // and must not become somebody this device knows, which the next Welcome
+                // from them would pin.
                 if (!reading.isSenderPinned) return Delivery.SETTLED
 
                 // Before anything is made of it: read in the group of a request the user

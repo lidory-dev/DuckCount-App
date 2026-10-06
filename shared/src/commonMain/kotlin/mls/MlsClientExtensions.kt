@@ -10,7 +10,6 @@ import uniffi.lib_duckcount.InviteeKeyPackage
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.MlsGroup
-import uniffi.lib_duckcount.ProcessedMessage
 import kotlin.io.encoding.Base64
 
 /** What reading an application message out of a group came to. */
@@ -45,14 +44,19 @@ internal sealed interface ApplicationMessageReading {
  *
  * Reading consumes the message: MLS deletes the key that decrypts it as soon as the new
  * state is stored, so a message that was read has to be acted on, or kept, by the caller.
+ *
+ * Anything else, a Commit or a Proposal, is unreadable, and refused before it can change
+ * the group. Every group this device holds is shared with one peer and never changes, and
+ * the group a message is read in is whichever its sender named: the roster [joinGroupFrom]
+ * checked would otherwise be theirs to change.
  */
 internal suspend fun MlsClient.readApplicationMessage(
     mlsGroupId: ByteArray,
     message: ByteArray,
 ): ApplicationMessageReading {
-    val processed = try {
+    val read = try {
         withGroup(mlsGroupId = mlsGroupId) { group ->
-            group.processIncomingMessage(message = message)
+            group.readApplicationMessage(message = message)
         }
     } catch (exception: MlsException) {
         return if (exception.isRetryable()) {
@@ -62,15 +66,11 @@ internal suspend fun MlsClient.readApplicationMessage(
         }
     }
 
-    return when (processed) {
-        is ProcessedMessage.ApplicationMessage -> ApplicationMessageReading.Read(
-            senderUserUuid = processed.senderUserUuid,
-            payload = processed.payload,
-            isSenderPinned = processed.isSenderPinned,
-        )
-
-        else -> ApplicationMessageReading.Unreadable
-    }
+    return ApplicationMessageReading.Read(
+        senderUserUuid = read.senderUserUuid,
+        payload = read.payload,
+        isSenderPinned = read.isSenderPinned,
+    )
 }
 
 /**
@@ -157,10 +157,9 @@ internal suspend fun MlsClient.joinGroupFrom(
 
 /**
  * Pins [peerUuid] to the identity they hold in the group [mlsGroupId], which was joined
- * without pinning them, provided it still holds nobody but the user and them.
+ * without pinning them.
  *
- * Throws [MlsException.UnexpectedMembers] when somebody else was committed into the group
- * since, and [MlsException.IdentityKeyMismatch] when a different identity was pinned for
+ * Throws [MlsException.IdentityKeyMismatch] when a different identity was pinned for
  * [peerUuid] since.
  */
 internal suspend fun MlsClient.pinPeerIn(mlsGroupId: ByteArray, peerUuid: String) =
@@ -240,7 +239,7 @@ internal fun MlsException.isRetryable(): Boolean =
  * back, and the library serialises that only within the copy one caller loaded, not over
  * the group. Two callers at once would each undo what the other stored, which for MLS is
  * no mere lost update: a copy that never saw a message puts back the key that message
- * consumed, and one that never saw a commit drops the epoch the peers have moved to.
+ * consumed.
  *
  * Loading a group is private to this file for that reason, and every operation on one goes
  * through a function above. The two this cannot cover are creating and joining a group,
