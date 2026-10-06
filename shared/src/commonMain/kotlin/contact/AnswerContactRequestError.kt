@@ -17,7 +17,7 @@ sealed interface AnswerContactRequestError : Error {
     /**
      * The request could not be refused: the user had accepted it already, without hearing
      * back, and it has gone since, most likely because the server took that acceptance. Its
-     * sender is made a contact rather than dropped, see
+     * sender is made a contact rather than dropped, now or by the next refresh, see
      * [database.data.local.entity.ContactRequestEntity.isAcceptanceSent].
      */
     data object AlreadyAccepted : AnswerContactRequestError
@@ -39,9 +39,10 @@ sealed interface AnswerContactRequestError : Error {
 
     /**
      * The sender's MLS identity in the request's group is not the one pinned for them since
-     * the request was opened, or the vault pins yet another one for them, which blocks them,
-     * see [database.data.local.entity.IdentityConflictEntity]. Either they legitimately got
-     * a new identity, or somebody is impersonating them, and nothing here can tell which.
+     * the request was opened, or by the time the server took the user's acceptance, which
+     * drops the request; or the vault pins yet another one for them, which blocks them, see
+     * [database.data.local.entity.IdentityConflictEntity]. Either they legitimately got a
+     * new identity, or somebody is impersonating them, and nothing here can tell which.
      */
     data object IdentityChanged : AnswerContactRequestError
 

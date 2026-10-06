@@ -38,6 +38,7 @@ import mls.isRetryable
 import mls.joinGroupFrom
 import mls.pinPeerIn
 import mls.readApplicationMessage
+import mls.verifyPeerIn
 import profile.ProfileError
 import profile.ProfileRepository
 import uniffi.lib_duckcount.InviteeKeyPackage
@@ -59,8 +60,8 @@ import kotlin.io.encoding.Base64
  * to its sender's profile. Opening one joins that group, and a group is only ever joined
  * once, so that can only ever happen once. It also records that the user's acceptance went
  * out, see [ContactRequestEntity.isAcceptanceSent], which the server keeps no trace of: a
- * request so marked that vanishes is completed, its sender made a contact, rather than
- * dropped.
+ * request so marked that vanishes is completed, its sender pinned and made a contact,
+ * rather than dropped.
  */
 class ContactRequestRepository(
     private val contactRequestDao: ContactRequestDao,
@@ -111,7 +112,8 @@ class ContactRequestRepository(
      * request left pending would prevent.
      *
      * A request the user accepted that the server no longer lists is completed: its sender
-     * becomes a contact, see [ContactRequestEntity.isAcceptanceSent].
+     * is pinned and becomes a contact, see [ContactRequestEntity.isAcceptanceSent]. It stays
+     * until that can be done.
      *
      * Every step is attempted even when one fails, and the first failure is reported:
      * whatever did not get done is picked up by the next refresh.
@@ -139,12 +141,14 @@ class ContactRequestRepository(
     }
 
     /**
-     * Accepts a request: pins the MLS identity its sender holds in the request's group,
-     * hands them the user's own profile encryption key, and makes them a contact.
+     * Accepts a request: hands its sender the user's own profile encryption key, and makes
+     * them a contact, pinning the MLS identity they hold in the request's group.
      *
-     * Pinned only now, never when the request is opened: opening happens to every request
-     * the server lists, from anyone, and one the user refuses or never answers must not
-     * decide who its sender is.
+     * Pinned only once the server has taken the answer: never when the request is opened,
+     * which happens to every request the server lists, from anyone, nor when the answer goes
+     * out. A request the user refuses or never answers, or an answer the server never takes,
+     * must not decide who its sender is. The identity is checked before the key goes out,
+     * against any already pinned for them.
      *
      * The key travels encrypted to the group the request created, and the server delivers
      * it to the sender as a direct message. The sender becomes a contact on this device once
@@ -319,23 +323,50 @@ class ContactRequestRepository(
 
     /**
      * Completes the user's acceptance of the request [senderUserUuid] sent with [mlsGroupId],
-     * on reading a message from them in that group: they only ever send in it once they have
-     * read the card the acceptance carried, so the server took it, whatever answer this
-     * device got back. See [ContactRequestEntity.isAcceptanceSent].
+     * on a message from them in that group, before it is read. Fails when the message has to
+     * wait on the server for a later pass: the server could not be asked, or pinning them
+     * failed in a way that trying again can fix.
      *
-     * Before the message is acted on, which may need them as a contact: a notice that they
-     * removed the user would otherwise find nobody to remove, and the next [refresh] would
-     * add them back.
+     * Before the read, which only trusts them once pinned, and accepting did not pin them:
+     * read first, the message would be lost to a check that could not be made. Before it is
+     * acted on too, which may need them as a contact: a notice that they removed the user
+     * would otherwise find nobody to remove, and the next [refresh] would add them back.
+     *
+     * The message is only the occasion. An honest sender only sends in that group once they
+     * have read the card the acceptance carried, but anybody can send in a group they created:
+     * what says the server took the acceptance is that it no longer lists the request, as for
+     * [refresh], see [ContactRequestEntity.isAcceptanceSent].
      */
-    internal suspend fun completeAcceptanceIn(senderUserUuid: String, mlsGroupId: ByteArray) {
+    internal suspend fun completeAcceptanceIn(
+        client: MlsClient,
+        senderUserUuid: String,
+        mlsGroupId: ByteArray,
+    ): EmptyResult<ContactSyncError> {
         // Read without the lock first, so that every other message goes on without waiting for
         // an answer or a refresh in flight. The mark is written before the acceptance goes out,
         // so it is there before anything the sender can send after reading it.
-        contactRequestDao.getAccepted(senderUserUuid = senderUserUuid, mlsGroupId = mlsGroupId) ?: return
+        contactRequestDao.getAccepted(senderUserUuid = senderUserUuid, mlsGroupId = mlsGroupId)
+            ?: return Result.Success(Unit)
 
-        mutex.withLock {
-            contactRequestDao.getAccepted(senderUserUuid = senderUserUuid, mlsGroupId = mlsGroupId)
-                ?.let { completeAcceptance(request = it) }
+        return mutex.withLock {
+            // Completed meanwhile, its sender pinned before the row went, or dropped.
+            val accepted = contactRequestDao.getAccepted(senderUserUuid = senderUserUuid, mlsGroupId = mlsGroupId)
+                ?: return@withLock Result.Success(Unit)
+
+            when (val listed = isListed(requestUuid = accepted.uuid)) {
+                is Result.Error -> Result.Error(ContactSyncError.Network(listed.error))
+
+                // Still listed, so not taken, whatever the message says: it is read as it
+                // stands, which acts on its sender only if pinned already.
+                is Result.Success -> when {
+                    listed.data -> Result.Success(Unit)
+
+                    completeAcceptance(client = client, request = accepted) == Completion.RETRY ->
+                        Result.Error(ContactSyncError.Storage)
+
+                    else -> Result.Success(Unit)
+                }
+            }
         }
     }
 
@@ -347,13 +378,27 @@ class ContactRequestRepository(
 
         val listedUuids = listed.mapTo(HashSet()) { it.uuid }
 
+        var failure: ContactSyncError? = null
+
         // Most likely gone because the server took the user's acceptance, whose answer never
         // made it back. See ContactRequestEntity.isAcceptanceSent.
-        contactRequestDao.getOpenedOnce()
-            .filter { it.isAcceptanceSent && it.uuid !in listedUuids }
-            .forEach { completeAcceptance(request = it) }
+        val accepted = contactRequestDao.getOpenedOnce().filter { it.isAcceptanceSent && it.uuid !in listedUuids }
 
-        val vanished = contactRequestDao.getAll().filter { it.uuid !in listedUuids }
+        if (accepted.isNotEmpty()) {
+            when (val opened = mlsIdentityRepository.client()) {
+                is Result.Error -> failure = ContactSyncError.Identity(opened.error)
+
+                is Result.Success -> for (request in accepted) {
+                    if (completeAcceptance(client = opened.data, request = request) == Completion.RETRY) {
+                        failure = failure ?: ContactSyncError.Storage
+                    }
+                }
+            }
+        }
+
+        // One the user accepted is completed or dropped, never let go of here: one still there
+        // could not be completed yet, and the next refresh tries again.
+        val vanished = contactRequestDao.getAll().filter { it.uuid !in listedUuids && !it.isAcceptanceSent }
 
         contactRequestDao.reconcile(vanishedUuids = vanished.map { it.uuid }, listed = listed)
 
@@ -362,12 +407,10 @@ class ContactRequestRepository(
         val abandonedGroupIds = vanished.mapNotNull { it.mlsGroupId }
         val unopened = contactRequestDao.getUnopened()
 
-        var failure: ContactSyncError? = null
-
         // Opening the MLS client is not free, and most refreshes leave it nothing to do.
         if (abandonedGroupIds.isNotEmpty() || unopened.isNotEmpty()) {
             when (val opened = mlsIdentityRepository.client()) {
-                is Result.Error -> failure = ContactSyncError.Identity(opened.error)
+                is Result.Error -> failure = failure ?: ContactSyncError.Identity(opened.error)
 
                 is Result.Success -> {
                     abandonedGroupIds.forEach { opened.data.deleteGroupQuietly(mlsGroupId = it) }
@@ -416,7 +459,7 @@ class ContactRequestRepository(
         // The join refuses any group but one holding exactly the user and the sender the
         // server authenticated, and nothing read in it can change that, see
         // [readApplicationMessage], so every message read in it, the card included, is theirs.
-        // It pins nobody: that waits for the user to accept the request.
+        // It pins nobody: that waits for the server to take the user's acceptance.
         val mlsGroupId = try {
             client.joinGroupFrom(
                 welcome = envelope.welcome,
@@ -486,8 +529,8 @@ class ContactRequestRepository(
         val request = contactRequestDao.getOpened(uuid = requestUuid)
             ?: return Result.Error(AnswerContactRequestError.NotFound)
 
-        // The sender may be a contact whose pin the vault holds, and pinning them first
-        // would leave that pin unable to come back.
+        // The sender may be a contact whose pin the vault holds, which their identity is
+        // checked against below.
         val restored = contactRepository.restore()
 
         if (restored is Result.Error) return Result.Error(AnswerContactRequestError.Contacts(restored.error))
@@ -502,24 +545,20 @@ class ContactRequestRepository(
             is Result.Error -> return Result.Error(AnswerContactRequestError.Identity(opened.error))
         }
 
-        // Pinning would go through for the identity this device holds, when it is the one the
+        // The check below would pass the identity this device holds, when it is the one the
         // vault disagrees with. See IdentityConflictEntity.
         if (identityConflictDao.isBlocked(peerUuid = request.senderUserUuid)) {
             return Result.Error(AnswerContactRequestError.IdentityChanged)
         }
 
         val message = try {
-            // Encrypted before the sender is pinned: their messages can fill the group until
-            // the user's first message in it no longer fits, and a card that could not even be
-            // encrypted must not leave them pinned. The card goes nowhere unless the pin holds.
-            val card = client.encryptApplicationMessage(
+            // Checked, not pinned: that waits for the server to take the acceptance.
+            client.verifyPeerIn(mlsGroupId = request.mlsGroupId, peerUuid = request.senderUserUuid)
+
+            client.encryptApplicationMessage(
                 mlsGroupId = request.mlsGroupId,
                 payload = ContactCard(profileEncryptionKey = profileEncryptionKey).serialize(),
             )
-
-            client.pinPeerIn(mlsGroupId = request.mlsGroupId, peerUuid = request.senderUserUuid)
-
-            card
         } catch (_: MlsException.IdentityKeyMismatch) {
             return Result.Error(AnswerContactRequestError.IdentityChanged)
         } catch (_: MlsException) {
@@ -567,9 +606,12 @@ class ContactRequestRepository(
             }
         }
 
-        completeAcceptance(request = request)
+        return when (completeAcceptance(client = client, request = request)) {
+            // Taken all the same, and completed by the next refresh.
+            Completion.COMPLETED, Completion.RETRY -> Result.Success(Unit)
 
-        return Result.Success(Unit)
+            Completion.DROPPED -> Result.Error(AnswerContactRequestError.IdentityChanged)
+        }
     }
 
     private suspend fun refuseLocked(requestUuid: String): EmptyResult<AnswerContactRequestError> {
@@ -598,9 +640,17 @@ class ContactRequestRepository(
             val accepted = contactRequestDao.getOpened(uuid = requestUuid)?.takeIf { it.isAcceptanceSent }
 
             if (accepted != null) {
-                completeAcceptance(request = accepted)
+                val client = when (val opened = mlsIdentityRepository.client()) {
+                    is Result.Success -> opened.data
+                    is Result.Error -> return Result.Error(AnswerContactRequestError.Identity(opened.error))
+                }
 
-                return Result.Error(AnswerContactRequestError.AlreadyAccepted)
+                return when (completeAcceptance(client = client, request = accepted)) {
+                    Completion.COMPLETED, Completion.RETRY -> Result.Error(AnswerContactRequestError.AlreadyAccepted)
+
+                    // Dropped instead, which is all refusing it was for.
+                    Completion.DROPPED -> Result.Success(Unit)
+                }
             }
         }
 
@@ -610,34 +660,52 @@ class ContactRequestRepository(
     }
 
     /**
-     * Makes the sender of [request], whose acceptance the server took, a contact, and drops
-     * the request, recording it in [completedUuids].
+     * Makes the sender of [request], whose acceptance the server took, a contact, pinning the
+     * identity they hold in its group, and drops the request, recording it in [completedUuids].
      *
      * Not cancellable: leaving the screen would otherwise leave the sender a contact with no
      * channel, until a refresh completed the rest. The row goes last, so that even a process
      * dying halfway leaves the request for the next [refresh] to complete again.
+     *
+     * The request is dropped instead when they can never be pinned: a different identity was
+     * pinned for them since the acceptance went out, by the user's own request to them for one,
+     * or the group it created can no longer be used. With two identities, one of them is not
+     * theirs, and the one pinned first stands, as everywhere else.
      */
-    private suspend fun completeAcceptance(request: OpenedContactRequest) = withContext(NonCancellable) {
-        contactRepository.add(
-            userUuid = request.senderUserUuid,
-            profileEncryptionKey = request.profileEncryptionKey,
-            fullName = request.senderFullName,
-        )
+    private suspend fun completeAcceptance(client: MlsClient, request: OpenedContactRequest): Completion =
+        withContext(NonCancellable) {
+            try {
+                client.pinPeerIn(mlsGroupId = request.mlsGroupId, peerUuid = request.senderUserUuid)
+            } catch (exception: MlsException) {
+                if (exception.isRetryable()) return@withContext Completion.RETRY
 
-        // Accepting closed the user's own requests to them as well, server-side.
-        contactRequestDao.deleteOutgoingTo(recipientUserUuid = request.senderUserUuid)
+                forget(requestUuid = request.uuid)
 
-        // The group the request created is the channel to them from here on, and this is
-        // the only moment its id is known outside the request row about to be deleted.
-        directChannelRepository.adopt(
-            peerUuid = request.senderUserUuid,
-            mlsGroupId = request.mlsGroupId,
-        )
+                return@withContext Completion.DROPPED
+            }
 
-        contactRequestDao.delete(uuids = listOf(request.uuid))
+            contactRepository.add(
+                userUuid = request.senderUserUuid,
+                profileEncryptionKey = request.profileEncryptionKey,
+                fullName = request.senderFullName,
+            )
 
-        completedUuids += request.uuid
-    }
+            // Accepting closed the user's own requests to them as well, server-side.
+            contactRequestDao.deleteOutgoingTo(recipientUserUuid = request.senderUserUuid)
+
+            // The group the request created is the channel to them from here on, and this is
+            // the only moment its id is known outside the request row about to be deleted.
+            directChannelRepository.adopt(
+                peerUuid = request.senderUserUuid,
+                mlsGroupId = request.mlsGroupId,
+            )
+
+            contactRequestDao.delete(uuids = listOf(request.uuid))
+
+            completedUuids += request.uuid
+
+            Completion.COMPLETED
+        }
 
     /**
      * Whether the server still lists [requestUuid], which one of its routes just answered
@@ -736,4 +804,15 @@ private enum class Opening {
 
     /** It can never be opened, and is refused. */
     UNREADABLE,
+}
+
+/** How far [ContactRequestRepository] got completing an acceptance the server took. */
+private enum class Completion {
+    COMPLETED,
+
+    /** Pinning the sender failed in a way that trying again can fix, see [mls.isRetryable]. */
+    RETRY,
+
+    /** The sender can never be pinned, and the request was dropped. */
+    DROPPED,
 }

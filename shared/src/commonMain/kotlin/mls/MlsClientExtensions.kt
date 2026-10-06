@@ -167,6 +167,17 @@ internal suspend fun MlsClient.pinPeerIn(mlsGroupId: ByteArray, peerUuid: String
     withGroup(mlsGroupId = mlsGroupId) { it.pinMembers(expectedMembers = listOf(peerUuid)) }
 
 /**
+ * Checks the identity [peerUuid] holds in the group [mlsGroupId] against the one pinned for
+ * them, if any, and pins nothing: what [pinPeerIn] checks, before trusting them with
+ * something that may never land.
+ *
+ * Throws [MlsException.IdentityKeyMismatch] when a different identity is pinned for
+ * [peerUuid].
+ */
+internal suspend fun MlsClient.verifyPeerIn(mlsGroupId: ByteArray, peerUuid: String) =
+    withGroup(mlsGroupId = mlsGroupId) { it.verifyMembers(expectedMembers = listOf(peerUuid)) }
+
+/**
  * The MLS identity this device pinned for [peerUuid], or null when it has never met them.
  *
  * What gets backed up, so that a log-out does not leave the next login pinning whichever

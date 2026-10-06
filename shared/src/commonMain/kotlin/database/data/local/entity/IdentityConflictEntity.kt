@@ -16,7 +16,7 @@ import androidx.room.PrimaryKey
  *
  * What does not depend on who they are still goes through: removing them sends the notice
  * in the channel the two of them share, and a request from them is opened and listed, since
- * only accepting it would pin and answer them.
+ * only accepting it answers them, and pins them once the server takes it.
  *
  * Recorded wherever the two pins meet: when the MLS client opens and puts the vault's pins
  * back, when [ContactRepository.restore][database.data.repository.ContactRepository.restore]

@@ -36,12 +36,12 @@ import util.Result
  * message may be read exactly once and whatever it said has to be acted on there and then.
  *
  * Every message that was read, and every message that never will be, is acknowledged,
- * which is the only thing that deletes it server-side. The exception is one the device's
- * own storage failed on before it could be read, which leaves it unconsumed: it is left
- * for the server to hand back, and so is everything after it from the same sender, which
- * comes back behind it. Once read, a message is acted on whole, cancelled or not, but a
- * handler that fails after the read loses it: it can never be read again, and the next
- * pass acknowledges it as unreadable.
+ * which is the only thing that deletes it server-side. The exception is one that could not
+ * be read yet, the device's own storage failing or the server not saying whether it may be,
+ * which leaves it unconsumed: it is left for the server to hand back, and so is everything
+ * after it from the same sender, which comes back behind it. Once read, a message is acted
+ * on whole, cancelled or not, but a handler that fails after the read loses it: it can
+ * never be read again, and the next pass acknowledges it as unreadable.
  *
  * Nothing is read before the user's contacts are back on the device after a login, see
  * [ContactRepository.restore]: a Welcome is only acted on from somebody this device knows,
@@ -114,12 +114,12 @@ class DirectMessageSync internal constructor(
             // never be read again, and the next pass would acknowledge it as unreadable.
             currentCoroutineContext().ensureActive()
 
-            when (withContext(NonCancellable) { deliver(client = client, message = message) }) {
-                Delivery.SETTLED -> settled += message.uuid
+            when (val delivery = withContext(NonCancellable) { deliver(client = client, message = message) }) {
+                Delivery.Settled -> settled += message.uuid
 
-                Delivery.RETRY -> {
+                is Delivery.Retry -> {
                     deferredSenders += message.senderUserUuid
-                    failure = failure ?: DirectMessageSyncError.Storage
+                    failure = failure ?: delivery.error
                 }
             }
         }
@@ -144,7 +144,7 @@ class DirectMessageSync internal constructor(
      * Decrypts one message and offers it around, joining the group it came in when the
      * sender had to build a new one.
      *
-     * [Delivery.SETTLED] covers a message acted on, one no handler wanted and one that can
+     * [Delivery.Settled] covers a message acted on, one no handler wanted and one that can
      * never be read: none is worth keeping, so all are acknowledged. So is one from a blocked
      * sender, see [database.data.local.entity.IdentityConflictEntity], left unread: only a
      * log-out lifts the block, and the groups it could be read in go with it.
@@ -156,11 +156,24 @@ class DirectMessageSync internal constructor(
         // The server's word for the sender is enough: nothing is acted on unless the one the
         // message itself names is the same.
         if (identityConflictDao.isBlocked(peerUuid = message.senderUserUuid)) {
-            return Delivery.SETTLED
+            return Delivery.Settled
         }
 
         val envelope = DirectMessageEnvelope.parse(ciphertext = message.ciphertext)
-            ?: return Delivery.SETTLED
+            ?: return Delivery.Settled
+
+        // In the group of a request the user accepted, an acceptance whose answer never came
+        // back is completed first, once the server no longer lists the request, which pins
+        // the sender: the message is then read as theirs.
+        val completion = contactRequestRepository.completeAcceptanceIn(
+            client = client,
+            senderUserUuid = message.senderUserUuid,
+            mlsGroupId = envelope.mlsGroupId,
+        )
+
+        if (completion is Result.Error) {
+            return Delivery.Retry(error = DirectMessageSyncError.Contacts(error = completion.error))
+        }
 
         var mlsGroupId = envelope.mlsGroupId
 
@@ -177,11 +190,11 @@ class DirectMessageSync internal constructor(
                 // joined, or seats anybody but the sender, is simply not a way in. Storage
                 // failing says nothing about the Welcome, so that one is tried again.
                 return if (exception.isRetryable()) {
-                    Delivery.RETRY
+                    Delivery.Retry(error = DirectMessageSyncError.Storage)
                 } else {
-                    Delivery.SETTLED
+                    Delivery.Settled
                 }
-            } ?: return Delivery.SETTLED
+            } ?: return Delivery.Settled
 
             mlsGroupId = joined
 
@@ -192,30 +205,23 @@ class DirectMessageSync internal constructor(
         }
 
         return when (reading) {
-            ApplicationMessageReading.Retry -> Delivery.RETRY
+            ApplicationMessageReading.Retry -> Delivery.Retry(error = DirectMessageSyncError.Storage)
 
-            ApplicationMessageReading.Unreadable -> Delivery.SETTLED
+            ApplicationMessageReading.Unreadable -> Delivery.Settled
 
             is ApplicationMessageReading.Read -> {
                 // The server says who sent it and MLS proves it. A server that named
                 // somebody else was either mistaken or trying something, and either way
                 // there is nothing here worth acting on.
                 if (reading.senderUserUuid != message.senderUserUuid) {
-                    return Delivery.SETTLED
+                    return Delivery.Settled
                 }
 
                 // Only somebody this device chose to trust is acted on: the sender of a
-                // request the user has not accepted was never checked against anything,
-                // and must not become somebody this device knows, which the next Welcome
-                // from them would pin.
-                if (!reading.isSenderPinned) return Delivery.SETTLED
-
-                // Before anything is made of it: read in the group of a request the user
-                // accepted, it proves the acceptance landed, and makes the sender a contact.
-                contactRequestRepository.completeAcceptanceIn(
-                    senderUserUuid = reading.senderUserUuid,
-                    mlsGroupId = mlsGroupId,
-                )
+                // request the user has not accepted, or whose acceptance the server never
+                // took, was never pinned, and must not become somebody this device knows,
+                // which the next Welcome from them would pin.
+                if (!reading.isSenderPinned) return Delivery.Settled
 
                 directChannelRepository.noteReadIn(
                     peerUuid = reading.senderUserUuid,
@@ -224,7 +230,7 @@ class DirectMessageSync internal constructor(
 
                 offer(reading = reading, mlsGroupId = mlsGroupId)
 
-                Delivery.SETTLED
+                Delivery.Settled
             }
         }
     }
@@ -293,13 +299,14 @@ class DirectMessageSync internal constructor(
 }
 
 /** What became of one message, see [DirectMessageSync]. */
-private enum class Delivery {
+private sealed interface Delivery {
     /** Acted on, or never going to be. Either way it is acknowledged. */
-    SETTLED,
+    data object Settled : Delivery
 
     /**
-     * The device's own storage failed before the message could be read, so it is left on
-     * the server to be read again.
+     * Not read, for [error]: the device's own storage failed before it could be, or the
+     * server could not be asked what reading it needs. It is left on the server to be read
+     * again.
      */
-    RETRY,
+    class Retry(val error: DirectMessageSyncError) : Delivery
 }

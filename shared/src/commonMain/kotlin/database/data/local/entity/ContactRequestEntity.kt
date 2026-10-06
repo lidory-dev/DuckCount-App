@@ -45,7 +45,9 @@ class ContactRequestEntity(
      * a screen closing, leaves this device no way to ask whether it landed. A request that
      * vanishes once this is set most likely did, and is completed rather than dropped: its
      * sender has the user as a contact by then, and this row holds the only copy of the
-     * group and the profile key that lead back to them.
+     * group and the profile key that lead back to them. Completing it pins them, so the row
+     * stays until that can be done; only a sender who can never be pinned, a different
+     * identity having been pinned for them since, has it dropped.
      */
     val isAcceptanceSent: Boolean = false,
 )
