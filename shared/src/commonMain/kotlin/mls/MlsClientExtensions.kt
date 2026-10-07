@@ -157,6 +157,21 @@ internal suspend fun MlsClient.joinGroupFrom(
     }
 
 /**
+ * Whether the group [mlsGroupId] is still stored on this device.
+ *
+ * Only a group found missing says no: one that could not be read for any other reason is
+ * taken to be there, as it most likely is.
+ */
+internal suspend fun MlsClient.holdsGroup(mlsGroupId: ByteArray): Boolean =
+    try {
+        withGroup(mlsGroupId = mlsGroupId) {}
+
+        true
+    } catch (exception: MlsException) {
+        exception !is MlsException.GroupNotFound
+    }
+
+/**
  * Pins [peerUuid] to the identity they hold in the group [mlsGroupId], which was joined
  * without pinning them.
  *
@@ -280,8 +295,9 @@ private suspend fun <T> withGroupLock(mlsGroupId: ByteArray, block: suspend () -
  * per process over one store, see [MlsIdentityRepository], and a group id names a group in
  * it for as long as it exists.
  *
- * A lock stays behind for every group the session touched, which is a mutex per contact
- * and per group the user belongs to.
+ * A lock stays behind for every group the session touched: a mutex per group the user
+ * belongs to, and one per group id a direct message named, held or not, each keyed by 32
+ * bytes, see [message.DirectMessageEnvelope.parse], and at most one per message.
  */
 private val groupLocks = mutableMapOf<String, Mutex>()
 

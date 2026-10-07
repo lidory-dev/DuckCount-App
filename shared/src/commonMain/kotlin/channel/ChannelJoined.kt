@@ -6,11 +6,14 @@ package channel
  *
  * Without it, a peer who joined and has nothing to say looks exactly like one who could not
  * join, and the Welcome runs out, see [DirectChannelRepository.ensureChannel]: a new group,
- * another of their key packages spent, and one more group left on their device.
+ * another of their key packages spent, and one more group in each side's window, pushing
+ * the oldest out.
  *
  * Nothing handles it: being read in the group is all it is for, see
- * [DirectChannelRepository.noteReadIn]. Lost, the Welcome stays attached until they send
- * anything else, or runs out as it would without it.
+ * [DirectChannelRepository.noteReadIn]. Sent once per sync pass for the newest group joined
+ * from a peer, and at most once an hour to the same peer, see
+ * [DirectChannelRepository.claimChannelJoined]. Lost or withheld, the Welcome stays attached
+ * until this device sends anything else, or runs out as it would without it.
  */
 internal object ChannelJoined {
 

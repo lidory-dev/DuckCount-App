@@ -106,6 +106,9 @@ class DirectMessageSync internal constructor(
         // newer one, and the channel would end up in a group they have already left.
         val deferredSenders = mutableSetOf<String>()
 
+        // The newest group joined from each sender's Welcomes in this pass, see [join].
+        val joinedGroups = LinkedHashMap<String, ByteArray>()
+
         messages.forEach { message ->
             if (message.senderUserUuid in deferredSenders) return@forEach
 
@@ -114,12 +117,33 @@ class DirectMessageSync internal constructor(
             // never be read again, and the next pass would acknowledge it as unreadable.
             currentCoroutineContext().ensureActive()
 
-            when (val delivery = withContext(NonCancellable) { deliver(client = client, message = message) }) {
+            val delivery = withContext(NonCancellable) {
+                deliver(client = client, message = message, joinedGroups = joinedGroups)
+            }
+
+            when (delivery) {
                 Delivery.Settled -> settled += message.uuid
 
                 is Delivery.Retry -> {
                     deferredSenders += message.senderUserUuid
                     failure = failure ?: delivery.error
+                }
+            }
+        }
+
+        // One answer per peer, in the group they hold now, and none to a peer told within the
+        // hour, see [DirectChannelRepository.claimChannelJoined]. Its result is ignored, see
+        // [ChannelJoined].
+        // Not cancellable, as the deliveries were: the Welcome is never joined again, so an
+        // answer dropped here would not come back with the next pass.
+        withContext(NonCancellable) {
+            joinedGroups.forEach { (peerUuid, mlsGroupId) ->
+                if (directChannelRepository.claimChannelJoined(peerUuid = peerUuid)) {
+                    directMessageSender.replyIn(
+                        recipientUserUuid = peerUuid,
+                        mlsGroupId = mlsGroupId,
+                        payload = ChannelJoined.serialize(),
+                    )
                 }
             }
         }
@@ -152,6 +176,7 @@ class DirectMessageSync internal constructor(
     private suspend fun deliver(
         client: MlsClient,
         message: DirectMessageDto,
+        joinedGroups: MutableMap<String, ByteArray>,
     ): Delivery {
         // The server's word for the sender is enough: nothing is acted on unless the one the
         // message itself names is the same.
@@ -184,7 +209,7 @@ class DirectMessageSync internal constructor(
 
         if (reading is ApplicationMessageReading.Unreadable && envelope.welcome != null) {
             val joined = try {
-                join(client = client, message = message, welcome = envelope.welcome)
+                join(client = client, message = message, welcome = envelope.welcome, joinedGroups = joinedGroups)
             } catch (exception: MlsException) {
                 // A Welcome that was already used, was never ours, is for a group already
                 // joined, or seats anybody but the sender, is simply not a way in. Storage
@@ -224,6 +249,7 @@ class DirectMessageSync internal constructor(
                 if (!reading.isSenderPinned) return Delivery.Settled
 
                 directChannelRepository.noteReadIn(
+                    client = client,
                     peerUuid = reading.senderUserUuid,
                     mlsGroupId = mlsGroupId,
                 )
@@ -237,9 +263,9 @@ class DirectMessageSync internal constructor(
 
     /**
      * Joins the group [welcome] was sealed for, records it as the channel to the message's
-     * sender, and tells them this device is in, see [ChannelJoined]. Returns the group's id,
-     * or null when the sender is nobody this device knows, and throws [MlsException] when
-     * the join fails.
+     * sender, and notes it in [joinedGroups] for the pass to tell them, at most once an hour,
+     * that this device is in, see [ChannelJoined]. Returns the group's id, or null when the sender is nobody this device
+     * knows, and throws [MlsException] when the join fails.
      *
      * The Welcome is acted on only for somebody this device already knows: joining stores a
      * group and pins the sender's MLS identity, which is not something to do because an
@@ -254,6 +280,7 @@ class DirectMessageSync internal constructor(
         client: MlsClient,
         message: DirectMessageDto,
         welcome: ByteArray,
+        joinedGroups: MutableMap<String, ByteArray>,
     ): ByteArray? {
         if (!directChannelRepository.isKnownPeer(peerUuid = message.senderUserUuid)) return null
 
@@ -263,14 +290,11 @@ class DirectMessageSync internal constructor(
             pinPeer = true,
         )
 
-        directChannelRepository.adopt(peerUuid = message.senderUserUuid, mlsGroupId = joined)
+        directChannelRepository.adopt(client = client, peerUuid = message.senderUserUuid, mlsGroupId = joined)
 
-        // Its result is ignored, see [ChannelJoined].
-        directMessageSender.replyIn(
-            recipientUserUuid = message.senderUserUuid,
-            mlsGroupId = joined,
-            payload = ChannelJoined.serialize(),
-        )
+        // Told once the pass is over, in the newest group joined: messages come oldest first,
+        // and a peer who rebuilt while this device was away holds the last one.
+        joinedGroups[message.senderUserUuid] = joined
 
         return joined
     }

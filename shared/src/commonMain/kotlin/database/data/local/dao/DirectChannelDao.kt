@@ -29,6 +29,10 @@ interface DirectChannelDao {
     )
     suspend fun markJoined(peerUuid: String)
 
+    /** Records that this device told the peer, at [sentAt], that it joined a group of theirs. */
+    @Query("UPDATE DirectChannelEntity SET channelJoinedSentAt = :sentAt WHERE peerUuid = :peerUuid")
+    suspend fun markChannelJoinedSent(peerUuid: String, sentAt: Long)
+
     /** Records that one more message carried the pending Welcome. */
     @Query("UPDATE DirectChannelEntity SET welcomeAttachCount = welcomeAttachCount + 1 WHERE peerUuid = :peerUuid")
     suspend fun countWelcomeAttachment(peerUuid: String)
@@ -42,8 +46,8 @@ interface DirectChannelDao {
      */
     @Query(
         """UPDATE DirectChannelEntity
-        SET mlsGroupId = NULL, previousMlsGroupId = NULL, pendingWelcome = NULL,
-            pendingWelcomeSince = NULL, welcomeAttachCount = 0
+        SET mlsGroupId = NULL, previousMlsGroupId = NULL, olderMlsGroupId = NULL,
+            pendingWelcome = NULL, pendingWelcomeSince = NULL, welcomeAttachCount = 0
         WHERE peerUuid = :peerUuid""",
     )
     suspend fun clear(peerUuid: String)

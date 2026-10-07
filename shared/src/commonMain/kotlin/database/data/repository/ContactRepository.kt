@@ -31,6 +31,7 @@ import util.Result
 import vault.VaultRepository
 import mls.pinnedSignatureKeyFor
 import mls.restorePin
+import mls.withPeerLock
 import vault.VaultContact
 
 /**
@@ -369,15 +370,24 @@ class ContactRepository(
         contactDao.markRemoved(userUuid = userUuid)
         userRepository.remove(userUuid = userUuid)
 
-        val channel = directChannelDao.get(peerUuid = userUuid)
+        // Under the peer's lock, which every change to the groups their channel names takes: a
+        // group adopted between the read and the clear would be left with nothing naming it.
+        withPeerLock(peerUuid = userUuid) {
+            val channel = directChannelDao.get(peerUuid = userUuid)
 
-        // The channel row stays, emptied: the two of them may still owe each other money,
-        // and a one-time expense they share is opened with a key only the other one has.
-        // What goes is the MLS state, which has no use until a new group is built.
-        directChannelDao.clear(peerUuid = userUuid)
+            // The channel row stays, emptied: the two of them may still owe each other money,
+            // and a one-time expense they share is opened with a key only the other one has.
+            // What goes is the MLS state, which has no use until a new group is built.
+            directChannelDao.clear(peerUuid = userUuid)
 
-        listOfNotNull(channel?.mlsGroupId, channel?.previousMlsGroupId).forEach {
-            client?.deleteGroupQuietly(mlsGroupId = it)
+            val held = listOfNotNull(channel?.mlsGroupId, channel?.previousMlsGroupId, channel?.olderMlsGroupId)
+
+            // A caller that found no group had no client to pass, and one may have been adopted
+            // since it looked.
+            val deleting = client
+                ?: held.takeIf { it.isNotEmpty() }?.let { (mlsIdentityRepository.client() as? Result.Success)?.data }
+
+            held.forEach { deleting?.deleteGroupQuietly(mlsGroupId = it) }
         }
     }
 

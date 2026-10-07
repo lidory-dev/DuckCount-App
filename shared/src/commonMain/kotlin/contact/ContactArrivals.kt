@@ -82,10 +82,11 @@ class ContactArrivals(
      * A new contact is only told about when they answered a request the user sent, which
      * is what the announcement says. Their answer is read in the group that request created,
      * which becomes the channel to them, see [channel.DirectChannelRepository.noteReadIn], or
-     * the one before it once a Welcome read later in the same sync replaced it. Anybody else is no news to the user: the user's own acceptance of a request of theirs
-     * leaves the channel in the group *that* request created, however late it landed, even
-     * when the two had asked each other, and a contact the vault gave back is not one the
-     * user has a request out to.
+     * one kept behind it once Welcomes read later in the same sync replaced it. Anybody else
+     * is no news to the user: the user's own acceptance of a request of theirs leaves the
+     * channel in the group *that* request created, however late it landed, even when the two
+     * had asked each other, and a contact the vault gave back is not one the user has a
+     * request out to.
      */
     suspend fun since(snapshot: ContactSnapshot): List<ContactArrival> {
         val contacts = contactDao.getUserUuids()
@@ -96,7 +97,9 @@ class ContactArrivals(
                 val channel = directChannelDao.get(peerUuid = userUuid)
 
                 snapshot.outgoingGroups[userUuid].orEmpty().any {
-                    it contentEquals channel?.mlsGroupId || it contentEquals channel?.previousMlsGroupId
+                    it contentEquals channel?.mlsGroupId ||
+                        it contentEquals channel?.previousMlsGroupId ||
+                        it contentEquals channel?.olderMlsGroupId
                 }
             }
             .map {

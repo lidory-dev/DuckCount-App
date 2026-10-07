@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "6941d98fbd103a2513fb5db943fc1892",
+    "identityHash": "d1adeeeccd1c603168b6321e6d68f139",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -370,7 +370,7 @@
       },
       {
         "tableName": "DirectChannelEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`peerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `previousMlsGroupId` BLOB, `pendingWelcome` BLOB, `pendingWelcomeSince` INTEGER, `welcomeAttachCount` INTEGER NOT NULL, PRIMARY KEY(`peerUuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`peerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `previousMlsGroupId` BLOB, `olderMlsGroupId` BLOB, `pendingWelcome` BLOB, `pendingWelcomeSince` INTEGER, `welcomeAttachCount` INTEGER NOT NULL, `channelJoinedSentAt` INTEGER, PRIMARY KEY(`peerUuid`))",
         "fields": [
           {
             "fieldPath": "peerUuid",
@@ -389,6 +389,11 @@
             "affinity": "BLOB"
           },
           {
+            "fieldPath": "olderMlsGroupId",
+            "columnName": "olderMlsGroupId",
+            "affinity": "BLOB"
+          },
+          {
             "fieldPath": "pendingWelcome",
             "columnName": "pendingWelcome",
             "affinity": "BLOB"
@@ -403,6 +408,11 @@
             "columnName": "welcomeAttachCount",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "channelJoinedSentAt",
+            "columnName": "channelJoinedSentAt",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -608,7 +618,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6941d98fbd103a2513fb5db943fc1892')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd1adeeeccd1c603168b6321e6d68f139')"
     ]
   }
 }

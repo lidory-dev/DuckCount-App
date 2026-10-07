@@ -57,7 +57,11 @@ class DirectMessageEnvelope(
     companion object {
         /**
          * Reads an envelope back from a direct message's `ciphertext`, or returns null when
-         * it is not one.
+         * it is not one, or names a group of a size no group this device holds has.
+         *
+         * Every group `lib-duckcount` creates or joins has a 32-byte id. One of any other
+         * size could never be read in, and the lock taken to try would still be kept for
+         * the life of the process, keyed by an id whose size the sender chose.
          */
         fun parse(ciphertext: String): DirectMessageEnvelope? =
             runCatching {
@@ -71,7 +75,7 @@ class DirectMessageEnvelope(
                     message = Base64.Default.decode(serialized.message),
                     welcome = serialized.welcome?.let { Base64.Default.decode(it) },
                 )
-            }.getOrNull()
+            }.getOrNull()?.takeIf { it.mlsGroupId.size == MLS_GROUP_ID_LENGTH }
     }
 }
 
@@ -82,3 +86,6 @@ private class SerializedDirectMessageEnvelope(
     val message: String,
     val welcome: String? = null,
 )
+
+/** The size of every MLS group id, see [DirectMessageEnvelope.parse]. */
+private const val MLS_GROUP_ID_LENGTH = 32

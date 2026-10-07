@@ -1,5 +1,6 @@
 package message
 
+import kotlin.io.encoding.Base64
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertNotNull
@@ -7,7 +8,9 @@ import kotlin.test.assertNull
 
 class DirectMessageEnvelopeTest {
 
-    private val mlsGroupId = byteArrayOf(1, 2, 3)
+    /** The size of every group id `lib-duckcount` creates or joins. */
+    private val mlsGroupId = ByteArray(32) { it.toByte() }
+    private val encodedMlsGroupId = Base64.Default.encode(mlsGroupId)
     private val message = byteArrayOf(4, 5, 6, 7)
     private val welcome = byteArrayOf(8, 9, 10, 11)
 
@@ -40,7 +43,7 @@ class DirectMessageEnvelopeTest {
     /** The receiving client reads the group id under this name, whichever build sent it. */
     @Test
     fun `a direct message names the group the way its reader reads it`() {
-        val ciphertext = """{"mls_group_id":"AQID","message":"BAUGBw==","sent_at":"ignored"}"""
+        val ciphertext = """{"mls_group_id":"$encodedMlsGroupId","message":"BAUGBw==","sent_at":"ignored"}"""
 
         val reread = DirectMessageEnvelope.parse(ciphertext = ciphertext)
 
@@ -56,11 +59,21 @@ class DirectMessageEnvelopeTest {
     @Test
     fun `an envelope written before welcomes existed still reads`() {
         val reread = DirectMessageEnvelope.parse(
-            ciphertext = """{"mls_group_id":"AQID","message":"BAUGBw=="}""",
+            ciphertext = """{"mls_group_id":"$encodedMlsGroupId","message":"BAUGBw=="}""",
         )
 
         assertNotNull(reread)
         assertNull(reread.welcome)
+    }
+
+    /** No group this device holds has an id of another size, which the sender chooses freely. */
+    @Test
+    fun `a direct message naming a group of another size reads as none`() {
+        for (size in listOf(3, 33, 4096)) {
+            val envelope = DirectMessageEnvelope(mlsGroupId = ByteArray(size), message = message)
+
+            assertNull(DirectMessageEnvelope.parse(ciphertext = envelope.serialize()))
+        }
     }
 
     @Test

@@ -31,19 +31,33 @@ class DirectChannelEntity(
     val mlsGroupId: ByteArray?,
 
     /**
-     * The group [mlsGroupId] replaced, kept until another replaces it in turn: the one this
-     * device held when it adopted a group the peer is in, or the one whose Welcome went
-     * unanswered when it built a new one.
+     * The group [mlsGroupId] replaced, kept until another replaces it in turn, and then one
+     * step more as [olderMlsGroupId]: the one this device held when it adopted a group the
+     * peer is in, or the one whose Welcome went unanswered when it built a new one.
      *
      * The peer may still send in it, for three reasons. What they sent before it was
      * replaced is still on its way. When both sides rebuild at the same moment, each adopts
      * the other's group, so each receives in the one it built itself. And a peer who joined
-     * a group but whose `ChannelJoined` was lost looks exactly like one who could not join
-     * it.
+     * a group but whose `ChannelJoined` was lost or withheld looks exactly like one who could
+     * not join it.
      * Deleting it would make those messages unreadable, and an unreadable message is
      * acknowledged and gone for good, which for an expense key means the only copy of it.
      */
     val previousMlsGroupId: ByteArray?,
+
+    /**
+     * The group [previousMlsGroupId] replaced in turn, the last of the three this device
+     * keeps for the peer: the next other group recorded pushes it out and deletes it, unless
+     * the peer is read in it first, which adopts it again, see
+     * `DirectChannelRepository.noteReadIn`.
+     *
+     * Kept for the same reasons, one step further. After both sides rebuilt at the same
+     * moment, the group the peer sends in is this device's previous one, and a single
+     * adoption more, a late Welcome or the group a contact request created, would push it
+     * out while they still send there. Bounded all the same: a peer can make this device
+     * join a group with every message they send, and nothing but a log-out would delete them.
+     */
+    val olderMlsGroupId: ByteArray?,
 
     /**
      * The Welcome that lets the peer join [mlsGroupId], until they demonstrably have.
@@ -67,4 +81,11 @@ class DirectChannelEntity(
      * `DirectChannelRepository.ensureChannel`.
      */
     val welcomeAttachCount: Int = 0,
+
+    /**
+     * When this device last told the peer it joined a group of theirs, so that it does at
+     * most once an hour, see `DirectChannelRepository.claimChannelJoined`. Null until it
+     * first does.
+     */
+    val channelJoinedSentAt: Long?,
 )

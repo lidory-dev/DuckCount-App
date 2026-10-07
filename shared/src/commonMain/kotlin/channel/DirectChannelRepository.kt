@@ -9,6 +9,7 @@ import mls.KeyPackageApi
 import mls.MlsIdentityRepository
 import mls.createGroupWith
 import mls.deleteGroupQuietly
+import mls.holdsGroup
 import mls.isRetryable
 import mls.pinnedSignatureKeyFor
 import mls.withPeerLock
@@ -56,7 +57,9 @@ class DirectChannelRepository(
      * from a new key package: the Welcome may have been sealed to one whose secret the
      * peer's own log-out wiped, and resending it could then never work. Its group is kept
      * as the previous one, see [DirectChannelEntity.previousMlsGroupId]: the peer may have
-     * joined it all the same, and only their [ChannelJoined] has been lost.
+     * joined it all the same, and only their [ChannelJoined] has been lost or withheld. The
+     * groups held
+     * before move down the same window as with [adopt].
      */
     suspend fun ensureChannel(peerUuid: String): Result<DirectChannel, DirectChannelError> {
         val ownUserUuid = getAuthenticatedUserUuid()
@@ -100,18 +103,7 @@ class DirectChannelRepository(
 
             if (pinned == null) return@withPeerLock Result.Error(DirectChannelError.NotPinned)
 
-            val built = build(client = client, peerUuid = peerUuid, previousMlsGroupId = storedGroupId)
-
-            // The group kept before the spent one goes once the new one exists, or a peer who
-            // never speaks would leave one more behind every time a Welcome runs out. A peer
-            // who read anything in the spent group has moved on to it. One who read nothing
-            // in it all the while it was carried, and then speaks in the older group, loses
-            // that message, and a key in it is asked for again.
-            if (built is Result.Success) {
-                stored?.previousMlsGroupId?.let { client.deleteGroupQuietly(mlsGroupId = it) }
-            }
-
-            built
+            build(client = client, peerUuid = peerUuid, stored = stored)
         }
     }
 
@@ -145,19 +137,56 @@ class DirectChannelRepository(
      * so what the peer sends there still opens, see [DirectChannelEntity.previousMlsGroupId].
      * Read in any other, the peer is in a group this device holds but does not record as
      * the channel, the one its own contact request created when the answer arrives in it
-     * for instance, and that group becomes the channel, see [adopt].
+     * for instance, or the oldest it keeps, about to be pushed out, and that group becomes
+     * the channel, see [adopt].
      */
-    suspend fun noteReadIn(peerUuid: String, mlsGroupId: ByteArray) {
-        val channel = directChannelDao.get(peerUuid = peerUuid)
+    suspend fun noteReadIn(client: MlsClient, peerUuid: String, mlsGroupId: ByteArray) =
+        withPeerLock(peerUuid = peerUuid) {
+            val channel = directChannelDao.get(peerUuid = peerUuid)
 
-        when {
-            channel?.mlsGroupId.contentEquals(mlsGroupId) -> directChannelDao.markJoined(peerUuid = peerUuid)
+            when {
+                channel?.mlsGroupId.contentEquals(mlsGroupId) -> directChannelDao.markJoined(peerUuid = peerUuid)
 
-            channel?.previousMlsGroupId.contentEquals(mlsGroupId) -> Unit
+                channel?.previousMlsGroupId.contentEquals(mlsGroupId) -> Unit
 
-            else -> adopt(peerUuid = peerUuid, mlsGroupId = mlsGroupId)
+                // Unless it went meanwhile: the message was read before this took the lock, and
+                // a group recorded since may have pushed this one out and deleted it. Adopted,
+                // a group that is gone would be the channel for good.
+                client.holdsGroup(mlsGroupId = mlsGroupId) ->
+                    adoptLocked(client = client, peerUuid = peerUuid, mlsGroupId = mlsGroupId)
+
+                else -> Unit
+            }
         }
-    }
+
+    /**
+     * Whether this device may tell [peerUuid] now that it joined a group of theirs, which it
+     * then records it does: at most once an hour.
+     *
+     * A peer can make this device join a group with every message they send, and each answer
+     * would spend the user's own allowance of messages, the one their key shares and
+     * requests need. An honest peer who goes without keeps attaching their Welcome until
+     * anything else from this device is read, or it runs out, see [ChannelJoined]. Recorded
+     * with the channel rather than in memory, which the process a push wakes would lose.
+     */
+    suspend fun claimChannelJoined(peerUuid: String): Boolean =
+        withPeerLock(peerUuid = peerUuid) {
+            val channel = directChannelDao.get(peerUuid = peerUuid) ?: return@withPeerLock false
+
+            val now = nowEpochMilliseconds()
+
+            // A last one stamped after now, the clock having been set back since, counts as due:
+            // read as recent, it would hold every answer back until the clock caught up.
+            val sinceLast = channel.channelJoinedSentAt?.let { now - it }
+
+            if (sinceLast != null && sinceLast in 0 until CHANNEL_JOINED_INTERVAL_MILLISECONDS) {
+                return@withPeerLock false
+            }
+
+            directChannelDao.markChannelJoinedSent(peerUuid = peerUuid, sentAt = now)
+
+            true
+        }
 
     /**
      * Records [mlsGroupId], a group [peerUuid] is demonstrably in, as the channel to them:
@@ -169,38 +198,79 @@ class DirectChannelRepository(
      * message going somewhere they cannot follow, and them asking again for each one forever.
      *
      * The group it replaces is kept as the previous one rather than deleted, see
-     * [DirectChannelEntity.previousMlsGroupId]. The one kept before it is let go of without
-     * being deleted either: nothing here can tell whether the peer still sends in it. After
-     * both sides rebuilt at once it is the group they send in, and a Welcome can be older
-     * than what they hold by the time it is read. What still arrives in it opens, and is
-     * adopted again, see [noteReadIn].
+     * [DirectChannelEntity.previousMlsGroupId], and the one kept before it as the older one,
+     * see [DirectChannelEntity.olderMlsGroupId]: nothing here can tell whether the peer
+     * still sends in either. After both sides rebuilt at once one of them is the group they
+     * send in, and a Welcome can be older than what they hold by the time it is read. What
+     * still arrives in them opens, and the older one is adopted again, see [noteReadIn].
+     *
+     * The one kept before those goes. Three is all a peer gets to make this device hold:
+     * every message they send can carry a Welcome to a new group, and joining each one would
+     * otherwise leave it stored until a log-out.
      */
-    suspend fun adopt(peerUuid: String, mlsGroupId: ByteArray) {
+    suspend fun adopt(client: MlsClient, peerUuid: String, mlsGroupId: ByteArray) =
+        withPeerLock(peerUuid = peerUuid) {
+            adoptLocked(client = client, peerUuid = peerUuid, mlsGroupId = mlsGroupId)
+        }
+
+    private suspend fun adoptLocked(client: MlsClient, peerUuid: String, mlsGroupId: ByteArray) {
         val stored = directChannelDao.get(peerUuid = peerUuid)
 
         if (stored?.mlsGroupId.contentEquals(mlsGroupId)) return
+
+        // They are in it, so nothing has to carry a Welcome, and one held for the group this
+        // replaces would not open this one.
+        record(
+            client = client,
+            peerUuid = peerUuid,
+            stored = stored,
+            mlsGroupId = mlsGroupId,
+            pendingWelcome = null,
+        )
+    }
+
+    /**
+     * Records [mlsGroupId] as the channel to [peerUuid], the groups [stored] held moving down
+     * behind it, newest first, and deletes the one that falls out of the three kept.
+     *
+     * Only ever under [withPeerLock]: the row is read before and written after, and two
+     * writers at once would each drop the other's group from it, leaving one nothing names.
+     */
+    private suspend fun record(
+        client: MlsClient,
+        peerUuid: String,
+        stored: DirectChannelEntity?,
+        mlsGroupId: ByteArray,
+        pendingWelcome: ByteArray?,
+    ) {
+        val held = listOfNotNull(stored?.mlsGroupId, stored?.previousMlsGroupId, stored?.olderMlsGroupId)
+            .filterNot { it.contentEquals(mlsGroupId) }
 
         directChannelDao.upsert(
             DirectChannelEntity(
                 peerUuid = peerUuid,
                 mlsGroupId = mlsGroupId,
-                previousMlsGroupId = stored?.mlsGroupId,
-                // They are in it, so nothing has to carry a Welcome, and one held for the
-                // group this replaces would not open this one.
-                pendingWelcome = null,
-                pendingWelcomeSince = null,
+                previousMlsGroupId = held.getOrNull(0),
+                olderMlsGroupId = held.getOrNull(1),
+                pendingWelcome = pendingWelcome,
+                pendingWelcomeSince = pendingWelcome?.let { nowEpochMilliseconds() },
+                channelJoinedSentAt = stored?.channelJoinedSentAt,
             ),
         )
+
+        // Once the row no longer names it: a deletion that fails leaves a group nothing
+        // names, never a name for a group that is gone.
+        held.drop(2).forEach { client.deleteGroupQuietly(mlsGroupId = it) }
     }
 
     /**
-     * Builds a group with [peerUuid] and records it as the channel to them, keeping
-     * [previousMlsGroupId] as the one it replaces.
+     * Builds a group with [peerUuid] and records it as the channel to them, the groups
+     * [stored] held moving down behind it, see [record].
      */
     private suspend fun build(
         client: MlsClient,
         peerUuid: String,
-        previousMlsGroupId: ByteArray?,
+        stored: DirectChannelEntity?,
     ): Result<DirectChannel, DirectChannelError> {
         val encoded = when (val consumed = keyPackageApi.consumeKeyPackage(userUuid = peerUuid)) {
             is Result.Success -> consumed.data.keyPackage
@@ -242,14 +312,12 @@ class DirectChannelRepository(
             return Result.Error(DirectChannelError.Unreachable)
         }
 
-        directChannelDao.upsert(
-            DirectChannelEntity(
-                peerUuid = peerUuid,
-                mlsGroupId = creation.mlsGroupId,
-                previousMlsGroupId = previousMlsGroupId,
-                pendingWelcome = welcome,
-                pendingWelcomeSince = nowEpochMilliseconds(),
-            ),
+        record(
+            client = client,
+            peerUuid = peerUuid,
+            stored = stored,
+            mlsGroupId = creation.mlsGroupId,
+            pendingWelcome = welcome,
         )
 
         return Result.Success(DirectChannel(mlsGroupId = creation.mlsGroupId, welcome = welcome))
@@ -286,3 +354,6 @@ private const val MAX_WELCOME_ATTACHMENTS = 20
 
 /** How long a Welcome may go unanswered before the channel gets a new group. */
 private const val WELCOME_LIFETIME_MILLISECONDS = 7L * 24 * 60 * 60 * 1000
+
+/** How long after telling a peer it joined a group of theirs this device waits to tell them again. */
+private const val CHANNEL_JOINED_INTERVAL_MILLISECONDS = 60L * 60 * 1000

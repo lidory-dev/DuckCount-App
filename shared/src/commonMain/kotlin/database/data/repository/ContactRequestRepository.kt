@@ -736,6 +736,7 @@ class ContactRequestRepository(
             // The group the request created is the channel to them from here on, and this is
             // the only moment its id is known outside the request row about to be deleted.
             directChannelRepository.adopt(
+                client = client,
                 peerUuid = request.senderUserUuid,
                 mlsGroupId = request.mlsGroupId,
             )
