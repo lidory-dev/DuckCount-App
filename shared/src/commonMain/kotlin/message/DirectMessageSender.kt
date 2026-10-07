@@ -67,6 +67,10 @@ class DirectMessageSender(
      * What an answer uses: replying in the group the question was authenticated in needs no
      * key package, works whatever this device thinks the channel to them is, and cannot be
      * pointed anywhere by the asker, since the group is the one this device read them in.
+     *
+     * The asker decides how often this is called, so every caller claims the reply from the
+     * asker's budget first, see [channel.DirectChannelRepository.claimReply]: one that did not
+     * would let them spend the user's allowance of messages one for one.
      */
     suspend fun replyIn(
         recipientUserUuid: String,

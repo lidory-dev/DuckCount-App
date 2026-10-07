@@ -2,6 +2,7 @@ package message
 
 import channel.ChannelJoined
 import channel.DirectChannelRepository
+import channel.Reply
 import database.data.local.dao.IdentityConflictDao
 import database.data.remote.AcknowledgeDirectMessagesBody
 import database.data.remote.DirectMessageApi
@@ -109,36 +110,45 @@ class DirectMessageSync internal constructor(
         // The newest group joined from each sender's Welcomes in this pass, see [join].
         val joinedGroups = LinkedHashMap<String, ByteArray>()
 
-        messages.forEach { message ->
-            if (message.senderUserUuid in deferredSenders) return@forEach
+        try {
+            messages.forEach { message ->
+                if (message.senderUserUuid in deferredSenders) return@forEach
 
-            // A pass stops between messages, never inside one. Reading a message spends its
-            // key, so one cancelled after its read and before what it said was stored could
-            // never be read again, and the next pass would acknowledge it as unreadable.
-            currentCoroutineContext().ensureActive()
+                // A pass stops between messages, never inside one. Reading a message spends its
+                // key, so one cancelled after its read and before what it said was stored could
+                // never be read again, and the next pass would acknowledge it as unreadable.
+                currentCoroutineContext().ensureActive()
 
-            val delivery = withContext(NonCancellable) {
-                deliver(client = client, message = message, joinedGroups = joinedGroups)
-            }
-
-            when (delivery) {
-                Delivery.Settled -> settled += message.uuid
-
-                is Delivery.Retry -> {
-                    deferredSenders += message.senderUserUuid
-                    failure = failure ?: delivery.error
+                val delivery = withContext(NonCancellable) {
+                    deliver(client = client, message = message, joinedGroups = joinedGroups)
                 }
+
+                when (delivery) {
+                    Delivery.Settled -> settled += message.uuid
+
+                    is Delivery.Retry -> {
+                        deferredSenders += message.senderUserUuid
+                        failure = failure ?: delivery.error
+                    }
+                }
+            }
+        } finally {
+            // Whether or not the pass got to its end, for the same reason: what the handlers
+            // kept for it came from messages already spent. Before the answers below, which
+            // draw on the same budgets of replies and come second to these.
+            withContext(NonCancellable) {
+                handlers.forEach { it.finishPass() }
             }
         }
 
-        // One answer per peer, in the group they hold now, and none to a peer told within the
-        // hour, see [DirectChannelRepository.claimChannelJoined]. Its result is ignored, see
-        // [ChannelJoined].
+        // One answer per peer, in the group they hold now, and none while anything else this
+        // device sent them because of what they sent is still on their budget, see
+        // [DirectChannelRepository.claimReply]. Its result is ignored, see [ChannelJoined].
         // Not cancellable, as the deliveries were: the Welcome is never joined again, so an
         // answer dropped here would not come back with the next pass.
         withContext(NonCancellable) {
             joinedGroups.forEach { (peerUuid, mlsGroupId) ->
-                if (directChannelRepository.claimChannelJoined(peerUuid = peerUuid)) {
+                if (directChannelRepository.claimReply(peerUuid = peerUuid, reply = Reply.CHANNEL_JOINED)) {
                     directMessageSender.replyIn(
                         recipientUserUuid = peerUuid,
                         mlsGroupId = mlsGroupId,
@@ -263,9 +273,10 @@ class DirectMessageSync internal constructor(
 
     /**
      * Joins the group [welcome] was sealed for, records it as the channel to the message's
-     * sender, and notes it in [joinedGroups] for the pass to tell them, at most once an hour,
-     * that this device is in, see [ChannelJoined]. Returns the group's id, or null when the sender is nobody this device
-     * knows, and throws [MlsException] when the join fails.
+     * sender, and notes it in [joinedGroups] for the pass to tell them, when their budget of
+     * replies allows, that this device is in, see [ChannelJoined]. Returns the group's id, or
+     * null when the sender is nobody this device knows, and throws [MlsException] when the
+     * join fails.
      *
      * The Welcome is acted on only for somebody this device already knows: joining stores a
      * group and pins the sender's MLS identity, which is not something to do because an

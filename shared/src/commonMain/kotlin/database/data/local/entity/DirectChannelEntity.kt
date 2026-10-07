@@ -83,9 +83,13 @@ class DirectChannelEntity(
     val welcomeAttachCount: Int = 0,
 
     /**
-     * When this device last told the peer it joined a group of theirs, so that it does at
-     * most once an hour, see `DirectChannelRepository.claimChannelJoined`. Null until it
-     * first does.
+     * When the peer's budget of replies is whole again, see `DirectChannelRepository.claimReply`:
+     * the messages this device sends them because of one they sent, which spend the user's
+     * own allowance. Null until the first reply.
+     *
+     * Carried over whenever the row is written whole, and left alone when the peer is removed
+     * as a contact, see `DirectChannelDao.clear`: either would otherwise hand them a fresh
+     * budget, the first for the price of a Welcome, which they can attach to any message.
      */
-    val channelJoinedSentAt: Long?,
+    val replyBudgetFullAt: Long?,
 )

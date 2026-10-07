@@ -25,6 +25,7 @@ val messageModule = module {
                 keyRepository = get(),
                 owedExpenseKeyDao = get(),
                 directMessageSender = get(),
+                directChannelRepository = get(),
                 mlsIdentityRepository = get(),
             ),
         )

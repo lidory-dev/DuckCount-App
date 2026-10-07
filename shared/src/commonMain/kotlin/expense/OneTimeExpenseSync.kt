@@ -420,7 +420,17 @@ internal fun String.isCanonicalUuid(): Boolean = Uuid.parseHexDashOrNull(this)?.
 /** How many creditors are asked in one sync, so a re-login does not ask everyone at once. */
 private const val MAX_CREDITORS_PER_SYNC = 3
 
-/** How long to wait between asking the same creditor again, doubling, up to a day. */
+/**
+ * How long to wait before asking a creditor for the same key again, doubling, up to a day.
+ *
+ * The creditor answers an asker once a pass at most, out of a budget of two answers at once
+ * and one more an hour after that, see [DirectChannelRepository.claimReply]. So, each try
+ * read as it arrives and nothing else asked of the creditor in between, an answer lost on
+ * the way when nothing else was outstanding is answered again at the try ten minutes after
+ * the first, and a second lost straight after it at the one seventy minutes after: the one
+ * at thirty finds the asker's budget spent. Whatever came before, a try an hour after the
+ * creditor's last reply is answered.
+ */
 private fun backoffFor(requestCount: Int): Long {
     val doublings = minOf(requestCount, MAX_BACKOFF_DOUBLINGS)
 

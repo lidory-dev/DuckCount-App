@@ -29,9 +29,9 @@ interface DirectChannelDao {
     )
     suspend fun markJoined(peerUuid: String)
 
-    /** Records that this device told the peer, at [sentAt], that it joined a group of theirs. */
-    @Query("UPDATE DirectChannelEntity SET channelJoinedSentAt = :sentAt WHERE peerUuid = :peerUuid")
-    suspend fun markChannelJoinedSent(peerUuid: String, sentAt: Long)
+    /** Records that the peer's budget of replies is whole again at [fullAt]. */
+    @Query("UPDATE DirectChannelEntity SET replyBudgetFullAt = :fullAt WHERE peerUuid = :peerUuid")
+    suspend fun setReplyBudgetFullAt(peerUuid: String, fullAt: Long)
 
     /** Records that one more message carried the pending Welcome. */
     @Query("UPDATE DirectChannelEntity SET welcomeAttachCount = welcomeAttachCount + 1 WHERE peerUuid = :peerUuid")
@@ -43,6 +43,8 @@ interface DirectChannelDao {
      * The row stays because the peer may still need reaching: a removed contact can still
      * hold the key to an expense the two of them share, and the next send simply builds a
      * new group. Deleting the MLS state the ids name is the caller's business.
+     *
+     * The budget of replies stays too: a peer removed and added back is the same peer.
      */
     @Query(
         """UPDATE DirectChannelEntity

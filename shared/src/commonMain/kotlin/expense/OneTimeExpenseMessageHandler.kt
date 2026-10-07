@@ -1,6 +1,8 @@
 package expense
 
 import authenticationUtils.getAuthenticatedUserUuid
+import channel.DirectChannelRepository
+import channel.Reply
 import database.data.local.dao.OwedExpenseKeyDao
 import message.DirectMessageHandler
 import message.DirectMessageHandling
@@ -36,8 +38,12 @@ internal class OneTimeExpenseMessageHandler(
     private val keyRepository: OneTimeExpenseKeyRepository,
     private val owedExpenseKeyDao: OwedExpenseKeyDao,
     private val directMessageSender: DirectMessageSender,
+    private val directChannelRepository: DirectChannelRepository,
     private val mlsIdentityRepository: MlsIdentityRepository,
 ) : DirectMessageHandler {
+
+    /** The requests the pass under way has read, answered once it is over, see [finishPass]. */
+    private val requests = KeyRequestsInPass()
 
     override suspend fun handle(
         senderUserUuid: String,
@@ -51,16 +57,36 @@ internal class OneTimeExpenseMessageHandler(
         }
 
         ExpenseKeyRequest.parse(plaintext = payload)?.let { request ->
-            answer(
+            requests.add(
                 requesterUuid = senderUserUuid,
                 mlsGroupId = mlsGroupId,
-                request = request,
+                expenseUuids = request.expenseUuids,
             )
 
             return DirectMessageHandling.HANDLED
         }
 
         return DirectMessageHandling.NOT_MINE
+    }
+
+    /** Answers each asker of the pass once, see [KeyRequestsInPass]. */
+    override suspend fun finishPass() {
+        // Before the requests are taken: on a device locked since the pass began this throws,
+        // and they are kept for the next one, which the messages left unacknowledged bring.
+        val ownUserUuid = getAuthenticatedUserUuid()
+
+        val asked = requests.drain()
+
+        if (ownUserUuid == null) return
+
+        asked.forEach {
+            answer(
+                ownUserUuid = ownUserUuid,
+                requesterUuid = it.requesterUuid,
+                mlsGroupId = it.mlsGroupId,
+                expenseUuids = it.expenseUuids,
+            )
+        }
     }
 
     /**
@@ -112,7 +138,8 @@ internal class OneTimeExpenseMessageHandler(
     }
 
     /**
-     * Hands back the keys [requesterUuid] is entitled to, of those they asked for.
+     * Hands back the keys [requesterUuid] is entitled to, of [expenseUuids], which they asked
+     * for in the group [mlsGroupId].
      *
      * The answer goes back in the group the question was authenticated in, not through
      * whatever this device currently records as the channel to them: that needs no key
@@ -122,23 +149,36 @@ internal class OneTimeExpenseMessageHandler(
      * An entitlement that does not hold is silently nothing. Telling an asker that an
      * expense exists but is not theirs is telling them something.
      *
+     * Nor is an asker answered every time they ask: each answer is one of the user's own
+     * allowance of messages, and anybody named on one of the user's expenses could otherwise
+     * spend it a request at a time. They get one answer a pass at most, see
+     * [KeyRequestsInPass], out of a budget of two at once and one more an hour after that,
+     * see [DirectChannelRepository.claimReply], and a request past it is dropped the way one
+     * owed nothing is. An honest asker asks again on their own backoff, see
+     * [OneTimeExpenseSync.requestMissingKeys]: an answer lost on the way is answered again at
+     * their next try if it is still the only reply outstanding to them, and whatever came
+     * before, at their first try an hour after the last reply this device sent them at the
+     * latest.
+     *
      * A key the answer hands over is no longer owed to the asker, see
      * [database.data.local.entity.OwedExpenseKeyEntity], or the next sync would hand it
      * over again.
      */
     private suspend fun answer(
+        ownUserUuid: String,
         requesterUuid: String,
         mlsGroupId: ByteArray,
-        request: ExpenseKeyRequest,
+        expenseUuids: List<String>,
     ) {
-        val ownUserUuid = getAuthenticatedUserUuid() ?: return
-
-        val answers = request.expenseUuids.mapNotNull { expenseUuid ->
+        val answers = expenseUuids.mapNotNull { expenseUuid ->
             keyRepository.record(expenseUuid = expenseUuid)
                 ?.keyFor(requesterUuid = requesterUuid, ownUserUuid = ownUserUuid)
         }
 
+        // Before the budget is asked: an asker owed nothing spends none of it.
         if (answers.isEmpty()) return
+
+        if (!directChannelRepository.claimReply(peerUuid = requesterUuid, reply = Reply.EXPENSE_KEYS)) return
 
         val replied = directMessageSender.replyIn(
             recipientUserUuid = requesterUuid,
@@ -156,6 +196,55 @@ internal class OneTimeExpenseMessageHandler(
         }
     }
 }
+
+/**
+ * The key requests one pass of the sync has read, as one answer per asker.
+ *
+ * A pass reads every message waiting, and an asker's tries pile up while this device is
+ * away or locked: copies of one request, or, from an asker who logged out and back in, some
+ * in a group they no longer hold and then one in the group they built since. Answered one by
+ * one, the copies would each spend a reply of the asker's budget, the ones in the lost group
+ * first, and the request they can read the answer to would find it spent. Kept until the
+ * pass is over instead, each asker gets one answer, in the group of their latest request,
+ * which is the group they are in now.
+ *
+ * It carries everything they asked for, latest first, as much as one answer holds, see
+ * [ExpenseKeyShare.MAX_KEYS]: an earlier request can name an expense a later one does not,
+ * when the asker's rows for it wait out a longer backoff than the rest.
+ *
+ * Only the sync touches it, one pass at a time, see [message.DirectMessageSync].
+ */
+internal class KeyRequestsInPass {
+
+    private val byRequester = LinkedHashMap<String, AskedKeys>()
+
+    /** Notes that [requesterUuid] asked for [expenseUuids] in the group [mlsGroupId], after anything they asked before. */
+    fun add(requesterUuid: String, mlsGroupId: ByteArray, expenseUuids: List<String>) {
+        val earlier = byRequester[requesterUuid]?.expenseUuids.orEmpty()
+
+        byRequester[requesterUuid] = AskedKeys(
+            requesterUuid = requesterUuid,
+            mlsGroupId = mlsGroupId,
+            expenseUuids = (expenseUuids + earlier).distinct().take(ExpenseKeyShare.MAX_KEYS),
+        )
+    }
+
+    /** What each asker of the pass asked for, leaving nothing for the next one. */
+    fun drain(): List<AskedKeys> {
+        val asked = byRequester.values.toList()
+
+        byRequester.clear()
+
+        return asked
+    }
+}
+
+/** Everything [requesterUuid] asked for in one pass, and the group of their latest request. */
+internal class AskedKeys(
+    val requesterUuid: String,
+    val mlsGroupId: ByteArray,
+    val expenseUuids: List<String>,
+)
 
 /**
  * The key to hand [requesterUuid], or null when they are owed nothing.

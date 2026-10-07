@@ -11,9 +11,10 @@ package channel
  *
  * Nothing handles it: being read in the group is all it is for, see
  * [DirectChannelRepository.noteReadIn]. Sent once per sync pass for the newest group joined
- * from a peer, and at most once an hour to the same peer, see
- * [DirectChannelRepository.claimChannelJoined]. Lost or withheld, the Welcome stays attached
- * until this device sends anything else, or runs out as it would without it.
+ * from a peer, and only while nothing else this device sent them because of what they sent
+ * is still on their budget of replies, which keeps it to once an hour at most, see
+ * [DirectChannelRepository.claimReply]. Lost or withheld, the Welcome stays attached until
+ * this device sends anything else, or runs out as it would without it.
  */
 internal object ChannelJoined {
 

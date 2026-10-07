@@ -160,30 +160,34 @@ class DirectChannelRepository(
         }
 
     /**
-     * Whether this device may tell [peerUuid] now that it joined a group of theirs, which it
-     * then records it does: at most once an hour.
+     * Whether this device may send [peerUuid] [reply] now, which it then records it does.
      *
-     * A peer can make this device join a group with every message they send, and each answer
-     * would spend the user's own allowance of messages, the one their key shares and
-     * requests need. An honest peer who goes without keeps attaching their Welcome until
-     * anything else from this device is read, or it runs out, see [ChannelJoined]. Recorded
-     * with the channel rather than in memory, which the process a push wakes would lose.
+     * A reply is a message this device sends a peer because of one they sent it, and they send
+     * as many as their own allowance of messages buys, which is as large as the user's: any
+     * of them can be a key request, and any can carry a Welcome. Each reply spends the user's
+     * own allowance, the one their key shares and requests need, so a peer answered every
+     * time could spend it one for one.
+     * Every peer gets one budget for all of them instead, see [spendReply]: whatever they
+     * send, and however many of the user's expenses name them, at most 25 a day.
+     *
+     * Claimed before the reply is sent, and kept when the send fails. The server counts a
+     * message to an account that is gone, and still hands over what that account sent before
+     * it went: given back on a failure, the budget would let a peer queue requests, delete
+     * their account, and have every answer counted against the user.
+     *
+     * Recorded with the channel rather than in memory, which the process a push wakes would lose.
      */
-    suspend fun claimChannelJoined(peerUuid: String): Boolean =
+    internal suspend fun claimReply(peerUuid: String, reply: Reply): Boolean =
         withPeerLock(peerUuid = peerUuid) {
             val channel = directChannelDao.get(peerUuid = peerUuid) ?: return@withPeerLock false
 
-            val now = nowEpochMilliseconds()
+            val fullAt = spendReply(
+                budgetFullAt = channel.replyBudgetFullAt,
+                now = nowEpochMilliseconds(),
+                reply = reply,
+            ) ?: return@withPeerLock false
 
-            // A last one stamped after now, the clock having been set back since, counts as due:
-            // read as recent, it would hold every answer back until the clock caught up.
-            val sinceLast = channel.channelJoinedSentAt?.let { now - it }
-
-            if (sinceLast != null && sinceLast in 0 until CHANNEL_JOINED_INTERVAL_MILLISECONDS) {
-                return@withPeerLock false
-            }
-
-            directChannelDao.markChannelJoinedSent(peerUuid = peerUuid, sentAt = now)
+            directChannelDao.setReplyBudgetFullAt(peerUuid = peerUuid, fullAt = fullAt)
 
             true
         }
@@ -254,7 +258,7 @@ class DirectChannelRepository(
                 olderMlsGroupId = held.getOrNull(1),
                 pendingWelcome = pendingWelcome,
                 pendingWelcomeSince = pendingWelcome?.let { nowEpochMilliseconds() },
-                channelJoinedSentAt = stored?.channelJoinedSentAt,
+                replyBudgetFullAt = stored?.replyBudgetFullAt,
             ),
         )
 
@@ -355,5 +359,52 @@ private const val MAX_WELCOME_ATTACHMENTS = 20
 /** How long a Welcome may go unanswered before the channel gets a new group. */
 private const val WELCOME_LIFETIME_MILLISECONDS = 7L * 24 * 60 * 60 * 1000
 
-/** How long after telling a peer it joined a group of theirs this device waits to tell them again. */
-private const val CHANNEL_JOINED_INTERVAL_MILLISECONDS = 60L * 60 * 1000
+/** What a peer can make this device send them by sending it something, see [DirectChannelRepository.claimReply]. */
+internal enum class Reply {
+    /** The keys to expenses of the user's own, to somebody they name who asked for them. */
+    EXPENSE_KEYS,
+
+    /**
+     * Word that this device joined a group of theirs, see [ChannelJoined]. Withheld, the peer
+     * goes on attaching their Welcome until anything else from this device is read, and at
+     * worst builds a new group from another of the user's key packages: none of which spends
+     * the user's allowance, so it never takes the last of the budget from an answer.
+     */
+    CHANNEL_JOINED,
+}
+
+/**
+ * Spends one of a peer's replies, returning when their budget will be whole again, or null
+ * when [reply] cannot go out now.
+ *
+ * The budget is two replies at once and one more an hour after that, kept as the one moment
+ * it will be whole again, [budgetFullAt]: each reply pushes that moment an hour further out,
+ * from now or from wherever it already stood. Keys go out while at most one reply is
+ * outstanding: an answer lost on the way is answered again at the asker's next try if it is
+ * still the only one, see `OneTimeExpenseSync.requestMissingKeys`, and whatever came before,
+ * an hour after the last reply at the latest. A [Reply.CHANNEL_JOINED] goes out only while
+ * none is. That drops the one an answer made needless after a log-out: the
+ * asker rebuilt the channel to ask, so the answer goes in the group just joined, and being
+ * read there is all a [ChannelJoined] is for.
+ */
+internal fun spendReply(budgetFullAt: Long?, now: Long, reply: Reply): Long? {
+    // A moment already past is a budget already whole. So is one further out than replies can
+    // push it, the clock having been set back since: read as it stands, it would hold every
+    // reply back until the clock caught up.
+    val from = budgetFullAt?.takeIf { it in now..now + REPLY_BURST * REPLY_INTERVAL_MILLISECONDS } ?: now
+
+    val allowedOutstanding = when (reply) {
+        Reply.EXPENSE_KEYS -> REPLY_BURST - 1
+        Reply.CHANNEL_JOINED -> 0
+    }
+
+    if (from - now > allowedOutstanding * REPLY_INTERVAL_MILLISECONDS) return null
+
+    return from + REPLY_INTERVAL_MILLISECONDS
+}
+
+/** How many replies a peer's budget holds at once. */
+private const val REPLY_BURST = 2
+
+/** How long one reply takes to come back to a peer's budget. */
+private const val REPLY_INTERVAL_MILLISECONDS = 60L * 60 * 1000
