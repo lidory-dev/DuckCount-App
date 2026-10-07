@@ -18,6 +18,7 @@ import database.data.mappers.toContactRequest
 import database.data.mappers.toContactRequestEntity
 import database.data.remote.AcceptContactRequestBody
 import database.data.remote.ContactApi
+import database.data.remote.ContactRequestStatusDto
 import database.data.remote.SendContactRequestBody
 import database.domain.ContactRequest
 import kotlinx.coroutines.Dispatchers
@@ -59,9 +60,9 @@ import kotlin.io.encoding.Base64
  * What the table adds is what opening a request yields: the group it created, and the key
  * to its sender's profile. Opening one joins that group, and a group is only ever joined
  * once, so that can only ever happen once. It also records that the user's acceptance went
- * out, see [ContactRequestEntity.isAcceptanceSent], which the server keeps no trace of: a
- * request so marked that vanishes is completed, its sender pinned and made a contact,
- * rather than dropped.
+ * out, see [ContactRequestEntity.isAcceptanceSent]: a request so marked that vanishes is
+ * settled by what the server says became of it, completed when that acceptance took it,
+ * its sender pinned and made a contact, and dropped when something else did.
  */
 class ContactRequestRepository(
     private val contactRequestDao: ContactRequestDao,
@@ -111,9 +112,10 @@ class ContactRequestRepository(
      * reinstall took along. Its sender is not told, and is free to send a new one, which a
      * request left pending would prevent.
      *
-     * A request the user accepted that the server no longer lists is completed: its sender
-     * is pinned and becomes a contact, see [ContactRequestEntity.isAcceptanceSent]. It stays
-     * until that can be done.
+     * A request the user accepted that the server no longer lists is settled by what the
+     * server says became of it: completed when the acceptance took it, its sender pinned and
+     * made a contact, and dropped when something else did, see
+     * [ContactRequestEntity.isAcceptanceSent]. It stays until that can be done.
      *
      * Every step is attempted even when one fails, and the first failure is reported:
      * whatever did not get done is picked up by the next refresh.
@@ -157,8 +159,9 @@ class ContactRequestRepository(
      *
      * An answer lost on its way back does not lose the sender: the request is marked before
      * the acceptance goes out, see [ContactRequestEntity.isAcceptanceSent], and completed
-     * when it turns out gone, by the next [refresh], by accepting it again, or by reading a
-     * message from them in its group, see [completeAcceptanceIn].
+     * once the server says the acceptance took it, which the next [refresh] asks, as do
+     * accepting it again and reading a message from them in its group, see
+     * [completeAcceptanceIn].
      */
     suspend fun accept(requestUuid: String): EmptyResult<AnswerContactRequestError> =
         mutex.withLock { acceptLocked(requestUuid = requestUuid) }
@@ -167,9 +170,9 @@ class ContactRequestRepository(
      * Refuses a request, deleting it along with the group it created. Its sender is not
      * told, and may send another one.
      *
-     * A request the user accepted before without hearing back, and that has gone since, most
-     * likely went because the server took that acceptance: its sender is made a contact
-     * instead, see [AnswerContactRequestError.AlreadyAccepted].
+     * A request the user accepted before without hearing back, which the server says that
+     * acceptance took, has its sender made a contact instead, see
+     * [AnswerContactRequestError.AlreadyAccepted].
      */
     suspend fun refuse(requestUuid: String): EmptyResult<AnswerContactRequestError> =
         mutex.withLock { refuseLocked(requestUuid = requestUuid) }
@@ -334,8 +337,8 @@ class ContactRequestRepository(
      *
      * The message is only the occasion. An honest sender only sends in that group once they
      * have read the card the acceptance carried, but anybody can send in a group they created:
-     * what says the server took the acceptance is that it no longer lists the request, as for
-     * [refresh], see [ContactRequestEntity.isAcceptanceSent].
+     * only the server can say whether it took the acceptance, as for [refresh], see
+     * [ContactRequestEntity.isAcceptanceSent].
      */
     internal suspend fun completeAcceptanceIn(
         client: MlsClient,
@@ -353,18 +356,27 @@ class ContactRequestRepository(
             val accepted = contactRequestDao.getAccepted(senderUserUuid = senderUserUuid, mlsGroupId = mlsGroupId)
                 ?: return@withLock Result.Success(Unit)
 
-            when (val listed = isListed(requestUuid = accepted.uuid)) {
-                is Result.Error -> Result.Error(ContactSyncError.Network(listed.error))
+            when (val status = statusOf(requestUuid = accepted.uuid)) {
+                is Result.Error -> Result.Error(ContactSyncError.Network(status.error))
 
-                // Still listed, so not taken, whatever the message says: it is read as it
-                // stands, which acts on its sender only if pinned already.
-                is Result.Success -> when {
-                    listed.data -> Result.Success(Unit)
+                is Result.Success -> when (status.data) {
+                    ContactRequestStatusDto.ACCEPTED ->
+                        if (completeAcceptance(client = client, request = accepted) == Completion.RETRY) {
+                            Result.Error(ContactSyncError.Storage)
+                        } else {
+                            Result.Success(Unit)
+                        }
 
-                    completeAcceptance(client = client, request = accepted) == Completion.RETRY ->
-                        Result.Error(ContactSyncError.Storage)
+                    // Taken some other way: the message is then read in a group no longer held.
+                    ContactRequestStatusDto.GONE -> {
+                        forget(requestUuid = accepted.uuid)
 
-                    else -> Result.Success(Unit)
+                        Result.Success(Unit)
+                    }
+
+                    // Not taken, whatever the message says: it is read as it stands, which acts
+                    // on its sender only if pinned already.
+                    ContactRequestStatusDto.PENDING -> Result.Success(Unit)
                 }
             }
         }
@@ -380,30 +392,45 @@ class ContactRequestRepository(
 
         var failure: ContactSyncError? = null
 
-        // Most likely gone because the server took the user's acceptance, whose answer never
-        // made it back. See ContactRequestEntity.isAcceptanceSent.
-        val accepted = contactRequestDao.getOpenedOnce().filter { it.isAcceptanceSent && it.uuid !in listedUuids }
+        // Gone however it went, the user's acceptance having gone out without its answer coming
+        // back: the server says whether that acceptance was what took it. See
+        // ContactRequestEntity.isAcceptanceSent.
+        val unanswered = contactRequestDao.getOpenedOnce().filter { it.isAcceptanceSent && it.uuid !in listedUuids }
 
-        if (accepted.isNotEmpty()) {
+        if (unanswered.isNotEmpty()) {
             when (val opened = mlsIdentityRepository.client()) {
                 is Result.Error -> failure = ContactSyncError.Identity(opened.error)
 
-                is Result.Success -> for (request in accepted) {
-                    if (completeAcceptance(client = opened.data, request = request) == Completion.RETRY) {
-                        failure = failure ?: ContactSyncError.Storage
+                is Result.Success -> for (request in unanswered) {
+                    when (val status = statusOf(requestUuid = request.uuid)) {
+                        is Result.Error -> failure = failure ?: ContactSyncError.Network(status.error)
+
+                        is Result.Success -> when (status.data) {
+                            ContactRequestStatusDto.ACCEPTED ->
+                                if (completeAcceptance(client = opened.data, request = request) == Completion.RETRY) {
+                                    failure = failure ?: ContactSyncError.Storage
+                                }
+
+                            ContactRequestStatusDto.GONE -> forget(requestUuid = request.uuid)
+
+                            // Cannot follow a listing that left it out, a request never coming
+                            // back: the row is left as it is.
+                            ContactRequestStatusDto.PENDING -> Unit
+                        }
                     }
                 }
             }
         }
 
-        // One the user accepted is completed or dropped, never let go of here: one still there
-        // could not be completed yet, and the next refresh tries again.
+        // One the user accepted is settled above, never let go of here: one still there could
+        // not be settled yet, and the next refresh tries again.
         val vanished = contactRequestDao.getAll().filter { it.uuid !in listedUuids && !it.isAcceptanceSent }
 
         contactRequestDao.reconcile(vanishedUuids = vanished.map { it.uuid }, listed = listed)
 
-        // A request vanishes when its sender deletes their account, or accepts the user's
-        // own request to them, which clears this one. Either way its group is of no use.
+        // A request vanishes when the user's refusal took it without its answer coming back,
+        // its sender accepted the user's own request to them, which clears this one, or
+        // deleted their account. Either way its group is of no use.
         val abandonedGroupIds = vanished.mapNotNull { it.mlsGroupId }
         val unopened = contactRequestDao.getUnopened()
 
@@ -589,20 +616,24 @@ class ContactRequestRepository(
                 return Result.Error(AnswerContactRequestError.Network(acceptance.error))
             }
 
-            val listed = when (val listing = isListed(requestUuid = request.uuid)) {
-                is Result.Success -> listing.data
-                is Result.Error -> return Result.Error(AnswerContactRequestError.Network(listing.error))
+            val status = when (val asked = statusOf(requestUuid = request.uuid)) {
+                is Result.Success -> asked.data
+                is Result.Error -> return Result.Error(AnswerContactRequestError.Network(asked.error))
             }
 
-            // The proxy's 404, then: the request is still there for a new attempt to take.
-            if (listed) return Result.Error(AnswerContactRequestError.Network(acceptance.error))
+            when (status) {
+                // The proxy's 404, then: the request is still there for a new attempt to take.
+                ContactRequestStatusDto.PENDING ->
+                    return Result.Error(AnswerContactRequestError.Network(acceptance.error))
 
-            // Read before this attempt marked it: an earlier acceptance went out, and is most
-            // likely what consumed the request.
-            if (!request.isAcceptanceSent) {
-                forget(requestUuid = request.uuid)
+                // Taken by an earlier attempt, whose answer never came back.
+                ContactRequestStatusDto.ACCEPTED -> Unit
 
-                return Result.Error(AnswerContactRequestError.NotFound)
+                ContactRequestStatusDto.GONE -> {
+                    forget(requestUuid = request.uuid)
+
+                    return Result.Error(AnswerContactRequestError.NotFound)
+                }
             }
         }
 
@@ -625,19 +656,23 @@ class ContactRequestRepository(
                 return Result.Error(AnswerContactRequestError.Network(refusal.error))
             }
 
-            val listed = when (val listing = isListed(requestUuid = requestUuid)) {
-                is Result.Success -> listing.data
-                is Result.Error -> return Result.Error(AnswerContactRequestError.Network(listing.error))
+            val status = when (val asked = statusOf(requestUuid = requestUuid)) {
+                is Result.Success -> asked.data
+                is Result.Error -> return Result.Error(AnswerContactRequestError.Network(asked.error))
             }
 
             // The proxy's 404, then: the request is still there for a new attempt to refuse.
-            if (listed) return Result.Error(AnswerContactRequestError.Network(refusal.error))
+            if (status == ContactRequestStatusDto.PENDING) {
+                return Result.Error(AnswerContactRequestError.Network(refusal.error))
+            }
 
-            // Gone already (its sender deleted their account, or accepted the user's own
-            // request to them), which is all refusing it was for. Unless the user accepted it
-            // before: then the server most likely took that, and its sender has the user as a
-            // contact whatever this device decides now.
-            val accepted = contactRequestDao.getOpened(uuid = requestUuid)?.takeIf { it.isAcceptanceSent }
+            // Gone already, refused, cleared by its sender accepting the user's own request to
+            // them, or with their account, which is all refusing it was for. Unless an acceptance
+            // the user sent before took it: then its sender has the user as a contact whatever
+            // this device decides now. Only one the user did send: the server's word alone does
+            // not make a contact of somebody they refused.
+            val accepted = contactRequestDao.getOpened(uuid = requestUuid)
+                ?.takeIf { it.isAcceptanceSent && status == ContactRequestStatusDto.ACCEPTED }
 
             if (accepted != null) {
                 val client = when (val opened = mlsIdentityRepository.client()) {
@@ -664,13 +699,17 @@ class ContactRequestRepository(
      * identity they hold in its group, and drops the request, recording it in [completedUuids].
      *
      * Not cancellable: leaving the screen would otherwise leave the sender a contact with no
-     * channel, until a refresh completed the rest. The row goes last, so that even a process
-     * dying halfway leaves the request for the next [refresh] to complete again.
+     * channel, until a refresh completed the rest. The row goes after every other local step,
+     * so that even a process dying halfway leaves the request for the next [refresh] to
+     * complete again.
      *
      * The request is dropped instead when they can never be pinned: a different identity was
      * pinned for them since the acceptance went out, by the user's own request to them for one,
      * or the group it created can no longer be used. With two identities, one of them is not
      * theirs, and the one pinned first stands, as everywhere else.
+     *
+     * Either way, the request settled on this device, the server's record of the acceptance
+     * is acknowledged last, see [ContactApi.acknowledgeContactRequestAcceptance].
      */
     private suspend fun completeAcceptance(client: MlsClient, request: OpenedContactRequest): Completion =
         withContext(NonCancellable) {
@@ -680,6 +719,7 @@ class ContactRequestRepository(
                 if (exception.isRetryable()) return@withContext Completion.RETRY
 
                 forget(requestUuid = request.uuid)
+                acknowledgeAcceptance(requestUuid = request.uuid)
 
                 return@withContext Completion.DROPPED
             }
@@ -704,20 +744,35 @@ class ContactRequestRepository(
 
             completedUuids += request.uuid
 
+            acknowledgeAcceptance(requestUuid = request.uuid)
+
             Completion.COMPLETED
         }
 
     /**
-     * Whether the server still lists [requestUuid], which one of its routes just answered
-     * `404` about.
+     * Lets the server forget the record of the user's acceptance of [requestUuid], which was
+     * only kept for this device to ask about. Last, once nothing here would ask again: an
+     * acknowledgement that went ahead would leave a request still unsettled reading as gone.
      *
-     * That `404` is no proof on its own: the proxy in front of the API answers one for every
-     * route while the API is being redeployed. A request dropped on its word would come back
-     * with the next refresh and, its group joined already, be refused as unreadable. The
-     * listing, which [refresh] goes by, has the last word.
+     * Its failure is not reported: a record never acknowledged is pruned once past the session
+     * lifetime, by the first acceptance the server records after that.
      */
-    private suspend fun isListed(requestUuid: String): Result<Boolean, NetworkError> =
-        contactApi.getContactRequests().map { response -> response.requests.any { it.uuid == requestUuid } }
+    private suspend fun acknowledgeAcceptance(requestUuid: String) {
+        contactApi.acknowledgeContactRequestAcceptance(requestUuid = requestUuid)
+    }
+
+    /**
+     * What became of [requestUuid]: still pending, taken by the user's acceptance, or gone
+     * otherwise, see [ContactApi.getContactRequestStatus].
+     *
+     * Asked whenever a request is found gone, or one of the server's routes answers `404`
+     * about it. Neither is proof on its own: a request leaves the listing however it goes,
+     * and the proxy in front of the API answers `404` for every route while the API is being
+     * redeployed. This route never answers `404` itself, so the proxy's cannot pass for its
+     * answer.
+     */
+    private suspend fun statusOf(requestUuid: String): Result<ContactRequestStatusDto, NetworkError> =
+        contactApi.getContactRequestStatus(requestUuid = requestUuid).map { it.status }
 
     /**
      * Refuses a request that can never be opened, see [refresh]. Never accepted either, since
@@ -741,8 +796,8 @@ class ContactRequestRepository(
     /**
      * Drops a request the server no longer holds, along with its group if it was opened.
      *
-     * Not cancellable: a row left behind with an acceptance marked on it would be completed by
-     * the next refresh, which no longer finds it listed.
+     * Not cancellable: the row goes first, and a cancellation after it would leave the group
+     * behind, with nothing left saying what it was for.
      */
     private suspend fun forget(requestUuid: String) = withContext(NonCancellable) {
         val mlsGroupId = contactRequestDao.get(uuid = requestUuid)?.mlsGroupId

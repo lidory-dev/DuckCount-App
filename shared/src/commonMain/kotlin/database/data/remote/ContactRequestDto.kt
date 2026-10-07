@@ -30,6 +30,36 @@ data class ListContactRequestsResponse(
     val requests: List<ContactRequestDto>,
 )
 
+/** Body of `GET /contacts/requests/{request_uuid}/acceptance`. */
+@Serializable
+data class ContactRequestStatusResponse(
+    val status: ContactRequestStatusDto,
+)
+
+/**
+ * What became of a request addressed to the caller.
+ *
+ * A status this build does not know fails to decode, and is taken for no answer at all.
+ */
+@Serializable
+enum class ContactRequestStatusDto {
+    /** Still waiting for the caller's answer. */
+    @SerialName("pending")
+    PENDING,
+
+    /** Taken by the caller's acceptance. */
+    @SerialName("accepted")
+    ACCEPTED,
+
+    /**
+     * Gone otherwise: refused, cleared by its sender accepting the caller's own request,
+     * with their account, or accepted by the caller and its record acknowledged since or
+     * pruned, see [ContactApi.acknowledgeContactRequestAcceptance].
+     */
+    @SerialName("gone")
+    GONE,
+}
+
 /** Body of `GET /contacts/lookup/{username}`. */
 @Serializable
 data class ContactLookupResponse(

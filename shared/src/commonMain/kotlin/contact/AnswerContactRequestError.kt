@@ -9,15 +9,16 @@ import vault.VaultError
 sealed interface AnswerContactRequestError : Error {
 
     /**
-     * The request is no longer waiting for the user: its sender deleted their account, or
-     * accepted the user's own request to them, which clears this one.
+     * The request is no longer waiting for the user, and their acceptance did not take it: it
+     * was refused, cleared by its sender accepting the user's own request to them, or went
+     * with the sender's account.
      */
     data object NotFound : AnswerContactRequestError
 
     /**
      * The request could not be refused: the user had accepted it already, without hearing
-     * back, and it has gone since, most likely because the server took that acceptance. Its
-     * sender is made a contact rather than dropped, now or by the next refresh, see
+     * back, and the server says that acceptance took it. Its sender is made a contact rather
+     * than dropped, now or by the next refresh, see
      * [database.data.local.entity.ContactRequestEntity.isAcceptanceSent].
      */
     data object AlreadyAccepted : AnswerContactRequestError

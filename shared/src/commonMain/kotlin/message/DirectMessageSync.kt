@@ -163,8 +163,8 @@ class DirectMessageSync internal constructor(
             ?: return Delivery.Settled
 
         // In the group of a request the user accepted, an acceptance whose answer never came
-        // back is completed first, once the server no longer lists the request, which pins
-        // the sender: the message is then read as theirs.
+        // back is completed first, once the server says it took the request, which pins the
+        // sender: the message is then read as theirs.
         val completion = contactRequestRepository.completeAcceptanceIn(
             client = client,
             senderUserUuid = message.senderUserUuid,

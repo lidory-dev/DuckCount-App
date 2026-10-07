@@ -49,7 +49,11 @@ object DuckCountRoutes {
         /** One request addressed to the caller. `DELETE` refuses it. */
         val REQUEST = "$CONTACT_BASE_URL/requests/:request_uuid"
 
-        /** `POST` accepts a request addressed to the caller. */
+        /**
+         * `POST` accepts a request addressed to the caller, `GET` says what became of one:
+         * still pending, taken by the caller's acceptance, or gone otherwise. `DELETE` lets
+         * the server forget the record of the caller's acceptance once settled.
+         */
         val REQUEST_ACCEPTANCE = "$CONTACT_BASE_URL/requests/:request_uuid/acceptance"
 
         /**

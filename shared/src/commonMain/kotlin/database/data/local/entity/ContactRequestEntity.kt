@@ -40,14 +40,18 @@ class ContactRequestEntity(
      * Whether the user's acceptance has gone out, set just before it is sent, and cleared
      * again only when the server provably did not take it.
      *
-     * The server consumes a request as it takes the acceptance, and holds no trace of it
-     * afterwards, so an acceptance whose answer never came back, timed out or abandoned by
-     * a screen closing, leaves this device no way to ask whether it landed. A request that
-     * vanishes once this is set most likely did, and is completed rather than dropped: its
-     * sender has the user as a contact by then, and this row holds the only copy of the
-     * group and the profile key that lead back to them. Completing it pins them, so the row
-     * stays until that can be done; only a sender who can never be pinned, a different
-     * identity having been pinned for them since, has it dropped.
+     * The server consumes a request as it takes the acceptance, and the request leaves its
+     * listing however it goes: refused, cleared by its sender accepting the user's own
+     * request, or with their account. So an acceptance whose answer never came back, timed
+     * out or abandoned by a screen closing, is settled by asking the server what became of
+     * the request, which it keeps a record of acceptances for: completed when the acceptance
+     * took it, its sender having the user as a contact by then, and this row holding the
+     * only copy of the group and the profile key that lead back to them; dropped otherwise.
+     * Completing it pins them, so the row stays until the server can say, and that can be
+     * done; only a sender who can never be pinned, a different identity having been pinned
+     * for them since, has it dropped. The server keeps the record until this device
+     * acknowledges it, or for 90 days, the session lifetime: an answer this device could not
+     * get once in that time reads as gone, and the request is dropped then.
      */
     val isAcceptanceSent: Boolean = false,
 )

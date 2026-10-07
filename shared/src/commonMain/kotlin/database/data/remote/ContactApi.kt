@@ -67,6 +67,38 @@ class ContactApi(
         )
 
     /**
+     * What became of a request addressed to the caller: still pending, taken by the
+     * caller's acceptance, or gone otherwise, refused, cleared by its sender accepting the
+     * caller's own request, with their account, or accepted and its record acknowledged
+     * since or pruned, see [acknowledgeContactRequestAcceptance].
+     *
+     * For an acceptance whose answer never came back: the request leaves the listing
+     * however it goes, so only this says whether the acceptance was what took it. Always
+     * a `200`, anyone else's request reading as gone, so a `404` can only come from the
+     * proxy in front of the API.
+     */
+    suspend fun getContactRequestStatus(requestUuid: String): Result<ContactRequestStatusResponse, NetworkError> =
+        client.get<ContactRequestStatusResponse>(
+            route = DuckCountRoutes.Contact.REQUEST_ACCEPTANCE,
+            pathParams = mapOf("request_uuid" to requestUuid),
+        )
+
+    /**
+     * Lets the server forget the record of the caller's acceptance of a request, settled on
+     * this device and never asked about again, see [getContactRequestStatus].
+     *
+     * Kept, the records would tell how many contacts the caller accepted, and when. Scoped
+     * to the caller and idempotent. A record never acknowledged is pruned by the first
+     * acceptance the server records once it is past the session lifetime, and an acceptance
+     * whose record is gone reads as gone: only one never asked about again is acknowledged.
+     */
+    suspend fun acknowledgeContactRequestAcceptance(requestUuid: String): Result<Unit, NetworkError> =
+        client.delete<Unit>(
+            route = DuckCountRoutes.Contact.REQUEST_ACCEPTANCE,
+            pathParams = mapOf("request_uuid" to requestUuid),
+        )
+
+    /**
      * Refuses a request addressed to the caller, deleting it. The sender is not told, and
      * may send another one.
      *
