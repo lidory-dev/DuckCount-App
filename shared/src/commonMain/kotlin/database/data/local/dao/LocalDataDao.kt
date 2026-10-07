@@ -33,6 +33,7 @@ interface LocalDataDao {
         deleteUnverifiedExpenseKeys()
         deleteOneTimeExpenseRevisions()
         deletePendingExpenseKeys()
+        deleteKeyRequestBudgets()
         deleteOwedExpenseKeys()
         deleteMlsRecords()
     }
@@ -81,6 +82,9 @@ interface LocalDataDao {
 
     @Query("DELETE FROM PendingExpenseKeyEntity")
     suspend fun deletePendingExpenseKeys()
+
+    @Query("DELETE FROM KeyRequestBudgetEntity")
+    suspend fun deleteKeyRequestBudgets()
 
     @Query("DELETE FROM OwedExpenseKeyEntity")
     suspend fun deleteOwedExpenseKeys()

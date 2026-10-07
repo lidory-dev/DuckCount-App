@@ -19,6 +19,7 @@ import uniffi.lib_duckcount.MlsException
 import util.NetworkError
 import util.Result
 import util.nowEpochMilliseconds
+import util.spendMessageBudget
 import kotlin.io.encoding.Base64
 
 /**
@@ -375,36 +376,19 @@ internal enum class Reply {
 
 /**
  * Spends one of a peer's replies, returning when their budget will be whole again, or null
- * when [reply] cannot go out now.
+ * when [reply] cannot go out now, see [spendMessageBudget]: two replies at once and one more
+ * an hour after that.
  *
- * The budget is two replies at once and one more an hour after that, kept as the one moment
- * it will be whole again, [budgetFullAt]: each reply pushes that moment an hour further out,
- * from now or from wherever it already stood. Keys go out while at most one reply is
- * outstanding: an answer lost on the way is answered again at the asker's next try if it is
- * still the only one, see `OneTimeExpenseSync.requestMissingKeys`, and whatever came before,
- * an hour after the last reply at the latest. A [Reply.CHANNEL_JOINED] goes out only while
- * none is. That drops the one an answer made needless after a log-out: the
- * asker rebuilt the channel to ask, so the answer goes in the group just joined, and being
- * read there is all a [ChannelJoined] is for.
+ * Keys go out while at most one reply is outstanding: an answer lost on the way is answered
+ * again at the asker's next try if it is still the only one, see
+ * `OneTimeExpenseSync.requestMissingKeys`, and whatever came before, an hour after the last
+ * reply at the latest. A [Reply.CHANNEL_JOINED] goes out only while none is. That drops the
+ * one an answer made needless after a log-out: the asker rebuilt the channel to ask, so the
+ * answer goes in the group just joined, and being read there is all a [ChannelJoined] is for.
  */
-internal fun spendReply(budgetFullAt: Long?, now: Long, reply: Reply): Long? {
-    // A moment already past is a budget already whole. So is one further out than replies can
-    // push it, the clock having been set back since: read as it stands, it would hold every
-    // reply back until the clock caught up.
-    val from = budgetFullAt?.takeIf { it in now..now + REPLY_BURST * REPLY_INTERVAL_MILLISECONDS } ?: now
-
-    val allowedOutstanding = when (reply) {
-        Reply.EXPENSE_KEYS -> REPLY_BURST - 1
-        Reply.CHANNEL_JOINED -> 0
-    }
-
-    if (from - now > allowedOutstanding * REPLY_INTERVAL_MILLISECONDS) return null
-
-    return from + REPLY_INTERVAL_MILLISECONDS
-}
-
-/** How many replies a peer's budget holds at once. */
-private const val REPLY_BURST = 2
-
-/** How long one reply takes to come back to a peer's budget. */
-private const val REPLY_INTERVAL_MILLISECONDS = 60L * 60 * 1000
+internal fun spendReply(budgetFullAt: Long?, now: Long, reply: Reply): Long? =
+    spendMessageBudget(
+        budgetFullAt = budgetFullAt,
+        now = now,
+        onlyWhenWhole = reply == Reply.CHANNEL_JOINED,
+    )

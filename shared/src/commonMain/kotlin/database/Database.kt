@@ -30,6 +30,7 @@ import database.data.local.entity.ExpenseEntity
 import database.data.local.entity.GroupEntity
 import database.data.local.entity.GroupMemberEntity
 import database.data.local.entity.IdentityConflictEntity
+import database.data.local.entity.KeyRequestBudgetEntity
 import database.data.local.entity.MlsRecordEntity
 import database.data.local.entity.OneTimeExpenseKeyEntity
 import database.data.local.entity.OneTimeExpenseRevisionEntity
@@ -62,6 +63,7 @@ import org.koin.mp.KoinPlatform.getKoin
         UnverifiedExpenseKeyEntity::class,
         OneTimeExpenseRevisionEntity::class,
         PendingExpenseKeyEntity::class,
+        KeyRequestBudgetEntity::class,
         OwedExpenseKeyEntity::class,
         MlsRecordEntity::class,
     ],

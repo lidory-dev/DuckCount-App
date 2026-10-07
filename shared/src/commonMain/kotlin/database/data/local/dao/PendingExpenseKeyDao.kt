@@ -2,6 +2,8 @@ package database.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.Upsert
+import database.data.local.entity.KeyRequestBudgetEntity
 import database.data.local.entity.PendingExpenseKeyEntity
 import database.data.local.entity.PendingExpenseKeyState
 
@@ -41,4 +43,11 @@ interface PendingExpenseKeyDao {
 
     @Query("DELETE FROM PendingExpenseKeyEntity")
     suspend fun deleteAll()
+
+    /** When the budget of key requests to [creditorUuid] is whole again, or null when none was ever spent. */
+    @Query("SELECT budgetFullAt FROM KeyRequestBudgetEntity WHERE creditorUuid = :creditorUuid")
+    suspend fun getRequestBudgetFullAt(creditorUuid: String): Long?
+
+    @Upsert
+    suspend fun setRequestBudget(budget: KeyRequestBudgetEntity)
 }

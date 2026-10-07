@@ -28,9 +28,11 @@ class PendingExpenseKeyEntity(
     val creditorUuid: String,
 
     /**
-     * When this device first saw the expense without its key, which the first request
-     * waits a short while after: an expense reaches the server before the message carrying
-     * its key does, and asking in between would be asking for something already on its way.
+     * When this device first saw the expense without its key, which is the order the
+     * expenses waiting are asked for in, see `PendingExpenseKeyDao.getInState`: a request
+     * names the ones seen first, and creditors are asked in that order too, see
+     * `OneTimeExpenseSync.requestMissingKeys`. It holds nothing back: the first request goes
+     * out at once.
      */
     val firstSeenAt: Long,
 

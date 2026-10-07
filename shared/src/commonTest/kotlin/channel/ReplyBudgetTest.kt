@@ -46,7 +46,10 @@ class ReplyBudgetTest {
         assertEquals(2, answered)
     }
 
-    /** The asker asks again ten, thirty and seventy minutes after their first try, see `backoffFor` in OneTimeExpenseSync.kt. */
+    /**
+     * The asker asks again ten minutes after their first try, and then not before an hour
+     * after it, see `backoffFor` and `OneTimeExpenseSync.requestMissingKeys`.
+     */
     @Test
     fun `an answer lost on the way is answered at the asker's next try`() {
         val lost = assertNotNull(spendReply(budgetFullAt = null, now = T, reply = Reply.EXPENSE_KEYS))
@@ -55,12 +58,12 @@ class ReplyBudgetTest {
     }
 
     @Test
-    fun `a second answer lost straight after is answered at the try seventy minutes after the first`() {
+    fun `a second answer lost straight after is answered at the asker's try an hour after the first`() {
         val first = assertNotNull(spendReply(budgetFullAt = null, now = T, reply = Reply.EXPENSE_KEYS))
         val second = assertNotNull(spendReply(budgetFullAt = first, now = T + 10 * MINUTE, reply = Reply.EXPENSE_KEYS))
 
         assertNull(spendReply(budgetFullAt = second, now = T + 30 * MINUTE, reply = Reply.EXPENSE_KEYS))
-        assertNotNull(spendReply(budgetFullAt = second, now = T + 70 * MINUTE, reply = Reply.EXPENSE_KEYS))
+        assertNotNull(spendReply(budgetFullAt = second, now = T + HOUR, reply = Reply.EXPENSE_KEYS))
     }
 
     /** Back from a log-out, the asker rebuilt the channel to ask, and the answer goes in the group just joined. */

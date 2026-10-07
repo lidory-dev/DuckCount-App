@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "4d69c7fa3eef842d9a658d0679974bf3",
+    "identityHash": "fbb8069ec4cbbdc4339a4e0603fd74f4",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -560,6 +560,30 @@
         }
       },
       {
+        "tableName": "KeyRequestBudgetEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`creditorUuid` TEXT NOT NULL, `budgetFullAt` INTEGER NOT NULL, PRIMARY KEY(`creditorUuid`))",
+        "fields": [
+          {
+            "fieldPath": "creditorUuid",
+            "columnName": "creditorUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "budgetFullAt",
+            "columnName": "budgetFullAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "creditorUuid"
+          ]
+        }
+      },
+      {
         "tableName": "OwedExpenseKeyEntity",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `recipientUuid` TEXT NOT NULL, PRIMARY KEY(`expenseUuid`, `recipientUuid`))",
         "fields": [
@@ -618,7 +642,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4d69c7fa3eef842d9a658d0679974bf3')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fbb8069ec4cbbdc4339a4e0603fd74f4')"
     ]
   }
 }
