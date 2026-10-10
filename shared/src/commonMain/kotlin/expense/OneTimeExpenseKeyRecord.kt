@@ -16,8 +16,9 @@ private val json = Json { ignoreUnknownKeys = true }
  * A beneficiary who logs out loses the key with the rest of their local state and has to
  * ask for it again, and the creditor answering that has to know whether the asker is
  * really one of the expense's beneficiaries. Every other account of that comes from the
- * server: `GET /expenses` is the server's word, and the local rows are filled in from it on
- * every sync, so neither can be trusted against a server that wants a key handed out.
+ * server: its listing, `GET /expenses` and what changed in it since, is the server's word,
+ * and the local rows are filled in from the device's copy of it on every sync, so neither
+ * can be trusted against a server that wants a key handed out.
  * This is written once, by the creditor, from what they actually picked, and is sealed
  * under a key the server does not have.
  *

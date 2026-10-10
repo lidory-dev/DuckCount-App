@@ -81,7 +81,7 @@ class ExpenseKeyShare(
  * One expense, the key that opens it, and who its creditor meant it for.
  *
  * The beneficiaries travel with the key because the recipient has to keep them: the same
- * list reaches them from the server on every sync, and the server is exactly what a record
+ * list reaches them in the server's listing, and the server is exactly what a record
  * of who an expense was meant for must not depend on. Here it arrives inside a message the
  * server can neither read nor forge, and the only list ever acted on is one the creditor sent.
  *

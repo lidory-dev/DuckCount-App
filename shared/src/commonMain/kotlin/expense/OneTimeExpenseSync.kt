@@ -4,9 +4,11 @@ import authenticationUtils.getAuthenticatedUserUuid
 import channel.DirectChannelError
 import channel.DirectChannelRepository
 import database.data.local.dao.ExpenseDao
+import database.data.local.dao.ListedOneTimeExpenseDao
 import database.data.local.dao.OwedExpenseKeyDao
 import database.data.local.dao.PendingExpenseKeyDao
 import database.data.local.entity.KeyRequestBudgetEntity
+import database.data.local.entity.ListedOneTimeExpenseEntity
 import database.data.local.entity.PendingExpenseKeyState
 import database.data.mappers.toExpenseWithBeneficiariesEntity
 import database.data.remote.DirectMessageKindDto
@@ -14,6 +16,8 @@ import database.data.remote.ExpenseApi
 import database.data.remote.ExpenseDto
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import message.DirectMessageSender
 import message.DirectMessageSync
 import message.DirectSendError
@@ -44,6 +48,7 @@ import kotlin.uuid.Uuid
 class OneTimeExpenseSync(
     private val expenseApi: ExpenseApi,
     private val expenseDao: ExpenseDao,
+    private val listedDao: ListedOneTimeExpenseDao,
     private val pendingExpenseKeyDao: PendingExpenseKeyDao,
     private val owedExpenseKeyDao: OwedExpenseKeyDao,
     private val keyRepository: OneTimeExpenseKeyRepository,
@@ -63,6 +68,13 @@ class OneTimeExpenseSync(
      * creditor's budget of requests twice over, see [claimRequest].
      */
     private val requestMutex = Mutex()
+
+    /**
+     * Serializes [refresh], which a push and the list being opened can both reach at once. A
+     * read that finished after a newer one would act on what its own, older listing did not
+     * name, and drop what the newer one had just written down as waiting.
+     */
+    private val refreshMutex = Mutex()
 
     /**
      * Every step is attempted even when one fails, and the first failure is reported: they
@@ -101,11 +113,18 @@ class OneTimeExpenseSync(
      * A version older than one this device has shown is not stored over it, see
      * `ExpenseDao.replaceAllOneTimeExpenses`.
      *
+     * The listing is kept on the device, see [ListedOneTimeExpenseEntity]: read whole once
+     * and brought up to date with what changed from then on, see [readListing], so that a
+     * sync fetches what changed rather than everything the user is on. What it does with
+     * the listing is not cut down with it: everything below works from all of it, as it
+     * would from a listing read whole just now, which it is as of where the feed has got
+     * to: what it does not name is deleted, forgotten or no longer waited for.
+     *
      * Sends no message: what is missing is written down here and asked for in
      * [requestMissingKeys], so that the request loop is not run from inside the
      * transaction that stores what it is about.
      */
-    suspend fun refresh(): EmptyResult<OneTimeExpenseSyncError> {
+    suspend fun refresh(): EmptyResult<OneTimeExpenseSyncError> = refreshMutex.withLock {
         // The keys to these expenses arrive as direct messages, so read those first: doing
         // it the other way round means opening the list, finding an expense unreadable, and
         // asking its creditor for a key that was already sitting on the server.
@@ -120,18 +139,25 @@ class OneTimeExpenseSync(
         // expenses below are worth reading either way.
         directMessageSync.sync()
 
-        // Read before the listing is asked for. A sync running alongside this one can store a
-        // key while it is in flight, to an expense created since, which it could not show.
+        // Read before the listing is brought up to date. A sync running alongside this one can
+        // store a key while it is, to an expense created since, which it could not show.
         val unverified = keyRepository.unverifiedExpenseUuids()
 
-        val expenses = when (val listed = expenseApi.getOneTimeExpenses()) {
+        // The same for the rows: the user's own expense, stored once the server took it, can
+        // be created while the listing is brought up to date and miss it. Only what was there
+        // before goes for not being in it.
+        val stored = expenseDao.getOneTimeExpenseUuids()
+
+        val expenses = when (val listed = readListing()) {
             // Only entries whose UUIDs are written as the server writes them, whether or not
             // they open. These UUIDs end up in rows, in key requests and in the library, which
             // throws on a string that is not valid UTF-16 rather than refusing it. An expense's
             // UUID also keys its row in the list.
             is Result.Success -> listed.data.filter { it.hasCanonicalUuids() }
-            is Result.Error -> return Result.Error(OneTimeExpenseSyncError.Network(listed.error))
+            is Result.Error -> return@withLock Result.Error(OneTimeExpenseSyncError.Network(listed.error))
         }
+
+        val listedUuids = expenses.mapTo(HashSet()) { it.uuid }
 
         // A key held unverified to an expense the user is not on can never be checked, and its
         // nonce shows whose expense it would be, not that there is one: anybody who can reach
@@ -141,7 +167,7 @@ class OneTimeExpenseSync(
         // it shows, unless the user has been taken off it or it has been deleted since, which
         // leaves the key nothing to open either. Or the server left it out, which costs no
         // more than withholding it: listed again, it does not open, and its creditor is asked.
-        keyRepository.forgetUnverified(expenseUuids = unverified - expenses.mapTo(HashSet()) { it.uuid })
+        keyRepository.forgetUnverified(expenseUuids = unverified - listedUuids)
 
         // Before deciding what is missing: an expense whose key was merely not brought back
         // yet looks exactly like one whose key never arrived, and would be asked for.
@@ -167,7 +193,7 @@ class OneTimeExpenseSync(
 
         expenseDao.replaceAllOneTimeExpenses(
             expenses = decrypted,
-            serverUuids = expenses.map { it.uuid },
+            goneUuids = stored.filterNot { it in listedUuids },
         )
 
         reconcilePending(unopened = unopened)
@@ -181,8 +207,129 @@ class OneTimeExpenseSync(
         // promotion, so that a key verified just now goes up with this listing.
         keyRepository.backUp(expenses = expenses)
 
+        Result.Success(Unit)
+    }
+
+    /**
+     * The server's listing as the device keeps it, brought up to date, or the first failure,
+     * see [refresh].
+     *
+     * Read whole when the device keeps none, and otherwise brought up to date with what
+     * changed since, see [followChanges]. Read whole again when the server can no longer say
+     * what changed since the token kept, its `409`: the feed started over, because too much
+     * waited in it, the session went a week without a refresh, or the server changed what it
+     * writes of an expense; or another device of the account read past the token since.
+     * Read whole again, too, when what the device keeps no longer reads as an
+     * [ExpenseDto]: this build expects something of an expense that the server did not
+     * write when it was kept, and will not write again until it changes. Something the
+     * server only starts writing reaches what is kept when the server starts the feed
+     * over, see `ListedOneTimeExpense` in the API.
+     */
+    private suspend fun readListing(): Result<List<ExpenseDto>, NetworkError> {
+        val feedToken = listedDao.getFeedToken() ?: return readWholeListing()
+
+        when (val followed = followChanges(since = feedToken)) {
+            is Result.Success -> keptListing()?.let { return Result.Success(it) }
+
+            is Result.Error -> if (followed.error != NetworkError.CONFLICT) {
+                return Result.Error(followed.error)
+            }
+        }
+
+        listedDao.reset()
+
+        return readWholeListing()
+    }
+
+    /**
+     * Reads the listing whole, a page at a time, and keeps it in place of what was kept,
+     * with where its first page says the feed stood; or returns the first failure and keeps
+     * nothing.
+     *
+     * The server pages on something no edit changes, so an expense listed all the while
+     * comes exactly once, however the others change between pages. What changes while they
+     * are read is in the feed after the first page's token, whichever pages it did or did
+     * not make it into, and is followed at once, see [followChanges]: handed over, the token
+     * also has the server forget what the listing covers, removals included, rather than
+     * keep it until the next sync. That following failing fails nothing: the listing is
+     * kept, and the next sync hands the token over again.
+     */
+    private suspend fun readWholeListing(): Result<List<ExpenseDto>, NetworkError> {
+        val first = when (val listed = expenseApi.getOneTimeExpenses()) {
+            is Result.Success -> listed.data
+            is Result.Error -> return Result.Error(listed.error)
+        }
+
+        val entries = first.expenses.readEntries()?.toMutableList()
+            ?: return Result.Error(NetworkError.SERIALIZATION)
+
+        var cursor = first.next_cursor
+
+        while (cursor != null) {
+            val page = when (val listed = expenseApi.getOneTimeExpenses(cursor = cursor)) {
+                is Result.Success -> listed.data
+                is Result.Error -> return Result.Error(listed.error)
+            }
+
+            entries += page.expenses.readEntries() ?: return Result.Error(NetworkError.SERIALIZATION)
+
+            cursor = page.next_cursor
+        }
+
+        listedDao.replaceAll(expenses = entries.map { it.second }, feedToken = first.feed_token)
+
+        if (followChanges(since = first.feed_token) is Result.Success) {
+            keptListing()?.let { return Result.Success(it) }
+        }
+
+        return Result.Success(entries.map { it.first })
+    }
+
+    /**
+     * Applies what changed in the listing since [since] to what the device keeps of it, a
+     * page at a time and each with where it leaves the feed, or returns the first failure.
+     * A page that fails leaves those before it applied, and the next sync carries on from
+     * the last of them.
+     *
+     * Each token handed over tells the server the device has everything before it, and the
+     * server forgets it: only a token stored with what it covers is ever handed over. The
+     * last page's is handed back once more when the sync brought anything, so that the
+     * server forgets what it brought, removals included, now rather than at the next sync.
+     * Once only: what changes meanwhile waits for the next sync either way. A failure of that
+     * request fails nothing, everything being applied already: the next sync hands the token
+     * over again.
+     */
+    private suspend fun followChanges(since: String): EmptyResult<NetworkError> {
+        var feedToken = since
+        var confirm = false
+        var confirmed = false
+
+        do {
+            val page = when (val changes = expenseApi.getOneTimeExpenseChanges(since = feedToken)) {
+                is Result.Success -> changes.data
+                is Result.Error -> return if (confirm) Result.Success(Unit) else Result.Error(changes.error)
+            }
+
+            val changed = page.expenses.readEntries() ?: return Result.Error(NetworkError.SERIALIZATION)
+
+            listedDao.apply(
+                changed = changed.map { it.second },
+                removedUuids = page.removed,
+                feedToken = page.feed_token,
+            )
+
+            feedToken = page.feed_token
+
+            confirm = !page.has_more && !confirmed && (changed.isNotEmpty() || page.removed.isNotEmpty())
+            confirmed = confirmed || confirm
+        } while (page.has_more || confirm)
+
         return Result.Success(Unit)
     }
+
+    /** What the device keeps of the listing, or null when any of it no longer reads, see [readListing]. */
+    private suspend fun keptListing(): List<ExpenseDto>? =
+        listedDao.getAll().map { kept -> kept.json.toExpenseDto() ?: return null }
 
     /**
      * Asks each creditor this device knows for the keys it is still missing from them.
@@ -493,6 +640,27 @@ private fun DirectSendError.neverReachedServer(): Boolean =
         is DirectSendError.Network -> error == NetworkError.NO_INTERNET
         DirectSendError.RecipientGone, DirectSendError.RateLimited -> false
     }
+
+/** Reads the listing's entries as this build knows them, ignoring what it does not. */
+private val listingJson = Json { ignoreUnknownKeys = true }
+
+private fun JsonObject.toExpenseDto(): ExpenseDto? =
+    runCatching { listingJson.decodeFromJsonElement(ExpenseDto.serializer(), this) }.getOrNull()
+
+/**
+ * A page's entries as this build reads them, each with what to keep of it, the JSON the
+ * server wrote; or null when any of them does not read, which a build that decoded the
+ * pages whole would have failed on as well.
+ */
+private fun List<JsonObject>.readEntries(): List<Pair<ExpenseDto, ListedOneTimeExpenseEntity>>? =
+    map { json ->
+        val expense = json.toExpenseDto() ?: return null
+
+        expense to ListedOneTimeExpenseEntity(expenseUuid = expense.uuid, json = json.toString())
+    }
+
+private fun String.toExpenseDto(): ExpenseDto? =
+    runCatching { listingJson.decodeFromString(ExpenseDto.serializer(), this) }.getOrNull()
 
 private fun ExpenseDto.hasCanonicalUuids(): Boolean =
     uuid.isCanonicalUuid() &&

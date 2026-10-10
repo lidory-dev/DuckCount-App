@@ -35,6 +35,8 @@ interface LocalDataDao {
         deletePendingExpenseKeys()
         deleteKeyRequestBudgets()
         deleteOwedExpenseKeys()
+        deleteListedOneTimeExpenses()
+        deleteChangeFeeds()
         deleteMlsRecords()
     }
 
@@ -88,6 +90,12 @@ interface LocalDataDao {
 
     @Query("DELETE FROM OwedExpenseKeyEntity")
     suspend fun deleteOwedExpenseKeys()
+
+    @Query("DELETE FROM ListedOneTimeExpenseEntity")
+    suspend fun deleteListedOneTimeExpenses()
+
+    @Query("DELETE FROM ChangeFeedEntity")
+    suspend fun deleteChangeFeeds()
 
     @Query("DELETE FROM MlsRecordEntity")
     suspend fun deleteMlsRecords()

@@ -96,6 +96,9 @@ object DuckCountRoutes {
 
         val EXPENSE_BY_UUID = "$EXPENSE_BASE_URL/:expense_uuid"
 
+        /** What changed in the caller's expenses since a place in their feed. */
+        val EXPENSE_CHANGES = "$EXPENSE_BASE_URL/changes"
+
         /** The caller's own copy of an expense's key. `PUT` only: `GET /expenses` lists it. */
         val EXPENSE_KEY_COPY = "$EXPENSE_BASE_URL/:expense_uuid/key-copy"
     }

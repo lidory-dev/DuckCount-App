@@ -45,6 +45,7 @@ val dbModule = module {
     single { get<AppDatabase>().oneTimeExpenseKeyDao }
     single { get<AppDatabase>().pendingExpenseKeyDao }
     single { get<AppDatabase>().owedExpenseKeyDao }
+    single { get<AppDatabase>().listedOneTimeExpenseDao }
     single { get<AppDatabase>().mlsRecordDao }
 
     single { get<AppDatabase>().localDataDao }

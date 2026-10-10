@@ -14,10 +14,10 @@ import util.Result
  *
  * The work is [OneTimeExpenseSync]'s: reading the list, opening what there are keys for,
  * writing down the rest as waiting, asking for those keys, and handing over the ones the
- * user owes. This only says when, which is once, as the list opens: there is no server-side
- * paging, so a refresh is all there is.
- *
- * TODO: Add pagination on the server.
+ * user owes. This only says when, which is once, as the list opens. A refresh brings what
+ * the device keeps of the server's listing up to date with what changed, and the screen
+ * pages through the expenses that opened, ordered by when each happened, which the server
+ * cannot read: there is nothing for a later load to fetch.
  */
 @OptIn(ExperimentalPagingApi::class)
 class ExpenseRemoteMediator(
@@ -30,7 +30,7 @@ class ExpenseRemoteMediator(
         loadType: LoadType,
         state: PagingState<Int, ExpenseWithBeneficiariesEntity>,
     ): MediatorResult {
-        // TODO: No server-side paging: only a REFRESH does any work.
+        // Only a REFRESH does any work, see above.
         if (loadType != LoadType.REFRESH) {
             return MediatorResult.Success(endOfPaginationReached = true)
         }

@@ -137,8 +137,10 @@ class ExpenseRepository(
             },
         )
 
+        // Stored over whatever is there: a refresh may have stored it already, from the change
+        // the creation made in the user's own feed.
         expenseDao.setNewestRevision(OneTimeExpenseRevisionEntity(id.uuid, FIRST_REVISION))
-        expenseDao.insertWithBeneficiaries(
+        expenseDao.upsertWithBeneficiaries(
             expenseWithBeneficiaries = synced.toExpenseWithBeneficiariesEntity(),
         )
 
@@ -331,7 +333,8 @@ class ExpenseRepository(
     }
 
     private companion object {
-        // Server returns the full list at once; this only sizes local paging windows.
+        // A refresh brings the device's copy of the server's list up to date, see
+        // ExpenseRemoteMediator; this only sizes local paging windows.
         const val ONE_TIME_PAGE_SIZE = 20
     }
 

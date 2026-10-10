@@ -79,22 +79,20 @@ interface ExpenseDao {
     @Query("SELECT uuid, creditorUuid FROM ExpenseEntity WHERE groupUuid IS NULL AND uuid IN (:uuids)")
     suspend fun getOneTimeCreditors(uuids: List<String>): List<ExpenseCreditor>
 
-    @Query("DELETE FROM ExpenseEntity WHERE groupUuid IS NULL")
-    suspend fun deleteAllOneTimeExpenses()
-
-    @Query("DELETE FROM ExpenseEntity WHERE groupUuid IS NULL AND uuid NOT IN (:uuids)")
-    suspend fun deleteOneTimeExpensesNotIn(uuids: List<String>)
+    @Query("DELETE FROM ExpenseEntity WHERE groupUuid IS NULL AND uuid IN (:uuids)")
+    suspend fun deleteOneTimeExpenses(uuids: List<String>)
 
     /**
-     * Server-authoritative reconciliation of one-time expenses: drop any local row
-     * (groupUuid IS NULL) the server no longer lists, then upsert the ones that could be
-     * read. Runs in a single transaction.
+     * Server-authoritative reconciliation of one-time expenses: drop the local rows
+     * [goneUuids] names, the ones the server no longer lists, then upsert the ones that could
+     * be read. Runs in a single transaction.
      *
-     * [serverUuids] is **every** expense the server listed, not only the ones in
-     * [expenses]: an expense whose key has not arrived yet cannot be turned into a row, and
-     * deriving what to keep from the readable ones alone would hard-delete a perfectly good
-     * cached row the moment one key read hit a network blip or a device that locked
-     * mid-refresh. What the server no longer lists is what goes.
+     * [goneUuids] is worked out against **every** expense the server listed, not only the
+     * ones in [expenses]: an expense whose key has not arrived yet cannot be turned into a
+     * row, and deriving what to keep from the readable ones alone would hard-delete a
+     * perfectly good cached row the moment one key read hit a network blip or a device that
+     * locked mid-refresh. What the server no longer lists is what goes, of what was stored
+     * before the listing was read, see `OneTimeExpenseSync.refresh`.
      *
      * Each of [expenses] comes with the signed revision it was opened at, and is stored only
      * when nothing newer has been shown or signed, see [OneTimeExpenseRevisionEntity]: an
@@ -105,13 +103,9 @@ interface ExpenseDao {
     @Transaction
     suspend fun replaceAllOneTimeExpenses(
         expenses: List<Pair<ExpenseWithBeneficiariesEntity, Long>>,
-        serverUuids: List<String>,
+        goneUuids: List<String>,
     ) {
-        if (serverUuids.isEmpty()) {
-            deleteAllOneTimeExpenses()
-        } else {
-            deleteOneTimeExpensesNotIn(uuids = serverUuids)
-        }
+        deleteOneTimeExpenses(uuids = goneUuids)
 
         expenses.forEach { (expense, revision) ->
             val expenseUuid = expense.expense.uuid

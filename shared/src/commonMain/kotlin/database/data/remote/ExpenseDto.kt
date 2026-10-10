@@ -3,6 +3,7 @@
 package database.data.remote
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 /**
  * Server representation of a one-time expense as returned by `GET /expenses`.
@@ -36,4 +37,43 @@ data class ExpenseDto(
     val beneficiaries: List<BeneficiaryDto>,
     val signature: EncryptedFieldDto,
     val key_copy: EncryptedFieldDto?,
+)
+
+/**
+ * Body of `GET /expenses` asked for its first page: the newest of the one-time expenses
+ * the caller is on, by when the server took them, [next_cursor] to ask for the next page
+ * with, null when this is the last, and where the caller's feed of changes stood when it
+ * was read, [feed_token], see [ListOneTimeExpenseChangesResponse].
+ *
+ * Each expense comes as the JSON the server wrote, an [ExpenseDto] to this build: it is
+ * kept that way, so that what a newer build reads of it is still there, see
+ * `expense.OneTimeExpenseSync`.
+ */
+@Serializable
+data class ListOneTimeExpensesResponse(
+    val expenses: List<JsonObject>,
+    val next_cursor: String?,
+    val feed_token: String,
+)
+
+/** Body of `GET /expenses` asked for a later page, see [ListOneTimeExpensesResponse]. */
+@Serializable
+data class ListOneTimeExpensesPage(
+    val expenses: List<JsonObject>,
+    val next_cursor: String?,
+)
+
+/**
+ * Body of `GET /expenses/changes`: what changed in the one-time expenses the caller is on
+ * since a place in their feed. The ones they see that changed, as they now stand, each
+ * once, as the JSON the server wrote, see [ListOneTimeExpensesResponse]; those they no
+ * longer see, [removed]; where the page leaves the feed, [feed_token]; and whether more
+ * follow already, [has_more].
+ */
+@Serializable
+data class ListOneTimeExpenseChangesResponse(
+    val expenses: List<JsonObject>,
+    val removed: List<String>,
+    val feed_token: String,
+    val has_more: Boolean,
 )

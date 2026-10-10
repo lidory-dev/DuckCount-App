@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "fbb8069ec4cbbdc4339a4e0603fd74f4",
+    "identityHash": "c420c3152d69df6bde0401a40e74a427",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -609,6 +609,54 @@
         }
       },
       {
+        "tableName": "ListedOneTimeExpenseEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `json` TEXT NOT NULL, PRIMARY KEY(`expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "ChangeFeedEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`feed` TEXT NOT NULL, `token` TEXT NOT NULL, PRIMARY KEY(`feed`))",
+        "fields": [
+          {
+            "fieldPath": "feed",
+            "columnName": "feed",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "token",
+            "columnName": "token",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "feed"
+          ]
+        }
+      },
+      {
         "tableName": "MlsRecordEntity",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`namespace` TEXT NOT NULL, `key` BLOB NOT NULL, `value` BLOB NOT NULL, PRIMARY KEY(`namespace`, `key`))",
         "fields": [
@@ -642,7 +690,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fbb8069ec4cbbdc4339a4e0603fd74f4')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c420c3152d69df6bde0401a40e74a427')"
     ]
   }
 }
