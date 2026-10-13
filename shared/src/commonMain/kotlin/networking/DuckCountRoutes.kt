@@ -101,5 +101,8 @@ object DuckCountRoutes {
 
         /** The caller's own copy of an expense's key. `PUT` only: `GET /expenses` lists it. */
         val EXPENSE_KEY_COPY = "$EXPENSE_BASE_URL/:expense_uuid/key-copy"
+
+        /** The versions an expense had before each of its edits. */
+        val EXPENSE_HISTORY = "$EXPENSE_BASE_URL/:expense_uuid/history"
     }
 }

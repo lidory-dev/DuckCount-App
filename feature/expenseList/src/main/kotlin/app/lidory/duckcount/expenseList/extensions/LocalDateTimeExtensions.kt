@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import app.lidory.duckcount.expenseList.R
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atTime
 import kotlinx.datetime.toInstant
@@ -33,6 +34,9 @@ fun LocalDate.formatDate(): String {
 
     return dateFormatted
 }
+
+/** The time as shown next to a date, the minutes always in two digits: 9:05, 16:00. */
+fun LocalTime.formatTime(): String = "$hour:${minute.toString().padStart(2, '0')}"
 
 @OptIn(ExperimentalTime::class)
 fun LocalDate.isCurrentYear(): Boolean {

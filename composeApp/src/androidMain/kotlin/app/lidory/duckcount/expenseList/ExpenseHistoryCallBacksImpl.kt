@@ -1,123 +1,27 @@
 package app.lidory.duckcount.expenseList
 
 import app.lidory.duckcount.expenseList.callBacks.ExpenseHistoryCallBacks
-import app.lidory.duckcount.expenseList.model.Currency
-import app.lidory.duckcount.expenseList.model.PreviousBeneficiary
-import app.lidory.duckcount.expenseList.model.PreviousExpenseUi
+import app.lidory.duckcount.expenseList.model.ExpenseHistory
+import app.lidory.duckcount.networking.NetworkConnectivity
 import database.data.repository.ExpenseRepository
 import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
+import util.Result
 
 class ExpenseHistoryCallBacksImpl(
-    val expenseRepository: ExpenseRepository,
-    val userRepository: UserRepository,
+    private val expenseRepository: ExpenseRepository,
+    private val userRepository: UserRepository,
+    private val networkConnectivity: NetworkConnectivity,
 ) : ExpenseHistoryCallBacks {
-    override fun getPreviousExpenses(groupUuid: String?, expenseUuid: String): Flow<List<PreviousExpenseUi>> {
-        // TODO: Implement the server route
-        return flowOf(
-            listOf(
-                PreviousExpenseUi(
-                    modifiedAt = "2026-06-29T16:55:59.017404",
-                    editorUserUuid = "c901f183-7209-4706-bac5-cd539e116ab8",
-                    previousAmount = "20",
-                    previousBeneficiaries = listOf(
-                        PreviousBeneficiary(
-                            userUuid = "c901f183-7209-4706-bac5-cd539e116ab8",
-                            share = "10",
-                            fullName = "Bob Dylan",
-                        ),
-                        PreviousBeneficiary(
-                            userUuid = "5246201e-2e3e-4a52-abda-6161847c8779",
-                            share = "10",
-                            fullName = "Alice Martin",
-                        ),
-                    ),
-                    previousCreditorUuid = "c901f183-7209-4706-bac5-cd539e116ab8",
-                    previousDescription = "Delicious pizzas",
-                    previousIsSettlement = false,
-                    previousTimestamp = "2026-06-29T16:50:59.017404",
-                    previousTitle = "Restaurant Paris",
-                ),
-                PreviousExpenseUi(
-                    modifiedAt = "2026-06-29T16:53:59.017404",
-                    editorUserUuid = "5246201e-2e3e-4a52-abda-6161847c8779",
-                    previousAmount = "23",
-                    previousBeneficiaries = listOf(
-                        PreviousBeneficiary(
-                            userUuid = "c901f183-7209-4706-bac5-cd539e116ab8",
-                            share = "7.67",
-                            fullName = "Bob Dylan",
-                        ),
-                        PreviousBeneficiary(
-                            userUuid = "5246201e-2e3e-4a52-abda-6161847c8779",
-                            share = "7.66",
-                            fullName = "Alice Martin",
-                        ),
-                    ),
-                    previousCreditorUuid = "Alice Martin",
-                    previousDescription = "Delicious pizzas",
-                    previousIsSettlement = false,
-                    previousTimestamp = "2026-06-29T16:50:59.017404",
-                    previousTitle = "Restaurant Paris",
-                ),
-                PreviousExpenseUi(
-                    modifiedAt = "2026-06-29T16:52:59.017404",
-                    editorUserUuid = "5246201e-2e3e-4a52-abda-6161847c8779",
-                    previousAmount = "23",
-                    previousBeneficiaries = listOf(
-                        PreviousBeneficiary(
-                            userUuid = "c901f183-7209-4706-bac5-cd539e116ab8",
-                            share = "7.67",
-                            fullName = "Bob Dylan",
-                        ),
-                        PreviousBeneficiary(
-                            userUuid = "5246201e-2e3e-4a52-abda-6161847c8779",
-                            share = "7.66",
-                            fullName = "Alice Martin",
-                        ),
-                    ),
-                    previousCreditorUuid = "5246201e-2e3e-4a52-abda-6161847c8779",
-                    previousDescription = "",
-                    previousIsSettlement = false,
-                    previousTimestamp = "2026-06-29T16:50:59.017404",
-                    previousTitle = "Restaurant Paris pizzas",
-                ),
-                PreviousExpenseUi(
-                    modifiedAt = "2026-06-29T16:50:59.017404",
-                    editorUserUuid = "5246201e-2e3e-4a52-abda-6161847c8779",
-                    previousAmount = "33",
-                    previousBeneficiaries = listOf(
-                        PreviousBeneficiary(
-                            userUuid = "c901f183-7209-4706-bac5-cd539e116ab8",
-                            share = "11",
-                            fullName = "Bob Dylan",
-                        ),
-                        PreviousBeneficiary(
-                            userUuid = "5246201e-2e3e-4a52-abda-6161847c8779",
-                            share = "11",
-                            fullName = "Alice Martin",
-                        ),
-                        PreviousBeneficiary(
-                            userUuid = "4246201e-2e3e-4a52-abda-6161847c8779",
-                            share = "11",
-                            fullName = "Frank Sinatra",
-                        ),
-                    ),
-                    previousCreditorUuid = "c901f183-7209-4706-bac5-cd539e116ab8",
-                    previousDescription = "",
-                    previousIsSettlement = false,
-                    previousTimestamp = "2026-06-29T16:50:59.017404",
-                    previousTitle = "Restaurant Paris pizzas",
-                ),
-            ),
-        )
-    }
 
-    override fun getCurrency(expenseUuid: String): Flow<Currency?> {
-        return expenseRepository.getCurrency(expenseUuid).map { it?.toExpenseListModel() }
-    }
+    override suspend fun getHistory(expenseUuid: String): ExpenseHistory =
+        when (val history = expenseRepository.getOneTimeExpenseHistory(uuid = expenseUuid)) {
+            is Result.Success -> ExpenseHistory.Versions(versions = history.data.map { it.toExpenseListModel() })
+
+            is Result.Error -> ExpenseHistory.Unavailable(
+                error = history.error.toExpenseHistoryError(isOnline = networkConnectivity.isOnline()),
+            )
+        }
 
     override fun getUserFullName(userUuid: String): Flow<String?> {
         return userRepository.getFullName(userUuid)

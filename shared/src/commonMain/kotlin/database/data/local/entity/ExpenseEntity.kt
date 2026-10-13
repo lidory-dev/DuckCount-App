@@ -16,4 +16,14 @@ data class ExpenseEntity(
     val currency: Currency,
     val groupUuid: String? = null,
     val isDeleted: Boolean = false,
+
+    /**
+     * The revision the version of a one-time expense this row holds was signed at, see
+     * `expense.OneTimeExpenseSealing`; null for a group expense. Its history is told from it:
+     * which versions came before it, and whether it is the expense as created.
+     *
+     * Not [OneTimeExpenseRevisionEntity.newestRevision], which an edit reserves before it is
+     * sent, and which stays ahead of the row when the edit gets no answer.
+     */
+    val revision: Long? = null,
 )

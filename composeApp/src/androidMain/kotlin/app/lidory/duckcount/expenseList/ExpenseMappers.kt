@@ -4,6 +4,8 @@ import app.lidory.duckcount.ExpenseError
 import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.Expense
+import app.lidory.duckcount.expenseList.model.ExpenseHistoryError
+import app.lidory.duckcount.expenseList.model.ExpenseVersion
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import app.lidory.duckcount.expenseList.model.User
@@ -16,6 +18,8 @@ import database.domain.Expense as ExpenseDB
 import database.domain.ExpenseWithBeneficiaries as ExpenseWithBeneficiariesDB
 import database.domain.User as UserDB
 import uniffi.lib_duckcount.Currency as CurrencyUniffi
+import expense.OneTimeExpenseHistoryError
+import expense.OneTimeExpenseVersion
 import expense.OneTimeExpenseWriteError
 import vault.VaultError
 
@@ -89,6 +93,36 @@ fun NetworkError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError = whe
     NetworkError.UNKNOWN,
         -> ExpenseWriteError.UNKNOWN
 }
+
+/**
+ * Why the history of a one-time expense could not be read, as the UI explains it. A device
+ * that cannot open the expense is told apart from nothing else, as there is nothing the user
+ * can do about it.
+ */
+fun OneTimeExpenseHistoryError.toExpenseHistoryError(isOnline: Boolean): ExpenseHistoryError =
+    when (this) {
+        is OneTimeExpenseHistoryError.Network -> when (error) {
+            NetworkError.NO_INTERNET -> ExpenseHistoryError.NO_INTERNET
+            NetworkError.REQUEST_TIMEOUT -> ExpenseHistoryError.TIMEOUT
+
+            NetworkError.UNREACHABLE ->
+                if (isOnline) ExpenseHistoryError.SERVER_UNREACHABLE else ExpenseHistoryError.NO_INTERNET
+
+            else -> ExpenseHistoryError.UNKNOWN
+        }
+
+        OneTimeExpenseHistoryError.Unreadable -> ExpenseHistoryError.UNKNOWN
+    }
+
+fun OneTimeExpenseVersion.toExpenseListModel(): ExpenseVersion = ExpenseVersion(
+    revision = revision,
+    expense = expense.toExpenseListModel(),
+    // Nobody but the creditor can sign a version, and every version here was checked to be
+    // signed by them: whatever the server says about who made it is not asked.
+    authorUuid = expense.creditorUuid,
+    isCreation = isCreation,
+    madeAt = madeAt,
+)
 
 // Mapping between the :shared database models (database.*) and the feature-module
 // models (expenseList.model.*). composeApp is the only layer that sees both, so the

@@ -20,7 +20,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,9 +34,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.component.UserAmountCard
 import app.lidory.duckcount.expenseList.extensions.formatDate
+import app.lidory.duckcount.expenseList.extensions.formatTime
+import app.lidory.duckcount.expenseList.model.messageRes
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseHistoryDetailState
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseHistoryDetailViewModel
-import kotlinx.datetime.LocalDateTime
 import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
 
@@ -53,17 +53,14 @@ fun ExpenseHistoryDetailScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            // TODO: This should not be done like that.
-            val content = state as? ExpenseHistoryDetailState.Content
             TopAppBar(
                 title = {
-                    content?.expense?.modifiedAt?.let { timestamp ->
-                        val date = LocalDateTime.parse(timestamp)
+                    (state as? ExpenseHistoryDetailState.Content)?.version?.madeAt?.let { date ->
                         Text(
                             text = stringResource(
                                 R.string.date,
                                 date.date.formatDate(),
-                                "${date.time.hour}:${date.time.minute}",
+                                date.time.formatTime(),
                             ),
                         )
                     }
@@ -91,30 +88,22 @@ fun ExpenseHistoryDetailScreen(
                 }
             }
 
-            ExpenseHistoryDetailState.NotFound -> {
+            is ExpenseHistoryDetailState.Failed -> {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding),
+                        .padding(innerPadding)
+                        .padding(Padding.medium),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = stringResource(androidUiR.string.an_error_occurred))
+                    Text(text = stringResource(state.error.messageRes()))
                 }
             }
 
             is ExpenseHistoryDetailState.Content -> {
-                val expense = state.expense
+                val version = state.version
+                val expense = version.expense
                 val layoutDirection = LocalLayoutDirection.current
-
-                val editorFullName =
-                    viewModel.getUserFullName(expense.editorUserUuid)
-                        .collectAsState(null)
-                        .value ?: expense.editorUserUuid
-
-                val previousCreditorFullName =
-                    viewModel.getUserFullName(expense.previousCreditorUuid)
-                        .collectAsState(null)
-                        .value ?: expense.previousCreditorUuid
 
                 LazyColumn(
                     contentPadding = PaddingValues(
@@ -126,12 +115,11 @@ fun ExpenseHistoryDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(Padding.small),
                 ) {
                     item {
-                        val textRes =
-                            if (viewModel.isFirstEntry()) R.string.created_by else androidUiR.string.modified_by
+                        val textRes = if (version.isCreation) R.string.created_by else androidUiR.string.modified_by
                         Text(
                             text = stringResource(
                                 textRes,
-                                editorFullName,
+                                state.authorFullName ?: stringResource(R.string.unknown_person),
                             ),
                             fontStyle = FontStyle.Italic,
                             maxLines = 1,
@@ -143,11 +131,11 @@ fun ExpenseHistoryDetailScreen(
 
                     item {
                         Text(
-                            text = expense.previousTitle,
+                            text = expense.title,
                             style = MaterialTheme.typography.headlineSmall,
                         )
 
-                        val description = expense.previousDescription
+                        val description = expense.description
                         if (description.isNotBlank()) {
                             Text(
                                 text = description,
@@ -166,10 +154,10 @@ fun ExpenseHistoryDetailScreen(
 
                     item {
                         UserAmountCard(
-                            userFullName = previousCreditorFullName,
-                            amount = expense.previousAmount,
-                            currency = state.currency,
-                            userUuid = expense.previousCreditorUuid,
+                            userFullName = state.creditorFullName,
+                            amount = expense.amount,
+                            currency = expense.currency,
+                            userUuid = expense.creditorUuid,
                         )
                     }
 
@@ -177,21 +165,18 @@ fun ExpenseHistoryDetailScreen(
                         Text(
                             modifier = Modifier.padding(Padding.small),
                             style = MaterialTheme.typography.titleMedium,
-                            text = pluralStringResource(
-                                R.plurals.beneficiaries,
-                                state.expense.previousBeneficiaries.size,
-                            ),
+                            text = pluralStringResource(R.plurals.beneficiaries, state.beneficiaries.size),
                         )
                     }
 
                     items(
-                        expense.previousBeneficiaries,
+                        items = state.beneficiaries,
                         key = { beneficiary -> beneficiary.userUuid },
                     ) { beneficiary ->
                         UserAmountCard(
-                            userFullName = beneficiary.fullName, // TODO?
+                            userFullName = beneficiary.fullName,
                             amount = beneficiary.share,
-                            currency = state.currency,
+                            currency = expense.currency,
                             userUuid = beneficiary.userUuid,
                         )
 

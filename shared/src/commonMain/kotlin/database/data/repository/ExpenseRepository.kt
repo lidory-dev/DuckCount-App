@@ -20,13 +20,21 @@ import database.domain.Currency
 import database.domain.Expense
 import database.domain.ExpenseWithBeneficiaries
 import expense.FIRST_REVISION
+import expense.OneTimeExpenseHistoryError
 import expense.OneTimeExpenseKeyRecord
 import expense.OneTimeExpenseKeyRepository
 import expense.OneTimeExpenseSync
+import expense.OneTimeExpenseVersion
 import expense.OneTimeExpenseWriteError
+import expense.OpenedOneTimeExpense
+import expense.ReplacedVersion
+import expense.oneTimeExpenseHistory
+import expense.replacedAt
 import expense.sealOneTime
+import expense.unsealOneTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.datetime.TimeZone
 import mls.MlsIdentityRepository
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import uniffi.lib_duckcount.newOneTimeExpenseId
@@ -36,6 +44,7 @@ import util.Result
 import util.asEmptyDataResult
 import util.onSuccess
 import kotlin.io.encoding.Base64
+import kotlin.time.ExperimentalTime
 import androidx.paging.map as pagingMap
 
 class ExpenseRepository(
@@ -140,8 +149,9 @@ class ExpenseRepository(
         // Stored over whatever is there: a refresh may have stored it already, from the change
         // the creation made in the user's own feed.
         expenseDao.setNewestRevision(OneTimeExpenseRevisionEntity(id.uuid, FIRST_REVISION))
-        expenseDao.upsertWithBeneficiaries(
-            expenseWithBeneficiaries = synced.toExpenseWithBeneficiariesEntity(),
+        expenseDao.upsertOneTimeExpense(
+            expense = synced.toExpenseWithBeneficiariesEntity(),
+            revision = FIRST_REVISION,
         )
 
         // Best effort: whatever does not go out now is left to the next sync.
@@ -233,8 +243,9 @@ class ExpenseRepository(
             return Result.Error(OneTimeExpenseWriteError.Network(update.error))
         }
 
-        expenseDao.upsertWithBeneficiaries(
-            expenseWithBeneficiaries = expenseWithBeneficiaries.toExpenseWithBeneficiariesEntity(),
+        expenseDao.upsertOneTimeExpense(
+            expense = expenseWithBeneficiaries.toExpenseWithBeneficiariesEntity(),
+            revision = revision,
         )
 
         oneTimeExpenseKeyRepository.store(record = updated)
@@ -244,6 +255,48 @@ class ExpenseRepository(
         oneTimeExpenseSync.shareOwedKeys()
 
         return Result.Success(Unit)
+    }
+
+    /**
+     * The versions of the one-time expense [uuid]: the one this device shows, then each one from
+     * before it that the server's history holds, newest first, see [oneTimeExpenseHistory].
+     *
+     * Each earlier version is opened and checked as one listed is, see [unsealOneTime]: under
+     * the expense's key, and signed by its creditor with the key this device's record holds them
+     * to. One that does not open, or that anybody else signed, is left out.
+     */
+    @OptIn(ExperimentalTime::class)
+    suspend fun getOneTimeExpenseHistory(
+        uuid: String,
+    ): Result<List<OneTimeExpenseVersion>, OneTimeExpenseHistoryError> {
+        val shown = expenseDao.getOneTimeExpense(uuid = uuid)
+            ?: return Result.Error(OneTimeExpenseHistoryError.Unreadable)
+
+        val revision = shown.expense.revision
+            ?: return Result.Error(OneTimeExpenseHistoryError.Unreadable)
+
+        val record = oneTimeExpenseKeyRepository.openingRecord(expenseUuid = uuid)
+            ?: return Result.Error(OneTimeExpenseHistoryError.Unreadable)
+
+        val entries = when (val history = expenseApi.getOneTimeExpenseHistory(uuid = uuid)) {
+            is Result.Success -> history.data
+            is Result.Error -> return Result.Error(OneTimeExpenseHistoryError.Network(history.error))
+        }
+
+        val expense = shown.toExpenseWithBeneficiaries()
+
+        val replaced = entries.mapNotNull { entry ->
+            entry.unsealOneTime(expenseUuid = uuid, isSettled = expense.isSettlement, record = record)
+                ?.let { ReplacedVersion(version = it, replacedAt = entry.replacedAt()) }
+        }
+
+        return Result.Success(
+            oneTimeExpenseHistory(
+                shown = OpenedOneTimeExpense(expense = expense, revision = revision),
+                replaced = replaced,
+                timeZone = TimeZone.currentSystemDefault(),
+            ),
+        )
     }
 
     suspend fun deleteOneTimeExpense(uuid: String): Result<Unit, NetworkError> =

@@ -178,12 +178,7 @@ fun NavigationRoot(
                                     )
                                 },
                                 navigateToExpenseHistory = {
-                                    backStack.add(
-                                        ExpenseHistoryScreenKey(
-                                            groupUuid = key.groupUuid,
-                                            expenseUuid = key.expenseUuid,
-                                        ),
-                                    )
+                                    backStack.add(ExpenseHistoryScreenKey(expenseUuid = key.expenseUuid))
                                 },
                             )
                         }
@@ -347,14 +342,13 @@ fun NavigationRoot(
                         ) {
                             ExpenseHistoryScreen(
                                 viewModel = koinViewModel {
-                                    parametersOf(key.groupUuid, key.expenseUuid)
+                                    parametersOf(key.expenseUuid)
                                 },
-                                navigateToHistoryDetail = { index ->
+                                navigateToHistoryDetail = { revision ->
                                     backStack.add(
                                         ExpenseHistoryDetailScreenKey(
-                                            groupUuid = key.groupUuid,
                                             expenseUuid = key.expenseUuid,
-                                            expenseIndex = index,
+                                            revision = revision,
                                         ),
                                     )
                                 },
@@ -369,7 +363,7 @@ fun NavigationRoot(
                         ) {
                             ExpenseHistoryDetailScreen(
                                 viewModel = koinViewModel {
-                                    parametersOf(key.groupUuid, key.expenseIndex, key.expenseUuid)
+                                    parametersOf(key.expenseUuid, key.revision)
                                 },
                                 onBack = dropUnlessResumed { backStack.removeIf { it is ExpenseHistoryDetailScreenKey } },
                             )

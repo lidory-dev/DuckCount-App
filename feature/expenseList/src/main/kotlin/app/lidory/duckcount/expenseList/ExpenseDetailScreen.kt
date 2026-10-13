@@ -45,6 +45,7 @@ import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.component.ExpenseDetailActionButtons
 import app.lidory.duckcount.expenseList.component.UserAmountCard
 import app.lidory.duckcount.expenseList.extensions.formatDate
+import app.lidory.duckcount.expenseList.extensions.formatTime
 import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import app.lidory.duckcount.expenseList.model.messageRes
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseDetailViewModel
@@ -97,7 +98,7 @@ fun ExpenseDetailScreen(
                             text = stringResource(
                                 R.string.date,
                                 date.date.formatDate(),
-                                "${date.time.hour}:${date.time.minute}",
+                                date.time.formatTime(),
                             ),
                         )
                     }

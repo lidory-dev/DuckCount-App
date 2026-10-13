@@ -82,6 +82,19 @@ class ExpenseApi(
             body = KeyCopyRequestBody(key_copy = keyCopy),
         )
 
+    /**
+     * The versions the one-time expense [uuid] had before each of its edits, newest first, as
+     * the server stored them, see [OneTimeExpenseHistoryEntryDto]. A `404` means the expense is
+     * gone, or the caller is no longer on it.
+     */
+    suspend fun getOneTimeExpenseHistory(
+        uuid: String,
+    ): Result<List<OneTimeExpenseHistoryEntryDto>, NetworkError> =
+        client.get<List<OneTimeExpenseHistoryEntryDto>>(
+            route = DuckCountRoutes.Expense.EXPENSE_HISTORY,
+            pathParams = mapOf("expense_uuid" to uuid),
+        )
+
     suspend fun deleteOneTimeExpense(
         uuid: String,
     ): Result<Unit, NetworkError> =

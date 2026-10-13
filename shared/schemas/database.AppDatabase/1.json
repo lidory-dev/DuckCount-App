@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "c420c3152d69df6bde0401a40e74a427",
+    "identityHash": "46a11c0505f83eb32a0487eea4ba48d1",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -42,7 +42,7 @@
       },
       {
         "tableName": "ExpenseEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `timestamp` TEXT NOT NULL, `description` TEXT NOT NULL, `amount` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `isSettlement` INTEGER NOT NULL, `currency` TEXT NOT NULL, `groupUuid` TEXT, `isDeleted` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `timestamp` TEXT NOT NULL, `description` TEXT NOT NULL, `amount` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `isSettlement` INTEGER NOT NULL, `currency` TEXT NOT NULL, `groupUuid` TEXT, `isDeleted` INTEGER NOT NULL, `revision` INTEGER, PRIMARY KEY(`uuid`))",
         "fields": [
           {
             "fieldPath": "uuid",
@@ -102,6 +102,11 @@
             "columnName": "isDeleted",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -690,7 +695,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c420c3152d69df6bde0401a40e74a427')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '46a11c0505f83eb32a0487eea4ba48d1')"
     ]
   }
 }

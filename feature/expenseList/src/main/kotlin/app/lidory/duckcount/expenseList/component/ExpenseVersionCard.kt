@@ -16,15 +16,21 @@ import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.R
 import app.lidory.duckcount.expenseList.extensions.formatDate
+import app.lidory.duckcount.expenseList.extensions.formatTime
 import kotlinx.datetime.LocalDateTime
 import app.lidory.duckcount.android.ui.R as androidUiR
 
 @Composable
-fun ExpensePreviousVersionCard(
+fun ExpenseVersionCard(
     modifier: Modifier = Modifier,
-    editorFullName: String,
-    modifiedAt: String,
-    isFirstEntry: Boolean,
+
+    /** Null for somebody this device holds no profile for. */
+    authorFullName: String?,
+
+    /** Null when it is not known. */
+    madeAt: LocalDateTime?,
+
+    isCreation: Boolean,
     onClick: () -> Unit,
 ) {
     Card(
@@ -34,23 +40,24 @@ fun ExpensePreviousVersionCard(
         Column(
             modifier = Modifier.padding(Padding.medium),
         ) {
-            val date = LocalDateTime.parse(modifiedAt)
-            Text(
-                text = stringResource(
-                    R.string.date,
-                    date.date.formatDate(),
-                    "${date.time.hour}:${date.time.minute}",
-                ),
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            madeAt?.let { date ->
+                Text(
+                    text = stringResource(
+                        R.string.date,
+                        date.date.formatDate(),
+                        date.time.formatTime(),
+                    ),
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
 
-            Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(4.dp))
+            }
 
-            val textRes = if (isFirstEntry) R.string.created_by else androidUiR.string.modified_by
+            val textRes = if (isCreation) R.string.created_by else androidUiR.string.modified_by
             Text(
-                text = stringResource(textRes, editorFullName),
+                text = stringResource(textRes, authorFullName ?: stringResource(R.string.unknown_person)),
                 style = MaterialTheme.typography.bodyMedium,
                 fontStyle = FontStyle.Italic,
                 maxLines = 1,

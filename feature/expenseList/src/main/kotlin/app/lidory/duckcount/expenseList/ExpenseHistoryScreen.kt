@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -17,7 +18,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,7 +26,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.constant.Padding
-import app.lidory.duckcount.expenseList.component.ExpensePreviousVersionCard
+import app.lidory.duckcount.expenseList.component.ExpenseVersionCard
+import app.lidory.duckcount.expenseList.model.messageRes
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseHistoryState
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseHistoryViewModel
 import org.koin.androidx.compose.koinViewModel
@@ -37,7 +38,10 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 fun ExpenseHistoryScreen(
     modifier: Modifier = Modifier,
     viewModel: ExpenseHistoryViewModel = koinViewModel(),
-    navigateToHistoryDetail: (Int) -> Unit,
+
+    /** With the [app.lidory.duckcount.expenseList.model.ExpenseVersion.revision] of the version picked. */
+    navigateToHistoryDetail: (Long) -> Unit,
+
     onBack: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -53,7 +57,7 @@ fun ExpenseHistoryScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             painter = painterResource(androidUiR.drawable.ic_arrow_back),
-                            contentDescription = "Back",
+                            contentDescription = stringResource(androidUiR.string.back),
                         )
                     }
                 },
@@ -72,19 +76,19 @@ fun ExpenseHistoryScreen(
                 }
             }
 
-            ExpenseHistoryState.NotFound -> {
+            is ExpenseHistoryState.Failed -> {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding),
+                        .padding(innerPadding)
+                        .padding(Padding.medium),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = stringResource(androidUiR.string.an_error_occurred))
+                    Text(text = stringResource(state.error.messageRes()))
                 }
             }
 
             is ExpenseHistoryState.Content -> {
-                val expenses = state.expenses
                 val layoutDirection = LocalLayoutDirection.current
 
                 LazyColumn(
@@ -97,26 +101,15 @@ fun ExpenseHistoryScreen(
                     verticalArrangement = Arrangement.spacedBy(Padding.large),
                 ) {
                     items(
-                        count = expenses.size,
-                        key = { expenses[it].modifiedAt },
-                    ) { index ->
-                        val expense = expenses[index]
-
-                        val editorFullName =
-                            viewModel.getUserFullName(expense.editorUserUuid)
-                                .collectAsState(null)
-                                .value ?: expense.editorUserUuid
-
-                        ExpensePreviousVersionCard(
+                        items = state.versions,
+                        key = { version -> version.revision },
+                    ) { version ->
+                        ExpenseVersionCard(
                             modifier = Modifier.fillMaxWidth(),
-                            modifiedAt = expense.modifiedAt,
-                            editorFullName = editorFullName,
-                            isFirstEntry = index == expenses.lastIndex,
-                            onClick = {
-                                navigateToHistoryDetail(
-                                    index,
-                                )
-                            },
+                            authorFullName = state.fullNames[version.authorUuid],
+                            madeAt = version.madeAt,
+                            isCreation = version.isCreation,
+                            onClick = { navigateToHistoryDetail(version.revision) },
                         )
                     }
                 }

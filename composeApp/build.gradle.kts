@@ -40,6 +40,9 @@ kotlin {
             implementation(libs.koin.android)
             implementation(libs.koin.androidx.compose)
 
+            // Dates, which the mappers hand from :shared to the feature modules
+            implementation(libs.kotlinx.datetime)
+
             // Push
             implementation(libs.unifiedpush.connector)
             implementation(libs.unifiedpush.fcm.distributor)

@@ -63,6 +63,15 @@ class OneTimeExpenseKeyRepository(
         oneTimeExpenseKeyDao.get(expenseUuid = expenseUuid)?.toRecord()
 
     /**
+     * The record to open versions of [expenseUuid] with outside a sync, such as those its
+     * history holds: the one this device holds as working, see [record], or null when it holds
+     * none, or when its creditor is blocked, whose keys open nothing.
+     */
+    suspend fun openingRecord(expenseUuid: String): OneTimeExpenseKeyRecord? =
+        record(expenseUuid = expenseUuid)
+            ?.takeUnless { identityConflictDao.isBlocked(peerUuid = it.creditorUuid) }
+
+    /**
      * The key each of [expenses] is to be opened with, keyed by expense: the one this device
      * holds as working, see [record], or else the one its creditor handed over. None from a
      * blocked creditor: their expenses would open on an identity in doubt.

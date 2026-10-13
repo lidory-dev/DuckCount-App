@@ -113,10 +113,26 @@ interface ExpenseDao {
 
             if (newest != null && revision < newest) return@forEach
 
-            upsertWithBeneficiaries(expenseWithBeneficiaries = expense)
+            upsertOneTimeExpense(expense = expense, revision = revision)
             setNewestRevision(OneTimeExpenseRevisionEntity(expenseUuid, newestRevision = revision))
         }
     }
+
+    /**
+     * Stores [expense] as the version of a one-time expense signed at [revision], its
+     * beneficiaries replaced whole, see [ExpenseEntity.revision].
+     */
+    @Transaction
+    suspend fun upsertOneTimeExpense(expense: ExpenseWithBeneficiariesEntity, revision: Long) {
+        upsertWithBeneficiaries(
+            expenseWithBeneficiaries = expense.copy(expense = expense.expense.copy(revision = revision)),
+        )
+    }
+
+    /** The one-time expense [uuid] as this device shows it, with the revision it is, or null. */
+    @Transaction
+    @Query("SELECT * FROM ExpenseEntity WHERE uuid = :uuid AND groupUuid IS NULL")
+    suspend fun getOneTimeExpense(uuid: String): ExpenseWithBeneficiariesEntity?
 
     @Query("SELECT newestRevision FROM OneTimeExpenseRevisionEntity WHERE expenseUuid = :expenseUuid")
     suspend fun getNewestRevision(expenseUuid: String): Long?
