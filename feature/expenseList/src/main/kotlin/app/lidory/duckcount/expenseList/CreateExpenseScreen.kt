@@ -64,6 +64,7 @@ fun CreateExpenseScreen(
     val selectionToggleState by viewModel.selectionToggleState.collectAsStateWithLifecycle()
     val beneficiaries by viewModel.displayedBeneficiaries.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
+    val hasChanges by viewModel.hasChanges.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var pendingError by remember { mutableStateOf<ExpenseWriteError?>(null) }
@@ -278,6 +279,7 @@ fun CreateExpenseScreen(
                     .padding(bottom = Padding.extraLarge)
                     .align(Alignment.BottomCenter),
                 enabled = !isSaving
+                        && (viewModel.isNewExpense() || hasChanges)
                         && expenseState.error == null
                         && expenseState.amount.isNotBlank()
                         && expenseState.title.length in (1..viewModel.maxTitleLength)

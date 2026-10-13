@@ -32,7 +32,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -124,34 +123,27 @@ class CreateExpenseViewModel(
             },
         ),
     )
-    val state = _state.onStart {
-        updateCreditor(creditorUuid = createExpenseCallBacks.getAuthenticatedUserUuid() ?: "")
+    val state: StateFlow<CreateExpenseState> = _state.asStateFlow()
 
-        getCreditorName()
+    /**
+     * The form as it stood once the expense being edited was read into it: what an edit has to
+     * differ from for there to be anything to save. Null when creating, and until it is read.
+     */
+    private val loadedState = MutableStateFlow<CreateExpenseState?>(null)
 
-        groupUuid?.let {
-            val groupCurrency = createExpenseCallBacks.getGroupCurrency(groupUuid = it).first()
-            updateCurrency(groupCurrency)
-        }
-
-        expenseUuid?.let { uuid ->
-            val expense = createExpenseCallBacks.getExpenseWithBeneficiaries(expenseUuid = uuid).first()
-
-            updateTitle(expense.title)
-            updateCreditor(expense.creditorUuid)
-            updateAmount(expense.amount)
-            updateCurrency(expense.currency)
-            updateDescription(expense.description)
-            updateBeneficiaries(expense.beneficiaries)
-            expense.beneficiaries.forEach {
-                updateBeneficiaryShare(it.userUuid, it.share)
-            }
-        }
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000L),
-        initialValue = _state.value,
-    )
+    /**
+     * Whether the expense being edited has changed since it was read. Saved unchanged, it would
+     * spend one of the few edits the server allows a one-time expense, and add a version to its
+     * history that says nothing new.
+     */
+    val hasChanges: StateFlow<Boolean> =
+        combine(_state, loadedState) { state, loaded ->
+            loaded != null && state.savedContent() != loaded.savedContent()
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000L),
+            initialValue = false,
+        )
 
     private var _searchQuery = MutableStateFlow("")
     var searchQuery by mutableStateOf("")
@@ -227,6 +219,39 @@ class CreateExpenseViewModel(
             initialValue = emptyList(),
         )
 
+    init {
+        // Once, and not whenever the form is collected again: coming back to the app after a
+        // few seconds away would otherwise read the expense back over what the user typed.
+        viewModelScope.launch {
+            updateCreditor(creditorUuid = createExpenseCallBacks.getAuthenticatedUserUuid() ?: "")
+
+            getCreditorName()
+
+            groupUuid?.let {
+                val groupCurrency = createExpenseCallBacks.getGroupCurrency(groupUuid = it).first()
+                updateCurrency(groupCurrency)
+            }
+
+            expenseUuid?.let { uuid ->
+                val expense = createExpenseCallBacks.getExpenseWithBeneficiaries(expenseUuid = uuid).first()
+
+                // The currency first: it decides how the amount and the shares are written.
+                updateCurrency(expense.currency)
+                updateTitle(expense.title)
+                updateCreditor(expense.creditorUuid)
+                updateAmount(expense.amount)
+                updateDescription(expense.description)
+                _state.update { it.copy(timestamp = expense.timestamp) }
+                updateBeneficiaries(expense.beneficiaries)
+                expense.beneficiaries.forEach {
+                    updateBeneficiaryShare(it.userUuid, it.share)
+                }
+
+                loadedState.value = _state.value
+            }
+        }
+    }
+
     fun toggleSelectedUser(user: User) {
         _selectedUuids.update { selected ->
             if (user.uuid in selected) selected - user.uuid else selected + user.uuid
@@ -297,28 +322,35 @@ class CreateExpenseViewModel(
 
         _isSaving.value = true
 
+        val saved = _state.value
+
         try {
             val error = createExpenseCallBacks.updateExpenseWithBeneficiaries(
                 expenseWithBeneficiaries = ExpenseWithBeneficiaries(
                     uuid = expenseUuid,
-                    timestamp = getCurrentTimestamp(),
-                    title = _state.value.title,
-                    description = _state.value.description,
-                    amount = _state.value.amount,
-                    creditorUuid = _state.value.creditorUuid,
-                    isSettlement = _state.value.isSettlement,
-                    currency = _state.value.currency,
+                    // The date it was created with: an edit changes what the expense says, not
+                    // when it happened, and its history tells when each version was made.
+                    timestamp = saved.timestamp,
+                    title = saved.title,
+                    description = saved.description,
+                    amount = saved.amount,
+                    creditorUuid = saved.creditorUuid,
+                    isSettlement = saved.isSettlement,
+                    currency = saved.currency,
                     groupUuid = groupUuid,
-                    beneficiaries = _state.value.beneficiaries.map {
+                    beneficiaries = saved.beneficiaries.map {
                         it.copy(expenseUuid = expenseUuid)
                     },
-                    isDeleted = _state.value.isDeleted,
+                    isDeleted = saved.isDeleted,
                 ),
             )
 
             error?.let {
                 _showError.send(error)
             } ?: run {
+                // What was saved is what an edit now has to differ from: should the screen still
+                // be open when the user comes back, saving it again would change nothing.
+                loadedState.value = saved
                 _navigateBack.send(Unit)
             }
         } finally {
@@ -528,6 +560,21 @@ data class CreateExpenseState(
             else -> validateExpenseCallBack(amount, currency, beneficiaries)
         }
 }
+
+/**
+ * What saving the form writes of the expense, and so what an edit has to change. Each share is
+ * taken by whose it is: working the shares out again gives every beneficiary a new identifier,
+ * which changes nothing.
+ */
+private fun CreateExpenseState.savedContent(): List<Any> =
+    listOf(
+        title,
+        description,
+        amount,
+        currency,
+        creditorUuid,
+        beneficiaries.mapTo(HashSet()) { Triple(it.userUuid, it.share, it.isShareFixed) },
+    )
 
 data class UserListState(
     val users: List<User> = emptyList(),
