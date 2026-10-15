@@ -40,10 +40,4 @@ class OutgoingContactRequestEntity(
     @PrimaryKey(autoGenerate = false) val mlsGroupId: ByteArray,
 
     val recipientUserUuid: String,
-
-    /**
-     * When the user sent it, in milliseconds since the epoch: for a while after, its recipient
-     * may wake the user, see [WakeList][push.WakeList].
-     */
-    val sentAt: Long,
 )

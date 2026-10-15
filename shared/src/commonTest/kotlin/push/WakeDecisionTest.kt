@@ -24,8 +24,8 @@ class WakeDecisionTest {
     }
 
     @Test
-    fun `every signal from a contact wakes the user`() {
-        PushSignal.Kind.entries.forEach { kind ->
+    fun `every signal but an acceptance from a contact wakes the user`() {
+        (PushSignal.Kind.entries - PushSignal.Kind.CONTACT_ACCEPTED).forEach { kind ->
             assertTrue(signal(kind, from = BOB).mayWake(wakeList), "$kind")
         }
     }
@@ -39,8 +39,17 @@ class WakeDecisionTest {
 
     /** Her acceptance, which makes her a contact only once the sync has read it. */
     @Test
-    fun `a message from somebody the user sent a request to wakes the user`() {
-        assertTrue(signal(PushSignal.Kind.MESSAGE, from = ALICE).mayWake(wakeList))
+    fun `an acceptance from somebody the user sent a request to wakes the user`() {
+        assertTrue(signal(PushSignal.Kind.CONTACT_ACCEPTED, from = ALICE).mayWake(wakeList))
+    }
+
+    /**
+     * Anybody can have the server send one, so it cannot stand for her answer: only accepting
+     * sends that, and only once.
+     */
+    @Test
+    fun `a message from somebody the user sent a request to does not wake the user`() {
+        assertFalse(signal(PushSignal.Kind.MESSAGE, from = ALICE).mayWake(wakeList))
     }
 
     /** Only her answer is waited for: anything else of hers is from somebody not a contact. */
@@ -53,6 +62,13 @@ class WakeDecisionTest {
         ).forEach { kind ->
             assertFalse(signal(kind, from = ALICE).mayWake(wakeList), "$kind")
         }
+    }
+
+    /** Neither has a request from the user to answer, Bob being a contact already. */
+    @Test
+    fun `an acceptance from somebody the user sent no request to does not wake the user`() {
+        assertFalse(signal(PushSignal.Kind.CONTACT_ACCEPTED, from = MALLORY).mayWake(wakeList))
+        assertFalse(signal(PushSignal.Kind.CONTACT_ACCEPTED, from = BOB).mayWake(wakeList))
     }
 
     /** A payload with no sender a build can read, or none at all. */

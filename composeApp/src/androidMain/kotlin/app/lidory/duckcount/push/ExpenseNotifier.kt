@@ -324,10 +324,10 @@ class ExpenseNotifier(
      * Says what a signal said, for a device too locked to find out more.
      *
      * Only an expense signal is announced this way: an expense arriving, or one the user is
-     * on changing. A plain `message` is an acceptance or a notice that somebody removed the
-     * user, and saying "something happened" when it might be the second would be worse than
-     * saying nothing. And only from a contact: [DuckCountPushService] drops an expense signal
-     * from anybody else before it gets here.
+     * on changing. A plain `message` may be a notice that somebody removed the user, and
+     * saying "something happened" when it might be that would be worse than saying nothing.
+     * And only from a contact: [DuckCountPushService] drops an expense signal from anybody
+     * else before it gets here.
      *
      * Synchronized with [notify], [notifyChanges] and [retireStandIns], so that a stand-in
      * cannot go up in the middle of any of them, and be taken down by what was meant for the

@@ -50,7 +50,6 @@ import util.EmptyResult
 import util.NetworkError
 import util.Result
 import util.map
-import util.nowEpochMilliseconds
 import util.onError
 import vault.VaultRepository
 import kotlin.io.encoding.Base64
@@ -196,8 +195,7 @@ class ContactRequestRepository(
      * recipient all the same, their answer can only be read in that group, and sending again
      * finds it pending.
      *
-     * The recipient may wake the user with a message for a week after, which is how their
-     * answer arrives, see [WakeList].
+     * Recorded, it lets its recipient wake the user with their acceptance, see [WakeList].
      */
     suspend fun sendContactRequest(username: String): EmptyResult<SendContactRequestError> {
         val digest = hashDiscoveryUsername(username = username)
@@ -282,7 +280,6 @@ class ContactRequestRepository(
         val outgoing = OutgoingContactRequestEntity(
             mlsGroupId = group.mlsGroupId,
             recipientUserUuid = recipient.userUuid,
-            sentAt = nowEpochMilliseconds(),
         )
 
         contactRequestDao.insertOutgoing(request = outgoing)

@@ -12,10 +12,7 @@ interface WakeListStore {
     /** Whether [userUuid] is one of the user's contacts, blocked ones aside. */
     fun isContact(userUuid: String): Boolean
 
-    /**
-     * Whether the user sent [userUuid] a contact request in the last week still waiting for its
-     * answer.
-     */
+    /** Whether the user sent [userUuid] a contact request still waiting for its answer. */
     fun isRequested(userUuid: String): Boolean
 
     /**

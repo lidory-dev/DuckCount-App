@@ -61,10 +61,11 @@ class ContactNotifier(
     /**
      * Says what a signal said, for a device too locked to find out more.
      *
-     * Only a request can be announced this way. A `message` is an acceptance or a
-     * notice that somebody removed the user, and saying "something happened" when it
-     * might be the second would be worse than saying nothing: the sync says which as
-     * soon as the device is unlocked.
+     * Only a request can be announced this way. An acceptance needs nothing from the
+     * user, see [isSilent], so it waits for the unlock, and the sync that follows puts it
+     * up with a name, in silence. A `message` may be a notice that somebody removed the
+     * user, and saying "something happened" when it might be that would be worse than
+     * saying nothing: the sync says what it was as soon as the device is unlocked.
      */
     fun notifyWhileLocked(signal: PushSignal) {
         if (signal.kind != PushSignal.Kind.CONTACT_REQUEST) return

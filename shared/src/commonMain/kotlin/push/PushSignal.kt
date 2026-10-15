@@ -24,8 +24,8 @@ data class PushSignal(
 
     /**
      * The user whose action sent it: the sender of the message, whoever asked to become a
-     * contact, the creditor who changed an expense. Null when the payload names nobody this
-     * build can read, which is taken as nobody at all.
+     * contact or accepted, the creditor who changed an expense. Null when the payload names
+     * nobody this build can read, which is taken as nobody at all.
      */
     val from: String?,
 ) {
@@ -35,9 +35,20 @@ data class PushSignal(
         CONTACT_REQUEST,
 
         /**
-         * A direct message is waiting. An acceptance and a notice that a contact removed
-         * the user both arrive as this: the server cannot tell them apart, only the
-         * client can, once it has decrypted the message itself.
+         * Somebody the user asked to become a contact accepted.
+         *
+         * Sent by the server as it takes the acceptance, and by nothing else: no client can
+         * have it sent the way it has a message sent, which is what lets this device take it
+         * from somebody who is not a contact yet, see [mayWake]. Once per request at most,
+         * accepting one consuming it and refusing one deleting it. They become a contact only
+         * once the sync has read the card the acceptance carries.
+         */
+        CONTACT_ACCEPTED,
+
+        /**
+         * A direct message is waiting. A notice that a contact removed the user arrives as
+         * this: the server cannot tell it from any other message, only the client can, once
+         * it has decrypted the message itself.
          */
         MESSAGE,
 
@@ -75,21 +86,22 @@ data class PushSignal(
     }
 
     /**
-     * Whether this signal may wake the user, by who sent it.
+     * Whether this signal may wake the user, by who sent it, see [WakeList].
      *
      * A request to become a contact comes from a stranger by definition, so it is taken from
-     * anybody. Everything else only from a contact, see [WakeList], or, for a [Kind.MESSAGE],
-     * from somebody the user sent a contact request to in the last week: that is how their
-     * acceptance arrives, and they are a contact only once the sync has read it. A signal
-     * naming nobody is from nobody the user knows.
+     * anybody. An acceptance only from somebody the user sent a contact request still waiting
+     * for its answer, since they are a contact only once the sync has read it. Everything
+     * else only from a contact. A signal naming nobody is from nobody the user knows.
      */
     fun mayWake(wakeList: WakeListStore): Boolean {
         if (kind == Kind.CONTACT_REQUEST) return true
 
         val from = from ?: return false
 
-        return wakeList.isContact(userUuid = from) ||
-            kind == Kind.MESSAGE && wakeList.isRequested(userUuid = from)
+        return when (kind) {
+            Kind.CONTACT_ACCEPTED -> wakeList.isRequested(userUuid = from)
+            else -> wakeList.isContact(userUuid = from)
+        }
     }
 
     companion object {
@@ -101,6 +113,7 @@ data class PushSignal(
 
             val kind = when (serialized.type) {
                 "contact_request" -> Kind.CONTACT_REQUEST
+                "contact_accepted" -> Kind.CONTACT_ACCEPTED
                 "message" -> Kind.MESSAGE
                 "one_time_expense" -> Kind.ONE_TIME_EXPENSE
                 "one_time_expense_changed" -> Kind.ONE_TIME_EXPENSE_CHANGED

@@ -16,6 +16,14 @@ class PushSignalTest {
     }
 
     @Test
+    fun `parses a contact accepted signal`() {
+        assertEquals(
+            PushSignal(kind = PushSignal.Kind.CONTACT_ACCEPTED, from = ALICE),
+            PushSignal.parse("""{"type":"contact_accepted","from":"$ALICE"}""".encodeToByteArray()),
+        )
+    }
+
+    @Test
     fun `parses a message signal`() {
         assertEquals(
             PushSignal(kind = PushSignal.Kind.MESSAGE, from = ALICE),
