@@ -34,6 +34,14 @@ class PushSignalTest {
     }
 
     @Test
+    fun `parses a one-time expense changed signal`() {
+        assertEquals(
+            PushSignal.ONE_TIME_EXPENSE_CHANGED,
+            PushSignal.parse("""{"type":"one_time_expense_changed"}""".encodeToByteArray()),
+        )
+    }
+
+    @Test
     fun `reads a signal a newer server added as unknown`() {
         assertEquals(
             PushSignal.UNKNOWN,

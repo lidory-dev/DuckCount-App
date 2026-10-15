@@ -72,7 +72,8 @@ internal class StandIns(context: Context) {
     /** What a stand-in can stand for. */
     enum class Kind(val key: String) {
         CONTACT_REQUEST("contact-request"),
-        ONE_TIME_EXPENSE("one-time-expense");
+        ONE_TIME_EXPENSE("one-time-expense"),
+        ONE_TIME_EXPENSE_CHANGED("one-time-expense-changed");
 
         val countKey: String get() = "$key-count"
     }

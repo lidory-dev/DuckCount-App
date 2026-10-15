@@ -80,6 +80,19 @@ interface ExpenseDao {
     @Query("SELECT uuid, creditorUuid FROM ExpenseEntity WHERE groupUuid IS NULL AND uuid IN (:uuids)")
     suspend fun getOneTimeCreditors(uuids: List<String>): List<ExpenseCreditor>
 
+    /** Each one-time expense this device can currently read, as it shows it, see [ShownOneTimeExpense]. */
+    @Query(
+        """
+        SELECT ExpenseEntity.uuid, ExpenseEntity.title, ExpenseEntity.creditorUuid, ExpenseEntity.revision,
+            COALESCE(OneTimeExpenseSettledMarkEntity.isSettled, 0) AS isSettled
+        FROM ExpenseEntity
+        LEFT JOIN OneTimeExpenseSettledMarkEntity
+            ON OneTimeExpenseSettledMarkEntity.expenseUuid = ExpenseEntity.uuid
+        WHERE ExpenseEntity.groupUuid IS NULL
+        """
+    )
+    suspend fun getShownOneTimeExpenses(): List<ShownOneTimeExpense>
+
     @Query("DELETE FROM ExpenseEntity WHERE groupUuid IS NULL AND uuid IN (:uuids)")
     suspend fun deleteOneTimeExpenses(uuids: List<String>)
 
@@ -225,4 +238,26 @@ interface ExpenseDao {
 class ExpenseCreditor(
     val uuid: String,
     val creditorUuid: String,
+)
+
+/**
+ * One one-time expense as this device shows it, as much of it as telling that it changed
+ * takes, see `expense.ExpenseChanges`.
+ */
+class ShownOneTimeExpense(
+    val uuid: String,
+    val title: String,
+    val creditorUuid: String,
+
+    /**
+     * The revision the version shown was signed at, which a one-time expense always has, see
+     * [ExpenseEntity.revision].
+     */
+    val revision: Long,
+
+    /**
+     * What its creditor's newest mark shown says, false when there is none, see
+     * [OneTimeExpenseSettledMarkEntity].
+     */
+    val isSettled: Boolean,
 )

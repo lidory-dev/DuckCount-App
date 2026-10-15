@@ -37,7 +37,8 @@ interface ExpenseListCallBacks {
      * The list of one-time expenses is on screen, scrolled to the newest.
      *
      * Until [newestExpensesHidden], an expense somebody shares goes in where the user is
-     * already looking. So the notifications about expenses come down, and no new ones go up.
+     * already looking. So the notifications about expenses that arrived come down, and no new
+     * ones go up. Those about a change to an expense stay: it can be anywhere in the list.
      */
     fun newestExpensesShown()
 

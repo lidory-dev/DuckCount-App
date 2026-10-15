@@ -10,6 +10,7 @@ import authenticationUtils.getAuthenticatedUserUuid
 import contact.ContactArrivals
 import contact.ContactSync
 import expense.ExpenseArrivals
+import expense.ExpenseChanges
 import expense.OneTimeExpenseSync
 import kotlinx.coroutines.CancellationException
 import org.koin.core.component.KoinComponent
@@ -19,7 +20,7 @@ private const val TAG = "PushSyncWorker"
 
 /**
  * Goes and reads what a push signal said had arrived, then tells the user about
- * whoever, and whatever, turned up.
+ * whoever, and whatever, turned up, and what changed of what they already had.
  *
  * The signal itself says nothing about what happened, so this is where the app finds
  * out: it syncs, and compares what the device knew before with what it knows after.
@@ -39,6 +40,8 @@ class PushSyncWorker(
     private val oneTimeExpenseSync: OneTimeExpenseSync by inject()
 
     private val expenseArrivals: ExpenseArrivals by inject()
+
+    private val expenseChanges: ExpenseChanges by inject()
 
     private val expenseNotifier: ExpenseNotifier by inject()
 
@@ -83,10 +86,11 @@ class PushSyncWorker(
 
         val contactsBefore = contactArrivals.snapshot()
         val expensesBefore = expenseArrivals.snapshot()
+        val shownBefore = expenseChanges.snapshot()
 
         // Before the first message is read, so that a stand-in going up from here on is
         // known for one this sync may not have read.
-        val standInsBefore = expenseNotifier.standInCount()
+        val standInsBefore = expenseNotifier.standInCounts()
 
         // Order matters. Draining the messages comes first because that is where the keys
         // to expenses arrive, and the expense sync asks creditors for the ones it finds
@@ -95,13 +99,14 @@ class PushSyncWorker(
         val contacts = contactSync.sync()
         val expenses = oneTimeExpenseSync.sync()
 
-        // Whatever did arrive is worth showing even when a later step failed, and
-        // whatever left takes what was said about it down: a contact who removed the
+        // Whatever did arrive, or change, is worth showing even when a later step failed,
+        // and whatever left takes what was said about it down: a contact who removed the
         // user while the notification was still up is no longer a contact to announce.
         contactNotifier.notify(arrivals = contactArrivals.since(snapshot = contactsBefore))
         contactNotifier.forget(userUuids = contactArrivals.departures(snapshot = contactsBefore))
 
         expenseNotifier.notify(arrivals = expenseArrivals.since(snapshot = expensesBefore))
+        expenseNotifier.notifyChanges(changes = expenseChanges.since(snapshot = shownBefore))
 
         if (contacts is util.Result.Error) {
             Log.w(TAG, "doWork: could not sync the contacts: ${contacts.error}")
@@ -115,9 +120,9 @@ class PushSyncWorker(
             return retryOrGiveUp(standInsBefore = standInsBefore)
         }
 
-        // Only now, with everything read: a sync that failed leaves the stand-in to the
-        // retry, which may yet bring in the expense it announced.
-        expenseNotifier.retireStandIn(countBefore = standInsBefore)
+        // Only now, with everything read: a sync that failed leaves the stand-ins to the
+        // retry, which may yet bring in what they announced.
+        expenseNotifier.retireStandIns(countsBefore = standInsBefore)
 
         return Result.success()
     }
@@ -151,12 +156,12 @@ class PushSyncWorker(
      * having a bad minute. Past a few attempts the app stops paying for it, since the
      * screens sync when they open and nothing is lost by giving up here.
      */
-    private fun retryOrGiveUp(standInsBefore: Long): Result {
+    private fun retryOrGiveUp(standInsBefore: StandInCounts): Result {
         if (runAttemptCount < MAX_ATTEMPTS) return Result.retry()
 
-        // No retry is coming to take the stand-in over either. Kept up regardless, it would
-        // be up to whatever failed to say when it goes, which may be nothing ever.
-        expenseNotifier.retireStandIn(countBefore = standInsBefore)
+        // No retry is coming to take the stand-ins over either. Kept up regardless, they
+        // would be up to whatever failed to say when they go, which may be nothing ever.
+        expenseNotifier.retireStandIns(countsBefore = standInsBefore)
 
         return Result.success()
     }

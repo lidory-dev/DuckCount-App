@@ -33,5 +33,23 @@
         <item quantity="one">%1$d new shared expense</item>
         <item quantity="other">%1$d new shared expenses</item>
     </plurals>
+    <string name="push_expense_changed_title">Shared expense updated</string>
+    <string name="push_expense_changed_text_locked">An expense shared with you was updated</string>
+    <string name="push_expense_marked_settled">%1$s marked “%2$s” as settled</string>
+    <string name="push_expense_marked_settled_unknown">Someone marked “%1$s” as settled</string>
+    <string name="push_expense_marked_not_settled">%1$s marked “%2$s” as not settled</string>
+    <string name="push_expense_marked_not_settled_unknown">Someone marked “%1$s” as not settled</string>
+    <string name="push_expense_edited">%1$s edited “%2$s”</string>
+    <string name="push_expense_edited_unknown">Someone edited “%1$s”</string>
+    <string name="push_expense_edited_marked_settled">%1$s edited “%2$s” and marked it as settled</string>
+    <string name="push_expense_edited_marked_settled_unknown">Someone edited “%1$s” and marked it as settled</string>
+    <string name="push_expense_edited_marked_not_settled">%1$s edited “%2$s” and marked it as not settled</string>
+    <string name="push_expense_edited_marked_not_settled_unknown">Someone edited “%1$s” and marked it as not settled</string>
+    <string name="push_expense_removed">%1$s removed “%2$s”</string>
+    <string name="push_expense_removed_unknown">Someone removed “%1$s”</string>
+    <plurals name="push_expense_changed_summary">
+        <item quantity="one">%1$d shared expense updated</item>
+        <item quantity="other">%1$d shared expenses updated</item>
+    </plurals>
     <string name="settings">Settings</string>
 </resources>

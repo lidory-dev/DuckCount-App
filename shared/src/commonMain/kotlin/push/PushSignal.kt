@@ -40,6 +40,16 @@ enum class PushSignal {
     ONE_TIME_EXPENSE,
 
     /**
+     * The creditor of a one-time expense the user is on marked it as settled or not
+     * settled, edited it, or deleted it or took the user off it.
+     *
+     * One signal for all of them, and it says no more than that: which expenses changed,
+     * and how, the device learns only from its sync. The server could not say which way a
+     * mark went anyway, what it says being sealed under the expense's key.
+     */
+    ONE_TIME_EXPENSE_CHANGED,
+
+    /**
      * Something this build does not know about, including a payload it could not
      * read at all.
      *
@@ -61,6 +71,7 @@ enum class PushSignal {
                 "contact_request" -> CONTACT_REQUEST
                 "message" -> MESSAGE
                 "one_time_expense" -> ONE_TIME_EXPENSE
+                "one_time_expense_changed" -> ONE_TIME_EXPENSE_CHANGED
                 else -> UNKNOWN
             }
         }

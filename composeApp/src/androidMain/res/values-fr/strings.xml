@@ -33,5 +33,23 @@
         <item quantity="one">%1$d nouvelle dépense partagée</item>
         <item quantity="other">%1$d nouvelles dépenses partagées</item>
     </plurals>
+    <string name="push_expense_changed_title">Dépense partagée mise à jour</string>
+    <string name="push_expense_changed_text_locked">Une dépense partagée avec vous a été mise à jour</string>
+    <string name="push_expense_marked_settled">%1$s a marqué «\u00A0%2$s\u00A0» comme remboursée</string>
+    <string name="push_expense_marked_settled_unknown">Quelqu’un a marqué «\u00A0%1$s\u00A0» comme remboursée</string>
+    <string name="push_expense_marked_not_settled">%1$s a marqué «\u00A0%2$s\u00A0» comme non remboursée</string>
+    <string name="push_expense_marked_not_settled_unknown">Quelqu’un a marqué «\u00A0%1$s\u00A0» comme non remboursée</string>
+    <string name="push_expense_edited">%1$s a modifié «\u00A0%2$s\u00A0»</string>
+    <string name="push_expense_edited_unknown">Quelqu’un a modifié «\u00A0%1$s\u00A0»</string>
+    <string name="push_expense_edited_marked_settled">%1$s a modifié «\u00A0%2$s\u00A0» et l’a marquée comme remboursée</string>
+    <string name="push_expense_edited_marked_settled_unknown">Quelqu’un a modifié «\u00A0%1$s\u00A0» et l’a marquée comme remboursée</string>
+    <string name="push_expense_edited_marked_not_settled">%1$s a modifié «\u00A0%2$s\u00A0» et l’a marquée comme non remboursée</string>
+    <string name="push_expense_edited_marked_not_settled_unknown">Quelqu’un a modifié «\u00A0%1$s\u00A0» et l’a marquée comme non remboursée</string>
+    <string name="push_expense_removed">%1$s a retiré «\u00A0%2$s\u00A0»</string>
+    <string name="push_expense_removed_unknown">Quelqu’un a retiré «\u00A0%1$s\u00A0»</string>
+    <plurals name="push_expense_changed_summary">
+        <item quantity="one">%1$d dépense partagée mise à jour</item>
+        <item quantity="other">%1$d dépenses partagées mises à jour</item>
+    </plurals>
     <string name="settings">Paramètres</string>
 </resources>
