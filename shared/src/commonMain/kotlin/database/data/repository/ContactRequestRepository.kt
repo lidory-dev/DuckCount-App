@@ -304,8 +304,13 @@ class ContactRequestRepository(
 
     /**
      * Makes [senderUserUuid] a contact on the strength of [card], when it answers a request the
-     * user sent them: read in [mlsGroupId], the group that request created. Any other card is
-     * ignored, since its sender would otherwise become a contact the user never asked for.
+     * user sent them: read in [mlsGroupId], the group that request created, which becomes the
+     * channel to them. Any other card is ignored, since its sender would otherwise become a
+     * contact the user never asked for.
+     *
+     * Only the answer makes that group the channel. The recipient is pinned from the moment the
+     * request goes out, so whatever else they send in it is read, and taken as from somebody who
+     * is not a contact, see [DirectChannelRepository.noteReadIn] and [expense.ExpectedKeys].
      */
     internal suspend fun receiveAnswer(senderUserUuid: String, mlsGroupId: ByteArray, card: ContactCard) {
         val requests = contactRequestDao.deleteOutgoing(
@@ -322,6 +327,11 @@ class ContactRequestRepository(
             profileEncryptionKey = card.profileEncryptionKey,
             fullName = null,
         )
+
+        // Open, since it just read the card.
+        val client = (mlsIdentityRepository.client() as? Result.Success)?.data ?: return
+
+        directChannelRepository.adopt(client = client, peerUuid = senderUserUuid, mlsGroupId = mlsGroupId)
     }
 
     /**

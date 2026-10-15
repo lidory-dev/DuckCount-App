@@ -258,6 +258,9 @@ class DirectMessageSync internal constructor(
                 // which the next Welcome from them would pin.
                 if (!reading.isSenderPinned) return Delivery.Settled
 
+                // Pinned is still not a contact: whoever the user sent a request to is pinned
+                // before they answer it. So the channel and each handler go by what the sender
+                // is to the user, see [DirectChannelRepository.noteReadIn].
                 directChannelRepository.noteReadIn(
                     client = client,
                     peerUuid = reading.senderUserUuid,

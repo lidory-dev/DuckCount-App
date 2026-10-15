@@ -12,6 +12,10 @@ import androidx.room.PrimaryKey
  * the two of them share. The server lists a request only to its recipient, and does not keep
  * the group it created, so this is the device's only record of either.
  *
+ * Only the answer makes the group the channel to them, see `ContactRequestRepository.receiveAnswer`.
+ * Creating it pinned the recipient, so whatever else they send in it is read, answered or not,
+ * and taken as from somebody who is not a contact, see `DirectChannelRepository.noteReadIn`.
+ *
  * Every request to somebody goes once they become a contact, whichever way: the server drops
  * them all as soon as either side accepts one, and a row left behind would let them come back
  * by the same route after the user removed them.

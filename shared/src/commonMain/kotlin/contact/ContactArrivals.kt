@@ -81,8 +81,9 @@ class ContactArrivals(
      *
      * A new contact is only told about when they answered a request the user sent, which
      * is what the announcement says. Their answer is read in the group that request created,
-     * which becomes the channel to them, see [channel.DirectChannelRepository.noteReadIn], or
-     * one kept behind it once Welcomes read later in the same sync replaced it. Anybody else
+     * which becomes the channel to them, see
+     * [ContactRequestRepository.receiveAnswer][database.data.repository.ContactRequestRepository.receiveAnswer],
+     * or one kept behind it once Welcomes read later in the same sync replaced it. Anybody else
      * is no news to the user: the user's own acceptance of a request of theirs leaves the
      * channel in the group *that* request created, however late it landed, even when the two
      * had asked each other, and a contact the vault gave back is not one the user has a

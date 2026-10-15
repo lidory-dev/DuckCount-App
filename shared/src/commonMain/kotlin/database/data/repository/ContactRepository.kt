@@ -83,8 +83,8 @@ class ContactRepository(
      *
      * The group the two of them talk through is recorded separately, see
      * [database.data.local.entity.DirectChannelEntity]: a channel outlives the contact, and
-     * whoever knows which group it is records it, either the accept that joined it or the
-     * sync that read a message in it.
+     * whoever knows which group it is records it, the acceptance that made them a contact,
+     * the user's or theirs, and after that the sync that reads them in another group.
      */
     suspend fun add(
         userUuid: String,

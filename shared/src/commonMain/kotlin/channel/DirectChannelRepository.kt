@@ -111,6 +111,8 @@ class DirectChannelRepository(
     /**
      * Whether this device has any reason to have heard of [peerUuid]: they are a contact,
      * or there is a channel row for them because the two have exchanged something before.
+     * A contact request the user sent them is no such reason until they answer it: nothing
+     * they send in its group records a channel, see [readIn].
      *
      * What gates acting on a Welcome that arrives unasked. Joining one costs a stored group
      * and pins whatever identity it carries, so it is not done on the say-so of a stranger
@@ -128,32 +130,27 @@ class DirectChannelRepository(
 
     /**
      * Records that a message from [peerUuid] was read in [mlsGroupId], which is the only
-     * proof this device gets of anything about the other side's state.
-     *
-     * Read in the current group, it says the peer joined it, and the Welcome has done its
-     * work. Read in the group it replaced, it says nothing new: that group is kept precisely
-     * so what the peer sends there still opens, see [DirectChannelEntity.previousMlsGroupId].
-     * Read in any other, the peer is in a group this device holds but does not record as
-     * the channel, the one its own contact request created when the answer arrives in it
-     * for instance, or the oldest it keeps, about to be pushed out, and that group becomes
-     * the channel, see [adopt].
+     * proof this device gets of anything about the other side's state, see [readIn].
      */
     suspend fun noteReadIn(client: MlsClient, peerUuid: String, mlsGroupId: ByteArray) =
         withPeerLock(peerUuid = peerUuid) {
-            val channel = directChannelDao.get(peerUuid = peerUuid)
+            val read = readIn(
+                channel = directChannelDao.get(peerUuid = peerUuid),
+                mlsGroupId = mlsGroupId,
+                isContact = contactDao.get(userUuid = peerUuid) != null,
+            )
 
-            when {
-                channel?.mlsGroupId.contentEquals(mlsGroupId) -> directChannelDao.markJoined(peerUuid = peerUuid)
-
-                channel?.previousMlsGroupId.contentEquals(mlsGroupId) -> Unit
+            when (read) {
+                ChannelRead.JOINED -> directChannelDao.markJoined(peerUuid = peerUuid)
 
                 // Unless it went meanwhile: the message was read before this took the lock, and
                 // a group recorded since may have pushed this one out and deleted it. Adopted,
                 // a group that is gone would be the channel for good.
-                client.holdsGroup(mlsGroupId = mlsGroupId) ->
+                ChannelRead.MOVED -> if (client.holdsGroup(mlsGroupId = mlsGroupId)) {
                     adoptLocked(client = client, peerUuid = peerUuid, mlsGroupId = mlsGroupId)
+                }
 
-                else -> Unit
+                ChannelRead.UNCHANGED -> Unit
             }
         }
 
@@ -356,6 +353,51 @@ private const val MAX_WELCOME_ATTACHMENTS = 20
 
 /** How long a Welcome may go unanswered before the channel gets a new group. */
 private const val WELCOME_LIFETIME_MILLISECONDS = 7L * 24 * 60 * 60 * 1000
+
+/** What one message from a peer makes of the channel to them, see [readIn]. */
+internal enum class ChannelRead {
+    /** The peer is in the channel's group, so nothing has to carry its Welcome any more. */
+    JOINED,
+
+    /** The group the message was read in becomes the channel, if this device still holds it. */
+    MOVED,
+
+    UNCHANGED,
+}
+
+/**
+ * What a message from the peer of [channel], read in [mlsGroupId], makes of it, see
+ * [DirectChannelRepository.noteReadIn]. [isContact] is whether that peer is a contact.
+ *
+ * Read in the channel's group, it says the peer joined it, and the Welcome has done its work.
+ * Read in the group it replaced, it says nothing new: that group is kept precisely so what
+ * the peer sends there still opens, see [DirectChannelEntity.previousMlsGroupId]. Read in the
+ * oldest it keeps, about to be pushed out, it says the peer still sends there, and that group
+ * becomes the channel again, see [DirectChannelRepository.adopt].
+ *
+ * Read in a group the channel does not name, one a contact request created for instance, the
+ * user's to them or theirs to the user, the peer is in a group this device holds for some
+ * other reason. From a contact, it becomes the channel: two requests crossed, say, and each
+ * side adopted a different one, see
+ * [OutgoingContactRequestEntity][database.data.local.entity.OutgoingContactRequestEntity].
+ *
+ * From anybody else it stays what it was, whatever they send in it. Whoever the user sent a
+ * request to is pinned from the moment it goes out, answered or not, so what they send in its
+ * group is read: made the channel, the group would make them somebody this device knows,
+ * whose next Welcome it joins. The one the user's request created becomes the channel with
+ * their answer, see `ContactRequestRepository.receiveAnswer`, and one of theirs with the
+ * user's acceptance, never before.
+ */
+internal fun readIn(channel: DirectChannelEntity?, mlsGroupId: ByteArray, isContact: Boolean): ChannelRead =
+    when {
+        channel?.mlsGroupId.contentEquals(mlsGroupId) -> ChannelRead.JOINED
+
+        channel?.previousMlsGroupId.contentEquals(mlsGroupId) -> ChannelRead.UNCHANGED
+
+        channel?.olderMlsGroupId.contentEquals(mlsGroupId) || isContact -> ChannelRead.MOVED
+
+        else -> ChannelRead.UNCHANGED
+    }
 
 /** What a peer can make this device send them by sending it something, see [DirectChannelRepository.claimReply]. */
 internal enum class Reply {
