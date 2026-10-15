@@ -286,8 +286,9 @@ class ExpenseNotifier(
      * Takes the stand-ins down once a sync is done, each that nothing it read took over.
      *
      * Whatever one announced is either in by then, a screen's own sync having got there
-     * first, or never was: the signal is the sender's word alone, and anybody who can reach
-     * the user can send one for an expense that does not exist. A creditor marking an expense
+     * first, or never was: the signal is the sender's word alone, and any contact can send
+     * one for an expense that does not exist. Or it came in without a word, its creditor no
+     * longer a contact by then, see [expense.ExpenseArrivals]. A creditor marking an expense
      * as what it already was is signalled too, and changes nothing. Left up, a stand-in would
      * stay up for good, and the next arrival or change to come in would take it over without
      * a sound, see [notify]. A sync that gave up may have left the expense unread, and lets
@@ -325,7 +326,8 @@ class ExpenseNotifier(
      * Only an expense signal is announced this way: an expense arriving, or one the user is
      * on changing. A plain `message` is an acceptance or a notice that somebody removed the
      * user, and saying "something happened" when it might be the second would be worse than
-     * saying nothing.
+     * saying nothing. And only from a contact: [DuckCountPushService] drops an expense signal
+     * from anybody else before it gets here.
      *
      * Synchronized with [notify], [notifyChanges] and [retireStandIns], so that a stand-in
      * cannot go up in the middle of any of them, and be taken down by what was meant for the
@@ -333,8 +335,8 @@ class ExpenseNotifier(
      */
     @Synchronized
     fun notifyWhileLocked(signal: PushSignal) {
-        when (signal) {
-            PushSignal.ONE_TIME_EXPENSE -> {
+        when (signal.kind) {
+            PushSignal.Kind.ONE_TIME_EXPENSE -> {
                 createChannel()
 
                 post(
@@ -346,7 +348,7 @@ class ExpenseNotifier(
                 standIns.markUp(kind = StandIns.Kind.ONE_TIME_EXPENSE)
             }
 
-            PushSignal.ONE_TIME_EXPENSE_CHANGED -> {
+            PushSignal.Kind.ONE_TIME_EXPENSE_CHANGED -> {
                 createChannel()
 
                 post(

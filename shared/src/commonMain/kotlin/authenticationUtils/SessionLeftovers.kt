@@ -6,7 +6,8 @@ package authenticationUtils
  * must not find any of it.
  *
  * On Android, the notifications in the shade, which name the user's contacts and what they
- * shared, and the app's own record of which of them are up.
+ * shared, and the app's own record of which of them are up. And who may wake the user, kept
+ * where a locked device can read it, see [push.WakeList].
  */
 interface SessionLeftovers {
 

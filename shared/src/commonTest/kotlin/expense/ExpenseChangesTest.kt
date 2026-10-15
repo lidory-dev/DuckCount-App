@@ -7,10 +7,11 @@ import kotlin.test.assertTrue
 
 private const val ALICE = "11111111-1111-1111-1111-111111111111"
 private const val BOB = "33333333-3333-3333-3333-333333333333"
+private const val CAROL = "55555555-5555-5555-5555-555555555555"
 private const val EXPENSE_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 private const val EXPENSE_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 
-/** Alice is the user, Bob a creditor of hers. */
+/** Alice is the user, Bob a contact of hers and her creditor, Carol a former contact. */
 class ExpenseChangesTest {
 
     /** Deleted, or Alice taken off it: either way the sync no longer finds a row. */
@@ -19,7 +20,7 @@ class ExpenseChangesTest {
         val changes = changesBetween(
             before = snapshotOf(shown(title = "Dinner")),
             after = snapshotOf(),
-            ownUserUuid = ALICE,
+            contacts = setOf(BOB),
         )
 
         assertEquals(listOf(EXPENSE_A to ExpenseChange.Kind.REMOVED), changes.kinds())
@@ -31,7 +32,7 @@ class ExpenseChangesTest {
         val changes = changesBetween(
             before = snapshotOf(shown(title = "Dinner", revision = 1)),
             after = snapshotOf(shown(title = "Dinner and drinks", revision = 2)),
-            ownUserUuid = ALICE,
+            contacts = setOf(BOB),
         )
 
         assertEquals(listOf(EXPENSE_A to ExpenseChange.Kind.EDITED), changes.kinds())
@@ -43,7 +44,7 @@ class ExpenseChangesTest {
         val changes = changesBetween(
             before = snapshotOf(shown(isSettled = false)),
             after = snapshotOf(shown(isSettled = true)),
-            ownUserUuid = ALICE,
+            contacts = setOf(BOB),
         )
 
         assertEquals(listOf(EXPENSE_A to ExpenseChange.Kind.MARKED_SETTLED), changes.kinds())
@@ -54,7 +55,7 @@ class ExpenseChangesTest {
         val changes = changesBetween(
             before = snapshotOf(shown(isSettled = true)),
             after = snapshotOf(shown(isSettled = false)),
-            ownUserUuid = ALICE,
+            contacts = setOf(BOB),
         )
 
         assertEquals(listOf(EXPENSE_A to ExpenseChange.Kind.MARKED_NOT_SETTLED), changes.kinds())
@@ -67,7 +68,7 @@ class ExpenseChangesTest {
             changesBetween(
                 before = snapshotOf(shown(revision = 1, isSettled = false)),
                 after = snapshotOf(shown(revision = 2, isSettled = true)),
-                ownUserUuid = ALICE,
+                contacts = setOf(BOB),
             ).kinds(),
         )
 
@@ -76,7 +77,7 @@ class ExpenseChangesTest {
             changesBetween(
                 before = snapshotOf(shown(revision = 1, isSettled = true)),
                 after = snapshotOf(shown(revision = 2, isSettled = false)),
-                ownUserUuid = ALICE,
+                contacts = setOf(BOB),
             ).kinds(),
         )
     }
@@ -86,7 +87,7 @@ class ExpenseChangesTest {
         val changes = changesBetween(
             before = snapshotOf(shown(revision = 2, isSettled = true)),
             after = snapshotOf(shown(revision = 2, isSettled = true)),
-            ownUserUuid = ALICE,
+            contacts = setOf(BOB),
         )
 
         assertTrue(changes.isEmpty())
@@ -101,7 +102,7 @@ class ExpenseChangesTest {
         val changes = changesBetween(
             before = snapshotOf(shown(isSettled = true)),
             after = snapshotOf(shown(isSettled = true)),
-            ownUserUuid = ALICE,
+            contacts = setOf(BOB),
         )
 
         assertTrue(changes.isEmpty())
@@ -118,7 +119,27 @@ class ExpenseChangesTest {
             after = snapshotOf(
                 shown(uuid = EXPENSE_A, creditorUuid = ALICE, revision = 2, isSettled = true),
             ),
-            ownUserUuid = ALICE,
+            contacts = setOf(BOB),
+        )
+
+        assertTrue(changes.isEmpty())
+    }
+
+    /**
+     * Carol's expense came in while she was a contact. What she does to it since still shows in
+     * the app, and nothing tells Alice about it.
+     */
+    @Test
+    fun `a former contact's changes are never told about`() {
+        val changes = changesBetween(
+            before = snapshotOf(
+                shown(uuid = EXPENSE_A, creditorUuid = CAROL, isSettled = false),
+                shown(uuid = EXPENSE_B, creditorUuid = CAROL),
+            ),
+            after = snapshotOf(
+                shown(uuid = EXPENSE_A, creditorUuid = CAROL, isSettled = true),
+            ),
+            contacts = setOf(BOB),
         )
 
         assertTrue(changes.isEmpty())
@@ -129,7 +150,7 @@ class ExpenseChangesTest {
         val changes = changesBetween(
             before = snapshotOf(shown(uuid = EXPENSE_A)),
             after = snapshotOf(shown(uuid = EXPENSE_A), shown(uuid = EXPENSE_B, isSettled = true)),
-            ownUserUuid = ALICE,
+            contacts = setOf(BOB),
         )
 
         assertTrue(changes.isEmpty())
@@ -140,7 +161,7 @@ class ExpenseChangesTest {
         val changes = changesBetween(
             before = snapshotOf(shown(uuid = EXPENSE_A, revision = 1), shown(uuid = EXPENSE_B)),
             after = snapshotOf(shown(uuid = EXPENSE_A, revision = 2)),
-            ownUserUuid = ALICE,
+            contacts = setOf(BOB),
         )
 
         assertEquals(

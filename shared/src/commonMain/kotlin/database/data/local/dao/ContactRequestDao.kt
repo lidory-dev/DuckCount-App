@@ -120,6 +120,16 @@ interface ContactRequestDao {
     @Query("SELECT * FROM OutgoingContactRequestEntity")
     suspend fun getOutgoing(): List<OutgoingContactRequestEntity>
 
+    /**
+     * The requests the user has out, those to blocked recipients aside, see
+     * [IdentityConflictEntity][database.data.local.entity.IdentityConflictEntity].
+     */
+    @Query(
+        """SELECT * FROM OutgoingContactRequestEntity
+        WHERE recipientUserUuid NOT IN (SELECT peerUuid FROM IdentityConflictEntity)""",
+    )
+    suspend fun getUnblockedOutgoing(): List<OutgoingContactRequestEntity>
+
     /** Records a request the user sent, see [OutgoingContactRequestEntity]. */
     @Insert
     suspend fun insertOutgoing(request: OutgoingContactRequestEntity)

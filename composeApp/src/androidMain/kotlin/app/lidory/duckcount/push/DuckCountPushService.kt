@@ -8,6 +8,7 @@ import org.unifiedpush.android.connector.PushService
 import org.unifiedpush.android.connector.data.PushEndpoint
 import org.unifiedpush.android.connector.data.PushMessage
 import push.PushSignal
+import push.WakeListStore
 
 private const val TAG = "DuckCountPushService"
 
@@ -19,11 +20,16 @@ private const val TAG = "DuckCountPushService"
  * hands the work to [PushWork] and returns. What comes back from the distributor is
  * not a notification but a signal: a device is told that something arrived, reads it
  * from the server itself, and only then decides what to show.
+ *
+ * And told who sent it, which is checked before anything else: a signal from anybody who
+ * may not wake the user goes no further, see [push.WakeList].
  */
 class DuckCountPushService : PushService() {
     private val contactNotifier: ContactNotifier by inject()
 
     private val expenseNotifier: ExpenseNotifier by inject()
+
+    private val wakeList: WakeListStore by inject()
 
     /**
      * The distributor has an endpoint for this device, either the first one or a
@@ -53,6 +59,11 @@ class DuckCountPushService : PushService() {
      *
      * A message that could not be decrypted is dropped: the payload is encrypted to
      * this subscription's keys, so anything unreadable did not come from the server.
+     *
+     * So is a signal from anybody who may not wake the user, see [PushSignal.mayWake], with
+     * nothing put up and nothing synced. The server pushes whatever anybody sends the user,
+     * knowing nobody's contacts, so a stranger can still have the phone woken: this is where
+     * that ends.
      */
     override fun onMessage(message: PushMessage, instance: String) {
         if (!message.decrypted) {
@@ -63,11 +74,18 @@ class DuckCountPushService : PushService() {
 
         val signal = PushSignal.parse(payload = message.content)
 
-        Log.d(TAG, "onMessage: $signal")
+        // The kind alone: who sent it is nobody else's business, a log reader's included.
+        Log.d(TAG, "onMessage: ${signal.kind}")
 
-        // Nothing this device stores can be read while it is locked: the session, the
-        // keys and the database password are all sealed by Keystore entries that
-        // require an unlocked device. So the sync waits, and what the signal itself
+        if (!signal.mayWake(wakeList = wakeList)) {
+            Log.d(TAG, "onMessage: dropped a signal from somebody who may not wake the user")
+
+            return
+        }
+
+        // Past who may wake the user, nothing this device stores can be read while it is
+        // locked: the session, the keys and the database password are all sealed by
+        // Keystore entries that require an unlocked device. So the sync waits, and what the signal itself
         // said is said now, since it is all anybody knows at this point.
         if (isDeviceLocked()) {
             contactNotifier.notifyWhileLocked(signal = signal)

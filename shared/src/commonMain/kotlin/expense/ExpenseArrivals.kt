@@ -1,5 +1,7 @@
 package expense
 
+import database.data.local.dao.ContactDao
+import database.data.local.dao.ExpenseCreditor
 import database.data.local.dao.ExpenseDao
 import database.data.local.dao.UserDao
 
@@ -8,7 +10,7 @@ data class ExpenseArrival(
     val expenseUuid: String,
     val creditorUuid: String,
 
-    /** Null when this device holds no name for the creditor, who need not be a contact. */
+    /** Null when this device has yet to read the name of the creditor, a contact. */
     val creditorFullName: String?,
 )
 
@@ -29,10 +31,13 @@ class ExpenseSnapshot internal constructor(
  * Diffing over what can actually be read gets the timing right for free: the expense is
  * announced when its key lands, whether that is a second later or after a log-out and a
  * request for it, and only once either way.
+ *
+ * Only a contact's expenses are announced, see [announcedArrivals].
  */
 class ExpenseArrivals(
     private val expenseDao: ExpenseDao,
     private val userDao: UserDao,
+    private val contactDao: ContactDao,
 ) {
     /** Which one-time expenses this device can read right now. */
     suspend fun snapshot(): ExpenseSnapshot =
@@ -44,9 +49,14 @@ class ExpenseArrivals(
 
         if (arrived.isEmpty()) return emptyList()
 
+        val announced = announcedArrivals(
+            arrived = expenseDao.getOneTimeCreditors(uuids = arrived),
+            contacts = contactDao.getUnblockedUserUuids().toHashSet(),
+        )
+
         val names = mutableMapOf<String, String?>()
 
-        return expenseDao.getOneTimeCreditors(uuids = arrived).map { expense ->
+        return announced.map { expense ->
             ExpenseArrival(
                 expenseUuid = expense.uuid,
                 creditorUuid = expense.creditorUuid,
@@ -57,3 +67,18 @@ class ExpenseArrivals(
         }
     }
 }
+
+/**
+ * Which of the expenses that [arrived] are announced: the ones the user's [contacts], blocked
+ * ones aside, paid for.
+ *
+ * A former contact's expenses come in all the same, the keys to what they owed at the removal
+ * among them, and show in the app without a word, as their signals no longer wake the user,
+ * see [push.WakeList]: a sync somebody else woke the user for would otherwise tell of them all
+ * the same. Nor are the user's own, which a sync makes readable again after a log-out: none of
+ * them is news to the user.
+ */
+internal fun announcedArrivals(
+    arrived: List<ExpenseCreditor>,
+    contacts: Set<String>,
+): List<ExpenseCreditor> = arrived.filter { it.creditorUuid in contacts }

@@ -67,7 +67,7 @@ class ContactNotifier(
      * soon as the device is unlocked.
      */
     fun notifyWhileLocked(signal: PushSignal) {
-        if (signal != PushSignal.CONTACT_REQUEST) return
+        if (signal.kind != PushSignal.Kind.CONTACT_REQUEST) return
 
         createChannel(
             id = CONTACTS_CHANNEL,

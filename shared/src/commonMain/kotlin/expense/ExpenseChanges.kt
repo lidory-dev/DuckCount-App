@@ -1,6 +1,6 @@
 package expense
 
-import authenticationUtils.getAuthenticatedUserUuid
+import database.data.local.dao.ContactDao
 import database.data.local.dao.ExpenseDao
 import database.data.local.dao.ShownOneTimeExpense
 import database.data.local.dao.UserDao
@@ -9,7 +9,7 @@ import database.data.local.dao.UserDao
 data class ExpenseChange(
     val expenseUuid: String,
 
-    /** Null when this device holds no name for the creditor, who need not be a contact. */
+    /** Null when this device has yet to read the name of the creditor, a contact. */
     val creditorFullName: String?,
 
     /** Its title as changed, or as this device last showed it for one that is gone. */
@@ -58,10 +58,13 @@ class ShownExpenseSnapshot internal constructor(
  *
  * An expense this device could not read before the sync is no change to anything it showed,
  * and is [ExpenseArrivals]' to tell about.
+ *
+ * Only a contact's changes are told about, see [changesBetween].
  */
 class ExpenseChanges(
     private val expenseDao: ExpenseDao,
     private val userDao: UserDao,
+    private val contactDao: ContactDao,
 ) {
     /** The one-time expenses this device shows right now. */
     suspend fun snapshot(): ShownExpenseSnapshot =
@@ -72,13 +75,13 @@ class ExpenseChanges(
         val now = snapshot()
 
         // Read after the rows. A session can end while the sync runs, the server refusing it
-        // included, and ending one forgets the user before it empties the database: rows read
-        // emptied find nobody signed in, rather than every expense gone.
-        val ownUserUuid = getAuthenticatedUserUuid() ?: return emptyList()
+        // included, and ending one empties the database in one go: rows read emptied find no
+        // contact left either, rather than every expense gone.
+        val contacts = contactDao.getUnblockedUserUuids().toHashSet()
 
         val names = mutableMapOf<String, String?>()
 
-        return changesBetween(before = snapshot, after = now, ownUserUuid = ownUserUuid)
+        return changesBetween(before = snapshot, after = now, contacts = contacts)
             .map { (expense, kind) ->
                 ExpenseChange(
                     expenseUuid = expense.uuid,
@@ -96,8 +99,11 @@ class ExpenseChanges(
  * What happened between [before] and [after] to each expense [before] showed, with the
  * expense as [after] shows it, or as [before] did for one that is gone.
  *
- * Except [ownUserUuid]'s own expenses: a change to one of them that a sync brings in was made
- * by the user, on another of their devices.
+ * Only to the expenses of [contacts], the user's contacts, blocked ones aside. A former
+ * contact's still change in the app, without a word, as their signals no longer wake the user,
+ * see [push.WakeList]: a sync somebody else woke the user for would otherwise tell of them all
+ * the same. Nor are the user's own, a change to one of them that a sync brings in having been
+ * made by the user, on another of their devices.
  *
  * A newer revision is an edit. A mark is a change only when it says the opposite of the one
  * shown before: the creditor signing again what they had already said tells the user nothing.
@@ -105,10 +111,10 @@ class ExpenseChanges(
 internal fun changesBetween(
     before: ShownExpenseSnapshot,
     after: ShownExpenseSnapshot,
-    ownUserUuid: String,
+    contacts: Set<String>,
 ): List<Pair<ShownOneTimeExpense, ExpenseChange.Kind>> =
     before.shown.values
-        .filter { it.creditorUuid != ownUserUuid }
+        .filter { it.creditorUuid in contacts }
         .mapNotNull { was ->
             val now = after.shown[was.uuid] ?: return@mapNotNull was to ExpenseChange.Kind.REMOVED
 

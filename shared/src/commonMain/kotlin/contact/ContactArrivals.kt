@@ -38,7 +38,7 @@ class ContactSnapshot internal constructor(
 /**
  * Tells who turned up while a sync was running.
  *
- * What a push signal carries is that *something* arrived, never what or from whom:
+ * What a push signal carries is that *something* arrived, and who sent it, never what:
  * the server is blind to the message the signal is about. So the only way to say
  * anything useful to the user is to look at what the sync left behind, which is what
  * this compares.

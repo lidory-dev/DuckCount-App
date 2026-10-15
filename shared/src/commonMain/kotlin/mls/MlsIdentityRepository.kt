@@ -9,6 +9,7 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import push.WakeList
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.MlsStore
@@ -41,6 +42,7 @@ class MlsIdentityRepository(
     private val mlsStore: MlsStore,
     private val vaultRepository: VaultRepository,
     private val identityConflictDao: IdentityConflictDao,
+    private val wakeList: WakeList,
 ) {
     private val mutex = Mutex()
 
@@ -140,7 +142,8 @@ class MlsIdentityRepository(
      * back that could disagree with the store they live in.
      *
      * One that disagrees with a pin already held leaves that pin as it was, and blocks the
-     * contact, see [IdentityConflictEntity].
+     * contact, see [IdentityConflictEntity], who stops waking the user there and then, see
+     * [WakeList].
      */
     private suspend fun restorePins(client: MlsClient): EmptyResult<MlsIdentityError> {
         val contacts = when (val read = vaultRepository.getContacts()) {
@@ -154,6 +157,8 @@ class MlsIdentityRepository(
 
                 if (!client.restorePin(peerUuid = userUuid, signatureKey = signatureKey)) {
                     identityConflictDao.insert(IdentityConflictEntity(peerUuid = userUuid))
+
+                    wakeList.rebuild()
                 }
             }
         } catch (_: MlsException) {

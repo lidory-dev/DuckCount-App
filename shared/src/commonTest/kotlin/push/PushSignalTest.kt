@@ -3,21 +3,23 @@ package push
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
+private const val ALICE = "11111111-1111-1111-1111-111111111111"
+
 class PushSignalTest {
 
     @Test
     fun `parses a contact request signal`() {
         assertEquals(
-            PushSignal.CONTACT_REQUEST,
-            PushSignal.parse("""{"type":"contact_request"}""".encodeToByteArray()),
+            PushSignal(kind = PushSignal.Kind.CONTACT_REQUEST, from = ALICE),
+            PushSignal.parse("""{"type":"contact_request","from":"$ALICE"}""".encodeToByteArray()),
         )
     }
 
     @Test
     fun `parses a message signal`() {
         assertEquals(
-            PushSignal.MESSAGE,
-            PushSignal.parse("""{"type":"message"}""".encodeToByteArray()),
+            PushSignal(kind = PushSignal.Kind.MESSAGE, from = ALICE),
+            PushSignal.parse("""{"type":"message","from":"$ALICE"}""".encodeToByteArray()),
         )
     }
 
@@ -28,39 +30,53 @@ class PushSignalTest {
     @Test
     fun `parses a one-time expense signal`() {
         assertEquals(
-            PushSignal.ONE_TIME_EXPENSE,
-            PushSignal.parse("""{"type":"one_time_expense"}""".encodeToByteArray()),
+            PushSignal(kind = PushSignal.Kind.ONE_TIME_EXPENSE, from = ALICE),
+            PushSignal.parse("""{"type":"one_time_expense","from":"$ALICE"}""".encodeToByteArray()),
         )
     }
 
     @Test
     fun `parses a one-time expense changed signal`() {
         assertEquals(
-            PushSignal.ONE_TIME_EXPENSE_CHANGED,
-            PushSignal.parse("""{"type":"one_time_expense_changed"}""".encodeToByteArray()),
+            PushSignal(kind = PushSignal.Kind.ONE_TIME_EXPENSE_CHANGED, from = ALICE),
+            PushSignal.parse(
+                """{"type":"one_time_expense_changed","from":"$ALICE"}""".encodeToByteArray(),
+            ),
         )
     }
 
     @Test
     fun `reads a signal a newer server added as unknown`() {
         assertEquals(
-            PushSignal.UNKNOWN,
-            PushSignal.parse("""{"type":"group_message"}""".encodeToByteArray()),
+            PushSignal(kind = PushSignal.Kind.UNKNOWN, from = ALICE),
+            PushSignal.parse("""{"type":"group_message","from":"$ALICE"}""".encodeToByteArray()),
         )
     }
 
     @Test
     fun `ignores fields a newer server added`() {
         assertEquals(
-            PushSignal.MESSAGE,
-            PushSignal.parse("""{"type":"message","sent_at":"2026-09-18"}""".encodeToByteArray()),
+            PushSignal(kind = PushSignal.Kind.MESSAGE, from = ALICE),
+            PushSignal.parse(
+                """{"type":"message","from":"$ALICE","sent_at":"2026-09-18"}""".encodeToByteArray(),
+            ),
         )
     }
 
     @Test
-    fun `reads a payload it cannot parse as unknown`() {
-        assertEquals(PushSignal.UNKNOWN, PushSignal.parse("not json".encodeToByteArray()))
-        assertEquals(PushSignal.UNKNOWN, PushSignal.parse("{}".encodeToByteArray()))
-        assertEquals(PushSignal.UNKNOWN, PushSignal.parse(ByteArray(0)))
+    fun `reads a signal naming no sender as from nobody`() {
+        assertEquals(
+            PushSignal(kind = PushSignal.Kind.MESSAGE, from = null),
+            PushSignal.parse("""{"type":"message"}""".encodeToByteArray()),
+        )
+    }
+
+    @Test
+    fun `reads a payload it cannot parse as unknown and from nobody`() {
+        val unreadable = PushSignal(kind = PushSignal.Kind.UNKNOWN, from = null)
+
+        assertEquals(unreadable, PushSignal.parse("not json".encodeToByteArray()))
+        assertEquals(unreadable, PushSignal.parse("{}".encodeToByteArray()))
+        assertEquals(unreadable, PushSignal.parse(ByteArray(0)))
     }
 }

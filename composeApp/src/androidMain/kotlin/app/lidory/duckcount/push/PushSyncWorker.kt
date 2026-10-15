@@ -26,6 +26,9 @@ private const val TAG = "PushSyncWorker"
  * out: it syncs, and compares what the device knew before with what it knows after.
  * Anything it could not finish stays on the server, and the next sync, from here or
  * from a screen opening, picks it up.
+ *
+ * Only a contact's expenses are told about, arriving or changing: a former contact's still
+ * come in and change in the app, without a word, see [ExpenseArrivals] and [ExpenseChanges].
  */
 class PushSyncWorker(
     context: Context,

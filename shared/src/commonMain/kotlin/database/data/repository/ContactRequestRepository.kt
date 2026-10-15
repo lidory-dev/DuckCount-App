@@ -42,6 +42,7 @@ import mls.readApplicationMessage
 import mls.verifyPeerIn
 import profile.ProfileError
 import profile.ProfileRepository
+import push.WakeList
 import uniffi.lib_duckcount.InviteeKeyPackage
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
@@ -49,6 +50,7 @@ import util.EmptyResult
 import util.NetworkError
 import util.Result
 import util.map
+import util.nowEpochMilliseconds
 import util.onError
 import vault.VaultRepository
 import kotlin.io.encoding.Base64
@@ -73,6 +75,7 @@ class ContactRequestRepository(
     private val profileRepository: ProfileRepository,
     private val contactRepository: ContactRepository,
     private val directChannelRepository: DirectChannelRepository,
+    private val wakeList: WakeList,
 ) {
     /**
      * Serialises the operations on the requests addressed to the user. Each one reads the
@@ -192,6 +195,9 @@ class ContactRequestRepository(
      * was lost, timed out or the caller went away: the request may be waiting for the
      * recipient all the same, their answer can only be read in that group, and sending again
      * finds it pending.
+     *
+     * The recipient may wake the user with a message for a week after, which is how their
+     * answer arrives, see [WakeList].
      */
     suspend fun sendContactRequest(username: String): EmptyResult<SendContactRequestError> {
         val digest = hashDiscoveryUsername(username = username)
@@ -276,9 +282,12 @@ class ContactRequestRepository(
         val outgoing = OutgoingContactRequestEntity(
             mlsGroupId = group.mlsGroupId,
             recipientUserUuid = recipient.userUuid,
+            sentAt = nowEpochMilliseconds(),
         )
 
         contactRequestDao.insertOutgoing(request = outgoing)
+
+        wakeList.rebuild()
 
         val send = contactApi.sendContactRequest(
             body = SendContactRequestBody(
@@ -293,6 +302,7 @@ class ContactRequestRepository(
                     recipientUserUuid = outgoing.recipientUserUuid,
                     mlsGroupId = outgoing.mlsGroupId,
                 )
+                wakeList.rebuild()
                 client.deleteGroupQuietly(mlsGroupId = group.mlsGroupId)
             }
 

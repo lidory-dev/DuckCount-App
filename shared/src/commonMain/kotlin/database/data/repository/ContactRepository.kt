@@ -24,6 +24,7 @@ import mls.encryptApplicationMessage
 import mls.isRetryable
 import profile.ProfileError
 import profile.ProfileRepository
+import push.WakeList
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import util.EmptyResult
@@ -55,6 +56,7 @@ class ContactRepository(
     private val profileRepository: ProfileRepository,
     private val directMessageApi: DirectMessageApi,
     private val mlsIdentityRepository: MlsIdentityRepository,
+    private val wakeList: WakeList,
 ) {
     /**
      * Serializes [backUp]. The contacts are sealed whole, so two writes from this device
@@ -79,7 +81,7 @@ class ContactRepository(
      *
      * [fullName], the name on their profile, is written along when it is already known,
      * and left to [resolveNames] otherwise. The vault only gets them with the next
-     * [backUp].
+     * [backUp]. They may wake the user from here on, see [WakeList].
      *
      * The group the two of them talk through is recorded separately, see
      * [database.data.local.entity.DirectChannelEntity]: a channel outlives the contact, and
@@ -100,6 +102,8 @@ class ContactRepository(
         )
 
         fullName?.let { saveName(userUuid = userUuid, fullName = it) }
+
+        wakeList.rebuild()
     }
 
     /** Acts on [senderUserUuid]'s notice that they removed the user from their contacts. */
@@ -198,6 +202,9 @@ class ContactRepository(
         }
 
         conflicting.forEach { identityConflictDao.insert(IdentityConflictEntity(peerUuid = it)) }
+
+        // A contact blocked must not wake the user a moment longer.
+        if (conflicting.isNotEmpty()) wakeList.rebuild()
 
         // Both only touch rows still in the state they were read in, so a contact removed
         // or added back during the write stays pending for the next one.
@@ -313,6 +320,9 @@ class ContactRepository(
             },
         )
 
+        // Whoever came back may wake the user again, the blocked ones aside.
+        wakeList.rebuild()
+
         clearContactsToRestore()
 
         return Result.Success(Unit)
@@ -380,6 +390,11 @@ class ContactRepository(
         pendingExpenseKeyDao.markAwaitedAtRemoval(creditorUuid = userUuid)
 
         contactDao.markRemoved(userUuid = userUuid)
+
+        // Straight away: a former contact must not wake the user a moment longer, see
+        // [WakeList].
+        wakeList.rebuild()
+
         userRepository.remove(userUuid = userUuid)
 
         // Under the peer's lock, which every change to the groups their channel names takes: a

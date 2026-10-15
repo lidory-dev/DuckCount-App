@@ -24,6 +24,17 @@ interface ContactDao {
     @Query("SELECT userUuid FROM ContactEntity WHERE isRemoved = false")
     suspend fun getUserUuids(): List<String>
 
+    /**
+     * Who the user hears from: their contacts, removed and blocked ones aside, see
+     * [IdentityConflictEntity][database.data.local.entity.IdentityConflictEntity].
+     */
+    @Query(
+        """SELECT userUuid FROM ContactEntity
+        WHERE isRemoved = false
+        AND userUuid NOT IN (SELECT peerUuid FROM IdentityConflictEntity)""",
+    )
+    suspend fun getUnblockedUserUuids(): List<String>
+
     /** Every change the vault has not taken yet, additions and removals alike. */
     @Query("SELECT * FROM ContactEntity WHERE isBackedUp = false")
     suspend fun getNotBackedUp(): List<ContactEntity>

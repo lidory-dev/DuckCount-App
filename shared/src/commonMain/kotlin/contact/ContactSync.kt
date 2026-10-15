@@ -4,6 +4,7 @@ import database.data.repository.ContactRepository
 import database.data.repository.ContactRequestRepository
 import message.DirectMessageSync
 import message.DirectMessageSyncError
+import push.WakeList
 import util.EmptyResult
 import util.Result
 import util.onError
@@ -21,6 +22,7 @@ class ContactSync(
     private val contactRequestRepository: ContactRequestRepository,
     private val contactRepository: ContactRepository,
     private val directMessageSync: DirectMessageSync,
+    private val wakeList: WakeList,
 ) {
     /**
      * Takes in what the server holds for the user, then [backUp]s what came of it.
@@ -42,11 +44,14 @@ class ContactSync(
     }
 
     /**
-     * Carries the contact changes this device made to the vault, and reads the names
-     * of the contacts it has none for.
+     * Carries the contact changes this device made to the vault, reads the names of the
+     * contacts it has none for, and rebuilds who may wake the user, see [WakeList].
      *
      * What every operation that changes a contact ends with: the change itself
      * already landed on this device, and this is what makes it outlive the device.
+     * The list is rebuilt whatever came of the rest: the changes that matter rebuilt it as
+     * they landed, and this catches whatever was left behind, by a process killed in
+     * between for instance.
      */
     suspend fun backUp(): EmptyResult<ContactSyncError> {
         var failure: ContactSyncError? = null
@@ -54,6 +59,8 @@ class ContactSync(
         contactRepository.backUp().onError { failure = failure ?: it }
 
         contactRepository.resolveNames().onError { failure = failure ?: it }
+
+        wakeList.rebuild()
 
         return failure?.let { Result.Error(it) } ?: Result.Success(Unit)
     }
