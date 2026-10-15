@@ -196,6 +196,16 @@ class OneTimeExpenseSync(
             goneUuids = stored.filterNot { it in listedUuids },
         )
 
+        // Whether each was paid back, as its creditor signed it with the key its version
+        // opened under, and only for an expense that did open: it is their word on an
+        // expense this device shows. Kept apart from the rows, see
+        // [database.data.local.entity.OneTimeExpenseSettledMarkEntity].
+        expenseDao.storeSettledMarks(
+            marks = opened.mapNotNull { expense ->
+                held[expense.uuid]?.let { expense.openSettledMark(record = it.record) }?.toEntity()
+            },
+        )
+
         reconcilePending(unopened = unopened)
 
         // A key that arrived before its expense did, or before this device could check it,

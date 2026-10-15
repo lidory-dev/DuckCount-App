@@ -15,6 +15,7 @@ import database.data.mappers.toExpenseWithBeneficiaries
 import database.data.mappers.toExpenseWithBeneficiariesEntity
 import database.data.remote.ExpenseApi
 import database.data.remote.ExpenseRemoteMediator
+import database.data.remote.SetOneTimeExpenseSettledRequestBody
 import database.domain.Beneficiary
 import database.domain.Currency
 import database.domain.Expense
@@ -28,9 +29,12 @@ import expense.OneTimeExpenseVersion
 import expense.OneTimeExpenseWriteError
 import expense.OpenedOneTimeExpense
 import expense.ReplacedVersion
+import expense.SettledMark
+import expense.nextSettledMarkTime
 import expense.oneTimeExpenseHistory
 import expense.replacedAt
 import expense.sealOneTime
+import expense.sealSettledMark
 import expense.unsealOneTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -42,6 +46,7 @@ import util.EmptyResult
 import util.NetworkError
 import util.Result
 import util.asEmptyDataResult
+import util.nowEpochMilliseconds
 import util.onSuccess
 import kotlin.io.encoding.Base64
 import kotlin.time.ExperimentalTime
@@ -286,7 +291,7 @@ class ExpenseRepository(
         val expense = shown.toExpenseWithBeneficiaries()
 
         val replaced = entries.mapNotNull { entry ->
-            entry.unsealOneTime(expenseUuid = uuid, isSettled = expense.isSettlement, record = record)
+            entry.unsealOneTime(expenseUuid = uuid, record = record)
                 ?.let { ReplacedVersion(version = it, replacedAt = entry.replacedAt()) }
         }
 
@@ -297,6 +302,56 @@ class ExpenseRepository(
                 timeZone = TimeZone.currentSystemDefault(),
             ),
         )
+    }
+
+    /**
+     * Marks the user's one-time expense [uuid] as paid back, or no longer, see
+     * [ExpenseWithBeneficiaries.isSettled].
+     *
+     * No edit: it leaves the expense's versions as they are, spends none of the edits the
+     * server allows, and may be done any number of times. The mark is signed apart, see
+     * [SettledMark], as made later than any this device has shown, since participants refuse
+     * an older one, see [nextSettledMarkTime]; the server takes it from nobody but the creditor,
+     * and participants believe it from nobody but the creditor either, whose signature they
+     * check.
+     *
+     * The mark is shown once the server took it. When no answer comes, the next sync shows
+     * whichever mark the server holds, which is this one if it landed.
+     */
+    suspend fun setOneTimeExpenseSettled(
+        uuid: String,
+        isSettled: Boolean,
+    ): EmptyResult<OneTimeExpenseWriteError> {
+        val record = oneTimeExpenseKeyRepository.record(expenseUuid = uuid)
+            ?: return Result.Error(OneTimeExpenseWriteError.KeyMissing)
+
+        val client = when (val opened = mlsIdentityRepository.client()) {
+            is Result.Success -> opened.data
+            is Result.Error -> return Result.Error(OneTimeExpenseWriteError.Identity(opened.error))
+        }
+
+        val markedAt = nextSettledMarkTime(
+            now = nowEpochMilliseconds(),
+            newest = expenseDao.getSettledMark(expenseUuid = uuid)?.markedAt,
+        )
+
+        val mark = sealSettledMark(record = record, markedAt = markedAt, isSettled = isSettled, client = client)
+            ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
+
+        val set = expenseApi.setOneTimeExpenseSettled(
+            uuid = uuid,
+            body = SetOneTimeExpenseSettledRequestBody(is_settled = mark),
+        )
+
+        if (set is Result.Error) {
+            return Result.Error(OneTimeExpenseWriteError.Network(set.error))
+        }
+
+        expenseDao.storeSettledMarks(
+            marks = listOf(SettledMark(expenseUuid = uuid, markedAt = markedAt, isSettled = isSettled).toEntity()),
+        )
+
+        return Result.Success(Unit)
     }
 
     suspend fun deleteOneTimeExpense(uuid: String): Result<Unit, NetworkError> =

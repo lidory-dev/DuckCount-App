@@ -104,5 +104,8 @@ object DuckCountRoutes {
 
         /** The versions an expense had before each of its edits. */
         val EXPENSE_HISTORY = "$EXPENSE_BASE_URL/:expense_uuid/history"
+
+        /** Whether an expense was paid back, which is no edit. `PUT` only: `GET /expenses` lists it. */
+        val EXPENSE_SETTLED = "$EXPENSE_BASE_URL/:expense_uuid/settled"
     }
 }

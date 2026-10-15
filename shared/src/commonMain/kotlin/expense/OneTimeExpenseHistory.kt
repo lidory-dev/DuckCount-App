@@ -50,14 +50,11 @@ internal class ReplacedVersion(
  * can make one up.
  *
  * The creditor is [record]'s, as the history names none: nobody else can have made a version.
- *
- * The history keeps no settlement flag, and the signature covers it, so each version is
- * checked as having [isSettled], the flag of the version shown. No edit changes it, since a
- * settlement cannot be edited at all, and a version signed with the other one is left out.
+ * Whether the expense was paid back is no part of a version, nor of its history, see
+ * [openSettledMark].
  */
 internal fun OneTimeExpenseHistoryEntryDto.unsealOneTime(
     expenseUuid: String,
-    isSettled: Boolean,
     record: OneTimeExpenseKeyRecord,
 ): OpenedOneTimeExpense? {
     // Before anything reaches the library, which throws on a string that is not valid UTF-16
@@ -72,10 +69,10 @@ internal fun OneTimeExpenseHistoryEntryDto.unsealOneTime(
         amount = previous_amount,
         currency = previous_currency,
         timestamp = previous_timestamp,
-        is_settled = isSettled,
         beneficiaries = previous_beneficiaries,
         signature = previous_signature,
         key_copy = null,
+        is_settled = null,
     ).unsealOneTime(record = record)
 }
 

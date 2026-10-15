@@ -10,6 +10,12 @@ interface ExpenseDetailCallBacks {
     /** Returns null when delete succeeds (server + local), or the reason it failed. */
     suspend fun deleteExpense(expenseUuid: String): ExpenseWriteError?
 
+    /**
+     * Marks the user's one-time expense as paid back, or no longer. Returns null when the
+     * write succeeds (server + local), or the reason it failed.
+     */
+    suspend fun setSettled(expenseUuid: String, isSettled: Boolean): ExpenseWriteError?
+
     suspend fun restoreExpense(expenseUuid: String)
 
     fun getUserFullName(userUuid: String): Flow<String?>

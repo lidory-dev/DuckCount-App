@@ -9,8 +9,10 @@ import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -32,6 +34,11 @@ class ExpenseDetailViewModel(
     // Emitted when delete failed (offline / server error) so the screen can surface it.
     private val _showError = Channel<ExpenseWriteError>(Channel.BUFFERED)
     val showError: Flow<ExpenseWriteError> = _showError.receiveAsFlow()
+
+    // True while marking the expense as paid back, or no longer, so that the button can show
+    // an in-place spinner and stay disabled until the write completes.
+    private val _isSettling = MutableStateFlow(false)
+    val isSettling: StateFlow<Boolean> = _isSettling.asStateFlow()
 
     private val authenticatedUserUuid: String? = expenseDetailCallBacks.getAuthenticatedUserUuid()
 
@@ -104,6 +111,11 @@ class ExpenseDetailViewModel(
                     canDelete = (expenseValue.isSettlement && expenseValue.beneficiaries.any { it.userUuid == authenticatedUserUuid })
                             || (expenseValue.groupUuid == null && expenseValue.creditorUuid == authenticatedUserUuid)
                             || expenseValue.groupUuid != null,
+                    // Only a one-time expense can be marked as paid back, and only by its
+                    // creditor, the one paid back: they sign it, and the server takes the
+                    // mark from nobody else.
+                    canSettle = expenseValue.groupUuid == null
+                            && expenseValue.creditorUuid == authenticatedUserUuid,
                 )
             }
         }.stateIn(
@@ -116,6 +128,24 @@ class ExpenseDetailViewModel(
         viewModelScope.launch {
             val error = expenseDetailCallBacks.deleteExpense(expenseUuid)
             if (error == null) _navigateBack.send(Unit) else _showError.send(error)
+        }
+    }
+
+    /** Marks the expense as paid back, or no longer, as it is shown now. */
+    fun toggleSettled() {
+        val shown = expense.value ?: return
+
+        viewModelScope.launch {
+            if (_isSettling.value) return@launch
+
+            _isSettling.value = true
+
+            try {
+                expenseDetailCallBacks.setSettled(expenseUuid = expenseUuid, isSettled = !shown.isSettled)
+                    ?.let { _showError.send(it) }
+            } finally {
+                _isSettling.value = false
+            }
         }
     }
 
@@ -136,5 +166,6 @@ sealed interface ExpenseScreenState {
         val beneficiaries: List<BeneficiaryUi>,
         val canEdit: Boolean,
         val canDelete: Boolean,
+        val canSettle: Boolean,
     ) : ExpenseScreenState
 }

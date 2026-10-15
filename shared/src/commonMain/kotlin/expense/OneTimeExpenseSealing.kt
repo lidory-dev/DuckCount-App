@@ -100,7 +100,6 @@ internal fun ExpenseWithBeneficiaries.sealOneTime(
 
     val manifest = oneTimeExpenseManifest(
         revision = revision,
-        isSettlement = isSettlement,
         title = sealedTitle,
         description = sealedDescription,
         amount = sealedAmount,
@@ -121,7 +120,6 @@ internal fun ExpenseWithBeneficiaries.sealOneTime(
         amount = sealedAmount,
         currency = sealedCurrency,
         timestamp = sealedTimestamp,
-        is_settled = isSettlement,
         beneficiaries = sealedBeneficiaries,
         signature = sealBound(
             key = expenseKey,
@@ -143,9 +141,10 @@ internal class OpenedOneTimeExpense(
  * not a version [record]'s creditor signed, or does not open whole under [record]'s key.
  *
  * The signature is checked before any field is decrypted, against
- * [OneTimeExpenseKeyRecord.creditorSignatureKey]. That is what the server's `creditor_uuid`,
- * `is_settled` and beneficiary list are trusted on: the signature covers them, and a
- * version that the server changed, or that another participant sealed, does not verify.
+ * [OneTimeExpenseKeyRecord.creditorSignatureKey]. That is what the server's `creditor_uuid`
+ * and beneficiary list are trusted on: the signature covers them, and a version that the
+ * server changed, or that another participant sealed, does not verify. Whether the expense was
+ * paid back is no part of a version, see [openSettledMark].
  *
  * All or nothing on purpose: a half-opened expense would be a row with a real title and a
  * made-up amount, fed to the debt algorithm as though it were the user's own. One that does
@@ -169,7 +168,6 @@ internal fun ExpenseDto.unsealOneTime(record: OneTimeExpenseKeyRecord): OpenedOn
 
     val manifest = oneTimeExpenseManifest(
         revision = signed.revision,
-        isSettlement = is_settled,
         title = title,
         description = description,
         amount = amount,
@@ -224,7 +222,6 @@ internal fun ExpenseDto.unsealOneTime(record: OneTimeExpenseKeyRecord): OpenedOn
             ?.takeIf { it.isCanonicalTimestamp() }
             ?: return null,
         creditorUuid = creditor_uuid,
-        isSettlement = is_settled,
         // A one-time expense is by definition not in a group, and the server hard-deletes
         // rather than tombstoning, so a row that came back is a row that exists.
         groupUuid = null,
@@ -255,7 +252,6 @@ internal fun String.isCanonicalTimestamp(): Boolean =
  */
 private fun oneTimeExpenseManifest(
     revision: Long,
-    isSettlement: Boolean,
     title: EncryptedFieldDto,
     description: EncryptedFieldDto,
     amount: EncryptedFieldDto,
@@ -266,7 +262,6 @@ private fun oneTimeExpenseManifest(
     try {
         OneTimeExpenseManifest(
             revision = revision.toULong(),
-            isSettlement = isSettlement,
             title = title.toSealedValue(),
             description = description.toSealedValue(),
             amount = amount.toSealedValue(),

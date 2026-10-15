@@ -2,6 +2,7 @@ package app.lidory.duckcount.expenseList.component
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +20,9 @@ fun ExpenseAmount(
     role: ExpenseStatus,
     personalShare: String? = null,
     isActive: Boolean,
+
+    /** Shown in place of [personalShare], which nobody owes any more. */
+    isSettled: Boolean = false,
 ) {
     Column(
         modifier = modifier,
@@ -35,7 +39,10 @@ fun ExpenseAmount(
             ),
         )
 
-        personalShare?.let {
+        if (isSettled) {
+            // On the card's container, where primary does not read.
+            SettledLabel(color = LocalContentColor.current, singleLine = true)
+        } else personalShare?.let {
             Text(
                 // TODO: adapt order if the currency has to be before (ex: 20€ / $20)
                 text = "${role.labelAmount} $personalShare $currencySymbol",

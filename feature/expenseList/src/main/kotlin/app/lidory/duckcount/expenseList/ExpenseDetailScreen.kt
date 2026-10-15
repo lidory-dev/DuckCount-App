@@ -1,5 +1,6 @@
 package app.lidory.duckcount.expenseList
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,10 +11,12 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -41,8 +44,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
+import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.component.ExpenseDetailActionButtons
+import app.lidory.duckcount.expenseList.component.SettledLabel
 import app.lidory.duckcount.expenseList.component.UserAmountCard
 import app.lidory.duckcount.expenseList.extensions.formatDate
 import app.lidory.duckcount.expenseList.extensions.formatTime
@@ -64,9 +69,13 @@ fun ExpenseDetailScreen(
     navigateToExpenseHistory: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val isSettling by viewModel.isSettling.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var pendingError by remember { mutableStateOf<ExpenseWriteError?>(null) }
+
+    // Leaving would cancel the write that marks the expense, possibly after the server took it.
+    BackHandler(enabled = isSettling) {}
 
     LaunchedEffect(Unit) {
         viewModel.navigateBack.collect { onBack() }
@@ -104,7 +113,10 @@ fun ExpenseDetailScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(
+                        enabled = !isSettling,
+                        onClick = onBack,
+                    ) {
                         Icon(
                             painter = painterResource(androidUiR.drawable.ic_arrow_back),
                             contentDescription = stringResource(androidUiR.string.back),
@@ -114,6 +126,9 @@ fun ExpenseDetailScreen(
                 actions = {
                     content?.let {
                         ExpenseDetailActionButtons(
+                            // One write at a time: deleting the expense while its mark is written
+                            // would race the mark to the server.
+                            enabled = !isSettling,
                             isDeleted = content.expenseWithBeneficiaries.isDeleted,
                             isSettlement = content.expenseWithBeneficiaries.isSettlement,
                             isOneTimeExpense = content.expenseWithBeneficiaries.groupUuid == null,
@@ -127,6 +142,33 @@ fun ExpenseDetailScreen(
                     }
                 },
             )
+        },
+        bottomBar = {
+            val content = state as? ExpenseScreenState.Content
+
+            if (content?.canSettle == true) {
+                val isSettled = content.expenseWithBeneficiaries.isSettled
+
+                DuckCountElevatedLoadingButton(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = Padding.medium)
+                        .padding(bottom = Padding.extraLarge),
+                    enabled = !isSettling,
+                    colors = ButtonDefaults.buttonColors()
+                        .copy(containerColor = MaterialTheme.colorScheme.primary),
+                    onClick = viewModel::toggleSettled,
+                    isLoading = isSettling,
+                ) {
+                    Text(
+                        modifier = Modifier.padding(Padding.small),
+                        text = stringResource(
+                            if (isSettled) R.string.mark_as_not_settled else R.string.mark_as_settled,
+                        ),
+                    )
+                }
+            }
         },
     ) { innerPadding ->
         when (val state = state) {
@@ -201,6 +243,13 @@ fun ExpenseDetailScreen(
                                 text = description,
                                 style = MaterialTheme.typography.bodyMedium,
                                 textDecoration = if (expense.isDeleted) TextDecoration.LineThrough else null,
+                            )
+                        }
+
+                        if (expense.isSettled) {
+                            SettledLabel(
+                                modifier = Modifier.padding(top = Padding.small),
+                                settledAt = expense.settledAt,
                             )
                         }
                     }

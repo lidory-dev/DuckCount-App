@@ -194,6 +194,8 @@ fun ExpenseWithBeneficiariesDB.toExpenseListModel(): ExpenseWithBeneficiaries = 
     beneficiaries = beneficiaries.map { it.toExpenseListModel() },
     groupUuid = groupUuid,
     isDeleted = isDeleted,
+    isSettled = isSettled,
+    settledAt = settledAt,
 )
 
 fun ExpenseWithBeneficiaries.toDb(): ExpenseWithBeneficiariesDB = ExpenseWithBeneficiariesDB(

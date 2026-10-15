@@ -4,6 +4,10 @@ import database.data.local.entity.ExpenseEntity
 import database.data.local.entity.ExpenseWithBeneficiariesEntity
 import database.domain.Expense
 import database.domain.ExpenseWithBeneficiaries
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 fun Expense.toExpenseEntity() = ExpenseEntity(
     uuid = uuid,
@@ -32,6 +36,7 @@ fun ExpenseEntity.toExpense() = Expense(
     isDeleted = isDeleted,
 )
 
+@OptIn(ExperimentalTime::class)
 fun ExpenseWithBeneficiariesEntity.toExpenseWithBeneficiaries() =
     ExpenseWithBeneficiaries(
         uuid = expense.uuid,
@@ -45,6 +50,10 @@ fun ExpenseWithBeneficiariesEntity.toExpenseWithBeneficiaries() =
         groupUuid = expense.groupUuid,
         isDeleted = expense.isDeleted,
         beneficiaries = beneficiaries.map { it.toBeneficiary() },
+        isSettled = settledMark?.isSettled ?: false,
+        settledAt = settledMark?.takeIf { it.isSettled }?.let {
+            Instant.fromEpochMilliseconds(it.markedAt).toLocalDateTime(TimeZone.currentSystemDefault())
+        },
     )
 
 fun ExpenseWithBeneficiaries.toExpenseWithBeneficiariesEntity() =

@@ -12,7 +12,10 @@ data class ExpenseEntity(
     val description: String,
     val amount: String,
     val creditorUuid: String,
-    val isSettlement: Boolean,
+
+    /** Whether the expense is the payment settling up a group's debts, which no one-time expense is. */
+    val isSettlement: Boolean = false,
+
     val currency: Currency,
     val groupUuid: String? = null,
     val isDeleted: Boolean = false,

@@ -18,7 +18,6 @@ data class OneTimeExpenseRequestBody(
     val amount: EncryptedFieldDto,
     val currency: EncryptedFieldDto,
     val timestamp: EncryptedFieldDto,
-    val is_settled: Boolean,
     val beneficiaries: List<BeneficiaryDto>,
     val signature: EncryptedFieldDto,
     val key_copy: EncryptedFieldDto,
@@ -34,7 +33,6 @@ data class OneTimeExpenseRequestBody(
         amount = amount,
         currency = currency,
         timestamp = timestamp,
-        is_settled = is_settled,
         beneficiaries = beneficiaries,
         signature = signature,
         key_copy = key_copy,
@@ -50,7 +48,6 @@ data class CreateOneTimeExpenseRequestBody(
     val amount: EncryptedFieldDto,
     val currency: EncryptedFieldDto,
     val timestamp: EncryptedFieldDto,
-    val is_settled: Boolean,
     val beneficiaries: List<BeneficiaryDto>,
     val signature: EncryptedFieldDto,
     val key_copy: EncryptedFieldDto,
@@ -60,4 +57,13 @@ data class CreateOneTimeExpenseRequestBody(
 @Serializable
 data class KeyCopyRequestBody(
     val key_copy: EncryptedFieldDto,
+)
+
+/**
+ * Request body for `PUT /expenses/{uuid}/settled`: whether the expense was paid back, as the
+ * creditor's mark saying so, signed and sealed, see `expense.OneTimeExpenseSettledMark`.
+ */
+@Serializable
+data class SetOneTimeExpenseSettledRequestBody(
+    val is_settled: EncryptedFieldDto,
 )

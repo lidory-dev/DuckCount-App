@@ -1,6 +1,7 @@
 package expense
 
 import database.data.remote.EncryptedFieldDto
+import database.data.remote.ExpenseDto
 import database.data.remote.OneTimeExpenseHistoryEntryDto
 import database.data.remote.OneTimeExpenseRequestBody
 import database.domain.Beneficiary
@@ -20,6 +21,9 @@ private const val EXPENSE = "8d1e5823-c00c-83b7-8212-500089e3b975"
 private const val CREDITOR = "01234567-89ab-4cde-8f01-23456789abcd"
 private const val BOB = "11111111-1111-1111-1111-111111111111"
 private const val CAROL = "22222222-2222-2222-2222-222222222222"
+
+/** When the creditor marked the expense, in milliseconds since the epoch. */
+private const val MARKED_AT = 1_760_400_000_000
 
 /**
  * A version from the history opens only as its creditor signed it, through the library itself:
@@ -83,13 +87,106 @@ class OneTimeExpenseHistoryVerificationTest {
         assertNull(expense().signedBy(creditor, revision = 1, key = generateSymmetricEncryptionKey()).open())
     }
 
-    /** The history keeps no settlement flag, and the signature covers it. */
     @Test
-    fun `a version is checked with the settlement flag it is given`() {
-        val entry = expense().signedBy(creditor, revision = 1)
+    fun `a mark its creditor signed opens with what it says`() {
+        listOf(false, true).forEach { isSettled ->
+            val mark = assertNotNull(listed(settledMark = mark(markedAt = MARKED_AT, isSettled = isSettled)).openSettledMark(record))
 
-        assertNotNull(entry.open(isSettled = false))
-        assertNull(entry.open(isSettled = true))
+            assertEquals(EXPENSE, mark.expenseUuid)
+            assertEquals(MARKED_AT, mark.markedAt)
+            assertEquals(isSettled, mark.isSettled)
+        }
+    }
+
+    /** Sealing hides what a mark says but not how long it is, which would say it as well. */
+    @Test
+    fun `a settled mark and one that is not seal to the same length`() {
+        val (settled, notSettled) = listOf(true, false).map { isSettled ->
+            Base64.Default.decode(mark(markedAt = MARKED_AT, isSettled = isSettled).ciphertext).size
+        }
+
+        assertEquals(settled, notSettled)
+    }
+
+    /** A version says nothing of whether the expense was paid back. */
+    @Test
+    fun `an expense nobody marked has no mark`() {
+        assertNull(listed(settledMark = null).openSettledMark(record))
+    }
+
+    @Test
+    fun `a mark a beneficiary signed under the expense's own key does not open`() {
+        assertNull(listed(settledMark = mark(markedAt = MARKED_AT, isSettled = true, client = bob)).openSettledMark(record))
+    }
+
+    @Test
+    fun `a mark made for another expense does not open on this one`() {
+        // Under this expense's key, so only the uuid it was signed for differs.
+        val otherExpense = OneTimeExpenseKeyRecord(
+            expenseUuid = "9e2f6934-d11d-84c8-9323-611190f4ca86",
+            key = expenseKey,
+            creditorUuid = CREDITOR,
+            nonce = ByteArray(16),
+            creditorSignatureKey = creditor.signaturePublicKey(),
+            beneficiaryUuids = listOf(BOB, CAROL),
+        )
+
+        val moved = sealSettledMark(record = otherExpense, markedAt = MARKED_AT, isSettled = true, client = creditor)
+
+        assertNull(listed(settledMark = moved).openSettledMark(record))
+    }
+
+    @Test
+    fun `a mark sealed under another key does not open`() {
+        val otherKey = OneTimeExpenseKeyRecord(
+            expenseUuid = EXPENSE,
+            key = generateSymmetricEncryptionKey(),
+            creditorUuid = CREDITOR,
+            nonce = ByteArray(16),
+            creditorSignatureKey = creditor.signaturePublicKey(),
+            beneficiaryUuids = listOf(BOB, CAROL),
+        )
+
+        val sealed = sealSettledMark(record = otherKey, markedAt = MARKED_AT, isSettled = true, client = creditor)
+
+        assertNull(listed(settledMark = sealed).openSettledMark(record))
+    }
+
+    /** A mark is no part of a version, which opens the same with one or without, see [openSettledMark]. */
+    @Test
+    fun `marking an expense leaves its version opening as it was`() {
+        val opened = assertNotNull(listed(settledMark = mark(markedAt = MARKED_AT, isSettled = true)).unsealOneTime(record))
+
+        assertEquals(1, opened.revision)
+    }
+
+    private fun mark(markedAt: Long, isSettled: Boolean, client: MlsClient = creditor): EncryptedFieldDto =
+        assertNotNull(sealSettledMark(record = record, markedAt = markedAt, isSettled = isSettled, client = client))
+
+    /** The expense as the server lists it, at revision 1, carrying [settledMark]. */
+    private fun listed(settledMark: EncryptedFieldDto?): ExpenseDto {
+        val body = assertNotNull(
+            expense().sealOneTime(
+                expenseKey = expenseKey,
+                revision = 1,
+                client = creditor,
+                keyCopy = EncryptedFieldDto(ciphertext = "Y29weQ==", nonce = "bm9uY2U="),
+            ),
+        )
+
+        return ExpenseDto(
+            uuid = EXPENSE,
+            creditor_uuid = CREDITOR,
+            title = body.title,
+            description = body.description,
+            amount = body.amount,
+            currency = body.currency,
+            timestamp = body.timestamp,
+            beneficiaries = body.beneficiaries,
+            signature = body.signature,
+            key_copy = null,
+            is_settled = settledMark,
+        )
     }
 
     @Test
@@ -113,7 +210,6 @@ class OneTimeExpenseHistoryVerificationTest {
         description = "",
         amount = "20",
         creditorUuid = CREDITOR,
-        isSettlement = false,
         currency = CurrencyCatalog.defaultCurrency,
         beneficiaries = listOf(
             Beneficiary(expenseUuid = EXPENSE, userUuid = BOB, share = "12", isShareFixed = false),
@@ -148,9 +244,8 @@ class OneTimeExpenseHistoryVerificationTest {
     )
 
     private fun OneTimeExpenseHistoryEntryDto.open(
-        isSettled: Boolean = false,
         record: OneTimeExpenseKeyRecord = this@OneTimeExpenseHistoryVerificationTest.record,
-    ) = unsealOneTime(expenseUuid = EXPENSE, isSettled = isSettled, record = record)
+    ) = unsealOneTime(expenseUuid = EXPENSE, record = record)
 }
 
 /** Holds an MLS client's state for the length of a test. */

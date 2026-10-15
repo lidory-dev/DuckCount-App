@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "46a11c0505f83eb32a0487eea4ba48d1",
+    "identityHash": "85d9a5959157abd7be53b706dc6b48dd",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -518,6 +518,36 @@
         }
       },
       {
+        "tableName": "OneTimeExpenseSettledMarkEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `markedAt` INTEGER NOT NULL, `isSettled` INTEGER NOT NULL, PRIMARY KEY(`expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "markedAt",
+            "columnName": "markedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isSettled",
+            "columnName": "isSettled",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid"
+          ]
+        }
+      },
+      {
         "tableName": "PendingExpenseKeyEntity",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `firstSeenAt` INTEGER NOT NULL, `lastRequestedAt` INTEGER, `requestCount` INTEGER NOT NULL, `state` TEXT NOT NULL, PRIMARY KEY(`expenseUuid`))",
         "fields": [
@@ -695,7 +725,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '46a11c0505f83eb32a0487eea4ba48d1')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '85d9a5959157abd7be53b706dc6b48dd')"
     ]
   }
 }

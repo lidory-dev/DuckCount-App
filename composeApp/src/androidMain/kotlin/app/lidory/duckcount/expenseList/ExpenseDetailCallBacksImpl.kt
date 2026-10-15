@@ -57,6 +57,12 @@ class ExpenseDetailCallBacksImpl(
         }
     }
 
+    override suspend fun setSettled(expenseUuid: String, isSettled: Boolean): ExpenseWriteError? =
+        when (val result = expenseRepository.setOneTimeExpenseSettled(uuid = expenseUuid, isSettled = isSettled)) {
+            is Result.Success -> null
+            is Result.Error -> result.error.toExpenseWriteError(networkConnectivity.isOnline())
+        }
+
     override suspend fun restoreExpense(expenseUuid: String) {
         expenseRepository.restore(expenseUuid)
     }

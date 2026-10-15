@@ -40,6 +40,7 @@ fun ExpenseCard(
     role: ExpenseStatus,
     isActive: Boolean,
     isSettlement: Boolean,
+    isSettled: Boolean = false,
 ) {
     ElevatedCard(
         modifier = modifier
@@ -126,6 +127,7 @@ fun ExpenseCard(
                 isActive = isActive,
                 personalShare = if (isSettlement) null else personalShare,
                 currencySymbol = currencySymbol,
+                isSettled = isSettled,
             )
         }
     }

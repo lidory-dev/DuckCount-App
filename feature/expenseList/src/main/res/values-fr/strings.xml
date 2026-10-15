@@ -67,6 +67,10 @@
     <string name="settlement">Remboursement</string>
     <string name="history">Historique</string>
     <string name="expense_history">Historique de la dépense</string>
+    <string name="expense_settled">Remboursée</string>
+    <string name="expense_settled_on">Remboursée le %1$s</string>
+    <string name="mark_as_settled">Marquer comme remboursée</string>
+    <string name="mark_as_not_settled">Marquer comme non remboursée</string>
 
     <!-- ExpenseDetailActionButtons -->
     <string name="delete_one_time_expense_confirmation">Voulez-vous vraiment supprimer cette dépense ?\n\nContrairement à une dépense dans un groupe, elle ne pourra pas être restaurée.</string>

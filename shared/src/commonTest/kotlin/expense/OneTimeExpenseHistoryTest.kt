@@ -210,7 +210,7 @@ class OneTimeExpenseHistoryTest {
         )
 
         val unopened = entry(beneficiaryUuid = "11111111-1111-1111-1111-11111111111\uD800")
-            .unsealOneTime(expenseUuid = EXPENSE, isSettled = false, record = record)
+            .unsealOneTime(expenseUuid = EXPENSE, record = record)
 
         assertNull(unopened)
     }
@@ -223,7 +223,6 @@ class OneTimeExpenseHistoryTest {
             description = "",
             amount = "20",
             creditorUuid = CREDITOR,
-            isSettlement = false,
             currency = CurrencyCatalog.defaultCurrency,
             beneficiaries = listOf(
                 Beneficiary(expenseUuid = EXPENSE, userUuid = BOB, share = "20", isShareFixed = false),

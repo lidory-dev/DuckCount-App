@@ -23,6 +23,7 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 @Composable
 fun ExpenseDetailActionButtons(
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     isDeleted: Boolean,
     isSettlement: Boolean,
     isOneTimeExpense: Boolean,
@@ -84,6 +85,7 @@ fun ExpenseDetailActionButtons(
     ) {
         if (isDeleted) {
             IconButton(
+                enabled = enabled,
                 onClick = restore,
             ) {
                 Icon(
@@ -94,6 +96,7 @@ fun ExpenseDetailActionButtons(
         } else {
             if (canEdit) {
                 IconButton(
+                    enabled = enabled,
                     onClick = edit,
                 ) {
                     Icon(
@@ -105,6 +108,7 @@ fun ExpenseDetailActionButtons(
 
             if (!isSettlement) {
                 IconButton(
+                    enabled = enabled,
                     onClick = history,
                 ) {
                     Icon(
@@ -116,6 +120,7 @@ fun ExpenseDetailActionButtons(
 
             if (canDelete) {
                 IconButton(
+                    enabled = enabled,
                     onClick = {
                         if (isSettlement || isOneTimeExpense) {
                             openAlertDialog.value = !openAlertDialog.value

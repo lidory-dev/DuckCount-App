@@ -17,7 +17,8 @@ import kotlinx.serialization.Serializable
  * Two things the server sends or leaves out are not read from it:
  * - `modifier_user_uuid`: only the creditor can sign a version, so the signature says who made
  *   each one, and the server does not get to.
- * - The settlement flag, which the history does not keep, see `expense.unsealOneTime`.
+ * - Whether the expense was paid back, which is no part of a version and is not kept in the
+ *   history, see `expense.openSettledMark`.
  */
 @Serializable
 data class OneTimeExpenseHistoryEntryDto(

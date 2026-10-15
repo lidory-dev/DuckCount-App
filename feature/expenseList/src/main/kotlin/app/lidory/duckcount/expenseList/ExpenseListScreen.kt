@@ -305,5 +305,6 @@ private fun ExpenseListItem(
         role = role,
         isActive = !expense.isDeleted,
         isSettlement = expense.isSettlement,
+        isSettled = expense.isSettled,
     )
 }

@@ -67,6 +67,10 @@
     <string name="settlement">Settlement</string>
     <string name="history">History</string>
     <string name="expense_history">Expense history</string>
+    <string name="expense_settled">Settled</string>
+    <string name="expense_settled_on">Settled on %1$s</string>
+    <string name="mark_as_settled">Mark as settled</string>
+    <string name="mark_as_not_settled">Mark as not settled</string>
 
     <!-- ExpenseDetailActionButtons -->
     <string name="delete_one_time_expense_confirmation">Are you sure you want to delete this expense?\n\nUnlike an expense in a group, it cannot be restored.</string>

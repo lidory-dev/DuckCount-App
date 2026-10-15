@@ -12,6 +12,7 @@ import database.data.local.entity.BeneficiaryEntity
 import database.data.local.entity.ExpenseEntity
 import database.data.local.entity.ExpenseWithBeneficiariesEntity
 import database.data.local.entity.OneTimeExpenseRevisionEntity
+import database.data.local.entity.OneTimeExpenseSettledMarkEntity
 import database.domain.Currency
 import kotlinx.coroutines.flow.Flow
 
@@ -156,6 +157,30 @@ interface ExpenseDao {
 
         return next
     }
+
+    /**
+     * Stores each of [marks], verified marks of the one-time expenses they name, unless this
+     * device has shown one as new for its expense, see
+     * [OneTimeExpenseSettledMarkEntity.isReplacedBy]: an older one is what a server putting
+     * back a mark from before the newest looks like. Checked in this transaction, so that no
+     * other sync can store a newer one between the check and the write.
+     */
+    @Transaction
+    suspend fun storeSettledMarks(marks: List<OneTimeExpenseSettledMarkEntity>) {
+        marks.forEach { mark ->
+            val stored = getSettledMark(expenseUuid = mark.expenseUuid)
+
+            if (stored == null || stored.isReplacedBy(markedAt = mark.markedAt)) {
+                setSettledMark(mark = mark)
+            }
+        }
+    }
+
+    @Query("SELECT * FROM OneTimeExpenseSettledMarkEntity WHERE expenseUuid = :expenseUuid")
+    suspend fun getSettledMark(expenseUuid: String): OneTimeExpenseSettledMarkEntity?
+
+    @Upsert
+    suspend fun setSettledMark(mark: OneTimeExpenseSettledMarkEntity)
 
     @Delete
     suspend fun delete(expenseEntity: ExpenseEntity)

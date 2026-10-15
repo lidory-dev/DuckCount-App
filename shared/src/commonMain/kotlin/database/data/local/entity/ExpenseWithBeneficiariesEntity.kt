@@ -11,4 +11,11 @@ data class ExpenseWithBeneficiariesEntity(
         entityColumn = "expenseUuid",
     )
     val beneficiaries: List<BeneficiaryEntity>,
+
+    /** Read with the expense only: it is written apart, see `ExpenseDao.storeSettledMarks`. */
+    @Relation(
+        parentColumn = "uuid",
+        entityColumn = "expenseUuid",
+    )
+    val settledMark: OneTimeExpenseSettledMarkEntity? = null,
 )

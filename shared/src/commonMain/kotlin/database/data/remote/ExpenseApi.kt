@@ -95,6 +95,21 @@ class ExpenseApi(
             pathParams = mapOf("expense_uuid" to uuid),
         )
 
+    /**
+     * Marks the caller's one-time expense [uuid] as paid back, or no longer. No edit: it spends
+     * none of the edits the server allows, and leaves the history as it is. A `403` means the
+     * caller is not its creditor, a `404` that the expense is gone or they are not on it.
+     */
+    suspend fun setOneTimeExpenseSettled(
+        uuid: String,
+        body: SetOneTimeExpenseSettledRequestBody,
+    ): Result<Unit, NetworkError> =
+        client.put<Unit, SetOneTimeExpenseSettledRequestBody>(
+            route = DuckCountRoutes.Expense.EXPENSE_SETTLED,
+            pathParams = mapOf("expense_uuid" to uuid),
+            body = body,
+        )
+
     suspend fun deleteOneTimeExpense(
         uuid: String,
     ): Result<Unit, NetworkError> =

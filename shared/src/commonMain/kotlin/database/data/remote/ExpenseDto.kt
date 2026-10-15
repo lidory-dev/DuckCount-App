@@ -13,10 +13,13 @@ import kotlinx.serialization.json.JsonObject
  * which reaches its participants over their direct-message channels; see
  * `expense.OneTimeExpenseSealing`.
  *
- * `is_settled` is the one exception, a plain boolean the server can read.
  * `signature` holds the creditor's signature over all the rest but the `uuid`,
  * sealed like the other fields. It is what everything here is trusted on,
- * `creditor_uuid`, `is_settled` and the beneficiary list included.
+ * `creditor_uuid` and the beneficiary list included.
+ *
+ * Whether the expense was paid back is not part of that: `is_settled` is the creditor's
+ * mark saying so, signed and sealed apart, null when they never made one, see
+ * `expense.OneTimeExpenseSettledMark`.
  *
  * `key_copy` is the caller's own sealed copy of that key, null when they have not
  * stored one; see `expense.OneTimeExpenseKeyRepository`.
@@ -33,10 +36,10 @@ data class ExpenseDto(
     val amount: EncryptedFieldDto,
     val currency: EncryptedFieldDto,
     val timestamp: EncryptedFieldDto,
-    val is_settled: Boolean,
     val beneficiaries: List<BeneficiaryDto>,
     val signature: EncryptedFieldDto,
     val key_copy: EncryptedFieldDto?,
+    val is_settled: EncryptedFieldDto?,
 )
 
 /**
