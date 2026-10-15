@@ -20,13 +20,24 @@ interface PendingExpenseKeyDao {
      */
     @Query(
         """INSERT OR IGNORE INTO PendingExpenseKeyEntity
-        (expenseUuid, creditorUuid, firstSeenAt, lastRequestedAt, requestCount, state)
-        VALUES (:expenseUuid, :creditorUuid, :firstSeenAt, NULL, 0, 'PENDING')""",
+        (expenseUuid, creditorUuid, firstSeenAt, lastRequestedAt, requestCount, state, isAwaitedAtRemoval)
+        VALUES (:expenseUuid, :creditorUuid, :firstSeenAt, NULL, 0, 'PENDING', false)""",
     )
     suspend fun insertNew(expenseUuid: String, creditorUuid: String, firstSeenAt: Long)
 
     @Query("SELECT * FROM PendingExpenseKeyEntity WHERE state = :state ORDER BY firstSeenAt, expenseUuid")
     suspend fun getInState(state: PendingExpenseKeyState): List<PendingExpenseKeyEntity>
+
+    /**
+     * Records that every key this device is waiting for from [creditorUuid] was awaited when
+     * they stopped being a contact, see [PendingExpenseKeyEntity.isAwaitedAtRemoval].
+     */
+    @Query("UPDATE PendingExpenseKeyEntity SET isAwaitedAtRemoval = true WHERE creditorUuid = :creditorUuid")
+    suspend fun markAwaitedAtRemoval(creditorUuid: String)
+
+    /** The expenses whose keys were awaited from [creditorUuid] when they stopped being a contact. */
+    @Query("SELECT expenseUuid FROM PendingExpenseKeyEntity WHERE creditorUuid = :creditorUuid AND isAwaitedAtRemoval = true")
+    suspend fun getAwaitedAtRemoval(creditorUuid: String): List<String>
 
     @Query(
         """UPDATE PendingExpenseKeyEntity

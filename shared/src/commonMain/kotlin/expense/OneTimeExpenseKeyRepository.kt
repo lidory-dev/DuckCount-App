@@ -1,8 +1,11 @@
 package expense
 
+import database.data.local.dao.ContactDao
 import database.data.local.dao.IdentityConflictDao
 import database.data.local.dao.OneTimeExpenseKeyDao
+import database.data.local.dao.PendingExpenseKeyDao
 import database.data.local.entity.OneTimeExpenseKeyEntity
+import database.data.local.entity.PendingExpenseKeyEntity
 import database.data.local.entity.UnverifiedExpenseKeyEntity
 import database.data.remote.EncryptedFieldDto
 import database.data.remote.ExpenseApi
@@ -33,12 +36,12 @@ import vault.unseal
  * nothing else.
  *
  * A key that arrived in a message is only kept from the expense's creditor, see
- * [OneTimeExpenseMessageHandler], and then unverified until the expense it names has been
- * shown to open under it, signed by the creditor it came from: its nonce shows whose expense
- * it is a key to, not that there is one, see
- * [database.data.local.entity.UnverifiedExpenseKeyEntity]. An unverified key is never sent
- * to the server, and is not kept if it was already held when a listing was asked for that
- * shows the user on no such expense, see [forgetUnverified].
+ * [OneTimeExpenseMessageHandler], when this device takes it from them, see [expectedFrom],
+ * and then unverified until the expense it names has been shown to open under it, signed by
+ * the creditor it came from: its nonce shows whose expense it is a key to, not that there is
+ * one, see [database.data.local.entity.UnverifiedExpenseKeyEntity]. An unverified key is
+ * never sent to the server, and is not kept if it was already held when a listing was asked
+ * for that shows the user on no such expense, see [forgetUnverified].
  *
  * A record also fixes the creditor's signature key at the time it was written, apart from
  * the pin this device holds for them. A creditor who is blocked, see
@@ -49,6 +52,8 @@ import vault.unseal
 class OneTimeExpenseKeyRepository(
     private val oneTimeExpenseKeyDao: OneTimeExpenseKeyDao,
     private val identityConflictDao: IdentityConflictDao,
+    private val contactDao: ContactDao,
+    private val pendingExpenseKeyDao: PendingExpenseKeyDao,
     private val vaultRepository: VaultRepository,
     private val mlsIdentityRepository: MlsIdentityRepository,
     private val expenseApi: ExpenseApi,
@@ -115,6 +120,22 @@ class OneTimeExpenseKeyRepository(
     suspend fun store(record: OneTimeExpenseKeyRecord) {
         oneTimeExpenseKeyDao.upsertVerified(
             keys = listOf(OneTimeExpenseKeyEntity(expenseUuid = record.expenseUuid, record = record.serialize())),
+        )
+    }
+
+    /**
+     * The keys this device takes from [creditorUuid], and asks them for, see [ExpectedKeys]:
+     * any while they are a contact, and otherwise the ones it was already waiting for when
+     * they stopped being one.
+     */
+    internal suspend fun expectedFrom(creditorUuid: String): ExpectedKeys {
+        if (contactDao.get(userUuid = creditorUuid) != null) {
+            return ExpectedKeys(isContact = true, awaitedAtRemoval = emptySet())
+        }
+
+        return ExpectedKeys(
+            isContact = false,
+            awaitedAtRemoval = pendingExpenseKeyDao.getAwaitedAtRemoval(creditorUuid = creditorUuid).toHashSet(),
         )
     }
 
@@ -290,3 +311,34 @@ class HeldKey(
     val record: OneTimeExpenseKeyRecord,
     val isVerified: Boolean,
 )
+
+/**
+ * The keys to one-time expenses this device takes from one creditor, and asks them for, see
+ * [OneTimeExpenseKeyRepository.expectedFrom]: any from a contact, and from anybody else only
+ * the ones it was already waiting for when they stopped being a contact, see
+ * [PendingExpenseKeyEntity.isAwaitedAtRemoval]. From somebody who never was one, none.
+ *
+ * The server puts the user on whatever expense it is asked to, and a message is read from
+ * anybody pinned: whoever the user sent a contact request to, answered or not, and a contact
+ * either of them removed, who keeps their channel as well. A key taken from any of them would
+ * open an expense from somebody the user never accepted, or no longer has. What a former
+ * contact still owed when they stopped being one comes back all the same, since only they
+ * hold its key; nothing they put the user on since does.
+ *
+ * The whole decision, kept apart from where it is applied so it can be stated and tested on
+ * its own: to keys arriving, see [OneTimeExpenseMessageHandler], and to keys asked for, see
+ * [OneTimeExpenseSync.requestMissingKeys].
+ */
+internal class ExpectedKeys(
+    private val isContact: Boolean,
+
+    /** The expenses whose keys were awaited from the creditor when they stopped being a contact. */
+    private val awaitedAtRemoval: Set<String>,
+) {
+    /** Whether the key to [expenseUuid] is taken from the creditor. */
+    fun includes(expenseUuid: String): Boolean = isContact || expenseUuid in awaitedAtRemoval
+
+    /** The rows among [rows], keys awaited from the creditor, that they are asked for. */
+    fun among(rows: List<PendingExpenseKeyEntity>): List<PendingExpenseKeyEntity> =
+        rows.filter { includes(expenseUuid = it.expenseUuid) }
+}

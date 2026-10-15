@@ -47,6 +47,20 @@ class PendingExpenseKeyEntity(
     val requestCount: Int = 0,
 
     val state: PendingExpenseKeyState = PendingExpenseKeyState.PENDING,
+
+    /**
+     * Whether this device was already waiting for this key when [creditorUuid] stopped being
+     * a contact, whoever removed whom, see `PendingExpenseKeyDao.markAwaitedAtRemoval`. Such
+     * keys are the only ones somebody who is not a contact can still hand over, or be asked
+     * for, see `expense.ExpectedKeys`.
+     *
+     * Never set by a listing. An expense the user was put on after its creditor stopped
+     * being a contact is one any stranger could have put them on, and stays unread. It goes
+     * with the row, once the key has opened the expense or the server no longer lists it,
+     * and a row made for the expense again starts without it, as for any expense the user
+     * was put on since.
+     */
+    val isAwaitedAtRemoval: Boolean = false,
 )
 
 /** How far along the attempt to get a missing expense key has got. */

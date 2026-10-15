@@ -116,9 +116,6 @@ class DirectChannelRepository(
      * and pins whatever identity it carries, so it is not done on the say-so of a stranger
      * the server named. A true stranger's first Welcome is dropped; the answer is for this
      * device to build the channel itself, in the direction it controls.
-     *
-     * And what gates asking somebody for the key to an expense, see
-     * [expense.OneTimeExpenseSync.requestMissingKeys], since the server names its creditor too.
      */
     suspend fun isKnownPeer(peerUuid: String): Boolean =
         directChannelDao.get(peerUuid = peerUuid) != null ||

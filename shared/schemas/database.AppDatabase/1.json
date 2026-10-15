@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "85d9a5959157abd7be53b706dc6b48dd",
+    "identityHash": "eec6bfca4d7cd722bfecf9a2ca9339da",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -549,7 +549,7 @@
       },
       {
         "tableName": "PendingExpenseKeyEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `firstSeenAt` INTEGER NOT NULL, `lastRequestedAt` INTEGER, `requestCount` INTEGER NOT NULL, `state` TEXT NOT NULL, PRIMARY KEY(`expenseUuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `firstSeenAt` INTEGER NOT NULL, `lastRequestedAt` INTEGER, `requestCount` INTEGER NOT NULL, `state` TEXT NOT NULL, `isAwaitedAtRemoval` INTEGER NOT NULL, PRIMARY KEY(`expenseUuid`))",
         "fields": [
           {
             "fieldPath": "expenseUuid",
@@ -584,6 +584,12 @@
             "fieldPath": "state",
             "columnName": "state",
             "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isAwaitedAtRemoval",
+            "columnName": "isAwaitedAtRemoval",
+            "affinity": "INTEGER",
             "notNull": true
           }
         ],
@@ -725,7 +731,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '85d9a5959157abd7be53b706dc6b48dd')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'eec6bfca4d7cd722bfecf9a2ca9339da')"
     ]
   }
 }

@@ -8,6 +8,7 @@ import contact.RemoveContactError
 import database.data.local.dao.ContactDao
 import database.data.local.dao.DirectChannelDao
 import database.data.local.dao.IdentityConflictDao
+import database.data.local.dao.PendingExpenseKeyDao
 import database.data.local.entity.ContactEntity
 import database.data.local.entity.DirectChannelEntity
 import database.data.local.entity.IdentityConflictEntity
@@ -48,6 +49,7 @@ class ContactRepository(
     private val contactDao: ContactDao,
     private val directChannelDao: DirectChannelDao,
     private val identityConflictDao: IdentityConflictDao,
+    private val pendingExpenseKeyDao: PendingExpenseKeyDao,
     private val userRepository: UserRepository,
     private val vaultRepository: VaultRepository,
     private val profileRepository: ProfileRepository,
@@ -363,9 +365,19 @@ class ContactRepository(
      * Their user stays, hidden from the contact list, rather than being deleted: a user can
      * be more than a contact, and a group the two of them are in still lists them. Their
      * channel row stays too, emptied, see [DirectChannelEntity].
+     *
+     * What this device is still waiting for from them is noted first: the keys to those
+     * expenses are the only ones they can still hand over, see
+     * [PendingExpenseKeyEntity.isAwaitedAtRemoval][database.data.local.entity.PendingExpenseKeyEntity.isAwaitedAtRemoval].
      */
     private suspend fun forget(userUuid: String, client: MlsClient?) {
         contactDao.get(userUuid = userUuid) ?: return
+
+        // First, so that there is no moment when they are no longer a contact and what they
+        // owe is not noted yet: a key of theirs read then would be dropped. And only once they
+        // are known to be one: a notice of removal from anybody else would make whatever they
+        // put the user on owed.
+        pendingExpenseKeyDao.markAwaitedAtRemoval(creditorUuid = userUuid)
 
         contactDao.markRemoved(userUuid = userUuid)
         userRepository.remove(userUuid = userUuid)

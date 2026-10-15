@@ -54,7 +54,6 @@ class OneTimeExpenseSync(
     private val keyRepository: OneTimeExpenseKeyRepository,
     private val directMessageSender: DirectMessageSender,
     private val directMessageSync: DirectMessageSync,
-    private val directChannelRepository: DirectChannelRepository,
 ) {
     /**
      * Serializes [shareOwedKeys], which an expense being written and a sync can both reach
@@ -342,7 +341,8 @@ class OneTimeExpenseSync(
         listedDao.getAll().map { kept -> kept.json.toExpenseDto() ?: return null }
 
     /**
-     * Asks each creditor this device knows for the keys it is still missing from them.
+     * Asks each creditor for the keys this device is still missing from them, of the ones it
+     * takes from them, see [ExpectedKeys].
      *
      * One message per creditor rather than per expense: somebody coming back from a log-out
      * is missing everything a creditor ever sent them, and the allowance the server enforces
@@ -389,21 +389,27 @@ class OneTimeExpenseSync(
         var failure: OneTimeExpenseSyncError? = null
         var sent = 0
 
-        for ((creditorUuid, rows) in due.groupBy { it.creditorUuid }) {
+        for ((creditorUuid, waiting) in due.groupBy { it.creditorUuid }) {
             if (sent >= MAX_CREDITORS_PER_SYNC) break
 
-            // Only somebody this device already knows, see [DirectChannelRepository.isKnownPeer]:
-            // the creditor is the server's word, and anybody can name the user on an expense.
-            // Being pinned is not enough. Sending a contact request pins whoever the server
-            // said the username was, and the pin stays whether they answer or not, and whether
-            // the server stored the request or not. Their rows wait, unasked, until that changes.
-            if (!directChannelRepository.isKnownPeer(peerUuid = creditorUuid)) continue
+            // Only for the keys this device takes from them, see [ExpectedKeys]: the creditor
+            // is the server's word, and anybody can name the user on an expense. Being pinned
+            // is not enough, nor having a channel. Sending a contact request pins whoever the
+            // server said the username was, and the pin stays whether they answer or not, and
+            // whether the server stored the request or not; a contact removed keeps their pin
+            // and their channel. So a contact is asked for anything, and anybody else only for
+            // what was awaited from them when they stopped being one. Their other rows wait,
+            // unasked, until they are a contact again.
+            val rows = keyRepository.expectedFrom(creditorUuid = creditorUuid).among(rows = waiting)
+
+            if (rows.isEmpty()) continue
 
             // Read before it is spent, to be put back should the request never leave this device.
             val budgetFullAt = pendingExpenseKeyDao.getRequestBudgetFullAt(creditorUuid = creditorUuid)
 
-            // A creditor whose budget is spent is left the way one unknown is: their rows stay
-            // due with nothing tried, and are asked for at the first sync it allows.
+            // A creditor whose budget is spent is left the way one with nothing to be asked for
+            // is: their rows stay due with nothing tried, and are asked for at the first sync it
+            // allows.
             if (!claimRequest(creditorUuid = creditorUuid, budgetFullAt = budgetFullAt, now = now)) continue
 
             val expenseUuids = rows.map { it.expenseUuid }.take(ExpenseKeyRequest.MAX_EXPENSES)

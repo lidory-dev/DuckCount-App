@@ -26,6 +26,13 @@ import util.Result
  * else can find a nonce that derives it from their own, see [OneTimeExpenseKeyRecord.nonce].
  * A key the nonce does not show its sender to be the creditor of is dropped as it arrives.
  *
+ * **Nor from just any creditor.** The server puts the user on any expense it is asked to,
+ * and a message is read from anybody pinned: whoever the user sent a contact request to, and
+ * a contact either of them removed. So a key is only kept from a contact, or for an expense
+ * this device was already waiting for when its creditor stopped being one, see
+ * [ExpectedKeys]: a former contact can still hand back what they owed, and nothing they put
+ * the user on since.
+ *
  * Even the creditor's is only kept unverified until the expense opens under it, see
  * [database.data.local.entity.UnverifiedExpenseKeyEntity].
  *
@@ -90,12 +97,9 @@ internal class OneTimeExpenseMessageHandler(
     }
 
     /**
-     * Keeps the keys [senderUuid] handed over to expenses they are the creditor of, to be
-     * verified once those open under them and carry [senderUuid]'s signature.
-     *
-     * The record is built from the sender MLS authenticated, the signature key it
-     * authenticated them with, and the beneficiaries the message carried, never from what
-     * the server says about the expense.
+     * Keeps the keys [senderUuid] handed over that this device takes from them, see
+     * [recordsFrom], to be verified once their expenses open under them and carry
+     * [senderUuid]'s signature.
      */
     private suspend fun receive(senderUuid: String, share: ExpenseKeyShare) {
         // Every channel pins its peer, and this message was just read in one, so both are
@@ -109,32 +113,13 @@ internal class OneTimeExpenseMessageHandler(
             return
         } ?: return
 
-        share.keys.forEach { key ->
-            // Only a UUID written as the server writes one, which is the only kind the check
-            // below can show anybody to be the creditor of anyway. Anything else would reach
-            // the library, which throws on a string that is not valid UTF-16 rather than
-            // refusing it, and a contact could crash the sync with one.
-            if (!key.expenseUuid.isCanonicalUuid()) return@forEach
+        val records = share.recordsFrom(
+            senderUuid = senderUuid,
+            senderSignatureKey = senderSignatureKey,
+            expected = keyRepository.expectedFrom(creditorUuid = senderUuid),
+        )
 
-            val isCreditor = isOneTimeExpenseCreditor(
-                expenseUuid = key.expenseUuid,
-                creditorUuid = senderUuid,
-                nonce = key.nonce,
-            )
-
-            if (!isCreditor) return@forEach
-
-            keyRepository.storeUnverified(
-                record = OneTimeExpenseKeyRecord(
-                    expenseUuid = key.expenseUuid,
-                    key = key.key,
-                    creditorUuid = senderUuid,
-                    nonce = key.nonce,
-                    creditorSignatureKey = senderSignatureKey,
-                    beneficiaryUuids = key.beneficiaryUuids,
-                ),
-            )
-        }
+        records.forEach { keyRepository.storeUnverified(record = it) }
     }
 
     /**
@@ -245,6 +230,53 @@ internal class AskedKeys(
     val mlsGroupId: ByteArray,
     val expenseUuids: List<String>,
 )
+
+/**
+ * The records to keep of this share's keys, which [senderUuid] handed over in a message MLS
+ * authenticated them with [senderSignatureKey] in.
+ *
+ * The whole decision on a share, kept apart from the message plumbing so it can be stated and
+ * tested on its own, as [keyFor] is for a request. A key is kept when:
+ *
+ * - its nonce shows [senderUuid] to be the expense's creditor, see [OneTimeExpenseKeyRecord.nonce];
+ * - it is one this device takes from them, see [ExpectedKeys]: any from a contact, and from
+ *   anybody else only one it was already waiting for when they stopped being a contact.
+ *
+ * Each record is built from the sender MLS authenticated, the signature key it authenticated
+ * them with, and the beneficiaries the message carried, never from what the server says about
+ * the expense.
+ */
+internal fun ExpenseKeyShare.recordsFrom(
+    senderUuid: String,
+    senderSignatureKey: ByteArray,
+    expected: ExpectedKeys,
+): List<OneTimeExpenseKeyRecord> =
+    keys.mapNotNull { key ->
+        // Only a UUID written as the server writes one, which is the only kind the check
+        // below can show anybody to be the creditor of anyway. Anything else would reach
+        // the library, which throws on a string that is not valid UTF-16 rather than
+        // refusing it, and a contact could crash the sync with one.
+        if (!key.expenseUuid.isCanonicalUuid()) return@mapNotNull null
+
+        val isCreditor = isOneTimeExpenseCreditor(
+            expenseUuid = key.expenseUuid,
+            creditorUuid = senderUuid,
+            nonce = key.nonce,
+        )
+
+        if (!isCreditor) return@mapNotNull null
+
+        if (!expected.includes(expenseUuid = key.expenseUuid)) return@mapNotNull null
+
+        OneTimeExpenseKeyRecord(
+            expenseUuid = key.expenseUuid,
+            key = key.key,
+            creditorUuid = senderUuid,
+            nonce = key.nonce,
+            creditorSignatureKey = senderSignatureKey,
+            beneficiaryUuids = key.beneficiaryUuids,
+        )
+    }
 
 /**
  * The key to hand [requesterUuid], or null when they are owed nothing.
