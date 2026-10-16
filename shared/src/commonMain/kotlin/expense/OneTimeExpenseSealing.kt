@@ -85,7 +85,7 @@ internal fun ExpenseWithBeneficiaries.sealOneTime(
             is_share_fixed = sealBound(
                 key = expenseKey,
                 context = Context.shareFixed(userUuid = beneficiary.userUuid),
-                plaintext = beneficiary.isShareFixed.toString().encodeToByteArray(),
+                plaintext = beneficiary.isShareFixed.toSealedFlag(),
             ) ?: return null,
         )
     }
@@ -198,7 +198,7 @@ internal fun ExpenseDto.unsealOneTime(record: OneTimeExpenseKeyRecord): OpenedOn
             key = expenseKey,
             context = Context.shareFixed(userUuid = beneficiary.user_uuid),
             content = beneficiary.is_share_fixed,
-        )?.decodeToString()?.toBooleanStrictOrNull() ?: return null
+        )?.toFlagOrNull() ?: return null
 
         Beneficiary(
             expenseUuid = uuid,
@@ -317,6 +317,22 @@ private class SerializedSignedRevision(
     val revision: Long,
     val signature: String,
 )
+
+/**
+ * Whether a share is fixed, as it is sealed: `1` or `0`, and not `true` or `false`, which differ
+ * in length. AES-GCM does not hide how long what it seals is, and the server would tell the
+ * beneficiaries whose share was set by hand from those paying an even split by the length of
+ * this field alone.
+ */
+private fun Boolean.toSealedFlag(): ByteArray = (if (this) "1" else "0").encodeToByteArray()
+
+/** The flag [toSealedFlag] sealed, or null for anything but `1` or `0`. */
+private fun ByteArray.toFlagOrNull(): Boolean? =
+    when (decodeToString()) {
+        "1" -> true
+        "0" -> false
+        else -> null
+    }
 
 /** The currency whole, sealed with its uuid, which is how a receiver recognises it. */
 @Serializable

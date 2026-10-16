@@ -97,6 +97,25 @@ class OneTimeExpenseHistoryVerificationTest {
         }
     }
 
+    @Test
+    fun `a share set by hand and an even one open as they were sealed`() {
+        val opened = assertNotNull(expense(isBobShareFixed = true).signedBy(creditor, revision = 1).open())
+
+        assertEquals(
+            mapOf(BOB to true, CAROL to false),
+            opened.expense.beneficiaries.associate { it.userUuid to it.isShareFixed },
+        )
+    }
+
+    /** Sealing hides whether a share was set by hand but not how long that is, which would say it as well. */
+    @Test
+    fun `a share set by hand and an even one seal to the same length`() {
+        val sealed = expense(isBobShareFixed = true).signedBy(creditor, revision = 1).previous_beneficiaries
+            .associate { it.user_uuid to Base64.Default.decode(it.is_share_fixed.ciphertext).size }
+
+        assertEquals(sealed.getValue(BOB), sealed.getValue(CAROL))
+    }
+
     /** Sealing hides what a mark says but not how long it is, which would say it as well. */
     @Test
     fun `a settled mark and one that is not seal to the same length`() {
@@ -202,7 +221,7 @@ class OneTimeExpenseHistoryVerificationTest {
         assertNull(expense().signedBy(creditor, revision = 1).open(record = pinnedOtherwise))
     }
 
-    private fun expense(title: String = "Pizzas") = ExpenseWithBeneficiaries(
+    private fun expense(title: String = "Pizzas", isBobShareFixed: Boolean = false) = ExpenseWithBeneficiaries(
         uuid = EXPENSE,
         title = title,
         timestamp = "2026-10-12T09:00:00",
@@ -211,7 +230,7 @@ class OneTimeExpenseHistoryVerificationTest {
         creditorUuid = CREDITOR,
         currency = CurrencyCatalog.defaultCurrency,
         beneficiaries = listOf(
-            Beneficiary(expenseUuid = EXPENSE, userUuid = BOB, share = "12", isShareFixed = false),
+            Beneficiary(expenseUuid = EXPENSE, userUuid = BOB, share = "12", isShareFixed = isBobShareFixed),
             Beneficiary(expenseUuid = EXPENSE, userUuid = CAROL, share = "8", isShareFixed = false),
         ),
     )
