@@ -94,7 +94,7 @@ internal fun ExpenseWithBeneficiaries.sealOneTime(
     val sealedDescription = sealBound(expenseKey, Context.DESCRIPTION, description.encodeToByteArray())
         ?: return null
     val sealedAmount = sealBound(expenseKey, Context.AMOUNT, amount.encodeToByteArray()) ?: return null
-    val sealedCurrency = sealBound(expenseKey, Context.CURRENCY, currency.serialize()) ?: return null
+    val sealedCurrency = sealBound(expenseKey, Context.CURRENCY, currency.uuid.encodeToByteArray()) ?: return null
     val sealedTimestamp = sealBound(expenseKey, Context.TIMESTAMP, timestamp.encodeToByteArray())
         ?: return null
 
@@ -334,30 +334,17 @@ private fun ByteArray.toFlagOrNull(): Boolean? =
         else -> null
     }
 
-/** The currency whole, sealed with its uuid, which is how a receiver recognises it. */
-@Serializable
-private class SerializedCurrency(
-    val uuid: String,
-    val name: String,
-    val symbol: String,
-    val hasSubunits: Boolean,
-)
-
-private fun Currency.serialize(): ByteArray =
-    json.encodeToString(
-        SerializedCurrency.serializer(),
-        SerializedCurrency(uuid = uuid, name = name, symbol = symbol, hasSubunits = hasSubunits),
-    ).encodeToByteArray()
-
 /**
  * The currency of [CurrencyCatalog] whose UUID was sealed, or null for one the app does not
- * ship with. The receiver's own entry is used, not what was sealed: the UUID is the one field
- * the catalogue promises never changes between releases.
+ * ship with.
+ *
+ * Only the UUID is sealed: it is the one field the catalogue promises never changes between
+ * releases, so the receiver's own entry stands for the rest, and every one is the same length.
+ * A symbol, or whether it has subunits, would tell the server which currency an expense is in
+ * by the length of this field alone.
  */
 private fun ByteArray.toCurrency(): Currency? {
-    val sealed = runCatching { json.decodeFromString(SerializedCurrency.serializer(), decodeToString()) }
-        .getOrNull()
-        ?: return null
+    val uuid = decodeToString()
 
-    return CurrencyCatalog.defaultCurrencies.firstOrNull { it.uuid == sealed.uuid }
+    return CurrencyCatalog.defaultCurrencies.firstOrNull { it.uuid == uuid }
 }

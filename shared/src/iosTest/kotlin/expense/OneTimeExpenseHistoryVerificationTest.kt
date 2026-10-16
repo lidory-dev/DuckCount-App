@@ -5,6 +5,7 @@ import database.data.remote.ExpenseDto
 import database.data.remote.OneTimeExpenseHistoryEntryDto
 import database.data.remote.OneTimeExpenseRequestBody
 import database.domain.Beneficiary
+import database.domain.Currency
 import database.domain.CurrencyCatalog
 import database.domain.ExpenseWithBeneficiaries
 import mls.InMemoryMlsStore
@@ -116,6 +117,32 @@ class OneTimeExpenseHistoryVerificationTest {
         assertEquals(sealed.getValue(BOB), sealed.getValue(CAROL))
     }
 
+    @Test
+    fun `an expense opens in the currency it was sealed in`() {
+        val won = CurrencyCatalog.defaultCurrencies.single { it.name == "KRW" }
+
+        val opened = assertNotNull(expense(currency = won).signedBy(creditor, revision = 1).open())
+
+        assertEquals(won, opened.expense.currency)
+    }
+
+    @Test
+    fun `an expense in a currency the app does not ship with does not open`() {
+        val unknown = CurrencyCatalog.defaultCurrency.copy(uuid = "33333333-3333-3333-3333-333333333333")
+
+        assertNull(expense(currency = unknown).signedBy(creditor, revision = 1).open())
+    }
+
+    /** Sealing hides which currency an expense is in but not how long that is, which would say it as well. */
+    @Test
+    fun `every currency seals to the same length`() {
+        val lengths = CurrencyCatalog.defaultCurrencies.map { currency ->
+            Base64.Default.decode(expense(currency = currency).signedBy(creditor, revision = 1).previous_currency.ciphertext).size
+        }
+
+        assertEquals(1, lengths.toSet().size)
+    }
+
     /** Sealing hides what a mark says but not how long it is, which would say it as well. */
     @Test
     fun `a settled mark and one that is not seal to the same length`() {
@@ -221,14 +248,18 @@ class OneTimeExpenseHistoryVerificationTest {
         assertNull(expense().signedBy(creditor, revision = 1).open(record = pinnedOtherwise))
     }
 
-    private fun expense(title: String = "Pizzas", isBobShareFixed: Boolean = false) = ExpenseWithBeneficiaries(
+    private fun expense(
+        title: String = "Pizzas",
+        isBobShareFixed: Boolean = false,
+        currency: Currency = CurrencyCatalog.defaultCurrency,
+    ) = ExpenseWithBeneficiaries(
         uuid = EXPENSE,
         title = title,
         timestamp = "2026-10-12T09:00:00",
         description = "",
         amount = "20",
         creditorUuid = CREDITOR,
-        currency = CurrencyCatalog.defaultCurrency,
+        currency = currency,
         beneficiaries = listOf(
             Beneficiary(expenseUuid = EXPENSE, userUuid = BOB, share = "12", isShareFixed = isBobShareFixed),
             Beneficiary(expenseUuid = EXPENSE, userUuid = CAROL, share = "8", isShareFixed = false),
