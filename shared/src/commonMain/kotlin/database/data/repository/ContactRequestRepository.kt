@@ -46,6 +46,7 @@ import push.WakeList
 import uniffi.lib_duckcount.InviteeKeyPackage
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
+import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
 import util.EmptyResult
 import util.NetworkError
 import util.Result
@@ -280,6 +281,7 @@ class ContactRequestRepository(
         val outgoing = OutgoingContactRequestEntity(
             mlsGroupId = group.mlsGroupId,
             recipientUserUuid = recipient.userUuid,
+            handedProfileKeyHash = profileEncryptionKeyPartialHash(profileEncryptionKey),
         )
 
         contactRequestDao.insertOutgoing(request = outgoing)
@@ -318,20 +320,24 @@ class ContactRequestRepository(
      * Only the answer makes that group the channel. The recipient is pinned from the moment the
      * request goes out, so whatever else they send in it is read, and taken as from somebody who
      * is not a contact, see [DirectChannelRepository.noteReadIn] and [expense.ExpectedKeys].
+     *
+     * They hold the user's profile key the request carried, see
+     * [OutgoingContactRequestEntity.handedProfileKeyHash], and are handed the current one if a
+     * removal has replaced it since.
      */
     internal suspend fun receiveAnswer(senderUserUuid: String, mlsGroupId: ByteArray, card: ContactCard) {
-        val requests = contactRequestDao.deleteOutgoing(
+        val request = contactRequestDao.getOutgoing(
             recipientUserUuid = senderUserUuid,
             mlsGroupId = mlsGroupId,
-        )
+        ) ?: return
 
-        if (requests == 0) return
-
+        // This one included.
         contactRequestDao.deleteOutgoingTo(recipientUserUuid = senderUserUuid)
 
         contactRepository.add(
             userUuid = senderUserUuid,
             profileEncryptionKey = card.profileEncryptionKey,
+            handedProfileKeyHash = request.handedProfileKeyHash,
             fullName = null,
         )
 
@@ -609,9 +615,16 @@ class ContactRequestRepository(
             return Result.Error(AnswerContactRequestError.Crypto)
         }
 
+        // The key it carries, unless an earlier attempt whose answer never came back carried
+        // another, a removal having rotated it since: the server took one of them at most, and
+        // which is not known. See ContactRequestEntity.handedProfileKeyHash.
+        val handedProfileKeyHash = profileEncryptionKeyPartialHash(profileEncryptionKey).takeIf {
+            !request.isAcceptanceSent || it == request.handedProfileKeyHash
+        }
+
         // Before it goes out: once the server takes it, the request is gone, and an answer
         // lost on the way back would leave nothing saying that it was taken.
-        contactRequestDao.markAcceptanceSent(uuid = request.uuid)
+        contactRequestDao.markAcceptanceSent(uuid = request.uuid, handedProfileKeyHash = handedProfileKeyHash)
 
         val acceptance = contactApi.acceptContactRequest(
             requestUuid = request.uuid,
@@ -654,7 +667,13 @@ class ContactRequestRepository(
             }
         }
 
-        return when (completeAcceptance(client = client, request = request)) {
+        val completion = completeAcceptance(
+            client = client,
+            request = request,
+            handedProfileKeyHash = handedProfileKeyHash,
+        )
+
+        return when (completion) {
             // Taken all the same, and completed by the next refresh.
             Completion.COMPLETED, Completion.RETRY -> Result.Success(Unit)
 
@@ -727,8 +746,15 @@ class ContactRequestRepository(
      *
      * Either way, the request settled on this device, the server's record of the acceptance
      * is acknowledged last, see [ContactApi.acknowledgeContactRequestAcceptance].
+     *
+     * [handedProfileKeyHash] is what marking the acceptance recorded, see
+     * [ContactRequestEntity.handedProfileKeyHash], for a [request] read before it was marked.
      */
-    private suspend fun completeAcceptance(client: MlsClient, request: OpenedContactRequest): Completion =
+    private suspend fun completeAcceptance(
+        client: MlsClient,
+        request: OpenedContactRequest,
+        handedProfileKeyHash: String? = request.handedProfileKeyHash,
+    ): Completion =
         withContext(NonCancellable) {
             try {
                 client.pinPeerIn(mlsGroupId = request.mlsGroupId, peerUuid = request.senderUserUuid)
@@ -744,6 +770,7 @@ class ContactRequestRepository(
             contactRepository.add(
                 userUuid = request.senderUserUuid,
                 profileEncryptionKey = request.profileEncryptionKey,
+                handedProfileKeyHash = handedProfileKeyHash,
                 fullName = request.senderFullName,
             )
 

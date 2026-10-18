@@ -3,8 +3,10 @@ package contact
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class ContactRequestPayloadTest {
@@ -91,5 +93,113 @@ class ContactRequestPayloadTest {
         assertFalse(ContactRemoval.matches(plaintext = "{}".encodeToByteArray()))
         assertFalse(ContactRemoval.matches(plaintext = """{"type":"something_else"}""".encodeToByteArray()))
         assertTrue(ContactRemoval.matches(plaintext = """{"type":"contact_removal","at":1}""".encodeToByteArray()))
+    }
+
+    @Test
+    fun `a profile key update survives being encrypted and read back`() {
+        val update = ProfileKeyUpdate(profileEncryptionKey = profileEncryptionKey)
+
+        val reread = ProfileKeyUpdate.parse(plaintext = update.serialize())
+
+        assertNotNull(reread)
+        assertContentEquals(profileEncryptionKey, reread.profileEncryptionKey)
+    }
+
+    @Test
+    fun `an update from a newer build with more fields still opens`() {
+        val plaintext = """{"type":"profile_key","profile_encryption_key":"CAkK","rotated_at":1}"""
+
+        val reread = ProfileKeyUpdate.parse(plaintext = plaintext.encodeToByteArray())
+
+        assertNotNull(reread)
+        assertContentEquals(profileEncryptionKey, reread.profileEncryptionKey)
+    }
+
+    @Test
+    fun `a message that is not an update reads as none`() {
+        assertNull(ProfileKeyUpdate.parse(plaintext = "not an update".encodeToByteArray()))
+        assertNull(ProfileKeyUpdate.parse(plaintext = "{}".encodeToByteArray()))
+        assertNull(ProfileKeyUpdate.parse(plaintext = """{"type":"profile_key"}""".encodeToByteArray()))
+        assertNull(
+            ProfileKeyUpdate.parse(
+                plaintext = """{"type":"profile_key","profile_encryption_key":"%%%"}""".encodeToByteArray(),
+            ),
+        )
+        assertNull(
+            ProfileKeyUpdate.parse(
+                plaintext = """{"type":"something_else","profile_encryption_key":"CAkK"}""".encodeToByteArray(),
+            ),
+        )
+        assertNull(ProfileKeyUpdate.parse(plaintext = ContactRemoval.serialize()))
+    }
+
+    /**
+     * A card carries a key under the same name as an update does, and is recognised by that
+     * alone, so the update reads as a card too: what tells them apart is that the update is
+     * read first. Taken for a card, it would answer no request and its key would be lost.
+     */
+    @Test
+    fun `a profile key update is not taken for a contact card`() {
+        val update = ProfileKeyUpdate(profileEncryptionKey = profileEncryptionKey).serialize()
+
+        val message = assertIs<ContactMessage.ProfileKey>(ContactMessage.read(payload = update))
+
+        assertContentEquals(profileEncryptionKey, message.update.profileEncryptionKey)
+    }
+
+    /**
+     * A card answering a request comes from somebody who is not a contact yet. Taken for an
+     * update, it would be dropped as one from a stranger, and the request it answers never be:
+     * they would not become a contact, and their key would be lost.
+     */
+    @Test
+    fun `a contact card is not taken for a profile key update`() {
+        val card = ContactCard(profileEncryptionKey = profileEncryptionKey).serialize()
+
+        assertNull(ProfileKeyUpdate.parse(plaintext = card))
+
+        val message = assertIs<ContactMessage.Answer>(ContactMessage.read(payload = card))
+
+        assertContentEquals(profileEncryptionKey, message.card.profileEncryptionKey)
+    }
+
+    @Test
+    fun `a profile key update and a removal are never taken for each other`() {
+        val update = ProfileKeyUpdate(profileEncryptionKey = profileEncryptionKey).serialize()
+
+        assertFalse(ContactRemoval.matches(plaintext = update))
+        assertSame(ContactMessage.Removal, ContactMessage.read(payload = ContactRemoval.serialize()))
+    }
+
+    @Test
+    fun `a profile key request survives being encrypted and read back`() {
+        assertTrue(ProfileKeyRequest.matches(plaintext = ProfileKeyRequest.serialize()))
+        assertTrue(ProfileKeyRequest.matches(plaintext = """{"type":"profile_key_request","at":1}""".encodeToByteArray()))
+    }
+
+    @Test
+    fun `a message that is not a profile key request is not taken for one`() {
+        assertFalse(ProfileKeyRequest.matches(plaintext = "not a request".encodeToByteArray()))
+        assertFalse(ProfileKeyRequest.matches(plaintext = "{}".encodeToByteArray()))
+        assertFalse(ProfileKeyRequest.matches(plaintext = ContactRemoval.serialize()))
+        assertFalse(ProfileKeyRequest.matches(plaintext = ProfileKeyUpdate(profileEncryptionKey).serialize()))
+        assertFalse(ProfileKeyRequest.matches(plaintext = ContactCard(profileEncryptionKey).serialize()))
+    }
+
+    /** Taken for an update, a request would hand over no key; taken for a removal, end the contact. */
+    @Test
+    fun `a profile key request is taken for nothing else`() {
+        val request = ProfileKeyRequest.serialize()
+
+        assertSame(ContactMessage.KeyRequest, ContactMessage.read(payload = request))
+        assertNull(ProfileKeyUpdate.parse(plaintext = request))
+        assertNull(ContactCard.parse(plaintext = request))
+        assertFalse(ContactRemoval.matches(plaintext = request))
+    }
+
+    @Test
+    fun `a message about something else is no contact message`() {
+        assertNull(ContactMessage.read(payload = "not a contact message".encodeToByteArray()))
+        assertNull(ContactMessage.read(payload = """{"type":"something_else"}""".encodeToByteArray()))
     }
 }

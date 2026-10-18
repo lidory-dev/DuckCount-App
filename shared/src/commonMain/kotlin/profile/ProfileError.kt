@@ -4,17 +4,21 @@ import util.Error
 import util.NetworkError
 import vault.VaultError
 
-/** Why a user profile could not be uploaded or restored. */
+/** Why a user profile could not be uploaded or restored, or its key rotated. */
 sealed interface ProfileError : Error {
 
-    /** The profile encryption key could not be reached, so nothing can be sealed. */
+    /**
+     * The profile encryption key could not be reached, so nothing can be sealed, or the new
+     * one could not be written in its place.
+     */
     data class Vault(val error: VaultError) : ProfileError
 
     /** The server could not be reached, or refused the call. */
     data class Network(val error: NetworkError) : ProfileError
 
     /**
-     * The server holds no profile for this user under this key.
+     * The server holds no profile for this user under this key: none was ever stored under
+     * it, or the version stored under it has been pruned since.
      */
     data object NotStored : ProfileError
 

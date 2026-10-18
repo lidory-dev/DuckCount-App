@@ -26,7 +26,8 @@ interface ContactRequestDao {
 
     /** The requests waiting for an answer, oldest first. See [getCountAsFlow]. */
     @Query(
-        """SELECT uuid, senderUserUuid, mlsGroupId, profileEncryptionKey, senderFullName, isAcceptanceSent
+        """SELECT uuid, senderUserUuid, mlsGroupId, profileEncryptionKey, senderFullName, isAcceptanceSent,
+        handedProfileKeyHash
         FROM ContactRequestEntity
         WHERE mlsGroupId IS NOT NULL AND profileEncryptionKey IS NOT NULL
         ORDER BY createdAt, uuid""",
@@ -35,7 +36,8 @@ interface ContactRequestDao {
 
     /** The same list, read once, for a caller that is not observing it. */
     @Query(
-        """SELECT uuid, senderUserUuid, mlsGroupId, profileEncryptionKey, senderFullName, isAcceptanceSent
+        """SELECT uuid, senderUserUuid, mlsGroupId, profileEncryptionKey, senderFullName, isAcceptanceSent,
+        handedProfileKeyHash
         FROM ContactRequestEntity
         WHERE mlsGroupId IS NOT NULL AND profileEncryptionKey IS NOT NULL
         ORDER BY createdAt, uuid""",
@@ -43,7 +45,8 @@ interface ContactRequestDao {
     suspend fun getOpenedOnce(): List<OpenedContactRequest>
 
     @Query(
-        """SELECT uuid, senderUserUuid, mlsGroupId, profileEncryptionKey, senderFullName, isAcceptanceSent
+        """SELECT uuid, senderUserUuid, mlsGroupId, profileEncryptionKey, senderFullName, isAcceptanceSent,
+        handedProfileKeyHash
         FROM ContactRequestEntity
         WHERE uuid = :uuid AND mlsGroupId IS NOT NULL AND profileEncryptionKey IS NOT NULL""",
     )
@@ -51,7 +54,8 @@ interface ContactRequestDao {
 
     /** The opened requests whose sender's profile has not been read yet. */
     @Query(
-        """SELECT uuid, senderUserUuid, mlsGroupId, profileEncryptionKey, senderFullName, isAcceptanceSent
+        """SELECT uuid, senderUserUuid, mlsGroupId, profileEncryptionKey, senderFullName, isAcceptanceSent,
+        handedProfileKeyHash
         FROM ContactRequestEntity
         WHERE mlsGroupId IS NOT NULL AND profileEncryptionKey IS NOT NULL AND senderFullName IS NULL""",
     )
@@ -83,17 +87,21 @@ interface ContactRequestDao {
     @Query("UPDATE ContactRequestEntity SET senderFullName = :senderFullName WHERE uuid = :uuid")
     suspend fun setSenderFullName(uuid: String, senderFullName: String)
 
-    /** See [ContactRequestEntity.isAcceptanceSent]. */
-    @Query("UPDATE ContactRequestEntity SET isAcceptanceSent = 1 WHERE uuid = :uuid")
-    suspend fun markAcceptanceSent(uuid: String)
+    /** See [ContactRequestEntity.isAcceptanceSent] and [ContactRequestEntity.handedProfileKeyHash]. */
+    @Query(
+        """UPDATE ContactRequestEntity SET isAcceptanceSent = 1, handedProfileKeyHash = :handedProfileKeyHash
+        WHERE uuid = :uuid""",
+    )
+    suspend fun markAcceptanceSent(uuid: String, handedProfileKeyHash: String?)
 
-    /** For an acceptance the server provably did not take. */
-    @Query("UPDATE ContactRequestEntity SET isAcceptanceSent = 0 WHERE uuid = :uuid")
+    /** For an acceptance the server provably did not take, which handed nothing over either. */
+    @Query("UPDATE ContactRequestEntity SET isAcceptanceSent = 0, handedProfileKeyHash = NULL WHERE uuid = :uuid")
     suspend fun clearAcceptanceSent(uuid: String)
 
     /** The request [senderUserUuid] sent with [mlsGroupId], when the user's acceptance of it went out. */
     @Query(
-        """SELECT uuid, senderUserUuid, mlsGroupId, profileEncryptionKey, senderFullName, isAcceptanceSent
+        """SELECT uuid, senderUserUuid, mlsGroupId, profileEncryptionKey, senderFullName, isAcceptanceSent,
+        handedProfileKeyHash
         FROM ContactRequestEntity
         WHERE senderUserUuid = :senderUserUuid AND mlsGroupId = :mlsGroupId
         AND profileEncryptionKey IS NOT NULL AND isAcceptanceSent = 1""",
@@ -135,14 +143,21 @@ interface ContactRequestDao {
     suspend fun insertOutgoing(request: OutgoingContactRequestEntity)
 
     /**
-     * Drops the request the user sent [recipientUserUuid] in [mlsGroupId], and returns how many
-     * there were: one for the answer to it, none for a card nobody asked for.
+     * The request the user sent [recipientUserUuid] in [mlsGroupId], which a card from them in
+     * that group answers, or null for a card nobody asked for.
      */
+    @Query(
+        """SELECT * FROM OutgoingContactRequestEntity
+        WHERE recipientUserUuid = :recipientUserUuid AND mlsGroupId = :mlsGroupId""",
+    )
+    suspend fun getOutgoing(recipientUserUuid: String, mlsGroupId: ByteArray): OutgoingContactRequestEntity?
+
+    /** Drops the request the user sent [recipientUserUuid] in [mlsGroupId]. */
     @Query(
         """DELETE FROM OutgoingContactRequestEntity
         WHERE recipientUserUuid = :recipientUserUuid AND mlsGroupId = :mlsGroupId""",
     )
-    suspend fun deleteOutgoing(recipientUserUuid: String, mlsGroupId: ByteArray): Int
+    suspend fun deleteOutgoing(recipientUserUuid: String, mlsGroupId: ByteArray)
 
     /**
      * Drops every request the user sent [recipientUserUuid], who is a contact now. Their groups

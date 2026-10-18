@@ -24,6 +24,8 @@ fun clearSession() {
     clearRegisteredPushSubscription()
     clearContactsToRestore()
     clearKeyPackagesPublishedAt()
+    clearProfileKeyPartialHash()
+    clearPendingProfileKey()
     clearRootKey()
 }
 

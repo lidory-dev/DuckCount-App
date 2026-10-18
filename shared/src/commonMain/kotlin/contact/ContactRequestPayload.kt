@@ -13,10 +13,14 @@ private val json = Json { ignoreUnknownKeys = true }
 
 /**
  * What a contact request hands the recipient: the sender's profile encryption key, the
- * one thing they need to read the sender's profile and decide whether to accept.
+ * one thing they need to read the sender's profile and decide whether to accept. Accepting
+ * one hands the sender a card in turn, carrying the recipient's.
  *
  * It travels as the plaintext of an MLS application message in the group the request
  * creates, so only the recipient can read it, and MLS authenticates who sent it.
+ *
+ * The key it carries is the one current when it went out. One that replaces it later
+ * travels as a [ProfileKeyUpdate].
  */
 class ContactCard(
     val profileEncryptionKey: ByteArray,
@@ -114,6 +118,81 @@ object ContactRemoval {
         }.getOrDefault(false)
 }
 
+/**
+ * What the user sends a contact when the key to their profile has changed: the new key,
+ * which reads the profile from then on.
+ *
+ * The key rotates when the user removes a contact, so the one removed, who holds the old
+ * key, reads nothing the user writes after, see `ProfileRepository.rotateProfileKey`, and
+ * every contact left has to be handed the new one, see [ProfileKeyDelivery]. It is also the
+ * answer to a contact whose copy went missing, and who asked for it, see [ProfileKeyRequest].
+ *
+ * It travels as the plaintext of an MLS application message in the group the two of them
+ * share, so MLS authenticates whose key it is. Its `type` tells it apart from a
+ * [ContactCard], which carries a key under the same name but no `type`, being recognised by
+ * its shape: an update has to be recognised first, see [ContactMessage.read].
+ */
+class ProfileKeyUpdate(
+    val profileEncryptionKey: ByteArray,
+) {
+
+    /** The plaintext to encrypt for the contact. */
+    fun serialize(): ByteArray =
+        json.encodeToString(
+            SerializedProfileKeyUpdate.serializer(),
+            SerializedProfileKeyUpdate(
+                type = TYPE,
+                profileEncryptionKey = Base64.Default.encode(profileEncryptionKey),
+            ),
+        ).encodeToByteArray()
+
+    companion object {
+        private const val TYPE = "profile_key"
+
+        /** Reads an update back from a decrypted message, or returns null when it is not one. */
+        fun parse(plaintext: ByteArray): ProfileKeyUpdate? =
+            runCatching {
+                val serialized = json.decodeFromString(
+                    SerializedProfileKeyUpdate.serializer(),
+                    plaintext.decodeToString(),
+                )
+
+                serialized.takeIf { it.type == TYPE }?.let {
+                    ProfileKeyUpdate(profileEncryptionKey = Base64.Default.decode(it.profileEncryptionKey))
+                }
+            }.getOrNull()
+    }
+}
+
+/**
+ * What the user sends a contact to ask for the key to their profile, when the one this device
+ * holds no longer opens their latest version: nothing but the fact of it, see [ProfileKeyPull].
+ *
+ * It travels as the plaintext of an MLS application message, so MLS authenticates who is
+ * asking, and the contact answers only somebody who is one of theirs, in the group the request
+ * was read in, with a [ProfileKeyUpdate]. Its `type` tells it apart from a [ContactCard] and
+ * the rest, and it is recognised before a card is, as an update is, see [ContactMessage.read].
+ */
+object ProfileKeyRequest {
+    private const val TYPE = "profile_key_request"
+
+    /** The plaintext to encrypt for the contact asked. */
+    fun serialize(): ByteArray =
+        json.encodeToString(
+            SerializedProfileKeyRequest.serializer(),
+            SerializedProfileKeyRequest(type = TYPE),
+        ).encodeToByteArray()
+
+    /** Whether a decrypted message is a request for the user's profile key. */
+    fun matches(plaintext: ByteArray): Boolean =
+        runCatching {
+            json.decodeFromString(
+                SerializedProfileKeyRequest.serializer(),
+                plaintext.decodeToString(),
+            ).type == TYPE
+        }.getOrDefault(false)
+}
+
 @Serializable
 private class SerializedContactCard(
     @SerialName("profile_encryption_key")
@@ -128,5 +207,18 @@ private class SerializedContactRequestEnvelope(
 
 @Serializable
 private class SerializedContactRemoval(
+    val type: String,
+)
+
+@Serializable
+private class SerializedProfileKeyUpdate(
+    val type: String,
+
+    @SerialName("profile_encryption_key")
+    val profileEncryptionKey: String,
+)
+
+@Serializable
+private class SerializedProfileKeyRequest(
     val type: String,
 )

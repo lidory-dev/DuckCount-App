@@ -54,4 +54,16 @@ class ContactRequestEntity(
      * get once in that time reads as gone, and the request is dropped then.
      */
     val isAcceptanceSent: Boolean = false,
+
+    /**
+     * The partial hash of the key to the user's own profile the acceptance carried, set with
+     * [isAcceptanceSent], which becomes what the sender was handed once they are a contact,
+     * see [ContactEntity.handedProfileKeyHash].
+     *
+     * Null while no acceptance has gone out, and when attempts whose answers never came back
+     * carried different keys, a removal having rotated it in between: the server takes one
+     * of them at most, and nothing here says which. The sender is then handed the current key
+     * once a contact, whichever they hold.
+     */
+    val handedProfileKeyHash: String? = null,
 )

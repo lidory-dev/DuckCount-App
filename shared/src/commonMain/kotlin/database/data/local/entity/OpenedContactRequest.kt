@@ -11,4 +11,5 @@ class OpenedContactRequest(
     val profileEncryptionKey: ByteArray,
     val senderFullName: String?,
     val isAcceptanceSent: Boolean,
+    val handedProfileKeyHash: String?,
 )

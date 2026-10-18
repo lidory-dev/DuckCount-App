@@ -14,9 +14,10 @@ private val json = Json { ignoreUnknownKeys = true }
  *
  * What travels this way is whatever the two of them have to tell each other and the server
  * must not learn: a contact card accepting a request, a notice that one removed the other,
- * the key to a one-time expense, or a request for that key. The recipient needs the group
- * to decrypt [message] and may keep no record of which one it was, and an MLS message says
- * nothing about it either, hence [mlsGroupId] next to it.
+ * a new key to the sender's profile or a request for the recipient's, the key to a one-time
+ * expense, or a request for that key. The recipient needs the group to decrypt [message] and
+ * may keep no record of which one it was, and an MLS message says nothing about it either,
+ * hence [mlsGroupId] next to it.
  *
  * [mlsGroupId] is chosen by the sender and authenticated by nothing, so it selects which
  * stored group to try and decides nothing else. A group that decrypts the message is the

@@ -165,3 +165,22 @@ sealed interface DirectSendError : Error {
     /** The server could not be reached, or refused the call. */
     data class Network(val error: NetworkError) : DirectSendError
 }
+
+/**
+ * Whether the message certainly never reached the server, which counts one against the user's
+ * allowance only once it is posted: it failed on this device first, building the channel or
+ * encrypting, or the host never resolved, so nothing was sent. Every other failure is taken as
+ * posted. Some were: refused for the limit, sent to an account that is gone, a `5xx` the proxy
+ * may return after the message was stored. The rest cannot be told from those: a timeout, or
+ * a server out of reach, which `networking.Client` reports the same whether the connection was
+ * refused before anything was written or dropped after.
+ *
+ * What tells a request whose budget a peer was charged for, see [util.spendMessageBudget], from
+ * one whose budget goes back.
+ */
+internal fun DirectSendError.neverReachedServer(): Boolean =
+    when (this) {
+        is DirectSendError.Channel, DirectSendError.Storage, DirectSendError.GroupUnusable -> true
+        is DirectSendError.Network -> error == NetworkError.NO_INTERNET
+        DirectSendError.RecipientGone, DirectSendError.RateLimited -> false
+    }

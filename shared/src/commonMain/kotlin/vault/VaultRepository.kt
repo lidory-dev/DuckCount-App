@@ -1,12 +1,22 @@
 package vault
 
+import authenticationUtils.clearProfileKeyPartialHash
+import authenticationUtils.dropPendingProfileKey
+import authenticationUtils.getPendingProfileKey
+import authenticationUtils.getProfileKeyPartialHash
 import authenticationUtils.getRootKey
+import authenticationUtils.setPendingProfileKey
+import authenticationUtils.setProfileKeyPartialHash
 import database.data.remote.EncryptedFieldDto
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
+import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
 import util.EmptyResult
 import util.NetworkError
 import util.Result
 import util.map
+import util.onSuccess
 
 /**
  * The user's key material, as the server holds it: one sealed entry per part, none
@@ -32,11 +42,23 @@ import util.map
  *
  * Every call starts by reading the vault, never a copy kept on the device, and reads
  * only the parts it is about to use: the key ring on its own to write, the key ring
- * and one part to read one. Both are a single request.
+ * and one part to read one. Both are a single request. The one exception is the hash of
+ * the profile key, kept so that a sync with nobody to hand the key to reads nothing, see
+ * [getCachedProfileEncryptionKeyPartialHash]. The device also keeps a profile key the vault
+ * does not hold yet, which is no copy of it: the one a removal owes it, see
+ * [getPendingProfileEncryptionKey].
  */
 class VaultRepository(
     private val vaultApi: VaultApi,
-) {
+) : ProfileKeyVault {
+
+    /**
+     * Serializes reading and replacing the profile key, which both end with writing down the
+     * hash of the key they saw, see [getCachedProfileEncryptionKeyPartialHash]. A read that
+     * fetched the old key before a replacement and wrote its hash down after would leave the
+     * device naming a key the vault no longer holds.
+     */
+    private val profileKeyMutex = Mutex()
 
     /**
      * The key that seals the user's profile, generating it and writing it to the vault
@@ -46,29 +68,103 @@ class VaultRepository(
      * on a later profile edit writes nothing, and it repairs an account whose first
      * attempt never reached the server.
      *
-     * Unlike the other keys in the vault this one is meant to be given away.
+     * Unlike the other keys in the vault this one is meant to be given away, and replaced
+     * when somebody it was given to should no longer hold it, see
+     * [replaceProfileEncryptionKey].
      */
-    suspend fun getOrCreateProfileEncryptionKey(): Result<ByteArray, VaultError> {
-        val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
+    override suspend fun getOrCreateProfileEncryptionKey(): Result<ByteArray, VaultError> =
+        profileKeyMutex.withLock {
+            val rootKey = getRootKey() ?: return@withLock Result.Error(VaultError.MissingRootKey)
 
-        val part = VaultEntryKey.PROFILE_ENCRYPTION_KEY
+            val part = VaultEntryKey.PROFILE_ENCRYPTION_KEY
 
-        val read = when (val singleton = readPart(rootKey = rootKey, part = part)) {
-            is Result.Success -> singleton.data
-            is Result.Error -> return Result.Error(singleton.error)
+            val read = when (val singleton = readPart(rootKey = rootKey, part = part)) {
+                is Result.Success -> singleton.data
+                is Result.Error -> return@withLock Result.Error(singleton.error)
+            }
+
+            read.plaintext?.let { stored ->
+                setProfileKeyPartialHash(partialHash = profileEncryptionKeyPartialHash(stored))
+
+                return@withLock Result.Success(stored)
+            }
+
+            val profileEncryptionKey = generateSymmetricEncryptionKey()
+
+            writePart(
+                rootKey = rootKey,
+                keyRing = read.keyRing,
+                part = part,
+                plaintext = profileEncryptionKey,
+            ).map { profileEncryptionKey }.onSuccess {
+                setProfileKeyPartialHash(partialHash = profileEncryptionKeyPartialHash(it))
+            }
         }
 
-        read.plaintext?.let { return Result.Success(it) }
+    /**
+     * Records [profileEncryptionKey] as the key that seals the user's profile, replacing the one
+     * the vault held, which is what rotating it comes down to, see
+     * [ProfileRepository.rotateProfileKey][profile.ProfileRepository.rotateProfileKey].
+     *
+     * Unconditional, like [setDiscoveryUsername]: the caller has already uploaded the
+     * profile sealed under the new key, which is what makes it the one to hold, whatever the
+     * entry held before.
+     *
+     * The hash this device kept of the old key goes before the vault is written, so that a
+     * failure from there on leaves it naming no key rather than the old one: the next
+     * [ProfileKeyDelivery][contact.ProfileKeyDelivery] then reads the vault to learn which.
+     */
+    override suspend fun replaceProfileEncryptionKey(profileEncryptionKey: ByteArray): EmptyResult<VaultError> =
+        profileKeyMutex.withLock {
+            val rootKey = getRootKey() ?: return@withLock Result.Error(VaultError.MissingRootKey)
 
-        val profileEncryptionKey = generateSymmetricEncryptionKey()
+            val keyRing = when (val read = readKeyRing(rootKey = rootKey)) {
+                is Result.Success -> read.data
+                is Result.Error -> return@withLock Result.Error(read.error)
+            }
 
-        return writePart(
-            rootKey = rootKey,
-            keyRing = read.keyRing,
-            part = part,
-            plaintext = profileEncryptionKey,
-        ).map { profileEncryptionKey }
-    }
+            clearProfileKeyPartialHash()
+
+            writePart(
+                rootKey = rootKey,
+                keyRing = keyRing,
+                part = VaultEntryKey.PROFILE_ENCRYPTION_KEY,
+                plaintext = profileEncryptionKey,
+            ).onSuccess {
+                setProfileKeyPartialHash(partialHash = profileEncryptionKeyPartialHash(profileEncryptionKey))
+            }
+        }
+
+    /**
+     * The partial hash of the key that seals the user's profile as this device last read or
+     * wrote it, or null when it holds none, see [authenticationUtils.setProfileKeyPartialHash].
+     *
+     * The one answer here not read from the vault: it is asked on every sync, to tell whether
+     * any contact has yet to be handed the key, and almost never is one. A hash says nothing the
+     * server does not already know, it is what every read of the profile is gated on.
+     */
+    override fun getCachedProfileEncryptionKeyPartialHash(): String? = getProfileKeyPartialHash()
+
+    /**
+     * The key a removal the user made owes their profile key, kept on the device from the removal
+     * until the vault holds it, or null when no rotation is owed, see
+     * [ProfileRepository.oweProfileKeyRotation][profile.ProfileRepository.oweProfileKeyRotation]
+     * and [authenticationUtils.setPendingProfileKey].
+     */
+    override suspend fun getPendingProfileEncryptionKey(): ByteArray? = getPendingProfileKey()
+
+    /**
+     * Keeps [profileEncryptionKey] as the pending key, written before this returns, or throwing on
+     * a device locked by then, see [authenticationUtils.setPendingProfileKey].
+     */
+    override suspend fun setPendingProfileEncryptionKey(profileEncryptionKey: ByteArray) =
+        setPendingProfileKey(profileEncryptionKey = profileEncryptionKey)
+
+    /**
+     * Drops the pending key, gone from every read before this returns, if not yet from the disk,
+     * see [authenticationUtils.dropPendingProfileKey].
+     */
+    override fun dropPendingProfileEncryptionKey() = dropPendingProfileKey()
 
     /**
      * The handle the user reserved to be discoverable by, or null when the vault holds

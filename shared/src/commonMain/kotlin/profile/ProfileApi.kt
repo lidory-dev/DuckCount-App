@@ -17,10 +17,38 @@ private const val PROFILE_ENCRYPTION_KEY_PARTIAL_HASH_HEADER =
     "X-Profile-Encryption-Key-Partial-Hash"
 
 /**
+ * The user profiles the server keeps. [ProfileApi] is the one there is.
+ *
+ * Its own interface so that what [ProfileRepository] does with them, and in what order, can
+ * be checked without a server.
+ */
+interface ProfileStore {
+
+    /** See [ProfileApi.getUserProfile]. */
+    suspend fun getUserProfile(
+        userUuid: String,
+        encryptionKeyPartialHash: String,
+    ): Result<ServedUserProfileDto, NetworkError>
+
+    /** See [ProfileApi.saveUserProfile]. */
+    suspend fun saveUserProfile(
+        userUuid: String,
+        encryptionKeyPartialHash: String,
+        body: UserProfileDto,
+    ): Result<Unit, NetworkError>
+}
+
+/**
  * Remote data source for user profiles.
  *
  * Every field it moves is sealed on the device under the owner's profile encryption
  * key, so the server stores and returns a profile it cannot read.
+ *
+ * The server keeps one version of a profile per key it was sealed under, the newest ten of
+ * them, so that whoever holds a key the owner has since replaced still reads the profile as
+ * it stood when that key was replaced, and nothing written after: the owner replaces it when
+ * they remove a contact, see [ProfileRepository.rotateProfileKey]. What they read says that it
+ * is not the latest, and no more, which is how they learn to ask for the newer key.
  *
  * Unlike the rest of `/users`, reading is not restricted to the caller's own row,
  * any logged-in user may fetch any profile, provided they can prove possession of
@@ -29,18 +57,20 @@ private const val PROFILE_ENCRYPTION_KEY_PARTIAL_HASH_HEADER =
  */
 class ProfileApi(
     private val client: DuckCountClient,
-) {
+) : ProfileStore {
     /**
-     * Fetches a profile, proving possession of the key it was sealed with.
+     * Fetches the version of a profile sealed under the key whose partial hash is
+     * [encryptionKeyPartialHash], proving possession of it, and whether it is the owner's latest,
+     * see [ServedUserProfileDto.isLatest].
      *
-     * A key that does not match and a user with no profile are both answered with a
-     * 404, deliberately indistinguishable.
+     * A key that does not match, a version the server has pruned since and a user with no
+     * profile are all answered with a 404, deliberately indistinguishable.
      */
-    suspend fun getUserProfile(
+    override suspend fun getUserProfile(
         userUuid: String,
         encryptionKeyPartialHash: String,
-    ): Result<UserProfileDto, NetworkError> =
-        client.get<UserProfileDto>(
+    ): Result<ServedUserProfileDto, NetworkError> =
+        client.get<ServedUserProfileDto>(
             route = DuckCountRoutes.User.PROFILE,
             pathParams = mapOf("user_uuid" to userUuid),
             headers = mapOf(
@@ -49,12 +79,14 @@ class ProfileApi(
         )
 
     /**
-     * Uploads the caller's own profile, replacing any profile already stored.
+     * Uploads the caller's own profile, sealed under the key whose partial hash is
+     * [encryptionKeyPartialHash], which later reads of this version are gated on.
      *
-     * The partial hash is stored alongside it and becomes what later reads are gated
-     * on.
+     * Under the hash of the current key, it rewrites the current version. Under a new one, it
+     * adds a version and leaves the older ones as they were, the server pruning the oldest
+     * beyond the newest ten.
      */
-    suspend fun saveUserProfile(
+    override suspend fun saveUserProfile(
         userUuid: String,
         encryptionKeyPartialHash: String,
         body: UserProfileDto,

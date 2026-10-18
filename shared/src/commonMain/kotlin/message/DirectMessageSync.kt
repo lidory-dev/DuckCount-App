@@ -32,9 +32,10 @@ import util.Result
  *
  * One place decrypts, because decrypting is the only way to find out what a message is:
  * the server stores an opaque string, and what is inside it, a contact card, a notice that
- * somebody removed the user, the key to an expense or a request for one, is only knowable
- * afterwards. Reading also *consumes* the message, MLS deletes the key that opened it, so a
- * message may be read exactly once and whatever it said has to be acted on there and then.
+ * somebody removed the user, a contact's new profile key or a request for the user's, the key
+ * to an expense or a request for one, is only knowable afterwards. Reading also *consumes*
+ * the message, MLS deletes the key that opened it, so a message may be read exactly once and
+ * whatever it said has to be acted on there and then.
  *
  * Every message that was read, and every message that never will be, is acknowledged,
  * which is the only thing that deletes it server-side. The exception is one that could not

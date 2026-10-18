@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "eec6bfca4d7cd722bfecf9a2ca9339da",
+    "identityHash": "8f5bced0953a1d0bad478589f69c5cb3",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -258,7 +258,7 @@
       },
       {
         "tableName": "ContactRequestEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `senderUserUuid` TEXT NOT NULL, `ciphertext` TEXT NOT NULL, `createdAt` TEXT NOT NULL, `mlsGroupId` BLOB, `profileEncryptionKey` BLOB, `senderFullName` TEXT, `isAcceptanceSent` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `senderUserUuid` TEXT NOT NULL, `ciphertext` TEXT NOT NULL, `createdAt` TEXT NOT NULL, `mlsGroupId` BLOB, `profileEncryptionKey` BLOB, `senderFullName` TEXT, `isAcceptanceSent` INTEGER NOT NULL, `handedProfileKeyHash` TEXT, PRIMARY KEY(`uuid`))",
         "fields": [
           {
             "fieldPath": "uuid",
@@ -304,6 +304,11 @@
             "columnName": "isAcceptanceSent",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "handedProfileKeyHash",
+            "columnName": "handedProfileKeyHash",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -315,7 +320,7 @@
       },
       {
         "tableName": "OutgoingContactRequestEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`mlsGroupId` BLOB NOT NULL, `recipientUserUuid` TEXT NOT NULL, PRIMARY KEY(`mlsGroupId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`mlsGroupId` BLOB NOT NULL, `recipientUserUuid` TEXT NOT NULL, `handedProfileKeyHash` TEXT NOT NULL, PRIMARY KEY(`mlsGroupId`))",
         "fields": [
           {
             "fieldPath": "mlsGroupId",
@@ -326,6 +331,12 @@
           {
             "fieldPath": "recipientUserUuid",
             "columnName": "recipientUserUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "handedProfileKeyHash",
+            "columnName": "handedProfileKeyHash",
             "affinity": "TEXT",
             "notNull": true
           }
@@ -339,7 +350,7 @@
       },
       {
         "tableName": "ContactEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `isBackedUp` INTEGER NOT NULL, `isRemoved` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `handedProfileKeyHash` TEXT, `isBackedUp` INTEGER NOT NULL, `isRemoved` INTEGER NOT NULL, `rotatesProfileKey` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
         "fields": [
           {
             "fieldPath": "userUuid",
@@ -354,6 +365,11 @@
             "notNull": true
           },
           {
+            "fieldPath": "handedProfileKeyHash",
+            "columnName": "handedProfileKeyHash",
+            "affinity": "TEXT"
+          },
+          {
             "fieldPath": "isBackedUp",
             "columnName": "isBackedUp",
             "affinity": "INTEGER",
@@ -362,6 +378,12 @@
           {
             "fieldPath": "isRemoved",
             "columnName": "isRemoved",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rotatesProfileKey",
+            "columnName": "rotatesProfileKey",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -625,6 +647,71 @@
         }
       },
       {
+        "tableName": "PendingProfileKeyEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `lastRequestedAt` INTEGER, `requestCount` INTEGER NOT NULL, `isAccountGone` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
+        "fields": [
+          {
+            "fieldPath": "userUuid",
+            "columnName": "userUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileEncryptionKey",
+            "columnName": "profileEncryptionKey",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastRequestedAt",
+            "columnName": "lastRequestedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "requestCount",
+            "columnName": "requestCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isAccountGone",
+            "columnName": "isAccountGone",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "userUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "ProfileKeyRequestBudgetEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`peerUuid` TEXT NOT NULL, `budgetFullAt` INTEGER NOT NULL, PRIMARY KEY(`peerUuid`))",
+        "fields": [
+          {
+            "fieldPath": "peerUuid",
+            "columnName": "peerUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "budgetFullAt",
+            "columnName": "budgetFullAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "peerUuid"
+          ]
+        }
+      },
+      {
         "tableName": "OwedExpenseKeyEntity",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `recipientUuid` TEXT NOT NULL, PRIMARY KEY(`expenseUuid`, `recipientUuid`))",
         "fields": [
@@ -731,7 +818,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'eec6bfca4d7cd722bfecf9a2ca9339da')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8f5bced0953a1d0bad478589f69c5cb3')"
     ]
   }
 }

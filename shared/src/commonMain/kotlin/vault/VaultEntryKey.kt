@@ -52,8 +52,14 @@ enum class VaultEntryKey(val wireName: String) {
      * The key that unseals the user's own profile. Singleton.
      *
      * Unlike every other part, the key inside this one is meant to leave the vault,
-     * it is what a contact is given, through a contact request, to read the profile
-     * it seals.
+     * it is what a contact is given, through a contact request or its acceptance, to
+     * read the profile it seals.
+     *
+     * Replaced whenever the user removes a contact, so the one removed reads nothing
+     * the user writes after, see `ProfileRepository.rotateProfileKey`, and the new one
+     * is handed to every contact left, see `ProfileKeyDelivery`. The server keeps the
+     * profile as it was under each of the last keys, so whoever holds an older one
+     * reads it as it stood when that key was replaced.
      */
     PROFILE_ENCRYPTION_KEY("profile_encryption_key"),
 
@@ -86,8 +92,8 @@ enum class VaultEntryKey(val wireName: String) {
     MLS_SIGNATURE_KEY("mls_signature_key"),
 
     /**
-     * The user's contacts, each with the profile encryption key they handed over.
-     * Singleton, see [ContactBook].
+     * The user's contacts, each with the profile encryption key they handed over, and
+     * which of the user's own they were handed last. Singleton, see [ContactBook].
      *
      * Sealed whole rather than split into an entry per contact, so the server learns
      * neither who they are nor how many. It keeps no other record of them: the request

@@ -15,10 +15,19 @@ class ContactBookTest {
     private val bobKey = byteArrayOf(4, 5, 6)
     private val aliceSignatureKey = byteArrayOf(7, 7, 7)
 
-    private fun contact(profileEncryptionKey: ByteArray, mlsSignaturePublicKey: ByteArray? = null) =
+    /** Partial hashes of two of the user's own profile keys, the older first. */
+    private val handedBefore = "0123456789"
+    private val handedNow = "abcdef0123"
+
+    private fun contact(
+        profileEncryptionKey: ByteArray,
+        mlsSignaturePublicKey: ByteArray? = null,
+        handedProfileKeyHash: String? = null,
+    ) =
         VaultContact(
             profileEncryptionKey = profileEncryptionKey,
             mlsSignaturePublicKey = mlsSignaturePublicKey,
+            handedProfileKeyHash = handedProfileKeyHash,
         )
 
     @Test
@@ -239,6 +248,67 @@ class ContactBookTest {
 
         assertEquals(setOf(alice), reread.keys)
         assertNull(reread[alice]?.mlsSignaturePublicKey)
+    }
+
+    @Test
+    fun `which of the user's keys a contact was handed survives being sealed and read back`() {
+        val book = ContactBook.EMPTY
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, handedProfileKeyHash = handedNow))!!
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey, handedProfileKeyHash = handedBefore))!!
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
+
+        assertEquals(handedNow, reread[alice]?.handedProfileKeyHash)
+        assertEquals(handedBefore, reread[bob]?.handedProfileKeyHash)
+    }
+
+    /** Handed a newer key since, which is what the contact holds from then on. */
+    @Test
+    fun `writing a contact with a handed hash replaces the one stored`() {
+        val book = ContactBook.EMPTY
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, handedProfileKeyHash = handedBefore))!!
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, handedProfileKeyHash = handedNow))!!
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
+
+        assertEquals(handedNow, reread[alice]?.handedProfileKeyHash)
+    }
+
+    /** As with a pinned identity, not knowing which key they hold is no grounds for erasing it. */
+    @Test
+    fun `writing a contact without a handed hash keeps the one stored`() {
+        val book = ContactBook.EMPTY
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, handedProfileKeyHash = handedNow))!!
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = bobKey))!!
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
+
+        assertContentEquals(bobKey, reread[alice]?.profileEncryptionKey)
+        assertEquals(handedNow, reread[alice]?.handedProfileKeyHash)
+    }
+
+    @Test
+    fun `a handed hash survives writing and removing other contacts`() {
+        val book = ContactBook.EMPTY
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, handedProfileKeyHash = handedNow))!!
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
+            .without(userUuid = bob)
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
+
+        assertEquals(handedNow, reread[alice]?.handedProfileKeyHash)
+    }
+
+    /** Nobody knows which of the user's keys they hold, so they are handed the current one. */
+    @Test
+    fun `a contact with no handed hash is still a contact`() {
+        val plaintext = """{"$alice": {"profile_encryption_key": "AQID", "handed_profile_key_hash": 12}}"""
+            .encodeToByteArray()
+
+        val reread = ContactBook.parse(plaintext = plaintext)!!.contacts
+
+        assertEquals(setOf(alice), reread.keys)
+        assertNull(reread[alice]?.handedProfileKeyHash)
     }
 
     @Test

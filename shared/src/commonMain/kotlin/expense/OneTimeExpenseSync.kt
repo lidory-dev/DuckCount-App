@@ -21,9 +21,11 @@ import kotlinx.serialization.json.JsonObject
 import message.DirectMessageSender
 import message.DirectMessageSync
 import message.DirectSendError
+import message.neverReachedServer
 import util.EmptyResult
 import util.NetworkError
 import util.Result
+import util.backoffFor
 import util.nowEpochMilliseconds
 import util.spendMessageBudget
 import kotlin.uuid.Uuid
@@ -641,22 +643,6 @@ private fun DirectSendError.toSyncError(): OneTimeExpenseSyncError =
         DirectSendError.RecipientGone, DirectSendError.RateLimited -> OneTimeExpenseSyncError.Storage
     }
 
-/**
- * Whether the message certainly never reached the server, which counts one against the user's
- * allowance only once it is posted: it failed on this device first, building the channel or
- * encrypting, or the host never resolved, so nothing was sent. Every other failure is taken as
- * posted. Some were: refused for the limit, sent to an account that is gone, a `5xx` the proxy
- * may return after the message was stored. The rest cannot be told from those: a timeout, or
- * a server out of reach, which `networking.Client` reports the same whether the connection was
- * refused before anything was written or dropped after.
- */
-private fun DirectSendError.neverReachedServer(): Boolean =
-    when (this) {
-        is DirectSendError.Channel, DirectSendError.Storage, DirectSendError.GroupUnusable -> true
-        is DirectSendError.Network -> error == NetworkError.NO_INTERNET
-        DirectSendError.RecipientGone, DirectSendError.RateLimited -> false
-    }
-
 /** Reads the listing's entries as this build knows them, ignoring what it does not. */
 private val listingJson = Json { ignoreUnknownKeys = true }
 
@@ -688,26 +674,3 @@ internal fun String.isCanonicalUuid(): Boolean = Uuid.parseHexDashOrNull(this)?.
 
 /** How many creditors are asked in one sync, so a re-login does not ask everyone at once. */
 private const val MAX_CREDITORS_PER_SYNC = 3
-
-/**
- * How long to wait before asking a creditor for the same key again, doubling, up to a day.
- *
- * The creditor answers an asker once a pass at most, out of a budget of two answers at once
- * and one more an hour after that, see [DirectChannelRepository.claimReply], and this device
- * asks a creditor out of a budget of the same shape, see [OneTimeExpenseSync.requestMissingKeys].
- * So, each try read as it arrives and nothing else asked of the creditor in between, an
- * answer lost on the way when nothing else was outstanding is answered again at the try ten
- * minutes after the first, and a second lost straight after it at the first sync an hour
- * after the first: the try at thirty is held back until then, as the creditor would hold
- * back its answer. Whatever came before, a try an hour after both this device's last request
- * and the creditor's last reply goes out and is answered.
- */
-private fun backoffFor(requestCount: Int): Long {
-    val doublings = minOf(requestCount, MAX_BACKOFF_DOUBLINGS)
-
-    return minOf(BASE_BACKOFF_MILLISECONDS shl doublings, MAX_BACKOFF_MILLISECONDS)
-}
-
-private const val BASE_BACKOFF_MILLISECONDS = 5L * 60 * 1000
-private const val MAX_BACKOFF_MILLISECONDS = 24L * 60 * 60 * 1000
-private const val MAX_BACKOFF_DOUBLINGS = 10

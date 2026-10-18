@@ -22,6 +22,8 @@ class ContactSync(
     private val contactRequestRepository: ContactRequestRepository,
     private val contactRepository: ContactRepository,
     private val directMessageSync: DirectMessageSync,
+    private val profileKeyDelivery: ProfileKeyDelivery,
+    private val profileKeyPull: ProfileKeyPull,
     private val wakeList: WakeList,
 ) {
     /**
@@ -44,21 +46,41 @@ class ContactSync(
     }
 
     /**
-     * Carries the contact changes this device made to the vault, reads the names of the
-     * contacts it has none for, and rebuilds who may wake the user, see [WakeList].
+     * Carries the contact changes this device made to the vault, hands the key to the user's
+     * profile to the contacts who do not hold it yet, reads the profiles of the contacts it has
+     * no name for, or was missing the current key of and has a new one from, see
+     * [ContactRepository.resolveNames], asks those whose key it is missing for it, and rebuilds
+     * who may wake the user, see [WakeList].
      *
      * What every operation that changes a contact ends with: the change itself
      * already landed on this device, and this is what makes it outlive the device.
      * The list is rebuilt whatever came of the rest: the changes that matter rebuilt it as
      * they landed, and this catches whatever was left behind, by a process killed in
      * between for instance.
+     *
+     * The key is handed out right after the backup, which is where it rotates when the user
+     * removed a contact, so the contacts left get the new one at once, see
+     * [ProfileKeyDelivery]. An edit of the profile made before then rotates it instead, see
+     * `ProfileRepository.uploadProfile`, and the next backup hands that one out. Who was handed
+     * it is backed up in turn, which writes nothing when nobody was.
+     *
+     * The contacts' keys are asked for once the names are read, which is what tells which keys
+     * no longer open their owner's latest profile, see [ProfileKeyPull].
      */
     suspend fun backUp(): EmptyResult<ContactSyncError> {
         var failure: ContactSyncError? = null
 
-        contactRepository.backUp().onError { failure = failure ?: it }
+        val backUp = contactRepository.backUp().onError { failure = failure ?: it }
+
+        profileKeyDelivery.handOut().onError { failure = failure ?: it }
+
+        // Not after a backup that failed: it would only try the same write again at once, a
+        // rotation of the key included, and the next sync carries who was handed it.
+        if (backUp is Result.Success) contactRepository.backUp().onError { failure = failure ?: it }
 
         contactRepository.resolveNames().onError { failure = failure ?: it }
+
+        profileKeyPull.requestMissingKeys().onError { failure = failure ?: it }
 
         wakeList.rebuild()
 

@@ -405,6 +405,15 @@ internal enum class Reply {
     EXPENSE_KEYS,
 
     /**
+     * The key to the user's own profile, to a contact who asked for it, the one they hold no
+     * longer opening its latest version, see [ProfileKeyPull][contact.ProfileKeyPull]. Like
+     * the keys to expenses, what the asker cannot do without: withheld, they read the profile
+     * as it stood when their key was replaced, or nothing of it at all when their key opens no
+     * version, pruned since or never stored, until they ask again, on their own backoff.
+     */
+    PROFILE_KEY,
+
+    /**
      * Word that this device joined a group of theirs, see [ChannelJoined]. Withheld, the peer
      * goes on attaching their Welcome until anything else from this device is read, and at
      * worst builds a new group from another of the user's key packages: none of which spends
@@ -418,10 +427,11 @@ internal enum class Reply {
  * when [reply] cannot go out now, see [spendMessageBudget]: two replies at once and one more
  * an hour after that.
  *
- * Keys go out while at most one reply is outstanding: an answer lost on the way is answered
- * again at the asker's next try if it is still the only one, see
- * `OneTimeExpenseSync.requestMissingKeys`, and whatever came before, an hour after the last
- * reply at the latest. A [Reply.CHANNEL_JOINED] goes out only while none is. That drops the
+ * Keys go out while at most one reply is outstanding, the user's profile key as the keys to
+ * expenses: an answer lost on the way is answered again at the asker's next try if it is still
+ * the only one, see `OneTimeExpenseSync.requestMissingKeys` and
+ * `ProfileKeyPull.requestMissingKeys`, and whatever came before, an hour after the last reply at
+ * the latest. A [Reply.CHANNEL_JOINED] goes out only while none is. That drops the
  * one an answer made needless after a log-out: the asker rebuilt the channel to ask, so the
  * answer goes in the group just joined, and being read there is all a [ChannelJoined] is for.
  */

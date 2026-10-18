@@ -14,20 +14,33 @@ private const val PROFILE_ENCRYPTION_KEY = "profile_encryption_key"
 private const val MLS_SIGNATURE_PUBLIC_KEY = "mls_signature_public_key"
 
 /**
+ * The field of a contact holding the partial hash of the user's own profile key they were
+ * last handed.
+ */
+private const val HANDED_PROFILE_KEY_HASH = "handed_profile_key_hash"
+
+/**
  * The plaintext of [VaultEntryKey.CONTACTS]. Every contact, keyed by their user UUID,
  * each an object whose `profile_encryption_key` is the key they handed over and whose
  * `mls_signature_public_key` is the MLS identity this device pinned for them, both Base64
- * encoded.
+ * encoded, and whose `handed_profile_key_hash` is the partial hash of the user's own
+ * profile key they were last handed.
  *
  * The pinned key is here because pins live in the local database, which a log-out empties,
  * while the whole point of a pin is to outlast the moment it was made. Without it, a device
  * coming back from a log-out would accept whichever key package the server served for each
  * contact and pin *that*, which is exactly the substitution pinning exists to catch.
  *
+ * The handed hash is here because it too has to outlast a log-out: the user's profile key
+ * rotates when they remove a contact, and the contacts left still to be handed the new one
+ * have to be told apart from the others on a device the vault restored, see
+ * [ContactEntity.handedProfileKeyHash][database.data.local.entity.ContactEntity.handedProfileKeyHash].
+ *
  * Follows the first of [KeyRing]'s rules for the same reason: a newer app version may
  * add a contact field, or a new kind of entry, that an older one still running
  * somewhere must not drop when it adds a contact. So this holds the [JsonObject] it was
- * read from, and adding a contact rewrites that contact's key and nothing else.
+ * read from, and adding a contact rewrites the fields of that contact this build knows,
+ * and nothing else.
  */
 class ContactBook private constructor(private val entries: JsonObject) {
 
@@ -37,7 +50,8 @@ class ContactBook private constructor(private val entries: JsonObject) {
      * An entry that does not carry a Base64 profile key, which only a newer build could
      * have written, is left out: nothing here can read that contact's profile anyway. One
      * with no pinned identity is kept, since it only means this book was written before
-     * pins travelled with it, or by a device that had none.
+     * pins travelled with it, or by a device that had none. So is one with no handed hash,
+     * which only means nobody knows which of the user's keys they hold.
      */
     val contacts: Map<String, VaultContact>
         get() = entries.mapNotNull { (userUuid, contact) ->
@@ -45,6 +59,7 @@ class ContactBook private constructor(private val entries: JsonObject) {
                 userUuid to VaultContact(
                     profileEncryptionKey = profileEncryptionKey,
                     mlsSignaturePublicKey = contact.key(field = MLS_SIGNATURE_PUBLIC_KEY),
+                    handedProfileKeyHash = contact.text(field = HANDED_PROFILE_KEY_HASH),
                 )
             }
         }.toMap()
@@ -56,7 +71,7 @@ class ContactBook private constructor(private val entries: JsonObject) {
      * The other fields of a contact already in it are carried over as they were read, and
      * so is their pinned identity when [contact] carries none: a device that has not met
      * this contact over MLS knows nothing about their identity, and knowing nothing is not
-     * grounds for erasing what another device recorded.
+     * grounds for erasing what another device recorded. The same goes for the handed hash.
      *
      * A pinned identity is never replaced. No flow in the app changes one, so one that
      * differs was most likely served by somebody other than the contact, to whichever device
@@ -81,6 +96,8 @@ class ContactBook private constructor(private val entries: JsonObject) {
         if (storedPin == null && pin != null) {
             fields[MLS_SIGNATURE_PUBLIC_KEY] = JsonPrimitive(Base64.Default.encode(pin))
         }
+
+        contact.handedProfileKeyHash?.let { fields[HANDED_PROFILE_KEY_HASH] = JsonPrimitive(it) }
 
         return ContactBook(JsonObject(entries + (userUuid to JsonObject(fields))))
     }
@@ -121,6 +138,12 @@ class ContactBook private constructor(private val entries: JsonObject) {
 class VaultContact(
     val profileEncryptionKey: ByteArray,
     val mlsSignaturePublicKey: ByteArray?,
+
+    /**
+     * See [ContactEntity.handedProfileKeyHash][database.data.local.entity.ContactEntity.handedProfileKeyHash].
+     * Null when which key they were handed is not known.
+     */
+    val handedProfileKeyHash: String?,
 )
 
 private fun JsonElement.key(field: String): ByteArray? {
@@ -129,3 +152,6 @@ private fun JsonElement.key(field: String): ByteArray? {
 
     return runCatching { Base64.Default.decode(encoded) }.getOrNull()
 }
+
+private fun JsonElement.text(field: String): String? =
+    ((this as? JsonObject)?.get(field) as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull

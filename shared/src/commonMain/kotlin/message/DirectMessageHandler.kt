@@ -30,7 +30,7 @@ internal interface DirectMessageHandler {
     /**
      * Acts on what is better done once a pass than once a message, now that the pass has
      * offered every message it read: answering a peer who asked several times in it, see
-     * [expense.OneTimeExpenseMessageHandler].
+     * [expense.OneTimeExpenseMessageHandler] and [contact.ContactMessageHandler].
      *
      * Called whether the pass got to its end or not, since the messages it read are spent
      * either way, and only ever by the sync, one pass at a time, see [DirectMessageSync].

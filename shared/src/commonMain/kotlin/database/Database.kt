@@ -21,6 +21,7 @@ import database.data.local.dao.MlsRecordDao
 import database.data.local.dao.OneTimeExpenseKeyDao
 import database.data.local.dao.OwedExpenseKeyDao
 import database.data.local.dao.PendingExpenseKeyDao
+import database.data.local.dao.PendingProfileKeyDao
 import database.data.local.dao.UserDao
 import database.data.local.entity.BeneficiaryEntity
 import database.data.local.entity.ChangeFeedEntity
@@ -41,6 +42,8 @@ import database.data.local.entity.OneTimeExpenseSettledMarkEntity
 import database.data.local.entity.OutgoingContactRequestEntity
 import database.data.local.entity.OwedExpenseKeyEntity
 import database.data.local.entity.PendingExpenseKeyEntity
+import database.data.local.entity.PendingProfileKeyEntity
+import database.data.local.entity.ProfileKeyRequestBudgetEntity
 import database.data.local.entity.UnverifiedExpenseKeyEntity
 import database.data.local.entity.UserEntity
 import eu.anifantakis.lib.ksafe.KSafe
@@ -69,6 +72,8 @@ import org.koin.mp.KoinPlatform.getKoin
         OneTimeExpenseSettledMarkEntity::class,
         PendingExpenseKeyEntity::class,
         KeyRequestBudgetEntity::class,
+        PendingProfileKeyEntity::class,
+        ProfileKeyRequestBudgetEntity::class,
         OwedExpenseKeyEntity::class,
         ListedOneTimeExpenseEntity::class,
         ChangeFeedEntity::class,
@@ -91,6 +96,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract val identityConflictDao: IdentityConflictDao
     abstract val oneTimeExpenseKeyDao: OneTimeExpenseKeyDao
     abstract val pendingExpenseKeyDao: PendingExpenseKeyDao
+    abstract val pendingProfileKeyDao: PendingProfileKeyDao
     abstract val owedExpenseKeyDao: OwedExpenseKeyDao
     abstract val listedOneTimeExpenseDao: ListedOneTimeExpenseDao
     abstract val mlsRecordDao: MlsRecordDao

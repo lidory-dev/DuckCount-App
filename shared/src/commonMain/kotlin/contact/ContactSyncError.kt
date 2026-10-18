@@ -22,19 +22,30 @@ sealed interface ContactSyncError : Error {
      */
     data object Storage : ContactSyncError
 
-    /** The contacts could not be read from or written to the vault. */
+    /**
+     * The contacts could not be read from or written to the vault, or the key to the user's
+     * own profile could not be read from it to hand them, see [ProfileKeyDelivery].
+     */
     data class Vault(val error: VaultError) : ContactSyncError
 
     /**
      * A contact's or a sender's profile could not be asked for.
      *
      * Never what the server answered: a profile it holds none of under the key this device
-     * has, or one that does not open with that key, is its owner's to put right, and
-     * failing on it would fail every sync until they did. Anybody can send the user a
-     * request whose key opens nothing. The name is asked for again by the next sync either
-     * way, since the owner can store their profile at any time.
+     * has, or one that does not open with that key, is not this device's to put right, and
+     * failing on it would fail every sync until it was. Anybody can send the user a request
+     * whose key opens nothing. A contact whose key opens nothing is asked for their current
+     * one, see [ProfileKeyPull], and the name is asked for again by the next sync either way,
+     * since the owner can store their profile at any time.
      */
     data class Profile(val error: ProfileError) : ContactSyncError
+
+    /**
+     * The key to the user's own profile could not be rotated, so the removals waiting for it
+     * stay on the device, see
+     * [ContactEntity.rotatesProfileKey][database.data.local.entity.ContactEntity.rotatesProfileKey].
+     */
+    data class ProfileKey(val error: ProfileError) : ContactSyncError
 
     /** The server could not be reached, or refused the call. */
     data class Network(val error: NetworkError) : ContactSyncError

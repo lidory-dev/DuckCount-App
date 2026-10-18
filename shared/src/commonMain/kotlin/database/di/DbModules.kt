@@ -2,6 +2,8 @@ package database.di
 
 import contact.ContactArrivals
 import contact.ContactSync
+import contact.ProfileKeyDelivery
+import contact.ProfileKeyPull
 import database.AppDatabase
 import database.data.repository.BeneficiaryRepository
 import database.data.repository.ContactRepository
@@ -28,6 +30,16 @@ val dbModule = module {
     singleOf(::ContactRequestRepository)
     singleOf(::ContactRepository)
     singleOf(::ContactSync)
+    single { ProfileKeyDelivery(contactDao = get(), profileKeyVault = get(), directMessageSender = get()) }
+    single {
+        ProfileKeyPull(
+            pendingProfileKeyDao = get(),
+            contactDao = get(),
+            profileKeyVault = get(),
+            directMessageSender = get(),
+            directChannelRepository = get(),
+        )
+    }
     singleOf(::ContactArrivals)
 
     single { getRoomDatabase(get()) }
@@ -44,6 +56,7 @@ val dbModule = module {
     single { get<AppDatabase>().identityConflictDao }
     single { get<AppDatabase>().oneTimeExpenseKeyDao }
     single { get<AppDatabase>().pendingExpenseKeyDao }
+    single { get<AppDatabase>().pendingProfileKeyDao }
     single { get<AppDatabase>().owedExpenseKeyDao }
     single { get<AppDatabase>().listedOneTimeExpenseDao }
     single { get<AppDatabase>().mlsRecordDao }

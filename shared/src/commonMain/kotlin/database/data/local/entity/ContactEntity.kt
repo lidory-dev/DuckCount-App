@@ -14,7 +14,8 @@ import androidx.room.PrimaryKey
  * retried against the vault until [isBackedUp].
  *
  * A removed contact therefore stays as a tombstone, [isRemoved], until the vault no
- * longer holds them either, and only then goes.
+ * longer holds them either, and only then goes. One the user removed waits for their
+ * profile key to rotate first, see [rotatesProfileKey].
  *
  * Their name is not here but in [UserEntity], which is what the contact list shows, and
  * the group the two of them talk through is not here either but in [DirectChannelEntity]:
@@ -27,8 +28,29 @@ import androidx.room.PrimaryKey
 class ContactEntity(
     @PrimaryKey(autoGenerate = false) val userUuid: String,
 
-    /** The key to the contact's profile, which they handed over. */
+    /**
+     * The key to the contact's profile, which they handed over: in the card that made them
+     * a contact, and since in every [ProfileKeyUpdate][contact.ProfileKeyUpdate] they sent.
+     */
     val profileEncryptionKey: ByteArray,
+
+    /**
+     * The partial hash of the key to the user's own profile this contact was last handed,
+     * or null when which one is not known, see `profileEncryptionKeyPartialHash`.
+     *
+     * The key changes when the user removes a contact, see
+     * [ProfileRepository.rotateProfileKey][profile.ProfileRepository.rotateProfileKey], and
+     * every contact left goes on reading the profile as it was until handed the new one. So
+     * one whose hash is not the current key's is owed it, see
+     * [ProfileKeyDelivery][contact.ProfileKeyDelivery]. It starts as the key the card that
+     * made them a contact carried, the user's request to them or the user's acceptance of
+     * theirs, which a removal since may have replaced, and follows every key handed them after,
+     * pushed or answering their request for it, see [ProfileKeyPull][contact.ProfileKeyPull].
+     *
+     * Kept in the vault with the contact, so a log-out or a reinstall does not hand every
+     * contact the key again, nor forget the ones still owed it.
+     */
+    val handedProfileKeyHash: String?,
 
     /**
      * Whether the vault agrees with this row: it holds the contact, or for a removed one,
@@ -38,4 +60,18 @@ class ContactEntity(
 
     /** Whether the user no longer has this contact, see the class documentation. */
     val isRemoved: Boolean = false,
+
+    /**
+     * Whether this removal waits for the key to the user's profile to rotate before it
+     * reaches the vault, see
+     * [ContactRepository.backUp][database.data.repository.ContactRepository.backUp]. Only
+     * one the user made does, never a contact's notice that they removed the user: the key
+     * only ever rotates on the user's own action.
+     *
+     * Kept on the device until the key has rotated: a removal that reached the vault first
+     * would, after a log-out, leave the removed contact holding the current key for good, with
+     * nothing left saying it has to change. One that did not comes back from the vault as a
+     * contact, which is consistent with the key they hold.
+     */
+    val rotatesProfileKey: Boolean = false,
 )

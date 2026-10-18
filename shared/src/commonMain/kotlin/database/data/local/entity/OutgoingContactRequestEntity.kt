@@ -40,4 +40,14 @@ class OutgoingContactRequestEntity(
     @PrimaryKey(autoGenerate = false) val mlsGroupId: ByteArray,
 
     val recipientUserUuid: String,
+
+    /**
+     * The partial hash of the key to the user's own profile the request carried, which is
+     * what the recipient was handed once they answer it, see
+     * [ContactEntity.handedProfileKeyHash]. A removal since may have rotated it, and the
+     * recipient is then handed the new one once a contact. Until then they get nothing: the
+     * server keeps the version under the key they hold, which the user's edits rewrite only
+     * while it is the current key, so they read the profile as it stood when it was replaced.
+     */
+    val handedProfileKeyHash: String,
 )

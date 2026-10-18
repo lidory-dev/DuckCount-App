@@ -57,6 +57,7 @@ private fun ContactSyncError.toAddContactError(isOnline: Boolean): AddContactErr
 
     ContactSyncError.Storage,
     is ContactSyncError.Profile,
+    is ContactSyncError.ProfileKey,
     is ContactSyncError.Network,
         -> AddContactError.UNKNOWN
 }
@@ -116,6 +117,7 @@ private fun ContactSyncError.toAnswerContactRequestError(isOnline: Boolean): Ans
 
         ContactSyncError.Storage,
         is ContactSyncError.Profile,
+        is ContactSyncError.ProfileKey,
         is ContactSyncError.Network,
             -> AnswerContactRequestError.UNKNOWN
     }
@@ -161,7 +163,9 @@ fun SharedRemoveContactError.toRemoveContactError(isOnline: Boolean): RemoveCont
             -> RemoveContactError.UNKNOWN
     }
 
-    SharedRemoveContactError.Storage -> RemoveContactError.UNKNOWN
+    SharedRemoveContactError.DeviceLocked,
+    SharedRemoveContactError.Storage,
+        -> RemoveContactError.UNKNOWN
 }
 
 private fun VaultError.toRemoveContactError(isOnline: Boolean): RemoveContactError = when (this) {
