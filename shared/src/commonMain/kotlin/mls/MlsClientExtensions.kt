@@ -228,6 +228,19 @@ internal suspend fun MlsClient.restorePin(peerUuid: String, signatureKey: ByteAr
     }
 
 /**
+ * The safety number the user and [peerUuid] compare to tell that nobody stands between them, or
+ * null when this device pinned no identity for [peerUuid].
+ *
+ * Made of the user's own identity and the one pinned for [peerUuid], never of a key package or
+ * anything else the server serves: the two phones show the same number only when each pinned
+ * the other's real identity, see [MlsClient.safetyNumber].
+ *
+ * Throws [MlsException] when the pin could not be read.
+ */
+internal suspend fun MlsClient.safetyNumberWith(peerUuid: String): String? =
+    withContext(Dispatchers.IO) { safetyNumber(peerUserUuid = peerUuid) }
+
+/**
  * Runs [block] as the only thing reaching the channel to [peerUuid].
  *
  * [withGroup] locks a group that exists; this locks the decision of whether one should.

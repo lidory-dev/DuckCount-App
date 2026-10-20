@@ -20,7 +20,7 @@
     <string name="add_contact_error_already_contact">Cet utilisateur fait déjà partie de vos contacts</string>
     <string name="add_contact_error_already_pending">Une demande de contact est déjà en attente pour cet utilisateur</string>
     <string name="add_contact_error_rate_limited">Trop de tentatives, réessayez plus tard</string>
-    <string name="add_contact_error_identity_changed">La clé de sécurité de cet utilisateur a changé, la demande n’a pas été envoyée</string>
+    <string name="add_contact_error_identity_changed">Votre numéro de sécurité avec cet utilisateur a changé, la demande n’a pas été envoyée</string>
     <string name="add_contact_error_no_internet">Aucune connexion Internet</string>
     <string name="add_contact_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>
     <string name="add_contact_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
@@ -33,11 +33,25 @@
     <string name="answer_contact_request_error_no_internet">Aucune connexion Internet</string>
     <string name="answer_contact_request_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>
     <string name="answer_contact_request_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
-    <string name="answer_contact_request_error_identity_changed">La clé de sécurité de cet utilisateur a changé, la demande n’a pas été acceptée</string>
+    <string name="answer_contact_request_error_identity_changed">Votre numéro de sécurité avec cet utilisateur a changé, la demande n’a pas été acceptée</string>
     <string name="answer_contact_request_error_unknown">Impossible de répondre à la demande de contact, réessayez</string>
     <string name="remove_contact_error_rate_limited">Trop de tentatives, réessayez plus tard</string>
     <string name="remove_contact_error_no_internet">Aucune connexion Internet</string>
     <string name="remove_contact_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>
     <string name="remove_contact_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
     <string name="remove_contact_error_unknown">Le contact n’a pas pu être supprimé, réessayez</string>
+    <string name="safety_number">Numéro de sécurité</string>
+    <string name="verify_safety_number">Vérifier le numéro de sécurité</string>
+    <string name="contact_verified">Vérifié</string>
+    <string name="safety_number_explanation">Pour vérifier le chiffrement de bout en bout entre vous et ce contact, comparez les chiffres ci-dessus avec ceux affichés sur son téléphone, en personne ou lors d’un appel de confiance.</string>
+    <string name="safety_number_description">Numéro de sécurité\u00A0: %1$s</string>
+    <string name="mark_as_verified">Marquer comme vérifié</string>
+    <string name="clear_verification">Annuler la vérification</string>
+    <string name="safety_number_changed">Votre numéro de sécurité avec ce contact a changé</string>
+    <string name="safety_number_changed_explanation">Un contact qui réinstalle DuckCount ou change de téléphone garde le même numéro de sécurité\u00A0: quelqu’un tente donc peut-être d’intercepter ce que vous partagez avec ce contact. Par précaution, DuckCount ne lui envoie plus rien et n’accepte plus rien de sa part.</string>
+    <string name="contact_verification_not_contact">Cette personne ne fait plus partie de vos contacts</string>
+    <string name="contact_verification_error_no_internet">Aucune connexion Internet</string>
+    <string name="contact_verification_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>
+    <string name="contact_verification_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
+    <string name="contact_verification_error_unknown">Le numéro de sécurité n’a pas pu être affiché</string>
 </resources>

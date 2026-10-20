@@ -290,6 +290,7 @@ class ProfileKeyPullTest {
             userUuid = userUuid,
             profileEncryptionKey = byteArrayOf(1, 2, 3),
             handedProfileKeyHash = null,
+            verifiedSafetyNumber = null,
             isBackedUp = true,
         )
 

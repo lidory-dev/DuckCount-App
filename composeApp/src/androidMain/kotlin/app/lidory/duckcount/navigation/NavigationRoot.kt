@@ -3,6 +3,7 @@ package app.lidory.duckcount.navigation
 import AuthenticationFlow
 import ContactDetailScreen
 import ContactRequestListScreen
+import ContactVerificationScreen
 import NewContactScreen
 import PendingProfile
 import androidx.compose.animation.SharedTransitionLayout
@@ -35,6 +36,7 @@ import app.lidory.duckcount.groupList.GroupSettingsScreen
 import app.lidory.duckcount.groupList.GroupSettleUpScreen
 import app.lidory.duckcount.navigation.key.ContactDetailScreenKey
 import app.lidory.duckcount.navigation.key.ContactRequestListScreenKey
+import app.lidory.duckcount.navigation.key.ContactVerificationScreenKey
 import app.lidory.duckcount.navigation.key.CreateExpenseScreenKey
 import app.lidory.duckcount.navigation.key.CreateGroupScreenKey
 import app.lidory.duckcount.navigation.key.DashboardKey
@@ -206,8 +208,24 @@ fun NavigationRoot(
                                     parametersOf(key.userUuid)
                                 },
                                 onBack = dropUnlessResumed { backStack.removeIf { it is ContactDetailScreenKey } },
+                                navigateToContactVerification = {
+                                    backStack.add(ContactVerificationScreenKey(userUuid = key.userUuid))
+                                },
                                 animatedVisibilityScope = LocalNavAnimatedContentScope.current,
                                 sharedTransitionScope = this@SharedTransitionLayout,
+                            )
+                        }
+                    }
+
+                    is ContactVerificationScreenKey -> {
+                        NavEntry(
+                            key = key,
+                        ) {
+                            ContactVerificationScreen(
+                                viewModel = koinViewModel {
+                                    parametersOf(key.userUuid)
+                                },
+                                onBack = dropUnlessResumed { backStack.removeIf { it is ContactVerificationScreenKey } },
                             )
                         }
                     }

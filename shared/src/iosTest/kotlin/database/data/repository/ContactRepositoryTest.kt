@@ -151,6 +151,9 @@ class ContactRepositoryTest {
 
     private val group = byteArrayOf(4, 5, 6)
 
+    /** The safety number the user compared with Alice and marked verified. */
+    private val compared = "11111 22222 33333 44444 55555 66666 77777 88888 99999 00000 12345 67890"
+
     @Test
     fun `a new profile key from a contact replaces the one held`() = runBlocking<Unit> {
         tables.add(contact(ALICE, key = aliceFirstKey))
@@ -265,6 +268,46 @@ class ContactRepositoryTest {
         assertEquals("Noa Petit", nameOfUserUnder(key = owedKey))
         assertContentEquals(owedKey, userVault.profileEncryptionKey)
         assertTrue(tables.contacts.getValue(ALICE).rotatesProfileKey)
+    }
+
+    /**
+     * Alice removed the user from a device holding no group to tell them in, so the user still
+     * has her, then sent a request the user accepted: she is made a contact again with the
+     * identity pinned for her, and the number the user compared is still the one computed.
+     */
+    @Test
+    fun `a contact made one again keeps the safety number the user verified`() = runBlocking<Unit> {
+        tables.add(contact(ALICE, key = aliceFirstKey).copy(verifiedSafetyNumber = compared))
+        val newKey = generateSymmetricEncryptionKey()
+
+        contacts.add(userUuid = ALICE, profileEncryptionKey = newKey, handedProfileKeyHash = null, fullName = null)
+
+        val alice = tables.contacts.getValue(ALICE)
+
+        assertEquals(compared, alice.verifiedSafetyNumber)
+        assertContentEquals(newKey, alice.profileEncryptionKey)
+        assertFalse(alice.isBackedUp)
+    }
+
+    /** The vault drops the mark along with her once her removal reaches it, so her tombstone's goes too. */
+    @Test
+    fun `a former contact made one again starts over unverified`() = runBlocking<Unit> {
+        tables.add(
+            contact(ALICE, key = aliceFirstKey)
+                .copy(verifiedSafetyNumber = compared, isRemoved = true, isBackedUp = false),
+        )
+
+        contacts.add(
+            userUuid = ALICE,
+            profileEncryptionKey = aliceFirstKey,
+            handedProfileKeyHash = null,
+            fullName = null,
+        )
+
+        val alice = tables.contacts.getValue(ALICE)
+
+        assertFalse(alice.isRemoved)
+        assertNull(alice.verifiedSafetyNumber)
     }
 
     /** Whoever removed whom. */
@@ -488,6 +531,7 @@ class ContactRepositoryTest {
             userUuid = userUuid,
             profileEncryptionKey = key,
             handedProfileKeyHash = null,
+            verifiedSafetyNumber = null,
             isBackedUp = true,
         )
 

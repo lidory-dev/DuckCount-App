@@ -8,6 +8,7 @@ import authenticationUtils.getDiscoveryUsernameFlow
 import contact.AnswerContactRequestError as SharedAnswerContactRequestError
 import contact.ContactArrivals
 import contact.ContactSync
+import contact.SafetyNumbers
 import database.data.repository.ContactRepository
 import database.data.repository.ContactRequestRepository
 import database.data.repository.UserRepository
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.map
 import model.AddContactError
 import model.AnswerContactRequestError
 import model.ContactRequest
+import model.ContactVerification
 import model.RemoveContactError
 import model.User
 import util.Result
@@ -32,6 +34,7 @@ class ContactCallBacksImp(
     private val contactSync: ContactSync,
     private val contactArrivals: ContactArrivals,
     private val contactNotifier: ContactNotifier,
+    private val safetyNumbers: SafetyNumbers,
     private val networkConnectivity: NetworkConnectivity,
 ) : ContactCallBacks {
     override suspend fun getFilteredUsers(filter: String): Flow<List<User>> {
@@ -83,6 +86,27 @@ class ContactCallBacksImp(
                 removal.error.toRemoveContactError(isOnline = networkConnectivity.isOnline())
             }
         }
+
+    override fun getVerification(userUuid: String): Flow<ContactVerification> {
+        return safetyNumbers.observe(userUuid = userUuid).map { verification ->
+            verification.toContactVerification(isOnline = networkConnectivity.isOnline())
+        }
+    }
+
+    override suspend fun markVerified(userUuid: String, safetyNumber: String) {
+        safetyNumbers.markVerified(userUuid = userUuid, safetyNumber = safetyNumber)
+
+        // Marked on this device, which is what the user sees, so a vault write failing from here
+        // on is retried by the next refresh rather than reported.
+        syncContacts(caller = "markVerified")
+    }
+
+    override suspend fun clearVerification(userUuid: String) {
+        safetyNumbers.clearMark(userUuid = userUuid)
+
+        // Same as for marking it.
+        syncContacts(caller = "clearVerification")
+    }
 
     override fun getReservedUsername(): Flow<String?> {
         return getDiscoveryUsernameFlow()

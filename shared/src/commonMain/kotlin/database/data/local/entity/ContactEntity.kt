@@ -53,6 +53,20 @@ class ContactEntity(
     val handedProfileKeyHash: String?,
 
     /**
+     * The safety number the user compared with this contact and marked verified, or null when
+     * they have not, or cleared the mark, see [SafetyNumbers][contact.SafetyNumbers].
+     *
+     * The number itself rather than a flag: the mark counts only while it is the number computed
+     * now, from the user's identity and the one pinned for the contact, so it stops counting on
+     * its own should either ever differ from the ones it was computed from, rather than vouching
+     * for keys nobody compared.
+     *
+     * Kept in the vault with the contact, so a log-out or a reinstall does not forget it. A
+     * removal does, see [ContactDao.add][database.data.local.dao.ContactDao.add].
+     */
+    val verifiedSafetyNumber: String?,
+
+    /**
      * Whether the vault agrees with this row: it holds the contact, or for a removed one,
      * it no longer does. A removed contact never gets there, it is deleted instead.
      */

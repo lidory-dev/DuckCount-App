@@ -4,6 +4,7 @@ import contact.ContactArrivals
 import contact.ContactSync
 import contact.ProfileKeyDelivery
 import contact.ProfileKeyPull
+import contact.SafetyNumbers
 import database.AppDatabase
 import database.data.repository.BeneficiaryRepository
 import database.data.repository.ContactRepository
@@ -41,6 +42,7 @@ val dbModule = module {
         )
     }
     singleOf(::ContactArrivals)
+    single { SafetyNumbers(contactDao = get(), mlsIdentityRepository = get()) }
 
     single { getRoomDatabase(get()) }
 

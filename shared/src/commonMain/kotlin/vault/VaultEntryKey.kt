@@ -92,8 +92,9 @@ enum class VaultEntryKey(val wireName: String) {
     MLS_SIGNATURE_KEY("mls_signature_key"),
 
     /**
-     * The user's contacts, each with the profile encryption key they handed over, and
-     * which of the user's own they were handed last. Singleton, see [ContactBook].
+     * The user's contacts, each with the profile encryption key they handed over, the MLS
+     * identity pinned for them, which of the user's own profile keys they were handed last,
+     * and the safety number the user verified with them. Singleton, see [ContactBook].
      *
      * Sealed whole rather than split into an entry per contact, so the server learns
      * neither who they are nor how many. It keeps no other record of them: the request

@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import model.ContactVerification
 import model.RemoveContactError
 import model.User
 
@@ -42,6 +43,15 @@ class ContactDetailViewModel(
         started = SharingStarted.WhileSubscribed(5000L),
         initialValue = ContactDetailState(),
     )
+
+    /** Where the user stands with checking the contact's identity, null until known. */
+    val verification: StateFlow<ContactVerification?> =
+        contactCallBacks.getVerification(userUuid = userUuid)
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000L),
+                initialValue = null,
+            )
 
     fun removeContact() {
         viewModelScope.launch {

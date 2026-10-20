@@ -1,10 +1,14 @@
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -26,10 +30,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.dropUnlessResumed
 import app.lidory.contactList.R
 import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.constant.Padding
 import component.ContactDeletionDialog
+import component.ContactVerificationCard
+import model.ContactVerification
 import model.RemoveContactError
 import model.messageRes
 import org.koin.androidx.compose.koinViewModel
@@ -40,12 +47,14 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 @Composable
 fun ContactDetailScreen(
     onBack: () -> Unit,
+    navigateToContactVerification: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     modifier: Modifier = Modifier,
     viewModel: ContactDetailViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val verification by viewModel.verification.collectAsStateWithLifecycle()
 
     // Subscribe once (keyed on Unit, so it survives recomposition) to the ViewModel's
     // one-shot navigateBack events and forward them to navigation. The ViewModel emits
@@ -116,10 +125,13 @@ fun ContactDetailScreen(
             )
         },
     ) { innerPadding ->
+        // Scrolls so that the entries below the picture stay within reach when the picture, as
+        // wide as a third of the screen, takes up most of its height, in landscape for instance.
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = Padding.medium),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -146,6 +158,18 @@ fun ContactDetailScreen(
                     )
                 }
             } ?: Text(text = stringResource(R.string.unresolved_user))
+
+            // Only a contact has an identity to check, and the entry waits until that is known.
+            val shownVerification = verification
+
+            if (shownVerification != null && shownVerification != ContactVerification.NotContact) {
+                Spacer(modifier = Modifier.height(Padding.extraLarge))
+
+                ContactVerificationCard(
+                    isVerified = (shownVerification as? ContactVerification.Available)?.isVerified == true,
+                    onClick = dropUnlessResumed { navigateToContactVerification() },
+                )
+            }
         }
     }
 }

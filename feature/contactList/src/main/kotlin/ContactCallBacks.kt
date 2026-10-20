@@ -2,6 +2,7 @@ import kotlinx.coroutines.flow.Flow
 import model.AddContactError
 import model.AnswerContactRequestError
 import model.ContactRequest
+import model.ContactVerification
 import model.RemoveContactError
 import model.User
 
@@ -20,6 +21,26 @@ interface ContactCallBacks {
      * been told, so the user can try again.
      */
     suspend fun removeContact(userUuid: String): RemoveContactError?
+
+    /**
+     * Emits where the user stands with checking that the contact [userUuid] is who this device
+     * talks to, again whenever that changes: the safety number the two of them compare, and
+     * whether the user marked it verified.
+     */
+    fun getVerification(userUuid: String): Flow<ContactVerification>
+
+    /**
+     * Marks [safetyNumber], the one the user compared with the contact [userUuid], verified, here
+     * and in the vault. Only that number counts as verified, should the one computed for them
+     * ever differ.
+     *
+     * Marked on this device first, which is what the user sees: a vault write failing is retried
+     * by the next refresh rather than reported.
+     */
+    suspend fun markVerified(userUuid: String, safetyNumber: String)
+
+    /** Clears the mark [markVerified] made for the contact [userUuid], the same way. */
+    suspend fun clearVerification(userUuid: String)
 
     /**
      * Emits the username the user reserved to be discoverable by, or null when they

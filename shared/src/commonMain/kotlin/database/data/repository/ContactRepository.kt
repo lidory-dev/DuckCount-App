@@ -95,7 +95,8 @@ class ContactRepository(
      * and left to [resolveNames] otherwise. [handedProfileKeyHash] is the user's own key the
      * card that made them a contact carried, see [ContactEntity.handedProfileKeyHash]. The
      * vault only gets them with the next [backUp]. They may wake the user from here on, see
-     * [WakeList].
+     * [WakeList]. One who still is a contact keeps the safety number the user verified with
+     * them, see [ContactDao.add].
      *
      * The group the two of them talk through is recorded separately, see
      * [database.data.local.entity.DirectChannelEntity]: a channel outlives the contact, and
@@ -108,13 +109,10 @@ class ContactRepository(
         handedProfileKeyHash: String?,
         fullName: String?,
     ) {
-        contactDao.upsert(
-            ContactEntity(
-                userUuid = userUuid,
-                profileEncryptionKey = profileEncryptionKey,
-                handedProfileKeyHash = handedProfileKeyHash,
-                isBackedUp = false,
-            ),
+        contactDao.add(
+            userUuid = userUuid,
+            profileEncryptionKey = profileEncryptionKey,
+            handedProfileKeyHash = handedProfileKeyHash,
         )
 
         fullName?.let { saveName(userUuid = userUuid, fullName = it) }
@@ -276,6 +274,7 @@ class ContactRepository(
                     // leaves whatever another device recorded for them alone.
                     mlsSignaturePublicKey = client.pinnedSignatureKeyFor(peerUuid = contact.userUuid),
                     handedProfileKeyHash = contact.handedProfileKeyHash,
+                    verifiedSafetyNumber = contact.verifiedSafetyNumber,
                 )
             }
         } catch (_: MlsException) {
@@ -298,12 +297,14 @@ class ContactRepository(
         if (conflicting.isNotEmpty()) wakeList.rebuild()
 
         // Both only touch rows still in the state they were read in, so a contact removed,
-        // added back or handed a new key during the write stays pending for the next one.
+        // added back, handed a new key or marked verified during the write stays pending for the
+        // next one.
         pending.added.forEach { contact ->
             contactDao.markBackedUp(
                 userUuid = contact.userUuid,
                 profileEncryptionKey = contact.profileEncryptionKey,
                 handedProfileKeyHash = contact.handedProfileKeyHash,
+                verifiedSafetyNumber = contact.verifiedSafetyNumber,
             )
         }
 
@@ -394,6 +395,10 @@ class ContactRepository(
      * and the contact would otherwise be reached through an identity the vault does not
      * vouch for.
      *
+     * The safety number the user verified with each of them comes back too, see
+     * [ContactEntity.verifiedSafetyNumber], and counts again only if it is still the one computed
+     * from the identities now pinned, see [SafetyNumbers][contact.SafetyNumbers].
+     *
      * Whatever needs to know who the contacts are runs this first: reading the messages, see
      * [DirectMessageSync][message.DirectMessageSync], and sending or accepting a contact
      * request, see [ContactRequestRepository], which would otherwise pin one of them from
@@ -446,6 +451,7 @@ class ContactRepository(
                     userUuid = userUuid,
                     profileEncryptionKey = contact.profileEncryptionKey,
                     handedProfileKeyHash = contact.handedProfileKeyHash,
+                    verifiedSafetyNumber = contact.verifiedSafetyNumber,
                     isBackedUp = true,
                 )
             },

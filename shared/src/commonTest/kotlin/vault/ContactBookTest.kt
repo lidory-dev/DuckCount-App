@@ -19,15 +19,20 @@ class ContactBookTest {
     private val handedBefore = "0123456789"
     private val handedNow = "abcdef0123"
 
+    /** The safety number the user verified with Alice, as the library renders one. */
+    private val aliceSafetyNumber = "33970 27467 27504 88066 45223 52066 50081 20585 20677 07852 00402 61184"
+
     private fun contact(
         profileEncryptionKey: ByteArray,
         mlsSignaturePublicKey: ByteArray? = null,
         handedProfileKeyHash: String? = null,
+        verifiedSafetyNumber: String? = null,
     ) =
         VaultContact(
             profileEncryptionKey = profileEncryptionKey,
             mlsSignaturePublicKey = mlsSignaturePublicKey,
             handedProfileKeyHash = handedProfileKeyHash,
+            verifiedSafetyNumber = verifiedSafetyNumber,
         )
 
     @Test
@@ -309,6 +314,71 @@ class ContactBookTest {
 
         assertEquals(setOf(alice), reread.keys)
         assertNull(reread[alice]?.handedProfileKeyHash)
+    }
+
+    @Test
+    fun `a verified safety number survives being sealed and read back`() {
+        val book = ContactBook.EMPTY
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, verifiedSafetyNumber = aliceSafetyNumber))!!
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
+
+        assertEquals(aliceSafetyNumber, reread[alice]?.verifiedSafetyNumber)
+        assertNull(reread[bob]?.verifiedSafetyNumber)
+    }
+
+    /**
+     * Unlike a pin or a handed hash, none is the user clearing the mark: every device holding the
+     * contact holds their mark too, restored along with them.
+     */
+    @Test
+    fun `writing a contact without a verified safety number clears the one stored`() {
+        val book = ContactBook.EMPTY
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, verifiedSafetyNumber = aliceSafetyNumber))!!
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey))!!
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
+
+        assertEquals(setOf(alice), reread.keys)
+        assertNull(reread[alice]?.verifiedSafetyNumber)
+    }
+
+    @Test
+    fun `writing a contact with a verified safety number replaces the one stored`() {
+        val compared = "11111 22222 33333 44444 55555 66666 77777 88888 99999 00000 12345 67890"
+
+        val book = ContactBook.EMPTY
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, verifiedSafetyNumber = aliceSafetyNumber))!!
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, verifiedSafetyNumber = compared))!!
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
+
+        assertEquals(compared, reread[alice]?.verifiedSafetyNumber)
+    }
+
+    @Test
+    fun `a verified safety number survives writing and removing other contacts`() {
+        val book = ContactBook.EMPTY
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, verifiedSafetyNumber = aliceSafetyNumber))!!
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
+            .without(userUuid = bob)
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!.contacts
+
+        assertEquals(aliceSafetyNumber, reread[alice]?.verifiedSafetyNumber)
+    }
+
+    /** Only a newer build could have written something else there, and it vouches for nothing here. */
+    @Test
+    fun `a contact whose verified safety number is not text is not verified`() {
+        val plaintext = """{"$alice": {"profile_encryption_key": "AQID", "verified_safety_number": 12}}"""
+            .encodeToByteArray()
+
+        val reread = ContactBook.parse(plaintext = plaintext)!!.contacts
+
+        assertEquals(setOf(alice), reread.keys)
+        assertNull(reread[alice]?.verifiedSafetyNumber)
     }
 
     @Test

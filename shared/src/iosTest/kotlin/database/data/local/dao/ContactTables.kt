@@ -9,7 +9,9 @@ import database.data.local.entity.PendingExpenseKeyState
 import database.data.local.entity.PendingProfileKeyEntity
 import database.data.local.entity.ProfileKeyRequestBudgetEntity
 import database.data.local.entity.UserEntity
+import database.data.local.entity.VerifiableContact
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 /**
  * The tables about the user's contacts, for the length of a test, read and written through the
@@ -63,11 +65,13 @@ internal class ContactTables {
             userUuid: String,
             profileEncryptionKey: ByteArray,
             handedProfileKeyHash: String?,
+            verifiedSafetyNumber: String?,
         ) {
             val row = get(userUuid) ?: return
 
             if (!row.profileEncryptionKey.contentEquals(profileEncryptionKey)) return
             if (row.handedProfileKeyHash != handedProfileKeyHash) return
+            if (row.verifiedSafetyNumber != verifiedSafetyNumber) return
 
             add(row.copy(isBackedUp = true))
         }
@@ -92,6 +96,21 @@ internal class ContactTables {
             val row = get(userUuid) ?: return
 
             add(row.copy(handedProfileKeyHash = handedProfileKeyHash, isBackedUp = false))
+        }
+
+        /** The row as it stands when the flow is collected, which is all a test reads of it. */
+        override fun getVerifiableAsFlow(userUuid: String): Flow<VerifiableContact?> = flow {
+            emit(
+                get(userUuid)?.let {
+                    VerifiableContact(verifiedSafetyNumber = it.verifiedSafetyNumber, isBlocked = userUuid in blocked)
+                },
+            )
+        }
+
+        override suspend fun setVerifiedSafetyNumber(userUuid: String, verifiedSafetyNumber: String?) {
+            val row = get(userUuid) ?: return
+
+            add(row.copy(verifiedSafetyNumber = verifiedSafetyNumber, isBackedUp = false))
         }
 
         override suspend fun deleteRemoved(userUuids: List<String>) {
@@ -232,6 +251,7 @@ internal object NothingAwaited : PendingExpenseKeyDao {
 internal fun ContactEntity.copy(
     profileEncryptionKey: ByteArray = this.profileEncryptionKey,
     handedProfileKeyHash: String? = this.handedProfileKeyHash,
+    verifiedSafetyNumber: String? = this.verifiedSafetyNumber,
     isBackedUp: Boolean = this.isBackedUp,
     isRemoved: Boolean = this.isRemoved,
     rotatesProfileKey: Boolean = this.rotatesProfileKey,
@@ -239,6 +259,7 @@ internal fun ContactEntity.copy(
     userUuid = userUuid,
     profileEncryptionKey = profileEncryptionKey,
     handedProfileKeyHash = handedProfileKeyHash,
+    verifiedSafetyNumber = verifiedSafetyNumber,
     isBackedUp = isBackedUp,
     isRemoved = isRemoved,
     rotatesProfileKey = rotatesProfileKey,

@@ -5,6 +5,7 @@ import org.koin.dsl.module
 import viewmodel.ContactDetailViewModel
 import viewmodel.ContactListViewModel
 import viewmodel.ContactRequestListViewModel
+import viewmodel.ContactVerificationViewModel
 import viewmodel.NewContactViewModel
 
 val contactListModule = module {
@@ -12,4 +13,5 @@ val contactListModule = module {
     viewModelOf(::ContactDetailViewModel)
     viewModelOf(::NewContactViewModel)
     viewModelOf(::ContactRequestListViewModel)
+    viewModelOf(::ContactVerificationViewModel)
 }

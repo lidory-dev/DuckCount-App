@@ -5,11 +5,15 @@ import contact.SendContactRequestError
 import mls.MlsIdentityError
 import model.AddContactError
 import model.AnswerContactRequestError
+import model.ContactVerification
+import model.ContactVerificationError
 import model.RemoveContactError
 import model.User
 import util.NetworkError
 import vault.VaultError
 import contact.AnswerContactRequestError as SharedAnswerContactRequestError
+import contact.ContactVerification as SharedContactVerification
+import contact.ContactVerificationError as SharedContactVerificationError
 import contact.RemoveContactError as SharedRemoveContactError
 import database.domain.User as UserDB
 
@@ -178,6 +182,71 @@ private fun VaultError.toRemoveContactError(isOnline: Boolean): RemoveContactErr
     VaultError.OrphanedEntry,
     VaultError.Contended,
         -> RemoveContactError.UNKNOWN
+}
+
+/**
+ * Maps where the user stands with checking a contact to what the UI shows.
+ *
+ * Same folding as [toAddContactError] for why the safety number could not be computed: the
+ * user's own key material failing is [ContactVerificationError.UNKNOWN], network failures, which
+ * opening the MLS client for the first time can meet reading the vault, are reported as such.
+ */
+fun SharedContactVerification.toContactVerification(isOnline: Boolean): ContactVerification = when (this) {
+    is SharedContactVerification.Available ->
+        ContactVerification.Available(safetyNumber = safetyNumber, isVerified = isVerified)
+
+    SharedContactVerification.IdentityChanged -> ContactVerification.IdentityChanged
+
+    SharedContactVerification.NotContact -> ContactVerification.NotContact
+
+    is SharedContactVerification.Unavailable ->
+        ContactVerification.Unavailable(error = error.toContactVerificationError(isOnline = isOnline))
+}
+
+private fun SharedContactVerificationError.toContactVerificationError(isOnline: Boolean): ContactVerificationError =
+    when (this) {
+        is SharedContactVerificationError.Identity -> when (val identityError = error) {
+            is MlsIdentityError.Vault -> identityError.error.toContactVerificationError(isOnline = isOnline)
+
+            MlsIdentityError.MissingSession,
+            MlsIdentityError.Crypto,
+                -> ContactVerificationError.UNKNOWN
+        }
+
+        SharedContactVerificationError.Storage -> ContactVerificationError.UNKNOWN
+    }
+
+private fun VaultError.toContactVerificationError(isOnline: Boolean): ContactVerificationError = when (this) {
+    is VaultError.Network -> error.toContactVerificationError(isOnline = isOnline)
+
+    VaultError.MissingRootKey,
+    VaultError.Crypto,
+    VaultError.MalformedKeyRing,
+    VaultError.MalformedContactBook,
+    VaultError.OrphanedEntry,
+    VaultError.Contended,
+        -> ContactVerificationError.UNKNOWN
+}
+
+/** The network failures reading the vault can end on. */
+private fun NetworkError.toContactVerificationError(isOnline: Boolean): ContactVerificationError = when (this) {
+    NetworkError.NO_INTERNET -> ContactVerificationError.NO_INTERNET
+    NetworkError.REQUEST_TIMEOUT -> ContactVerificationError.TIMEOUT
+
+    NetworkError.UNREACHABLE ->
+        if (isOnline) ContactVerificationError.SERVER_UNREACHABLE else ContactVerificationError.NO_INTERNET
+
+    NetworkError.BAD_REQUEST,
+    NetworkError.UNAUTHORIZED,
+    NetworkError.NOT_FOUND,
+    NetworkError.CONFLICT,
+    NetworkError.TOO_MANY_REQUESTS,
+    NetworkError.PAYLOAD_TOO_LARGE,
+    NetworkError.UNPROCESSABLE_ENTITY,
+    NetworkError.SERVER_ERROR,
+    NetworkError.SERIALIZATION,
+    NetworkError.UNKNOWN,
+        -> ContactVerificationError.UNKNOWN
 }
 
 /**

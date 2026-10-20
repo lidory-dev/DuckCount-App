@@ -3,6 +3,8 @@ package contact
 import channel.DirectChannelError
 import database.data.local.dao.ContactDao
 import database.data.local.entity.ContactEntity
+import database.data.local.entity.VerifiableContact
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import message.DirectSendError
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
@@ -177,6 +179,7 @@ class ProfileKeyDeliveryTest {
             userUuid = userUuid,
             profileEncryptionKey = byteArrayOf(1, 2, 3),
             handedProfileKeyHash = handed,
+            verifiedSafetyNumber = null,
             isBackedUp = true,
         )
 }
@@ -214,6 +217,7 @@ private class ContactsOf(vararg contacts: ContactEntity) : ContactDao {
             userUuid = row.userUuid,
             profileEncryptionKey = row.profileEncryptionKey,
             handedProfileKeyHash = handedProfileKeyHash,
+            verifiedSafetyNumber = row.verifiedSafetyNumber,
             isBackedUp = false,
             isRemoved = row.isRemoved,
             rotatesProfileKey = row.rotatesProfileKey,
@@ -227,8 +231,12 @@ private class ContactsOf(vararg contacts: ContactEntity) : ContactDao {
     override suspend fun getUnblockedUserUuids(): List<String> = error("Not used here")
     override suspend fun getNotBackedUp(): List<ContactEntity> = error("Not used here")
 
-    override suspend fun markBackedUp(userUuid: String, profileEncryptionKey: ByteArray, handedProfileKeyHash: String?) =
-        error("Not used here")
+    override suspend fun markBackedUp(
+        userUuid: String,
+        profileEncryptionKey: ByteArray,
+        handedProfileKeyHash: String?,
+        verifiedSafetyNumber: String?,
+    ) = error("Not used here")
 
     override suspend fun markRemoved(userUuid: String, rotatesProfileKey: Boolean) = error("Not used here")
     override suspend fun clearProfileKeyRotation(userUuids: List<String>) = error("Not used here")
@@ -239,4 +247,8 @@ private class ContactsOf(vararg contacts: ContactEntity) : ContactDao {
     override suspend fun deleteRemoved(userUuids: List<String>) = error("Not used here")
     override suspend fun getDueForRead(): List<ContactEntity> = error("Not used here")
     override suspend fun isUnblocked(userUuid: String): Boolean = error("Not used here")
+    override fun getVerifiableAsFlow(userUuid: String): Flow<VerifiableContact?> = error("Not used here")
+
+    override suspend fun setVerifiedSafetyNumber(userUuid: String, verifiedSafetyNumber: String?) =
+        error("Not used here")
 }

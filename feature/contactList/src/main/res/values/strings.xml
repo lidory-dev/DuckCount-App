@@ -20,7 +20,7 @@
     <string name="add_contact_error_already_contact">This user is already one of your contacts</string>
     <string name="add_contact_error_already_pending">You already sent this user a contact request</string>
     <string name="add_contact_error_rate_limited">Too many attempts, please try again later</string>
-    <string name="add_contact_error_identity_changed">This user’s security key has changed, so the request was not sent</string>
+    <string name="add_contact_error_identity_changed">Your safety number with this user has changed, so the request was not sent</string>
     <string name="add_contact_error_no_internet">No internet connection</string>
     <string name="add_contact_error_timeout">The server took too long to answer, please try again</string>
     <string name="add_contact_error_server_unreachable">The server is unreachable, please try again later</string>
@@ -33,11 +33,25 @@
     <string name="answer_contact_request_error_no_internet">No internet connection</string>
     <string name="answer_contact_request_error_timeout">The server took too long to answer, please try again</string>
     <string name="answer_contact_request_error_server_unreachable">The server is unreachable, please try again later</string>
-    <string name="answer_contact_request_error_identity_changed">This user’s security key has changed, so the request was not accepted</string>
+    <string name="answer_contact_request_error_identity_changed">Your safety number with this user has changed, so the request was not accepted</string>
     <string name="answer_contact_request_error_unknown">The contact request could not be answered, please try again</string>
     <string name="remove_contact_error_rate_limited">Too many attempts, please try again later</string>
     <string name="remove_contact_error_no_internet">No internet connection</string>
     <string name="remove_contact_error_timeout">The server took too long to answer, please try again</string>
     <string name="remove_contact_error_server_unreachable">The server is unreachable, please try again later</string>
     <string name="remove_contact_error_unknown">The contact could not be deleted, please try again</string>
+    <string name="safety_number">Safety number</string>
+    <string name="verify_safety_number">Verify safety number</string>
+    <string name="contact_verified">Verified</string>
+    <string name="safety_number_explanation">To verify the end-to-end encryption between you and this contact, compare the numbers above with the ones on their phone, in person or on a call you trust.</string>
+    <string name="safety_number_description">Safety number: %1$s</string>
+    <string name="mark_as_verified">Mark as verified</string>
+    <string name="clear_verification">Clear verification</string>
+    <string name="safety_number_changed">Your safety number with this contact has changed</string>
+    <string name="safety_number_changed_explanation">A contact who reinstalls DuckCount or changes phones keeps the same safety number, so someone may be trying to intercept what you share with this contact. As a precaution, DuckCount no longer sends them anything or accepts anything from them.</string>
+    <string name="contact_verification_not_contact">This person is no longer one of your contacts</string>
+    <string name="contact_verification_error_no_internet">No internet connection</string>
+    <string name="contact_verification_error_timeout">The server took too long to answer, please try again</string>
+    <string name="contact_verification_error_server_unreachable">The server is unreachable, please try again later</string>
+    <string name="contact_verification_error_unknown">The safety number could not be shown</string>
 </resources>

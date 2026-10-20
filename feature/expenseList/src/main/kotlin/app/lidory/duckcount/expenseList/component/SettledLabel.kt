@@ -18,7 +18,6 @@ import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.expenseList.R
 import app.lidory.duckcount.expenseList.extensions.formatDate
 import kotlinx.datetime.LocalDateTime
-import app.lidory.duckcount.android.ui.R as androidUiR
 
 /** Says that the expense was marked as paid back, and on which day when [settledAt] is given. */
 @Composable
@@ -40,7 +39,7 @@ fun SettledLabel(
     ) {
         Icon(
             modifier = Modifier.size(18.dp),
-            painter = painterResource(androidUiR.drawable.ic_checked_circle),
+            painter = painterResource(R.drawable.ic_paid),
             contentDescription = null,
             tint = color,
         )

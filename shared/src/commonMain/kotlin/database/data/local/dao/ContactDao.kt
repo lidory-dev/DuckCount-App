@@ -4,13 +4,46 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import database.data.local.entity.ContactEntity
+import database.data.local.entity.VerifiableContact
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ContactDao {
     @Upsert
     suspend fun upsert(contact: ContactEntity)
+
+    /**
+     * Records [userUuid] as a contact, made one or made one again, with [profileEncryptionKey]
+     * and [handedProfileKeyHash], for the vault to take in turn.
+     *
+     * One who still is a contact keeps the safety number the user verified with them, see
+     * [ContactEntity.verifiedSafetyNumber]: they are made one again with the identity pinned for
+     * them, pinning refusing any other, so the number is still the one the user compared. As
+     * when they removed the user from a device holding no group to tell the user in, see
+     * [ContactRepository.remove][database.data.repository.ContactRepository.remove], and then
+     * sent a request the user accepted.
+     *
+     * A former contact starts over unverified: the vault drops the mark along with them once
+     * their removal reaches it, and keeping their tombstone's would only depend on whether it
+     * had yet.
+     *
+     * In one transaction, so that a mark made in between is not lost.
+     */
+    @Transaction
+    suspend fun add(userUuid: String, profileEncryptionKey: ByteArray, handedProfileKeyHash: String?) {
+        upsert(
+            ContactEntity(
+                userUuid = userUuid,
+                profileEncryptionKey = profileEncryptionKey,
+                handedProfileKeyHash = handedProfileKeyHash,
+                verifiedSafetyNumber = get(userUuid = userUuid)?.verifiedSafetyNumber,
+                isBackedUp = false,
+            ),
+        )
+    }
 
     /** Adds the contacts this device does not hold yet, leaving the others as they are. */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -59,18 +92,25 @@ interface ContactDao {
 
     /**
      * Records that the vault holds the contact [userUuid] as they were written to it, with
-     * [profileEncryptionKey] and [handedProfileKeyHash].
+     * [profileEncryptionKey], [handedProfileKeyHash] and [verifiedSafetyNumber].
      *
      * Unless the row changed in the meantime: one removed has its removal still to reach the
-     * vault, and one handed a new key, theirs or the user's, has that still to reach it.
+     * vault, one handed a new key, theirs or the user's, has that still to reach it, and so does
+     * one the user marked verified, or no longer.
      */
     @Query(
         """UPDATE ContactEntity SET isBackedUp = true
         WHERE userUuid = :userUuid AND isRemoved = false
         AND profileEncryptionKey = :profileEncryptionKey
-        AND handedProfileKeyHash IS :handedProfileKeyHash""",
+        AND handedProfileKeyHash IS :handedProfileKeyHash
+        AND verifiedSafetyNumber IS :verifiedSafetyNumber""",
     )
-    suspend fun markBackedUp(userUuid: String, profileEncryptionKey: ByteArray, handedProfileKeyHash: String?)
+    suspend fun markBackedUp(
+        userUuid: String,
+        profileEncryptionKey: ByteArray,
+        handedProfileKeyHash: String?,
+        verifiedSafetyNumber: String?,
+    )
 
     /**
      * Records that the user no longer has the contact [userUuid], until the vault no longer
@@ -113,6 +153,31 @@ interface ContactDao {
         WHERE userUuid = :userUuid AND isRemoved = false""",
     )
     suspend fun setHandedProfileKeyHash(userUuid: String, handedProfileKeyHash: String)
+
+    /**
+     * The contact [userUuid] as checking their identity needs them, see [VerifiableContact], or
+     * null when they are not, or no longer, one: a removal, theirs or the user's, and a log-out,
+     * which empties every table, can both happen under the screen observing it.
+     */
+    @Query(
+        """SELECT verifiedSafetyNumber,
+        userUuid IN (SELECT peerUuid FROM IdentityConflictEntity) AS isBlocked
+        FROM ContactEntity
+        WHERE userUuid = :userUuid AND isRemoved = false""",
+    )
+    fun getVerifiableAsFlow(userUuid: String): Flow<VerifiableContact?>
+
+    /**
+     * Records [verifiedSafetyNumber] as the safety number the user verified with the contact
+     * [userUuid], or that they cleared the mark when null, for the vault to take in turn, see
+     * [ContactEntity.verifiedSafetyNumber]. Nobody else's: one who is not, or no longer, a
+     * contact is left alone.
+     */
+    @Query(
+        """UPDATE ContactEntity SET verifiedSafetyNumber = :verifiedSafetyNumber, isBackedUp = false
+        WHERE userUuid = :userUuid AND isRemoved = false""",
+    )
+    suspend fun setVerifiedSafetyNumber(userUuid: String, verifiedSafetyNumber: String?)
 
     /**
      * Drops the tombstones of the contacts in [userUuids], once the vault no longer holds
