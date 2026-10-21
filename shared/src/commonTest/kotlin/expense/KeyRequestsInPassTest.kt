@@ -48,7 +48,7 @@ class KeyRequestsInPassTest {
 
     /** One of the asker's rows can be waiting out a longer backoff than the rest. */
     @Test
-    fun `what an earlier request named is answered too, after the latest`() {
+    fun `what an earlier request named is answered too and comes after the latest`() {
         val requests = KeyRequestsInPass()
 
         requests.add(requesterUuid = BOB, mlsGroupId = currentGroup, expenseUuids = listOf(EXPENSE_A))
@@ -58,7 +58,7 @@ class KeyRequestsInPassTest {
     }
 
     @Test
-    fun `an answer holds no more than one share carries, the latest first`() {
+    fun `an answer holds no more than one share carries and keeps the latest first`() {
         val requests = KeyRequestsInPass()
         val earlier = List(ExpenseKeyShare.MAX_KEYS) { "earlier-$it" }
         val latest = List(ExpenseKeyShare.MAX_KEYS) { "latest-$it" }

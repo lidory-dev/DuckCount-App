@@ -86,7 +86,7 @@ class ReplyBudgetTest {
 
     /** The Welcome read a pass ahead of the request, and the answer to the request lost. */
     @Test
-    fun `whatever came before, keys go out an hour after the last reply`() {
+    fun `keys go out an hour after the last reply whatever came before`() {
         val told = assertNotNull(spendReply(budgetFullAt = null, now = T, reply = Reply.CHANNEL_JOINED))
         val lost = assertNotNull(spendReply(budgetFullAt = told, now = T + MINUTE, reply = Reply.EXPENSE_KEYS))
 

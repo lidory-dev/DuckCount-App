@@ -25,7 +25,7 @@ class OneTimeExpenseListingResponseTest {
     """.trimIndent()
 
     @Test
-    fun `a listing page decodes, its first page with where the feed stood`() {
+    fun `a listing page decodes and its first page says where the feed stood`() {
         val first = json.decodeFromString<ListOneTimeExpensesResponse>(
             """{"expenses":[$expense],"next_cursor":"1759926896123456_8d1e5823-c00c-83b7-8212-500089e3b975","feed_token":"0f7b3c2e-6a1d-4c8e-9b5a-2d4e6f8a0b1c_42"}""",
         )
