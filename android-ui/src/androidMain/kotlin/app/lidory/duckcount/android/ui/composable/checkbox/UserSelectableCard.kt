@@ -21,11 +21,13 @@ fun UserSelectableCard(
     toggleSelectedUser: () -> Unit,
     fullName: String,
     isChecked: Boolean,
+    enabled: Boolean = true,
 ) {
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(size = Padding.large),
         onClick = toggleSelectedUser,
+        enabled = enabled,
     ) {
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -48,6 +50,7 @@ fun UserSelectableCard(
                 onCheckedChange = {
                     toggleSelectedUser()
                 },
+                enabled = enabled,
             )
         }
     }

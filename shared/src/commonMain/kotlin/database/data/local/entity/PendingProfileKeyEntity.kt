@@ -39,7 +39,7 @@ class PendingProfileKeyEntity(
 
     /**
      * When this device last tried asking, or null when it has not. A try counts whatever came of
-     * it, the server's refusal for the allowance of messages aside.
+     * it, the server's refusal for either allowance of messages aside.
      */
     val lastRequestedAt: Long?,
 

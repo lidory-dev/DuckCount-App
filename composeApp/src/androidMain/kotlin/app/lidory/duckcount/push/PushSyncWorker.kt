@@ -29,6 +29,9 @@ private const val TAG = "PushSyncWorker"
  *
  * Only a contact's expenses are told about, arriving or changing: a former contact's still
  * come in and change in the app, without a word, see [ExpenseArrivals] and [ExpenseChanges].
+ *
+ * Also run with no signal at all, once the server's limit on messages lets through again what
+ * a sync left unsent, see [PushWork.enqueueResend]: the passes that send are part of a sync.
  */
 class PushSyncWorker(
     context: Context,

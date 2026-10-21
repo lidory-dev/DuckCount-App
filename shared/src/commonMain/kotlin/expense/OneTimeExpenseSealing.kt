@@ -230,7 +230,7 @@ internal fun ExpenseDto.unsealOneTime(record: OneTimeExpenseKeyRecord): OpenedOn
     )
 
     // The amount and the shares, by the library's rules for the currency, which also refuse
-    // a beneficiary listed twice.
+    // a beneficiary listed twice, or more beneficiaries than an expense may list.
     val error = validateExpense(
         amount = expense.amount,
         currency = expense.currency,

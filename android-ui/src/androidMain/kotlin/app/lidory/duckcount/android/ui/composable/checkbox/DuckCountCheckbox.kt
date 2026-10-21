@@ -55,24 +55,27 @@ fun DuckCountTriStateCheckbox(
         interactionSource = interactionSource,
         onClick = { onClick?.invoke() },
     ) {
+        // The icons are tinted explicitly, so they would not dim with the button on their own.
+        val tint = if (enabled) colors.checkedBoxColor else colors.disabledBorderColor
+
         when (state) {
             ToggleableState.On ->
                 Icon(
-                    tint = colors.checkedBoxColor,
+                    tint = tint,
                     painter = painterResource(R.drawable.ic_checked_circle),
                     contentDescription = stringResource(R.string.checked),
                 )
 
             ToggleableState.Off ->
                 Icon(
-                    tint = colors.checkedBoxColor,
+                    tint = tint,
                     painter = painterResource(R.drawable.ic_empty_circle),
                     contentDescription = stringResource(R.string.unchecked),
                 )
 
             ToggleableState.Indeterminate ->
                 Icon(
-                    tint = colors.checkedBoxColor,
+                    tint = tint,
                     painter = painterResource(R.drawable.ic_dash_circle),
                     contentDescription = stringResource(R.string.indeterminate_checked),
                 )

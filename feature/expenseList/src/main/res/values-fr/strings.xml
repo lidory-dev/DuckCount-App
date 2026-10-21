@@ -19,11 +19,19 @@
 
     <!-- BeneficiariesDialog -->
     <string name="select_beneficiaries">Sélectionner les participants</string>
+    <plurals name="selected_beneficiaries_out_of_limit">
+        <item quantity="one">%1$d/%2$d sélectionné</item>
+        <item quantity="other">%1$d/%2$d sélectionnés</item>
+    </plurals>
 
     <!-- BeneficiaryList -->
     <plurals name="beneficiaries">
         <item quantity="one" tools:ignore="ImpliedQuantity">Participant</item>
         <item quantity="other">Participants</item>
+    </plurals>
+    <plurals name="beneficiaries_out_of_limit">
+        <item quantity="one">Participant (%1$d/%2$d)</item>
+        <item quantity="other">Participants (%1$d/%2$d)</item>
     </plurals>
 
     <!-- CreditorDialog -->
@@ -48,6 +56,7 @@
     <!-- ErrorCard -->
     <string name="no_beneficiaries">Une dépense doit avoir au moins un participant</string>
     <string name="no_beneficiary_other_than_the_creditor">Une dépense doit avoir au moins un participant autre que celui qui a payé</string>
+    <string name="too_many_beneficiaries">Une dépense ne peut pas avoir autant de participants</string>
     <string name="shares_below_total_amount">Le total des parts ne peut pas être inférieur au montant total</string>
     <string name="shares_exceed_total_amount">Le total des parts ne peut pas être supérieur au montant total</string>
     <string name="back">Retour</string>

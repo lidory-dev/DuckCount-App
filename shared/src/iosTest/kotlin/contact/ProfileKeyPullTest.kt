@@ -5,8 +5,10 @@ import database.data.local.dao.ContactTables
 import database.data.local.dao.copy
 import database.data.local.entity.ContactEntity
 import database.data.local.entity.PendingProfileKeyEntity
+import database.data.remote.MessageLimitScope
 import kotlinx.coroutines.runBlocking
 import message.DirectSendError
+import message.ResendsBooked
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
 import util.EmptyResult
@@ -45,6 +47,7 @@ class ProfileKeyPullTest {
 
     private val requests = RequestsSent()
     private val replies = RepliesSent()
+    private val resends = ResendsBooked()
 
     /** Who a reply was claimed for, and whether their budget allowed it. */
     private val claims = mutableListOf<String>()
@@ -57,6 +60,7 @@ class ProfileKeyPullTest {
         send = requests::send,
         claimReply = { peerUuid -> claims += peerUuid; budgetAllows },
         replyIn = replies::reply,
+        resendScheduler = resends,
     )
 
     @Test
@@ -144,24 +148,74 @@ class ProfileKeyPullTest {
         assertEquals(listOf(ALICE), requests.recipients)
     }
 
-    /** Sending more only pushes the count further past the limit: the rest wait, still due. */
+    /**
+     * Sending more only pushes the count further past the limit: the rest wait, still due, for
+     * the limit to reopen.
+     */
     @Test
-    fun `running out of the allowance of messages stops the pass`() = runBlocking<Unit> {
+    fun `past the user's own limit the pass stops and is booked again for when it reopens`() = runBlocking<Unit> {
         tables.add(contact(ALICE))
         tables.add(contact(BOB))
         missing(ALICE)
         missing(BOB)
-        requests.outcomes[ALICE] = Result.Error(DirectSendError.RateLimited)
+        requests.outcomes[ALICE] =
+            Result.Error(DirectSendError.RateLimited(retryAfterSeconds = 45, scope = MessageLimitScope.SENDER))
 
-        val pass = pull.requestMissingKeys()
+        assertIs<Result.Success<Unit>>(pull.requestMissingKeys())
 
-        assertEquals(
-            ContactSyncError.Network(NetworkError.TOO_MANY_REQUESTS),
-            assertIs<Result.Error<ContactSyncError>>(pass).error,
-        )
         assertEquals(listOf(ALICE), requests.recipients)
         assertNull(tables.pending.getValue(ALICE).lastRequestedAt)
         assertNull(tables.pending.getValue(BOB).lastRequestedAt)
+        assertEquals(listOf(45L), resends.seconds)
+    }
+
+    /**
+     * What the user may send Alice is spent, which costs nothing of what they may send the
+     * others: she stays due, and is no try, so the pass still asks three others.
+     */
+    @Test
+    fun `a contact past their own limit stays due and the next one is asked in their place`() = runBlocking<Unit> {
+        listOf(ALICE, BOB, CAROL, DAVE).forEach {
+            tables.add(contact(it))
+            missing(it)
+        }
+        requests.outcomes[ALICE] =
+            Result.Error(DirectSendError.RateLimited(retryAfterSeconds = 20, scope = MessageLimitScope.RECIPIENT))
+
+        assertIs<Result.Success<Unit>>(pull.requestMissingKeys())
+
+        assertEquals(listOf(ALICE, BOB, CAROL, DAVE), requests.recipients)
+        assertNull(tables.pending.getValue(ALICE).lastRequestedAt)
+        assertEquals(0, tables.pending.getValue(ALICE).requestCount)
+        assertTrue(assertNotNull(tables.budgets[ALICE]) <= nowEpochMilliseconds())
+        assertNotNull(tables.pending.getValue(DAVE).lastRequestedAt)
+        assertEquals(listOf(20L), resends.seconds)
+    }
+
+    /**
+     * With one request of Alice's budget outstanding already, the one refused as the user runs
+     * past their limit gives back what it spent, so the resend the refusal booked asks her rather
+     * than wait out the hour.
+     */
+    @Test
+    fun `a request refused for a limit gives the budget back to the resend it books`() = runBlocking<Unit> {
+        tables.add(contact(ALICE))
+        missing(ALICE)
+        val outstanding = nowEpochMilliseconds() + 55 * MINUTE
+        tables.budgets[ALICE] = outstanding
+        requests.outcomes[ALICE] =
+            Result.Error(DirectSendError.RateLimited(retryAfterSeconds = 45, scope = MessageLimitScope.SENDER))
+
+        pull.requestMissingKeys()
+
+        assertEquals(outstanding, tables.budgets[ALICE])
+
+        requests.outcomes.clear()
+
+        assertIs<Result.Success<Unit>>(pull.requestMissingKeys())
+
+        assertEquals(listOf(ALICE, ALICE), requests.recipients)
+        assertEquals(1, tables.pending.getValue(ALICE).requestCount)
     }
 
     /**

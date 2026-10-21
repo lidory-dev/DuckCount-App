@@ -27,6 +27,7 @@ fun validateExpense(
             is ExpenseException.SharesExceedTotalAmount -> ExpenseError.SHARES_EXCEED_TOTAL_AMOUNT
             is ExpenseException.NonPositiveShare -> ExpenseError.NON_POSITIVE_SHARE
             is ExpenseException.NoBeneficiaries -> ExpenseError.NO_BENEFICIARIES
+            is ExpenseException.TooManyBeneficiaries -> ExpenseError.TOO_MANY_BENEFICIARIES
             else -> ExpenseError.OTHER_KNOWN_ERROR
         }
     }

@@ -126,7 +126,9 @@ fun CreateExpenseScreen(
         toggleSelectAllUsers = { viewModel.toggleSelectAllUsers() },
         toggleSelectedUser = { viewModel.toggleSelectedUser(it) },
         toggleableListState = selectionToggleState,
+        isSelectAllShown = !viewModel.isOneTimeExpense(),
         selectedUuids = selectedUuids,
+        maxBeneficiaries = viewModel.maxBeneficiaries,
     )
 
     Scaffold(
@@ -252,6 +254,7 @@ fun CreateExpenseScreen(
 
                 beneficiaryList(
                     beneficiaries = beneficiaries,
+                    maxBeneficiaries = viewModel.maxBeneficiaries,
                     currencySymbol = expenseState.currency.symbol,
                     enabled = !isSaving,
                     onBeneficiaryAmountChange = { userUuid, share ->

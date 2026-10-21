@@ -14,6 +14,12 @@ interface CreateExpenseCallBacks {
 
     val maxDescriptionLength: Int
 
+    /**
+     * The most beneficiaries an expense may list, its creditor included when listed. The form never
+     * selects more: [validateExpense] would refuse such an expense, and so would the server.
+     */
+    val maxBeneficiaries: Int
+
     fun validateExpense(amount: String, currency: Currency, beneficiaries: List<Beneficiary>): Int?
 
     fun getAllUsersFiltered(filter: String): Flow<List<User>>

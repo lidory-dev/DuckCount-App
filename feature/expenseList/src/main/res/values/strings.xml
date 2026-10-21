@@ -19,11 +19,19 @@
 
     <!-- BeneficiariesDialog -->
     <string name="select_beneficiaries">Select beneficiaries</string>
+    <plurals name="selected_beneficiaries_out_of_limit">
+        <item quantity="one">%1$d/%2$d selected</item>
+        <item quantity="other">%1$d/%2$d selected</item>
+    </plurals>
 
     <!-- BeneficiaryList -->
     <plurals name="beneficiaries">
         <item quantity="one">Beneficiary</item>
         <item quantity="other">Beneficiaries</item>
+    </plurals>
+    <plurals name="beneficiaries_out_of_limit">
+        <item quantity="one">Beneficiary (%1$d/%2$d)</item>
+        <item quantity="other">Beneficiaries (%1$d/%2$d)</item>
     </plurals>
 
     <!-- CreditorDialog -->
@@ -48,6 +56,7 @@
     <!-- ErrorCard -->
     <string name="no_beneficiaries">An expense must have at least one beneficiary</string>
     <string name="no_beneficiary_other_than_the_creditor">An expense must have at least one beneficiary other than the creditor</string>
+    <string name="too_many_beneficiaries">An expense cannot have this many beneficiaries</string>
     <string name="shares_below_total_amount">The total of the shares cannot be less than the total amount</string>
     <string name="shares_exceed_total_amount">The total of the shares cannot be greater than the total amount</string>
     <string name="back">Back</string>

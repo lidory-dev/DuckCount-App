@@ -28,6 +28,7 @@ import database.data.remote.UserApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import message.DirectMessageHandling
+import message.ResendsBooked
 import mls.InMemoryMlsStore
 import mls.KeyPackageApi
 import mls.MlsIdentityRepository
@@ -125,6 +126,7 @@ class ContactRepositoryTest {
             replies += recipientUserUuid to mlsGroupId
             Result.Success(Unit)
         },
+        resendScheduler = ResendsBooked(),
     )
 
     private val handler = ContactMessageHandler(

@@ -231,6 +231,9 @@ private fun ExpenseError?.toMessageResOrNull(): Int? = when (this) {
     ExpenseError.SHARES_EMPTY -> expenseListR.string.non_positive_amount_share
     ExpenseError.NO_BENEFICIARIES -> expenseListR.string.no_beneficiaries
 
+    // The beneficiary list's header shows the limit next to the count, so the message need not.
+    ExpenseError.TOO_MANY_BENEFICIARIES -> expenseListR.string.too_many_beneficiaries
+
     // What a typed amount or share can still be: zero, or too long. Never let through:
     // everybody an expense names refuses one that does not validate, and would never see it.
     ExpenseError.OTHER_KNOWN_ERROR -> expenseListR.string.invalid_amount

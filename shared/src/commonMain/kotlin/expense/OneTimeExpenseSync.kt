@@ -2,32 +2,23 @@ package expense
 
 import authenticationUtils.getAuthenticatedUserUuid
 import channel.DirectChannelError
-import channel.DirectChannelRepository
 import database.data.local.dao.ExpenseDao
 import database.data.local.dao.ListedOneTimeExpenseDao
-import database.data.local.dao.OwedExpenseKeyDao
 import database.data.local.dao.PendingExpenseKeyDao
-import database.data.local.entity.KeyRequestBudgetEntity
 import database.data.local.entity.ListedOneTimeExpenseEntity
-import database.data.local.entity.PendingExpenseKeyState
 import database.data.mappers.toExpenseWithBeneficiariesEntity
-import database.data.remote.DirectMessageKindDto
 import database.data.remote.ExpenseApi
 import database.data.remote.ExpenseDto
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import message.DirectMessageSender
 import message.DirectMessageSync
 import message.DirectSendError
-import message.neverReachedServer
 import util.EmptyResult
 import util.NetworkError
 import util.Result
-import util.backoffFor
 import util.nowEpochMilliseconds
-import util.spendMessageBudget
 import kotlin.uuid.Uuid
 
 /**
@@ -52,24 +43,11 @@ class OneTimeExpenseSync(
     private val expenseDao: ExpenseDao,
     private val listedDao: ListedOneTimeExpenseDao,
     private val pendingExpenseKeyDao: PendingExpenseKeyDao,
-    private val owedExpenseKeyDao: OwedExpenseKeyDao,
     private val keyRepository: OneTimeExpenseKeyRepository,
-    private val directMessageSender: DirectMessageSender,
+    private val expenseKeyDelivery: ExpenseKeyDelivery,
+    private val expenseKeyPull: ExpenseKeyPull,
     private val directMessageSync: DirectMessageSync,
 ) {
-    /**
-     * Serializes [shareOwedKeys], which an expense being written and a sync can both reach
-     * at once. Each would read the same keys as still owed, and hand them over twice.
-     */
-    private val shareMutex = Mutex()
-
-    /**
-     * Serializes [requestMissingKeys], which a push and the list being opened can both reach
-     * at once. Each would read the same keys as due, ask for them twice, and spend the
-     * creditor's budget of requests twice over, see [claimRequest].
-     */
-    private val requestMutex = Mutex()
-
     /**
      * Serializes [refresh], which a push and the list being opened can both reach at once. A
      * read that finished after a newer one would act on what its own, older listing did not
@@ -343,247 +321,26 @@ class OneTimeExpenseSync(
         listedDao.getAll().map { kept -> kept.json.toExpenseDto() ?: return null }
 
     /**
-     * Asks each creditor for the keys this device is still missing from them, of the ones it
-     * takes from them, see [ExpectedKeys].
-     *
-     * One message per creditor rather than per expense: somebody coming back from a log-out
-     * is missing everything a creditor ever sent them, and the allowance the server enforces
-     * is counted in messages.
-     *
-     * Asked for at once, with no settling period first. There used to be one, against an
-     * expense reaching the server before the message carrying its key did. That race is
-     * gone: the push a beneficiary is woken by *is* the key message, so by the time they
-     * look, the key is already there to be read. What the period did instead was hold up
-     * the one case this exists for, somebody logging back in to find expenses whose keys
-     * were sent while they were away and can never be read.
-     *
-     * How often a creditor is asked is otherwise theirs to decide, and every request is one
-     * of the user's own allowance of messages, the one their key shares need. Each expense of
-     * theirs the user cannot open is a row due at once; making one, deleting it and making
-     * another costs them nothing and hands the user a fresh row; more of them than a request
-     * names stay due for the next sync; and they can wake this device for one whenever they
-     * like. So each creditor is asked out of a budget, two requests at once and one more an
-     * hour after that, see [claimRequest]: the shape of the one an honest creditor answers
-     * from, see [DirectChannelRepository.claimReply], which would drop most of what it holds
-     * back anyway. Not all of it: two requests a creditor reads in one pass are answered as
-     * one, see [KeyRequestsInPass], and the one their second answer would have gone to waits
-     * for the hour. A request names at most a hundred of the keys still due, so somebody back
-     * from a log-out with more than that missing from one creditor asks that creditor at the
-     * first two syncs, and then at most once an hour, at the first sync the budget allows.
+     * Asks each creditor for the keys this device is still missing from them, see
+     * [ExpenseKeyPull].
      */
-    suspend fun requestMissingKeys(): EmptyResult<OneTimeExpenseSyncError> = requestMutex.withLock {
+    suspend fun requestMissingKeys(): EmptyResult<OneTimeExpenseSyncError> {
         val ownUserUuid = getAuthenticatedUserUuid()
-            ?: return@withLock Result.Error(OneTimeExpenseSyncError.NoSession)
+            ?: return Result.Error(OneTimeExpenseSyncError.NoSession)
 
-        val pending = pendingExpenseKeyDao.getInState(state = PendingExpenseKeyState.PENDING)
-
-        if (pending.isEmpty()) return@withLock Result.Success(Unit)
-
-        val now = nowEpochMilliseconds()
-
-        val due = pending.filter { row ->
-            // The user's own expense: there is nobody to ask, and the server refuses a
-            // message addressed to oneself, so it would fail forever.
-            row.creditorUuid != ownUserUuid &&
-                    (row.lastRequestedAt == null || now - row.lastRequestedAt >= backoffFor(row.requestCount))
-        }
-
-        var failure: OneTimeExpenseSyncError? = null
-        var sent = 0
-
-        for ((creditorUuid, waiting) in due.groupBy { it.creditorUuid }) {
-            if (sent >= MAX_CREDITORS_PER_SYNC) break
-
-            // Only for the keys this device takes from them, see [ExpectedKeys]: the creditor
-            // is the server's word, and anybody can name the user on an expense. Being pinned
-            // is not enough, nor having a channel. Sending a contact request pins whoever the
-            // server said the username was, and the pin stays whether they answer or not, and
-            // whether the server stored the request or not; a contact removed keeps their pin
-            // and their channel. So a contact is asked for anything, and anybody else only for
-            // what was awaited from them when they stopped being one. Their other rows wait,
-            // unasked, until they are a contact again.
-            val rows = keyRepository.expectedFrom(creditorUuid = creditorUuid).among(rows = waiting)
-
-            if (rows.isEmpty()) continue
-
-            // Read before it is spent, to be put back should the request never leave this device.
-            val budgetFullAt = pendingExpenseKeyDao.getRequestBudgetFullAt(creditorUuid = creditorUuid)
-
-            // A creditor whose budget is spent is left the way one with nothing to be asked for
-            // is: their rows stay due with nothing tried, and are asked for at the first sync it
-            // allows.
-            if (!claimRequest(creditorUuid = creditorUuid, budgetFullAt = budgetFullAt, now = now)) continue
-
-            val expenseUuids = rows.map { it.expenseUuid }.take(ExpenseKeyRequest.MAX_EXPENSES)
-
-            val request = directMessageSender.send(
-                recipientUserUuid = creditorUuid,
-                payload = ExpenseKeyRequest(expenseUuids = expenseUuids).serialize(),
-            )
-
-            when (request) {
-                is Result.Success -> {
-                    pendingExpenseKeyDao.markRequested(expenseUuids = expenseUuids, requestedAt = now)
-
-                    sent++
-                }
-
-                is Result.Error -> {
-                    // Given back when it certainly never left this device: kept, it would spend
-                    // the budget of a creditor this device cannot reach yet, unpinned or in
-                    // doubt, at every sync with nothing sent.
-                    if (request.error.neverReachedServer()) {
-                        pendingExpenseKeyDao.setRequestBudget(
-                            budget = KeyRequestBudgetEntity(
-                                creditorUuid = creditorUuid,
-                                // Never spent before, it goes back as a moment already past.
-                                budgetFullAt = budgetFullAt ?: now,
-                            ),
-                        )
-                    }
-
-                    when (request.error) {
-                        // The server knows of no such user, which for an account is final: an
-                        // expense outlives its creditor, and the key does not. True of every
-                        // expense of theirs, not only the ones this request named.
-                        DirectSendError.RecipientGone -> pendingExpenseKeyDao.setState(
-                            expenseUuids = rows.map { it.expenseUuid },
-                            state = PendingExpenseKeyState.CREDITOR_GONE,
-                        )
-
-                        // No channel could be built to them, which is never final: they have
-                        // published no key package yet, the one served has outlived its lifetime
-                        // because they have not opened the app in months, or their account is
-                        // gone, which the lookup answers the same way. So their rows
-                        // wait on the backoff, all of them, or the next sync would fetch another
-                        // key package for the rest. Not reported: a retry would find nothing due.
-                        DirectSendError.Channel(DirectChannelError.Unreachable),
-                            -> pendingExpenseKeyDao.markRequested(
-                            expenseUuids = rows.map { it.expenseUuid },
-                            requestedAt = now,
-                        )
-
-                        // Somebody this device knows but holds no pin for: a contact the vault gave
-                        // back without one, see [vault.VaultContact]. Building would pin whatever the
-                        // server served for them, so the rows wait until they are pinned.
-                        DirectSendError.Channel(DirectChannelError.NotPinned) -> Unit
-
-                        // Somebody whose identity is in doubt, who is not asked for anything until
-                        // that is settled, which no retry does.
-                        DirectSendError.Channel(DirectChannelError.IdentityChanged) -> Unit
-
-                        // Sending more only pushes the count further past the limit. The rest
-                        // wait for the next sync.
-                        DirectSendError.RateLimited -> return@withLock Result.Error(
-                            OneTimeExpenseSyncError.Network(NetworkError.TOO_MANY_REQUESTS),
-                        )
-
-                        else -> failure = failure ?: request.error.toSyncError()
-                    }
-                }
-            }
-        }
-
-        failure?.let { Result.Error(it) } ?: Result.Success(Unit)
-    }
-
-    /**
-     * Whether this device may ask [creditorUuid], whose budget is whole again at
-     * [budgetFullAt], for keys now, which it then records it does, see [requestMissingKeys]
-     * and [KeyRequestBudgetEntity].
-     *
-     * Claimed before the request is sent, and kept when the send fails unless it certainly
-     * never left this device, see [neverReachedServer], as a reply is: the server counts one
-     * to an account that is gone, and one it stored although its response never made it
-     * back. Only ever under [requestMutex], since the budget is read before it is written.
-     */
-    private suspend fun claimRequest(creditorUuid: String, budgetFullAt: Long?, now: Long): Boolean {
-        val fullAt = spendMessageBudget(
-            budgetFullAt = budgetFullAt,
-            now = now,
-            onlyWhenWhole = false,
-        ) ?: return false
-
-        pendingExpenseKeyDao.setRequestBudget(
-            budget = KeyRequestBudgetEntity(creditorUuid = creditorUuid, budgetFullAt = fullAt),
-        )
-
-        return true
+        return expenseKeyPull.requestMissingKeys(ownUserUuid = ownUserUuid)
     }
 
     /**
      * Hands over the keys to the user's own expenses that somebody named on them has not
-     * been handed yet, see [database.data.local.entity.OwedExpenseKeyEntity], once the
-     * expense, as this device shows it, names them.
-     *
-     * Each key goes only to somebody the creditor's own record names, see [keyFor], and not
-     * on the strength of the expense's rows alone: those are refilled from the server.
-     *
-     * One message per person, and one person at a time: the server counts messages against an
-     * allowance, and running past it only pushes the count further out, so the first refusal
-     * stops the pass and the rest wait for the next one. A message carries no more keys than
-     * a recipient reads of one, see [ExpenseKeyShare.MAX_KEYS], and the rest wait the same way.
+     * been handed yet, once the expense, as this device shows it, names them, see
+     * [ExpenseKeyDelivery].
      */
-    suspend fun shareOwedKeys(): EmptyResult<OneTimeExpenseSyncError> = shareMutex.withLock {
+    suspend fun shareOwedKeys(): EmptyResult<OneTimeExpenseSyncError> {
         val ownUserUuid = getAuthenticatedUserUuid()
-            ?: return@withLock Result.Error(OneTimeExpenseSyncError.NoSession)
+            ?: return Result.Error(OneTimeExpenseSyncError.NoSession)
 
-        val owed = owedExpenseKeyDao.getListed()
-
-        if (owed.isEmpty()) return@withLock Result.Success(Unit)
-
-        var failure: OneTimeExpenseSyncError? = null
-
-        for ((recipientUuid, rows) in owed.groupBy { it.recipientUuid }) {
-            val keys = rows.mapNotNull { row ->
-                keyRepository.record(expenseUuid = row.expenseUuid)
-                    ?.keyFor(requesterUuid = recipientUuid, ownUserUuid = ownUserUuid)
-            }.take(ExpenseKeyShare.MAX_KEYS)
-
-            if (keys.isEmpty()) continue
-
-            val expenseUuids = keys.map { it.expenseUuid }
-
-            val sent = directMessageSender.send(
-                recipientUserUuid = recipientUuid,
-                payload = ExpenseKeyShare(keys = keys).serialize(),
-                // So a locked phone can say an expense arrived rather than nothing.
-                kind = DirectMessageKindDto.ONE_TIME_EXPENSE,
-            )
-
-            when (sent) {
-                is Result.Success -> owedExpenseKeyDao.delete(
-                    recipientUuid = recipientUuid,
-                    expenseUuids = expenseUuids,
-                )
-
-                is Result.Error -> when (sent.error) {
-                    // Nobody to hand the key to: their account is gone, or the server offers
-                    // no way to reach them that this build can use. If they come back, they
-                    // ask for the key, and the record answers them.
-                    DirectSendError.RecipientGone,
-                    DirectSendError.Channel(DirectChannelError.Unreachable),
-                        -> owedExpenseKeyDao.delete(
-                        recipientUuid = recipientUuid,
-                        expenseUuids = expenseUuids,
-                    )
-
-                    // Somebody this device no longer has pinned, or whose identity is in
-                    // doubt. No retry changes either, so the keys wait until that does.
-                    DirectSendError.Channel(DirectChannelError.NotPinned),
-                    DirectSendError.Channel(DirectChannelError.IdentityChanged),
-                        -> Unit
-
-                    DirectSendError.RateLimited -> return@withLock Result.Error(
-                        OneTimeExpenseSyncError.Network(NetworkError.TOO_MANY_REQUESTS),
-                    )
-
-                    else -> failure = failure ?: sent.error.toSyncError()
-                }
-            }
-        }
-
-        failure?.let { Result.Error(it) } ?: Result.Success(Unit)
+        return expenseKeyDelivery.handOver(ownUserUuid = ownUserUuid)
     }
 
     /**
@@ -627,7 +384,8 @@ class OneTimeExpenseSync(
 
 }
 
-private fun DirectSendError.toSyncError(): OneTimeExpenseSyncError =
+/** The same failure, told the way a one-time expense sync tells it. */
+internal fun DirectSendError.toSyncError(): OneTimeExpenseSyncError =
     when (this) {
         is DirectSendError.Channel -> when (val channelError = error) {
             is DirectChannelError.Identity -> OneTimeExpenseSyncError.Identity(channelError.error)
@@ -640,7 +398,7 @@ private fun DirectSendError.toSyncError(): OneTimeExpenseSyncError =
 
         is DirectSendError.Network -> OneTimeExpenseSyncError.Network(error)
 
-        DirectSendError.RecipientGone, DirectSendError.RateLimited -> OneTimeExpenseSyncError.Storage
+        DirectSendError.RecipientGone, is DirectSendError.RateLimited -> OneTimeExpenseSyncError.Storage
     }
 
 /** Reads the listing's entries as this build knows them, ignoring what it does not. */
@@ -671,6 +429,3 @@ private fun ExpenseDto.hasCanonicalUuids(): Boolean =
 
 /** Whether this is a UUID written the one way the server and the app write one. */
 internal fun String.isCanonicalUuid(): Boolean = Uuid.parseHexDashOrNull(this)?.toString() == this
-
-/** How many creditors are asked in one sync, so a re-login does not ask everyone at once. */
-private const val MAX_CREDITORS_PER_SYNC = 3

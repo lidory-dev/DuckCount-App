@@ -3,14 +3,15 @@ package contact
 import channel.DirectChannelError
 import database.data.local.dao.ContactDao
 import database.data.local.entity.ContactEntity
+import database.data.remote.MessageLimitScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import message.DirectMessageSender
 import message.DirectSendError
+import message.ResendScheduler
 import mls.MlsIdentityError
 import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
 import util.EmptyResult
-import util.NetworkError
 import util.Result
 import vault.ProfileKeyVault
 
@@ -30,12 +31,14 @@ import vault.ProfileKeyVault
  * every one, reads nothing from the vault. One that owes somebody reads the key once.
  *
  * Retried until it lands, or there turns out to be nobody to hand it to, as the keys to
- * one-time expenses are, see `OneTimeExpenseSync.shareOwedKeys`: one message per contact, and
- * the first refusal for the user's allowance of messages stops the pass, the rest waiting for
- * the next one. A key that landed and was lost on the receiving end, unreadable in a group the
- * contact no longer holds, counts as handed here: they ask for it once a read of the profile
- * shows them the key they hold opens no newer version, see [ProfileKeyPull], which is the next
- * time anything is read with it.
+ * one-time expenses are, see [ExpenseKeyDelivery][expense.ExpenseKeyDelivery]: one message per
+ * contact, and a refusal for the user's allowances of messages holds back what it refused until
+ * the pass runs again as the allowance reopens, see [ResendScheduler]. Past what the user may
+ * send one contact, the pass goes on to the others, though what they may send everybody can
+ * still refuse them; past that, the pass stops. A key that landed and was lost on the receiving
+ * end, unreadable in a group the contact no longer holds, counts as handed here: they ask for it
+ * once a read of the profile shows them the key they hold opens no newer version, see
+ * [ProfileKeyPull], which is the next time anything is read with it.
  *
  * [send] is [DirectMessageSender.send], or what a test stands in for it: it builds a channel to
  * a contact this device holds none to, one restored from the vault for instance.
@@ -44,11 +47,13 @@ class ProfileKeyDelivery internal constructor(
     private val contactDao: ContactDao,
     private val profileKeyVault: ProfileKeyVault,
     private val send: suspend (recipientUserUuid: String, payload: ByteArray) -> EmptyResult<DirectSendError>,
+    private val resendScheduler: ResendScheduler,
 ) {
     constructor(
         contactDao: ContactDao,
         profileKeyVault: ProfileKeyVault,
         directMessageSender: DirectMessageSender,
+        resendScheduler: ResendScheduler,
     ) : this(
         contactDao = contactDao,
         profileKeyVault = profileKeyVault,
@@ -56,6 +61,7 @@ class ProfileKeyDelivery internal constructor(
         send = { recipientUserUuid, payload ->
             directMessageSender.send(recipientUserUuid = recipientUserUuid, payload = payload)
         },
+        resendScheduler = resendScheduler,
     )
 
     /**
@@ -68,8 +74,9 @@ class ProfileKeyDelivery internal constructor(
      * Hands the current key to every contact owed it, blocked ones aside, recording each one
      * handed it, for the vault to take with the next backup.
      *
-     * Every contact owed is attempted, and the first failure is reported, unless the user's
-     * allowance of messages runs out, which stops the pass.
+     * Every contact owed is attempted until the user's allowance of messages runs out, which
+     * stops the pass, and the first failure is reported. A refusal for either allowance is not
+     * one: the resend it books is what comes of it.
      */
     suspend fun handOut(): EmptyResult<ContactSyncError> = mutex.withLock {
         // The key itself, when the hash had to be read from it: whoever is owed is handed it.
@@ -105,7 +112,7 @@ class ProfileKeyDelivery internal constructor(
                     handedProfileKeyHash = handedHash,
                 )
 
-                is Result.Error -> when (sent.error) {
+                is Result.Error -> when (val error = sent.error) {
                     // Nobody to hand the key to: their account is gone, or the server offers no
                     // way to reach them that this build can use. If they come back, they ask for
                     // it, see ProfileKeyPull.
@@ -122,11 +129,13 @@ class ProfileKeyDelivery internal constructor(
                     DirectSendError.Channel(DirectChannelError.IdentityChanged),
                         -> Unit
 
-                    DirectSendError.RateLimited -> return@withLock Result.Error(
-                        ContactSyncError.Network(NetworkError.TOO_MANY_REQUESTS),
-                    )
+                    is DirectSendError.RateLimited -> {
+                        resendScheduler.resendAfter(seconds = error.retryAfterSeconds)
 
-                    else -> failure = failure ?: sent.error.toContactSyncError()
+                        if (error.scope == MessageLimitScope.SENDER) break
+                    }
+
+                    else -> failure = failure ?: error.toContactSyncError()
                 }
             }
         }
@@ -149,5 +158,5 @@ internal fun DirectSendError.toContactSyncError(): ContactSyncError =
 
         is DirectSendError.Network -> ContactSyncError.Network(error)
 
-        DirectSendError.RecipientGone, DirectSendError.RateLimited -> ContactSyncError.Storage
+        DirectSendError.RecipientGone, is DirectSendError.RateLimited -> ContactSyncError.Storage
     }

@@ -12,6 +12,7 @@ import app.lidory.duckcount.expenseList.model.BeneficiaryUi
 
 fun LazyListScope.beneficiaryList(
     beneficiaries: List<BeneficiaryUi>,
+    maxBeneficiaries: Int,
     currencySymbol: String,
     enabled: Boolean,
     onBeneficiaryAmountChange: (String, String) -> Unit,
@@ -23,6 +24,7 @@ fun LazyListScope.beneficiaryList(
     item {
         BeneficiaryListHeader(
             numberOfBeneficiaries = beneficiaries.size,
+            maxBeneficiaries = maxBeneficiaries,
             enabled = enabled,
             onModifyBeneficiaryList = onModifyBeneficiaryList,
         )

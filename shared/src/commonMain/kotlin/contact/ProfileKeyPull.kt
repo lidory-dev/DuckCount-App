@@ -7,14 +7,15 @@ import database.data.local.dao.ContactDao
 import database.data.local.dao.PendingProfileKeyDao
 import database.data.local.entity.PendingProfileKeyEntity
 import database.data.local.entity.ProfileKeyRequestBudgetEntity
+import database.data.remote.MessageLimitScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import message.DirectMessageSender
 import message.DirectSendError
-import message.neverReachedServer
+import message.ResendScheduler
+import message.givesBudgetBack
 import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
 import util.EmptyResult
-import util.NetworkError
 import util.Result
 import util.backoffFor
 import util.nowEpochMilliseconds
@@ -39,7 +40,7 @@ import vault.ProfileKeyVault
  * settles it too, see
  * [ContactRepository.receiveProfileKey][database.data.repository.ContactRepository.receiveProfileKey].
  * Pulled as well as pushed, as the keys to one-time expenses are, see
- * `OneTimeExpenseSync.requestMissingKeys`, which this is modelled on.
+ * [ExpenseKeyPull][expense.ExpenseKeyPull], which this is modelled on.
  *
  * Found out at a read, and no sooner: a key lost after this device read the contact's name is
  * noticed at the next read of their profile, which comes once the name is gone, with a log-out
@@ -66,6 +67,7 @@ class ProfileKeyPull internal constructor(
         mlsGroupId: ByteArray,
         payload: ByteArray,
     ) -> EmptyResult<DirectSendError>,
+    private val resendScheduler: ResendScheduler,
 ) {
     constructor(
         pendingProfileKeyDao: PendingProfileKeyDao,
@@ -73,6 +75,7 @@ class ProfileKeyPull internal constructor(
         profileKeyVault: ProfileKeyVault,
         directMessageSender: DirectMessageSender,
         directChannelRepository: DirectChannelRepository,
+        resendScheduler: ResendScheduler,
     ) : this(
         pendingProfileKeyDao = pendingProfileKeyDao,
         contactDao = contactDao,
@@ -92,6 +95,7 @@ class ProfileKeyPull internal constructor(
                 payload = payload,
             )
         },
+        resendScheduler = resendScheduler,
     )
 
     /**
@@ -118,9 +122,12 @@ class ProfileKeyPull internal constructor(
      * requests at once and one more an hour after that, see [claimRequest]. A contact whose
      * budget is spent is left due, and asked at the first pass it allows.
      *
-     * One message per contact, and the first refusal for the user's allowance of messages stops
-     * the pass, the rest waiting for the next one. Any other failure counts as a try, so the
-     * contact waits out the backoff, and is reported unless no retry can change it.
+     * One message per contact. A refusal for the user's allowances of messages is no try: the
+     * contact stays due, their budget goes back, and they are asked as the pass runs again once
+     * the allowance reopens, see [ResendScheduler]. Past what the user may send that contact, the
+     * next one is asked; past what they may send everybody, the pass stops. Any other failure
+     * counts as a try, so the contact waits out the backoff, and is reported unless no retry can
+     * change it.
      */
     suspend fun requestMissingKeys(): EmptyResult<ContactSyncError> = mutex.withLock {
         val askable = pendingProfileKeyDao.getAskable()
@@ -139,7 +146,8 @@ class ProfileKeyPull internal constructor(
         for (row in due) {
             if (sent >= MAX_CONTACTS_PER_PASS) break
 
-            // Read before it is spent, to be put back should the request never leave this device.
+            // Read before it is spent, to be put back should the request never leave this device,
+            // or be refused for a limit.
             val budgetFullAt = pendingProfileKeyDao.getRequestBudgetFullAt(peerUuid = row.userUuid)
 
             if (!claimRequest(peerUuid = row.userUuid, budgetFullAt = budgetFullAt, now = now)) continue
@@ -157,8 +165,9 @@ class ProfileKeyPull internal constructor(
             val error = (request as Result.Error).error
 
             // Given back when it certainly never left this device: kept, it would spend the budget
-            // of a contact this device cannot reach yet at every try with nothing sent.
-            if (error.neverReachedServer()) {
+            // of a contact this device cannot reach yet at every try with nothing sent. And when it
+            // was refused for a limit, so as not to hold back the resend that refusal books.
+            if (error.givesBudgetBack()) {
                 pendingProfileKeyDao.setRequestBudget(
                     budget = ProfileKeyRequestBudgetEntity(
                         peerUuid = row.userUuid,
@@ -172,11 +181,11 @@ class ProfileKeyPull internal constructor(
                 // The server knows of no such user, which for an account is final.
                 DirectSendError.RecipientGone -> pendingProfileKeyDao.markAccountGone(userUuid = row.userUuid)
 
-                // Sending more only pushes the count further past the limit. The rest wait for
-                // the next pass.
-                DirectSendError.RateLimited -> return@withLock Result.Error(
-                    ContactSyncError.Network(NetworkError.TOO_MANY_REQUESTS),
-                )
+                is DirectSendError.RateLimited -> {
+                    resendScheduler.resendAfter(seconds = error.retryAfterSeconds)
+
+                    if (error.scope == MessageLimitScope.SENDER) break
+                }
 
                 // No channel could be built to them, which the account being gone is answered with
                 // too; somebody the vault gave back unpinned; somebody whose identity is in doubt.
@@ -248,8 +257,9 @@ class ProfileKeyPull internal constructor(
      * their profile key now, which it then records it does, see [ProfileKeyRequestBudgetEntity].
      *
      * Claimed before the request is sent, and kept when the send fails unless it certainly never
-     * left this device, as `OneTimeExpenseSync.claimRequest` does. Only ever under [mutex], since
-     * the budget is read before it is written.
+     * left this device or was refused for a limit, see [givesBudgetBack], as
+     * `ExpenseKeyPull.claimRequest` does. Only ever under [mutex], since the budget is read before
+     * it is written.
      */
     private suspend fun claimRequest(peerUuid: String, budgetFullAt: Long?, now: Long): Boolean {
         val fullAt = spendMessageBudget(

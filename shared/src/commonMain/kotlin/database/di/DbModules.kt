@@ -31,7 +31,14 @@ val dbModule = module {
     singleOf(::ContactRequestRepository)
     singleOf(::ContactRepository)
     singleOf(::ContactSync)
-    single { ProfileKeyDelivery(contactDao = get(), profileKeyVault = get(), directMessageSender = get()) }
+    single {
+        ProfileKeyDelivery(
+            contactDao = get(),
+            profileKeyVault = get(),
+            directMessageSender = get(),
+            resendScheduler = get(),
+        )
+    }
     single {
         ProfileKeyPull(
             pendingProfileKeyDao = get(),
@@ -39,6 +46,7 @@ val dbModule = module {
             profileKeyVault = get(),
             directMessageSender = get(),
             directChannelRepository = get(),
+            resendScheduler = get(),
         )
     }
     singleOf(::ContactArrivals)

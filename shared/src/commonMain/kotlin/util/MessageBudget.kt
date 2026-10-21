@@ -4,7 +4,7 @@ package util
  * Spends one message of a peer's budget, returning when the budget will be whole again, or
  * null when the message cannot go out now.
  *
- * Every message the user sends counts against the one allowance the server gives them, and
+ * Every message the user sends counts against the allowance the server gives them, and
  * some of those messages a peer decides the number of: the replies to what they send, see
  * `channel.DirectChannelRepository.claimReply`, the requests for the keys to expenses of
  * theirs, see `expense.OneTimeExpenseSync.requestMissingKeys`, and the requests for the key to

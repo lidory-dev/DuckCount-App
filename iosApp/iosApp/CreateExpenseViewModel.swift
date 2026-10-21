@@ -276,6 +276,8 @@ class CreateExpenseViewModel: ObservableObject, CreateExpenseFormState {
         case .sharesExceedTotalAmount: return .sharesExceedTotalAmount
         case .nonPositiveShare: return .nonPositiveShare
         case .sharesEmpty: return .sharesEmpty
+        case .tooManyBeneficiaries:
+            return .tooManyBeneficiaries(limit: Int(Shared.ExpenseLimits.shared.MAX_BENEFICIARIES))
         case .otherKnownError: return .otherKnownError
         default: return .otherKnownError
         }

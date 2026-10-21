@@ -1,5 +1,6 @@
 package app.lidory.duckcount.expenseList
 
+import app.lidory.duckcount.ExpenseLimits.MAX_BENEFICIARIES
 import app.lidory.duckcount.ExpenseLimits.MAX_DESCRIPTION_LENGTH
 import app.lidory.duckcount.ExpenseLimits.MAX_TITLE_LENGTH
 import app.lidory.duckcount.computeBeneficiaries
@@ -33,6 +34,8 @@ class CreateExpenseCallBacksImpl(
     override val maxTitleLength: Int = MAX_TITLE_LENGTH
 
     override val maxDescriptionLength: Int = MAX_DESCRIPTION_LENGTH
+
+    override val maxBeneficiaries: Int = MAX_BENEFICIARIES
 
     override suspend fun insert(expense: Expense) {
         expenseRepository.insert(expense.toDb())

@@ -159,7 +159,8 @@ class ExpenseRepository(
             revision = FIRST_REVISION,
         )
 
-        // Best effort: whatever does not go out now is left to the next sync.
+        // Best effort: whatever does not go out now is left to the next sync, booked for when
+        // the server's limit on messages reopens if that is what held it back.
         oneTimeExpenseSync.shareOwedKeys()
 
         return Result.Success(Unit)
@@ -256,7 +257,8 @@ class ExpenseRepository(
         oneTimeExpenseKeyRepository.store(record = updated)
         owedExpenseKeyDao.deleteNotIn(expenseUuid = expenseUuid, recipientUuids = beneficiaryUuids)
 
-        // Best effort: whatever does not go out now is left to the next sync.
+        // Best effort: whatever does not go out now is left to the next sync, booked for when
+        // the server's limit on messages reopens if that is what held it back.
         oneTimeExpenseSync.shareOwedKeys()
 
         return Result.Success(Unit)

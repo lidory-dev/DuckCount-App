@@ -24,6 +24,7 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 @Composable
 fun BeneficiaryListHeader(
     numberOfBeneficiaries: Int,
+    maxBeneficiaries: Int,
     enabled: Boolean,
     onModifyBeneficiaryList: () -> Unit,
     modifier: Modifier = Modifier,
@@ -34,7 +35,17 @@ fun BeneficiaryListHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = pluralStringResource(R.plurals.beneficiaries, numberOfBeneficiaries))
+        // Takes what the button leaves, wrapping rather than squeezing it, as a longer language or
+        // a larger font would.
+        Text(
+            modifier = Modifier.weight(1f),
+            text = pluralStringResource(
+                R.plurals.beneficiaries_out_of_limit,
+                numberOfBeneficiaries,
+                numberOfBeneficiaries,
+                maxBeneficiaries,
+            ),
+        )
 
         TextButton(
             enabled = enabled,

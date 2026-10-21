@@ -1,0 +1,126 @@
+package expense
+
+import channel.DirectChannelError
+import database.data.local.dao.OwedExpenseKeyDao
+import database.data.remote.DirectMessageKindDto
+import database.data.remote.MessageLimitScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import message.DirectMessageSender
+import message.DirectSendError
+import message.ResendScheduler
+import util.EmptyResult
+import util.Result
+
+/**
+ * Hands over the keys to the user's own one-time expenses that somebody named on them has not
+ * been handed yet, see [database.data.local.entity.OwedExpenseKeyEntity], once the expense, as
+ * this device shows it, names them. What `OneTimeExpenseSync.shareOwedKeys` runs.
+ *
+ * Each key goes only to somebody the creditor's own record names, see [keyFor], and not on the
+ * strength of the expense's rows alone: those are refilled from the server.
+ *
+ * [record] is [OneTimeExpenseKeyRepository.record], and [send] is [DirectMessageSender.send],
+ * or what a test stands in for either.
+ */
+class ExpenseKeyDelivery internal constructor(
+    private val owedExpenseKeyDao: OwedExpenseKeyDao,
+    private val record: suspend (expenseUuid: String) -> OneTimeExpenseKeyRecord?,
+    private val send: suspend (recipientUserUuid: String, payload: ByteArray) -> EmptyResult<DirectSendError>,
+    private val resendScheduler: ResendScheduler,
+) {
+    constructor(
+        owedExpenseKeyDao: OwedExpenseKeyDao,
+        keyRepository: OneTimeExpenseKeyRepository,
+        directMessageSender: DirectMessageSender,
+        resendScheduler: ResendScheduler,
+    ) : this(
+        owedExpenseKeyDao = owedExpenseKeyDao,
+        record = { expenseUuid -> keyRepository.record(expenseUuid = expenseUuid) },
+        send = { recipientUserUuid, payload ->
+            directMessageSender.send(
+                recipientUserUuid = recipientUserUuid,
+                payload = payload,
+                // So a locked phone can say an expense arrived rather than nothing.
+                kind = DirectMessageKindDto.ONE_TIME_EXPENSE,
+            )
+        },
+        resendScheduler = resendScheduler,
+    )
+
+    /**
+     * Serializes [handOver], which an expense being written and a sync can both reach at once.
+     * Each would read the same keys as still owed, and hand them over twice.
+     */
+    private val mutex = Mutex()
+
+    /**
+     * Hands every recipient the keys owed to them that [ownUserUuid], the creditor, holds the
+     * records of.
+     *
+     * One message per person, and one person at a time: the server counts messages against two
+     * allowances, and running past either holds the rest back until it reopens, when the pass
+     * runs again, see [ResendScheduler]. Past what the user may send one recipient, theirs wait
+     * and the pass goes on to the others, though what the user may send everybody can still
+     * refuse them; past that, the pass stops. Whatever waits for a recipient, for a limit or for
+     * anything else, is batched with what they are owed since at the next pass: one message,
+     * carrying no more keys than a recipient reads of one, see [ExpenseKeyShare.MAX_KEYS].
+     * Past that many, the rest wait for the pass after.
+     *
+     * Every recipient owed is attempted until the user's allowance of messages runs out, and
+     * the first failure is reported. A refusal for either allowance is not one: the resend it
+     * books is what comes of it.
+     */
+    suspend fun handOver(ownUserUuid: String): EmptyResult<OneTimeExpenseSyncError> = mutex.withLock {
+        val owed = owedExpenseKeyDao.getListed()
+
+        if (owed.isEmpty()) return@withLock Result.Success(Unit)
+
+        var failure: OneTimeExpenseSyncError? = null
+
+        for ((recipientUuid, rows) in owed.groupBy { it.recipientUuid }) {
+            val keys = rows.mapNotNull { row ->
+                record(row.expenseUuid)?.keyFor(requesterUuid = recipientUuid, ownUserUuid = ownUserUuid)
+            }.take(ExpenseKeyShare.MAX_KEYS)
+
+            if (keys.isEmpty()) continue
+
+            val expenseUuids = keys.map { it.expenseUuid }
+
+            when (val sent = send(recipientUuid, ExpenseKeyShare(keys = keys).serialize())) {
+                is Result.Success -> owedExpenseKeyDao.delete(
+                    recipientUuid = recipientUuid,
+                    expenseUuids = expenseUuids,
+                )
+
+                is Result.Error -> when (val error = sent.error) {
+                    // Nobody to hand the key to: their account is gone, or the server offers
+                    // no way to reach them that this build can use. If they come back, they
+                    // ask for the key, and the record answers them.
+                    DirectSendError.RecipientGone,
+                    DirectSendError.Channel(DirectChannelError.Unreachable),
+                        -> owedExpenseKeyDao.delete(
+                        recipientUuid = recipientUuid,
+                        expenseUuids = expenseUuids,
+                    )
+
+                    // Somebody this device no longer has pinned, or whose identity is in
+                    // doubt. No retry changes either, so the keys wait until that does.
+                    DirectSendError.Channel(DirectChannelError.NotPinned),
+                    DirectSendError.Channel(DirectChannelError.IdentityChanged),
+                        -> Unit
+
+                    is DirectSendError.RateLimited -> {
+                        resendScheduler.resendAfter(seconds = error.retryAfterSeconds)
+
+                        if (error.scope == MessageLimitScope.SENDER) break
+                    }
+
+                    else -> failure = failure ?: error.toSyncError()
+                }
+            }
+        }
+
+        failure?.let { Result.Error(it) } ?: Result.Success(Unit)
+    }
+}

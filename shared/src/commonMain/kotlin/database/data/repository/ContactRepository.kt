@@ -16,6 +16,7 @@ import database.data.local.entity.DirectChannelEntity
 import database.data.local.entity.IdentityConflictEntity
 import database.data.remote.DirectMessageApi
 import database.data.remote.SendDirectMessageBody
+import database.data.remote.SendDirectMessageError
 import database.domain.User
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
@@ -517,13 +518,17 @@ class ContactRepository(
         return when (send) {
             is Result.Success -> Result.Success(Unit)
 
-            is Result.Error -> when (send.error) {
-                // Their account is gone, and there is nobody left to tell.
-                NetworkError.NOT_FOUND -> Result.Success(Unit)
+            is Result.Error -> when (val error = send.error) {
+                // Whichever of the two limits it was, the user is the one waiting on the
+                // removal, so they are told, and try again.
+                is SendDirectMessageError.RateLimited -> Result.Error(RemoveContactError.RateLimited)
 
-                NetworkError.TOO_MANY_REQUESTS -> Result.Error(RemoveContactError.RateLimited)
+                is SendDirectMessageError.Network -> when (error.error) {
+                    // Their account is gone, and there is nobody left to tell.
+                    NetworkError.NOT_FOUND -> Result.Success(Unit)
 
-                else -> Result.Error(RemoveContactError.Network(send.error))
+                    else -> Result.Error(RemoveContactError.Network(error.error))
+                }
             }
         }
     }

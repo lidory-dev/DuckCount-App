@@ -50,6 +50,9 @@ class CreateExpenseViewModel(
     val maxTitleLength: Int = createExpenseCallBacks.maxTitleLength
     val maxDescriptionLength: Int = createExpenseCallBacks.maxDescriptionLength
 
+    /** The most beneficiaries the selection may hold: see [CreateExpenseCallBacks.maxBeneficiaries]. */
+    val maxBeneficiaries: Int = createExpenseCallBacks.maxBeneficiaries
+
     // True once the create/update write has actually completed. The screen must wait
     // for this before navigating: navigating away clears this ViewModel and cancels
     // viewModelScope, which would otherwise abort the in-flight write. A state rather
@@ -256,10 +259,15 @@ class CreateExpenseViewModel(
 
     fun toggleSelectedUser(user: User) {
         _selectedUuids.update { selected ->
-            if (user.uuid in selected) selected - user.uuid else selected + user.uuid
+            toggledSelection(selected = selected, uuid = user.uuid, max = maxBeneficiaries)
         }
     }
 
+    /**
+     * Selects every member of the group, or nobody once they all are. Offered for a group only,
+     * see [isOneTimeExpense], whose members are to number no more than [maxBeneficiaries], so it
+     * does not count them against it.
+     */
     fun toggleSelectAllUsers() {
         val allUuids = usersState.value.users.mapTo(mutableSetOf()) { it.uuid }
         _selectedUuids.update { selected ->
@@ -586,4 +594,18 @@ fun toggleableState(
     totalUsers > 0 && selectedUuids.size == totalUsers -> ToggleableState.On
     selectedUuids.isNotEmpty() -> ToggleableState.Indeterminate
     else -> ToggleableState.Off
+}
+
+/**
+ * [selected] with [uuid] taken out, or added when that keeps it within [max]: past the limit,
+ * selecting one more does nothing, and the screen shows that card disabled.
+ */
+fun toggledSelection(
+    selected: Set<String>,
+    uuid: String,
+    max: Int,
+): Set<String> = when {
+    uuid in selected -> selected - uuid
+    selected.size < max -> selected + uuid
+    else -> selected
 }

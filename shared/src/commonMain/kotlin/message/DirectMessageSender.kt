@@ -4,7 +4,9 @@ import channel.DirectChannelError
 import channel.DirectChannelRepository
 import database.data.remote.DirectMessageApi
 import database.data.remote.DirectMessageKindDto
+import database.data.remote.MessageLimitScope
 import database.data.remote.SendDirectMessageBody
+import database.data.remote.SendDirectMessageError
 import mls.MlsIdentityRepository
 import mls.encryptApplicationMessage
 import mls.isRetryable
@@ -124,10 +126,16 @@ class DirectMessageSender(
             is Result.Success -> Result.Success(Unit)
 
             is Result.Error -> Result.Error(
-                when (send.error) {
-                    NetworkError.NOT_FOUND -> DirectSendError.RecipientGone
-                    NetworkError.TOO_MANY_REQUESTS -> DirectSendError.RateLimited
-                    else -> DirectSendError.Network(send.error)
+                when (val error = send.error) {
+                    is SendDirectMessageError.RateLimited -> DirectSendError.RateLimited(
+                        retryAfterSeconds = error.retryAfterSeconds,
+                        scope = error.scope,
+                    )
+
+                    is SendDirectMessageError.Network -> when (error.error) {
+                        NetworkError.NOT_FOUND -> DirectSendError.RecipientGone
+                        else -> DirectSendError.Network(error.error)
+                    }
                 },
             )
         }
@@ -154,13 +162,17 @@ sealed interface DirectSendError : Error {
     data object RecipientGone : DirectSendError
 
     /**
-     * The sender has spent their allowance of messages.
+     * Refused for one of the server's two limits on sending, the one [scope] names, which
+     * lets a message through again in [retryAfterSeconds].
      *
      * A single user action can be many messages, one per person an expense names, so this
-     * is a state a caller has to expect rather than an abuse of the API. Sending more only
-     * pushes the count further past the limit; the rest wait.
+     * is a state a caller has to expect rather than an abuse of the API. Past what the user
+     * may send this recipient, the others can still be tried, though what they may send
+     * everybody can refuse them in turn; past that, sending more only pushes the count further
+     * past the limit, and the rest wait. Either way what a pass leaves waiting is sent again
+     * once the limit reopens, see [ResendScheduler].
      */
-    data object RateLimited : DirectSendError
+    data class RateLimited(val retryAfterSeconds: Long, val scope: MessageLimitScope) : DirectSendError
 
     /** The server could not be reached, or refused the call. */
     data class Network(val error: NetworkError) : DirectSendError
@@ -175,12 +187,26 @@ sealed interface DirectSendError : Error {
  * a server out of reach, which `networking.Client` reports the same whether the connection was
  * refused before anything was written or dropped after.
  *
- * What tells a request whose budget a peer was charged for, see [util.spendMessageBudget], from
- * one whose budget goes back.
+ * One of the two failures a request gives its peer's budget back for, see [givesBudgetBack].
  */
 internal fun DirectSendError.neverReachedServer(): Boolean =
     when (this) {
         is DirectSendError.Channel, DirectSendError.Storage, DirectSendError.GroupUnusable -> true
         is DirectSendError.Network -> error == NetworkError.NO_INTERNET
-        DirectSendError.RecipientGone, DirectSendError.RateLimited -> false
+        DirectSendError.RecipientGone, is DirectSendError.RateLimited -> false
     }
+
+/**
+ * Whether a request sent out of a peer's budget, see [util.spendMessageBudget], gives it back for
+ * failing this way: it certainly never reached the server, see [neverReachedServer], or the
+ * server refused it for a limit, see [DirectSendError.RateLimited].
+ *
+ * A refused request is booked to go out again once the limit reopens, see [ResendScheduler], and
+ * the budget it kept would hold back that very resend, two at once being all it allows. Nor does
+ * a refusal spend what the budget keeps, the user's allowance for everybody else. Refused for
+ * this peer, it is refused before what the user may send everybody is counted; refused for
+ * everybody, the user is past that already, and what it costs on top is one of what they may send
+ * this peer, which holds back no message to anybody else.
+ */
+internal fun DirectSendError.givesBudgetBack(): Boolean =
+    neverReachedServer() || this is DirectSendError.RateLimited

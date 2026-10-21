@@ -8,12 +8,17 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.await
 import androidx.work.workDataOf
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.TimeUnit
 
 /**
- * The work a push signal starts.
+ * The work a push signal starts, and the sync the server's limit on messages books again.
  *
  * Every callback of [DuckCountPushService] ends here rather than doing the work
  * itself: the process the distributor woke may be gone moments later, and WorkManager
@@ -22,7 +27,12 @@ import java.util.concurrent.TimeUnit
 object PushWork {
     private const val SYNC_WORK = "push-sync"
 
+    private const val RESEND_WORK = "push-resend"
+
     private const val REGISTRATION_WORK = "push-registration"
+
+    /** Keeps two bookings from each finding none and replacing the other's, see [enqueueResend]. */
+    private val resendBooking = Mutex()
 
     internal const val ENDPOINT = "endpoint"
 
@@ -76,6 +86,48 @@ object PushWork {
             ExistingWorkPolicy.REPLACE,
             request,
         )
+    }
+
+    /**
+     * Syncs again in [seconds], for what the server's limit on messages left unsent, unless a
+     * resend is booked sooner already, see [message.ResendScheduler].
+     *
+     * The booking is a [ResendWorker], under a name of its own, which starts the sync once due
+     * rather than being it, see [enqueueSyncAfterResendWait]. A refusal mostly comes from inside
+     * a sync, and a sync booking itself under the one name either replaces itself, stopping the
+     * sync part-way, or is kept out by itself, and nothing is booked at all.
+     *
+     * One booking at a time, so that refusals coming one after the other move it rather than
+     * pile up, and to the soonest any of them asked for: an earlier one goes for the later ones
+     * too, since whatever it finds still refused books it again.
+     */
+    suspend fun enqueueResend(context: Context, seconds: Long) = resendBooking.withLock {
+        val workManager = WorkManager.getInstance(context)
+
+        val dueAt = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(seconds)
+
+        val booked = workManager.getWorkInfosForUniqueWorkFlow(RESEND_WORK).first()
+
+        if (booked.any { it.state == WorkInfo.State.ENQUEUED && it.nextScheduleTimeMillis <= dueAt }) {
+            return@withLock
+        }
+
+        val request = OneTimeWorkRequestBuilder<ResendWorker>()
+            .setInitialDelay(seconds, TimeUnit.SECONDS)
+            .build()
+
+        // Waited for, so that the next booking finds this one.
+        workManager.enqueueUniqueWork(RESEND_WORK, ExistingWorkPolicy.REPLACE, request).await()
+    }
+
+    /**
+     * Syncs now, for a resend that came due, see [enqueueResend]: once whatever sync is running
+     * or waiting has finished, rather than not at all. One running may already be past the
+     * passes the resend is for, and the request [enqueueSync] keeps in its place would go
+     * without them.
+     */
+    fun enqueueSyncAfterResendWait(context: Context) {
+        enqueueSync(context = context, existingWork = ExistingWorkPolicy.APPEND_OR_REPLACE)
     }
 
     private fun enqueueSync(context: Context, existingWork: ExistingWorkPolicy) {

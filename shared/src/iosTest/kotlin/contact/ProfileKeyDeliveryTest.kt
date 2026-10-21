@@ -4,9 +4,11 @@ import channel.DirectChannelError
 import database.data.local.dao.ContactDao
 import database.data.local.entity.ContactEntity
 import database.data.local.entity.VerifiableContact
+import database.data.remote.MessageLimitScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import message.DirectSendError
+import message.ResendsBooked
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
 import util.EmptyResult
@@ -37,6 +39,8 @@ class ProfileKeyDeliveryTest {
     private val currentHash = profileEncryptionKeyPartialHash(currentKey)
 
     private val vault = InMemoryProfileKeyVault(profileEncryptionKey = currentKey)
+
+    private val resends = ResendsBooked()
 
     /** Every contact holding the current key, which is how nearly every sync finds them. */
     @Test
@@ -140,20 +144,36 @@ class ProfileKeyDeliveryTest {
         assertEquals(currentHash, contacts.handedTo(CAROL))
     }
 
-    /** Sending more only pushes the count further past the limit: the rest wait. */
+    /** Sending more only pushes the count further past the limit: the rest wait for it to reopen. */
     @Test
-    fun `running out of the allowance of messages stops the pass`() = runBlocking<Unit> {
+    fun `past the user's own limit the pass stops and is booked again for when it reopens`() = runBlocking<Unit> {
         val contacts = ContactsOf(contact(ALICE, handed = olderHash), contact(BOB, handed = olderHash))
-        val sends = Sends(ALICE to Result.Error(DirectSendError.RateLimited))
-
-        val handOut = delivery(contacts, sends).handOut()
-
-        assertEquals(
-            ContactSyncError.Network(NetworkError.TOO_MANY_REQUESTS),
-            assertIs<Result.Error<ContactSyncError>>(handOut).error,
+        val sends = Sends(
+            ALICE to Result.Error(DirectSendError.RateLimited(retryAfterSeconds = 45, scope = MessageLimitScope.SENDER)),
         )
+
+        assertIs<Result.Success<Unit>>(delivery(contacts, sends).handOut())
+
         assertEquals(listOf(ALICE), sends.recipients)
+        assertEquals(olderHash, contacts.handedTo(ALICE))
         assertEquals(olderHash, contacts.handedTo(BOB))
+        assertEquals(listOf(45L), resends.seconds)
+    }
+
+    /** What the user may send Alice is spent, which costs nothing of what they may send Bob. */
+    @Test
+    fun `a contact past their own limit waits while the others are handed the key`() = runBlocking<Unit> {
+        val contacts = ContactsOf(contact(ALICE, handed = olderHash), contact(BOB, handed = olderHash))
+        val sends = Sends(
+            ALICE to Result.Error(DirectSendError.RateLimited(retryAfterSeconds = 20, scope = MessageLimitScope.RECIPIENT)),
+        )
+
+        assertIs<Result.Success<Unit>>(delivery(contacts, sends).handOut())
+
+        assertEquals(listOf(ALICE, BOB), sends.recipients)
+        assertEquals(olderHash, contacts.handedTo(ALICE))
+        assertEquals(currentHash, contacts.handedTo(BOB))
+        assertEquals(listOf(20L), resends.seconds)
     }
 
     @Test
@@ -172,7 +192,7 @@ class ProfileKeyDeliveryTest {
     }
 
     private fun delivery(contacts: ContactsOf, sends: Sends) =
-        ProfileKeyDelivery(contactDao = contacts, profileKeyVault = vault, send = sends::send)
+        ProfileKeyDelivery(contactDao = contacts, profileKeyVault = vault, send = sends::send, resendScheduler = resends)
 
     private fun contact(userUuid: String, handed: String?) =
         ContactEntity(

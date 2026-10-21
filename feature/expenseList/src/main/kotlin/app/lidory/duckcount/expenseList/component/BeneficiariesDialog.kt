@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedButton
@@ -54,7 +55,13 @@ fun BeneficiariesDialog(
     toggleSelectAllUsers: () -> Unit,
     toggleSelectedUser: (User) -> Unit,
     toggleableListState: ToggleableState,
+    /**
+     * Whether to offer "Select all", which is for a group's members: a one-time expense shows how
+     * many are selected against the limit in its place.
+     */
+    isSelectAllShown: Boolean,
     selectedUuids: Set<String>,
+    maxBeneficiaries: Int,
 ) {
 
     val listState = rememberLazyListState()
@@ -115,6 +122,33 @@ fun BeneficiariesDialog(
                         focusManager = focusManager,
                     )
 
+                    // Above the list rather than in it, so that it stays in view while scrolling:
+                    // a group's "Select all", or, for a one-time expense, which has none, the count
+                    // against the limit in its place, shown while searching too, since the cards
+                    // not selected are disabled once it is reached.
+                    if (isSelectAllShown) {
+                        AnimatedVisibility(
+                            modifier = Modifier.align(Alignment.End),
+                            visible = searchQuery.isBlank() && usersList.isNotEmpty(),
+                        ) {
+                            SelectAllPill(
+                                toggleSelectAllUsers = toggleSelectAllUsers,
+                                toggleableListState = toggleableListState,
+                            )
+                        }
+                    } else {
+                        Text(
+                            modifier = Modifier.align(Alignment.End),
+                            text = pluralStringResource(
+                                R.plurals.selected_beneficiaries_out_of_limit,
+                                selectedUuids.size,
+                                selectedUuids.size,
+                                maxBeneficiaries,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
                     if (usersList.isEmpty()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -129,28 +163,12 @@ fun BeneficiariesDialog(
                                 .fillMaxSize(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            item {
-                                AnimatedVisibility(
-                                    visible = searchQuery.isBlank(),
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.End,
-                                    ) {
-                                        SelectAllPill(
-                                            toggleSelectAllUsers = toggleSelectAllUsers,
-                                            toggleableListState = toggleableListState,
-                                        )
-                                    }
-                                }
-                            }
-
                             items(
                                 items = usersList,
                                 key = { user -> user.uuid },
                             ) { user ->
+                                val isChecked = selectedUuids.contains(user.uuid)
+
                                 UserSelectableCard(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -161,7 +179,10 @@ fun BeneficiariesDialog(
                                         .padding(vertical = Padding.medium),
                                     toggleSelectedUser = { toggleSelectedUser(user) },
                                     fullName = user.fullName,
-                                    isChecked = selectedUuids.contains(user.uuid),
+                                    isChecked = isChecked,
+                                    // A selected card stays enabled so that it can still be
+                                    // unselected once the selection is full.
+                                    enabled = isChecked || selectedUuids.size < maxBeneficiaries,
                                 )
                             }
 
