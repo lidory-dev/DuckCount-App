@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
@@ -64,6 +65,7 @@ fun CreateExpenseScreen(
     val selectionToggleState by viewModel.selectionToggleState.collectAsStateWithLifecycle()
     val beneficiaries by viewModel.displayedBeneficiaries.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
+    val isSaved by viewModel.isSaved.collectAsStateWithLifecycle()
     val hasChanges by viewModel.hasChanges.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -72,9 +74,13 @@ fun CreateExpenseScreen(
     // Do not allow navigating back while saving the expense.
     BackHandler(enabled = isSaving) {}
 
-    // Navigate back only once write has completed (see CreateExpenseViewModel.navigateBack).
-    LaunchedEffect(Unit) {
-        viewModel.navigateBack.collect { onBack() }
+    // Navigate back only once write has completed (see CreateExpenseViewModel.isSaved), and
+    // on resuming: onBack does nothing until the screen is resumed, so a write that completes
+    // while the app is in the background closes the screen once the user is back.
+    LifecycleResumeEffect(isSaved) {
+        if (isSaved) onBack()
+
+        onPauseOrDispose {}
     }
 
     // Surface write failures with a message that matches the actual cause.
@@ -279,6 +285,7 @@ fun CreateExpenseScreen(
                     .padding(bottom = Padding.extraLarge)
                     .align(Alignment.BottomCenter),
                 enabled = !isSaving
+                        && !isSaved
                         && (viewModel.isNewExpense() || hasChanges)
                         && expenseState.error == null
                         && expenseState.amount.isNotBlank()
@@ -291,7 +298,7 @@ fun CreateExpenseScreen(
                         viewModel.createExpense()
                     else
                         viewModel.updateExpense()
-                    // Navigation happens via viewModel.navigateBack once write completes,
+                    // Navigation happens via viewModel.isSaved once write completes,
                     // otherwise popping this screen cancels the in-flight network write.
                 },
                 isLoading = isSaving,

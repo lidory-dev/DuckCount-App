@@ -50,11 +50,13 @@ class CreateExpenseViewModel(
     val maxTitleLength: Int = createExpenseCallBacks.maxTitleLength
     val maxDescriptionLength: Int = createExpenseCallBacks.maxDescriptionLength
 
-    // Emitted once the create/update write has actually completed. The screen must
-    // wait for this before navigating: navigating away clears this ViewModel and
-    // cancels viewModelScope, which would otherwise abort the in-flight write.
-    private val _navigateBack = Channel<Unit>(Channel.BUFFERED)
-    val navigateBack: Flow<Unit> = _navigateBack.receiveAsFlow()
+    // True once the create/update write has actually completed. The screen must wait
+    // for this before navigating: navigating away clears this ViewModel and cancels
+    // viewModelScope, which would otherwise abort the in-flight write. A state rather
+    // than an event: the write can complete while the app is in the background, where
+    // the screen cannot navigate, and the screen then closes once the user is back.
+    private val _isSaved = MutableStateFlow(false)
+    val isSaved: StateFlow<Boolean> = _isSaved.asStateFlow()
 
     // Emitted with the reason when the write failed, so the screen can surface a
     // message that matches the actual cause instead of silently dropping the expense.
@@ -278,7 +280,9 @@ class CreateExpenseViewModel(
 
     @OptIn(ExperimentalUuidApi::class)
     fun createExpense() = viewModelScope.launch {
-        if (_isSaving.value) return@launch
+        // Not once saved either: each attempt is an expense of its own, so a second one would
+        // add the same expense twice.
+        if (_isSaving.value || _isSaved.value) return@launch
 
         _isSaving.value = true
 
@@ -304,14 +308,16 @@ class CreateExpenseViewModel(
                 ),
             )
 
-            if (error == null) _navigateBack.send(Unit) else _showError.send(error)
+            if (error == null) _isSaved.value = true else _showError.send(error)
         } finally {
             _isSaving.value = false
         }
     }
 
     fun updateExpense() = viewModelScope.launch {
-        if (_isSaving.value) return@launch
+        // Not once saved either: saving it again would spend another of the few edits the
+        // server allows a one-time expense, on a version that says nothing new.
+        if (_isSaving.value || _isSaved.value) return@launch
 
         // Editing an existing expense always has a uuid; guard the impossible null case.
         val expenseUuid = expenseUuid
@@ -345,14 +351,7 @@ class CreateExpenseViewModel(
                 ),
             )
 
-            error?.let {
-                _showError.send(error)
-            } ?: run {
-                // What was saved is what an edit now has to differ from: should the screen still
-                // be open when the user comes back, saving it again would change nothing.
-                loadedState.value = saved
-                _navigateBack.send(Unit)
-            }
+            if (error == null) _isSaved.value = true else _showError.send(error)
         } finally {
             _isSaving.value = false
         }
