@@ -23,7 +23,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -34,6 +33,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
@@ -51,9 +51,15 @@ fun ReserveDiscoveryUsernameScreen(
 ) {
     val viewModel = koinViewModel<ReserveDiscoveryUsernameViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val isReserved by viewModel.isReserved.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) {
-        viewModel.navigateBack.collect { onBack() }
+    // Close once the username is reserved (see ReserveDiscoveryUsernameViewModel.isReserved),
+    // and on resuming: onBack does nothing until the screen is resumed, so a reservation that
+    // completes while the app is in the background closes the screen once the user is back.
+    LifecycleResumeEffect(isReserved) {
+        if (isReserved) onBack()
+
+        onPauseOrDispose {}
     }
 
     when (val state = state) {
@@ -70,6 +76,7 @@ fun ReserveDiscoveryUsernameScreen(
             ReserveDiscoveryUsernameContent(
                 modifier = modifier,
                 state = state,
+                isReserved = isReserved,
                 maxUsernameLength = viewModel.maxUsernameLength,
                 onBack = onBack,
                 onUsernameChanged = viewModel::onUsernameChanged,
@@ -84,6 +91,7 @@ fun ReserveDiscoveryUsernameScreen(
 private fun ReserveDiscoveryUsernameContent(
     modifier: Modifier,
     state: DiscoveryUsernameScreenState.Content,
+    isReserved: Boolean,
     maxUsernameLength: Int,
     onBack: () -> Unit,
     onUsernameChanged: (String) -> Unit,
@@ -197,7 +205,7 @@ private fun ReserveDiscoveryUsernameContent(
                     focusManager.clearFocus()
                     onReserveClicked()
                 },
-                enabled = state.canReserve,
+                enabled = state.canReserve && !isReserved,
                 isLoading = state.isReserving,
             ) {
                 Text(text = stringResource(R.string.reserve))

@@ -141,7 +141,7 @@ fun NavigationRoot(
                                 },
                                 navigateToUsernameReservation = {
                                     backStack.add(
-                                        SettingsFlowKey(startOnNavKey = ReserveDiscoveryUsernameScreenKey),
+                                        SettingsFlowKey(startOnNavKey = ReserveDiscoveryUsernameScreenKey()),
                                     )
                                 },
                             )

@@ -66,7 +66,7 @@ fun NavigationRoot(
                 SettingsScreen(
                     onBack = dropUnlessResumed { onBack() },
                     navigateToReserveDiscoveryUsernameScreen = {
-                        backStack.add(ReserveDiscoveryUsernameScreenKey)
+                        backStack.add(ReserveDiscoveryUsernameScreenKey())
                     },
                     navigateToUserProfileScreen = {
                         backStack.add(UserProfileScreenKey)

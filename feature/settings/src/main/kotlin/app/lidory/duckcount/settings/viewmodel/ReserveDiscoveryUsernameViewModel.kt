@@ -5,13 +5,11 @@ import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.settings.SettingsCallBacks
 import app.lidory.duckcount.settings.model.ReserveDiscoveryUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -26,8 +24,11 @@ class ReserveDiscoveryUsernameViewModel(
 
     val maxUsernameLength = settingsCallBacks.maxUsernameLength
 
-    private val _navigateBack = Channel<Unit>(Channel.BUFFERED)
-    val navigateBack: Flow<Unit> = _navigateBack.receiveAsFlow()
+    // True once the username is reserved, the only thing this screen is for. A state rather
+    // than an event: the reservation can complete while the app is in the background, where
+    // the screen cannot navigate, and the screen then closes once the user is back.
+    private val _isReserved = MutableStateFlow(false)
+    val isReserved: StateFlow<Boolean> = _isReserved.asStateFlow()
 
     /** What the user typed, or null while the field still holds the reserved username. */
     private val draftUsername = MutableStateFlow<String?>(null)
@@ -84,6 +85,10 @@ class ReserveDiscoveryUsernameViewModel(
     }
 
     fun onReserveClicked() {
+        // Not once reserved: the screen is closing, and reserving again would only repeat the
+        // request.
+        if (_isReserved.value) return
+
         val username = (state.value as? DiscoveryUsernameScreenState.Content)?.username ?: return
 
         if (settingsCallBacks.validateUsername(username = username) != null) return
@@ -94,14 +99,12 @@ class ReserveDiscoveryUsernameViewModel(
 
             val reserveError = settingsCallBacks.reserveDiscoveryUsername(username = username)
 
-            isReserving.value = false
-            error.value = reserveError
-
             // The reservation is the only thing this screen is for, so a successful one
             // hands the user back to the settings list.
-            if (reserveError == null) {
-                _navigateBack.send(Unit)
-            }
+            if (reserveError == null) _isReserved.value = true
+
+            isReserving.value = false
+            error.value = reserveError
         }
     }
 }

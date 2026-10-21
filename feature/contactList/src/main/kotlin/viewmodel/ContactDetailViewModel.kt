@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
@@ -24,8 +25,11 @@ class ContactDetailViewModel(
     val contactCallBacks: ContactCallBacks,
 ) : ViewModel() {
 
-    private val _navigateBack = Channel<Unit>(Channel.BUFFERED)
-    val navigateBack: Flow<Unit> = _navigateBack.receiveAsFlow()
+    // True once the contact is removed, which leaves the screen nothing to show. A state rather
+    // than an event: the removal can complete while the app is in the background, where the
+    // screen cannot navigate, and the screen then closes once the user is back.
+    private val _isRemoved = MutableStateFlow(false)
+    val isRemoved: StateFlow<Boolean> = _isRemoved.asStateFlow()
 
     private val _errors = Channel<RemoveContactError>(Channel.BUFFERED)
     val errors: Flow<RemoveContactError> = _errors.receiveAsFlow()
@@ -55,18 +59,19 @@ class ContactDetailViewModel(
 
     fun removeContact() {
         viewModelScope.launch {
+            // Not once removed: they are no longer a contact, so a second removal could only fail.
+            if (_isRemoved.value) return@launch
+
             _state.value.user?.let { user ->
                 _state.update { it.copy(isRemoving = true) }
 
-                when (val error = contactCallBacks.removeContact(user.uuid)) {
-                    // There is no detail left to show.
-                    null -> _navigateBack.send(Unit)
+                val error = contactCallBacks.removeContact(user.uuid)
 
-                    else -> {
-                        _state.update { it.copy(isRemoving = false) }
-                        _errors.send(error)
-                    }
-                }
+                // There is no detail left to show.
+                if (error == null) _isRemoved.value = true
+
+                _state.update { it.copy(isRemoving = false) }
+                error?.let { _errors.send(it) }
             }
         }
     }

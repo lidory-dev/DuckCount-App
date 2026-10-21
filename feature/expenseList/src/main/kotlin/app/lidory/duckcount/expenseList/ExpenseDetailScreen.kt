@@ -42,6 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
@@ -70,6 +71,7 @@ fun ExpenseDetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val isSettling by viewModel.isSettling.collectAsStateWithLifecycle()
+    val isClosed by viewModel.isClosed.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var pendingError by remember { mutableStateOf<ExpenseWriteError?>(null) }
@@ -77,8 +79,13 @@ fun ExpenseDetailScreen(
     // Leaving would cancel the write that marks the expense, possibly after the server took it.
     BackHandler(enabled = isSettling) {}
 
-    LaunchedEffect(Unit) {
-        viewModel.navigateBack.collect { onBack() }
+    // Close once the expense is deleted or restored (see ExpenseDetailViewModel.isClosed), and
+    // on resuming: onBack does nothing until the screen is resumed, so a write that completes
+    // while the app is in the background closes the screen once the user is back.
+    LifecycleResumeEffect(isClosed) {
+        if (isClosed) onBack()
+
+        onPauseOrDispose {}
     }
 
     // Surface delete failures with a message that matches the actual cause.
@@ -127,8 +134,8 @@ fun ExpenseDetailScreen(
                     content?.let {
                         ExpenseDetailActionButtons(
                             // One write at a time: deleting the expense while its mark is written
-                            // would race the mark to the server.
-                            enabled = !isSettling,
+                            // would race the mark to the server. None once the screen is closing.
+                            enabled = !isSettling && !isClosed,
                             isDeleted = content.expenseWithBeneficiaries.isDeleted,
                             isSettlement = content.expenseWithBeneficiaries.isSettlement,
                             isOneTimeExpense = content.expenseWithBeneficiaries.groupUuid == null,

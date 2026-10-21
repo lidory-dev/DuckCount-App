@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
 import app.lidory.contactList.R
@@ -55,12 +56,15 @@ fun ContactDetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val verification by viewModel.verification.collectAsStateWithLifecycle()
+    val isRemoved by viewModel.isRemoved.collectAsStateWithLifecycle()
 
-    // Subscribe once (keyed on Unit, so it survives recomposition) to the ViewModel's
-    // one-shot navigateBack events and forward them to navigation. The ViewModel emits
-    // this after deleting a contact, since there is no detail left to show.
-    LaunchedEffect(Unit) {
-        viewModel.navigateBack.collect { onBack() }
+    // Close once the contact is removed (see ContactDetailViewModel.isRemoved), and on resuming:
+    // onBack does nothing until the screen is resumed, so a removal that completes while the app
+    // is in the background closes the screen once the user is back.
+    LifecycleResumeEffect(isRemoved) {
+        if (isRemoved) onBack()
+
+        onPauseOrDispose {}
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -110,7 +114,7 @@ fun ContactDetailScreen(
                 actions = {
                     IconButton(
                         onClick = { isConfirmDeletionDialogVisible.value = true },
-                        enabled = !state.isRemoving,
+                        enabled = !state.isRemoving && !isRemoved,
                     ) {
                         if (state.isRemoving) {
                             CircularProgressIndicator(modifier = Modifier.size(24.dp))

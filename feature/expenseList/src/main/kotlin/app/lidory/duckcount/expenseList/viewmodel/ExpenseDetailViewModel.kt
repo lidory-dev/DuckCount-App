@@ -28,8 +28,11 @@ class ExpenseDetailViewModel(
     private val expenseDetailCallBacks: ExpenseDetailCallBacks,
 ) : ViewModel() {
 
-    private val _navigateBack = Channel<Unit>(Channel.BUFFERED)
-    val navigateBack: Flow<Unit> = _navigateBack.receiveAsFlow()
+    // True once the expense was deleted or restored, which leaves the screen nothing to show.
+    // A state rather than an event: the write can complete while the app is in the background,
+    // where the screen cannot navigate, and the screen then closes once the user is back.
+    private val _isClosed = MutableStateFlow(false)
+    val isClosed: StateFlow<Boolean> = _isClosed.asStateFlow()
 
     // Emitted when delete failed (offline / server error) so the screen can surface it.
     private val _showError = Channel<ExpenseWriteError>(Channel.BUFFERED)
@@ -126,8 +129,11 @@ class ExpenseDetailViewModel(
 
     fun deleteExpense() {
         viewModelScope.launch {
+            // Not once closed: the expense is already deleted, or was just restored.
+            if (_isClosed.value) return@launch
+
             val error = expenseDetailCallBacks.deleteExpense(expenseUuid)
-            if (error == null) _navigateBack.send(Unit) else _showError.send(error)
+            if (error == null) _isClosed.value = true else _showError.send(error)
         }
     }
 
@@ -151,8 +157,12 @@ class ExpenseDetailViewModel(
 
     fun restoreExpense() {
         viewModelScope.launch {
+            // Not once closed: a deleted expense shows the restore button, and restoring it
+            // would undo the deletion the screen is closing on.
+            if (_isClosed.value) return@launch
+
             expenseDetailCallBacks.restoreExpense(expenseUuid)
-            _navigateBack.send(Unit)
+            _isClosed.value = true
         }
     }
 }
