@@ -286,8 +286,7 @@ private class ContactsOf(vararg contacts: ContactEntity) : ContactDao {
         verifiedSafetyNumber: String?,
     ) = error("Not used here")
 
-    override suspend fun markRemoved(userUuid: String, rotatesProfileKey: Boolean, isAccountDeleted: Boolean) =
-        error("Not used here")
+    override suspend fun markRemoved(userUuid: String, rotatesProfileKey: Boolean) = error("Not used here")
     override suspend fun clearProfileKeyRotation(userUuids: List<String>) = error("Not used here")
 
     override suspend fun replaceProfileEncryptionKey(userUuid: String, profileEncryptionKey: ByteArray) =

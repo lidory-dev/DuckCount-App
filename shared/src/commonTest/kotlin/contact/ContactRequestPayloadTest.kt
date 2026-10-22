@@ -213,10 +213,6 @@ class ContactRequestPayloadTest {
         assertFalse(AccountDeletionNotice.matches(plaintext = ContactCard(profileEncryptionKey).serialize()))
     }
 
-    /**
-     * Taken for a removal, it would drop the contact along with the name their vault is to keep;
-     * a removal taken for it would keep the name of somebody whose account is still there.
-     */
     @Test
     fun `a notice of account deletion is taken for nothing else and a removal is not taken for it`() {
         val notice = AccountDeletionNotice.serialize()

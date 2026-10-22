@@ -22,20 +22,15 @@ class RemovalNoticeTest {
 
         assertEquals(Result.Success(RemovalNotice.DONE), notice)
         assertTrue(RemovalNotice.DONE.rotatesProfileKey)
-        assertFalse(RemovalNotice.DONE.isAccountDeleted)
     }
 
-    /**
-     * The `410`: forgotten as if their own notice of the deletion had come in, owing no rotation,
-     * and leaving their name in the vault.
-     */
+    /** The `410`: forgotten as if their own notice of the deletion had come in, owing no rotation. */
     @Test
-    fun `a contact who deleted their account is removed without a rotation and leaves their name`() {
+    fun `a contact who deleted their account is removed without a rotation`() {
         val notice = Result.Error(SendDirectMessageError.RecipientDeleted).toRemovalNotice()
 
         assertEquals(Result.Success(RemovalNotice.RECIPIENT_DELETED), notice)
         assertFalse(RemovalNotice.RECIPIENT_DELETED.rotatesProfileKey)
-        assertTrue(RemovalNotice.RECIPIENT_DELETED.isAccountDeleted)
     }
 
     /**

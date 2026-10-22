@@ -15,7 +15,7 @@ private const val ERIN = "99999999-9999-9999-9999-999999999999"
 /**
  * What a backup writes while the user's profile key has yet to rotate: Alice was just added,
  * the user removed Bob, Carol removed the user, Dave the user removed too, and Erin deleted her
- * account.
+ * account. Each removal written leaves the vault holding their name alone, as a former contact.
  */
 class PendingBackUpTest {
 
@@ -25,22 +25,24 @@ class PendingBackUpTest {
             contact(userUuid = BOB, isRemoved = true, rotatesProfileKey = true),
             contact(userUuid = CAROL, isRemoved = true, rotatesProfileKey = false),
             contact(userUuid = DAVE, isRemoved = true, rotatesProfileKey = true),
-            contact(userUuid = ERIN, isRemoved = true, isAccountDeleted = true),
+            contact(userUuid = ERIN, isRemoved = true, rotatesProfileKey = false),
         ),
     )
 
     /**
-     * Written first, the removal would leave Bob holding the current key for good once a
-     * log-out took the tombstone along, with nothing left saying the key has to change.
+     * Written first, Bob's name would take his place as a contact in the vault, and leave him
+     * holding the current key for good once a log-out took the tombstone along, with nothing left
+     * saying the key has to change.
      */
     @Test
     fun `a removal the user made waits for the key to rotate`() {
-        assertEquals(listOf(CAROL), pending.removals(isProfileKeyRotated = false).map { it.userUuid })
+        assertEquals(listOf(CAROL, ERIN), pending.removals(isProfileKeyRotated = false).map { it.userUuid })
     }
 
+    /** Whoever ended it, and whether or not the account went with it. */
     @Test
-    fun `every removal goes out once the key has rotated`() {
-        assertEquals(listOf(BOB, CAROL, DAVE), pending.removals(isProfileKeyRotated = true).map { it.userUuid })
+    fun `every removal goes out as a former contact once the key has rotated`() {
+        assertEquals(listOf(BOB, CAROL, DAVE, ERIN), pending.removals(isProfileKeyRotated = true).map { it.userUuid })
     }
 
     /**
@@ -58,26 +60,16 @@ class PendingBackUpTest {
     }
 
     /**
-     * Her entry is turned into one holding her name, when this device holds one, rather than
-     * written as a removal, and owes no rotation: the key only ever rotates on the user's own
-     * action.
+     * Carol's removal, or Erin's account deletion, is all there is to write. Left for some other
+     * change to carry, it would be lost to a log-out in between, and her name with it.
      */
     @Test
-    fun `a contact who deleted their account goes out whatever comes of the rotation and not as a removal`() {
-        assertEquals(listOf(ERIN), pending.deletedAccounts.map { it.userUuid })
-        assertFalse(ERIN in pending.removals(isProfileKeyRotated = true).map { it.userUuid })
-        assertFalse(ERIN in pending.rotating.map { it.userUuid })
-    }
+    fun `a removal that waits for nothing is written on its own`() {
+        val carolAlone = PendingBackUp(contacts = listOf(contact(userUuid = CAROL, isRemoved = true)))
+        val erinAlone = PendingBackUp(contacts = listOf(contact(userUuid = ERIN, isRemoved = true)))
 
-    /**
-     * Erin's account deletion is all there is to write. Left for some other change to carry, it
-     * would be lost to a log-out in between, and her name with it.
-     */
-    @Test
-    fun `a contact who deleted their account is written on their own`() {
-        val alone = PendingBackUp(contacts = listOf(contact(userUuid = ERIN, isRemoved = true, isAccountDeleted = true)))
-
-        assertTrue(alone.writesAnything(isProfileKeyRotated = false))
+        assertTrue(carolAlone.writesAnything(isProfileKeyRotated = false))
+        assertTrue(erinAlone.writesAnything(isProfileKeyRotated = false))
     }
 
     @Test
@@ -88,25 +80,13 @@ class PendingBackUpTest {
         assertTrue(waiting.writesAnything(isProfileKeyRotated = true))
     }
 
-    /** Kept, Erin's tombstone would have every backup after write her again. */
-    @Test
-    fun `a write that landed is done with the removals it carried and the deleted accounts`() {
-        assertEquals(listOf(CAROL, ERIN), pending.settled(isProfileKeyRotated = false).map { it.userUuid })
-        assertEquals(listOf(BOB, CAROL, DAVE, ERIN), pending.settled(isProfileKeyRotated = true).map { it.userUuid })
-    }
-
     @Test
     fun `a backup with nothing pending is empty`() {
         assertTrue(PendingBackUp(contacts = emptyList()).isEmpty())
         assertFalse(pending.isEmpty())
     }
 
-    private fun contact(
-        userUuid: String,
-        isRemoved: Boolean = false,
-        rotatesProfileKey: Boolean = false,
-        isAccountDeleted: Boolean = false,
-    ) =
+    private fun contact(userUuid: String, isRemoved: Boolean = false, rotatesProfileKey: Boolean = false) =
         ContactEntity(
             userUuid = userUuid,
             profileEncryptionKey = byteArrayOf(1, 2, 3),
@@ -115,6 +95,5 @@ class PendingBackUpTest {
             isBackedUp = false,
             isRemoved = isRemoved,
             rotatesProfileKey = rotatesProfileKey,
-            isAccountDeleted = isAccountDeleted,
         )
 }

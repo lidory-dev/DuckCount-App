@@ -122,8 +122,8 @@ object ContactRemoval {
  * What the user's app sends each contact as the user deletes their account, in place of a
  * [ContactRemoval]: nothing but the fact of it, see [account.AccountDeletion].
  *
- * The contact's app forgets the user as it would on a removal, and keeps the name it shows for
- * them in the vault, which a removal would drop, see
+ * The contact's app forgets the user as it would on a removal, keeping nothing of them in the
+ * vault but the name it shows for them, as for any former contact, see
  * [ContactRepository.receiveAccountDeletion][database.data.repository.ContactRepository.receiveAccountDeletion]:
  * the server deletes the profile with the account, so nothing else could tell their devices who
  * the user was in the expenses the two of them share once one of them lost its data.

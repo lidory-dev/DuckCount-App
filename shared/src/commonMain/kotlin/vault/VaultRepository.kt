@@ -235,7 +235,7 @@ class VaultRepository(
 
     /**
      * The user's contacts as the vault holds them, see [ContactBook]: each contact, and the name of
-     * each one who deleted their account. Empty when the vault holds no contact yet.
+     * each former one. Empty when the vault holds no contact yet.
      */
     suspend fun getContactBook(): Result<ContactBook, VaultError> {
         val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
@@ -256,9 +256,9 @@ class VaultRepository(
 
     /**
      * Adds the contacts in [added], keyed by their user UUID, replacing what the vault
-     * already holds for any of them, drops the contacts in [removed], and keeps of each
-     * contact in [deletedAccounts], who deleted their account, nothing but the name it maps
-     * them to, or nothing at all when it maps them to none, see [ContactBook.withDeletedAccount].
+     * already holds for any of them, and keeps of each contact in [removed], a former contact
+     * from then on, nothing but the name it maps them to, or nothing at all when it maps them
+     * to none, see [ContactBook.withFormerContact].
      *
      * Returns the contacts in [added] the vault pins another identity for than the one they
      * come with, which stay as the vault held them, see [ContactBook.with].
@@ -270,8 +270,7 @@ class VaultRepository(
      */
     suspend fun updateContacts(
         added: Map<String, VaultContact>,
-        removed: Collection<String>,
-        deletedAccounts: Map<String, String?>,
+        removed: Map<String, String?>,
     ): Result<Set<String>, VaultError> {
         val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
 
@@ -286,7 +285,7 @@ class VaultRepository(
                 ?: return Result.Error(VaultError.MalformedContactBook)
         }
 
-        val update = contactBook.withChanges(added = added, removed = removed, deletedAccounts = deletedAccounts)
+        val update = contactBook.withChanges(added = added, removed = removed)
 
         val write = writePart(
             rootKey = rootKey,

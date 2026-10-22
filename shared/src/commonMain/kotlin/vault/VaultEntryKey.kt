@@ -101,10 +101,11 @@ enum class VaultEntryKey(val wireName: String) {
      * that made someone a contact is deleted once answered, so without this entry a
      * log-out or a reinstall would lose every key a contact ever handed over.
      *
-     * It also keeps the name of each contact who deleted their account, and nothing else of
-     * them, see [ContactBook.deletedAccounts]: the server deletes their profile with the
-     * account, so without this entry a log-out or a reinstall would lose who they were in
-     * every expense the two of them share.
+     * It also keeps the name of each former contact, whichever of the two removed the other
+     * or whose account was deleted, and nothing else of them, see [ContactBook.formerContacts]:
+     * the key to their profile goes with the contact, and the server deletes a deleted
+     * account's profile along with it, so without this entry a log-out or a reinstall would
+     * lose who they were in every expense the two of them share.
      */
     CONTACTS("contacts");
 

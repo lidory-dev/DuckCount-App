@@ -384,16 +384,16 @@ class ContactBookTest {
     }
 
     @Test
-    fun `an empty book holds no deleted account`() {
-        assertTrue(ContactBook.EMPTY.deletedAccounts.isEmpty())
+    fun `an empty book holds no former contact`() {
+        assertTrue(ContactBook.EMPTY.formerContacts.isEmpty())
     }
 
     /**
-     * Alice deleted her account: her profile went with it, so her name is all there is left to
-     * keep, and her key, her pin and the rest go with the contact she no longer is.
+     * Alice is no longer a contact, whoever ended it: the key to her profile goes, so her name is
+     * all there is left to keep, and her pin and the rest go with the contact she no longer is.
      */
     @Test
-    fun `a contact who deleted their account survives being sealed and read back as their name alone`() {
+    fun `a former contact survives being sealed and read back as their name alone`() {
         val book = ContactBook.EMPTY
             .with(
                 userUuid = alice,
@@ -405,37 +405,37 @@ class ContactBookTest {
                 ),
             )!!
             .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
-            .withDeletedAccount(userUuid = alice, fullName = "Alice Martin")
+            .withFormerContact(userUuid = alice, fullName = "Alice Martin")
 
         val reread = ContactBook.parse(plaintext = book.serialize())!!
         val entry = Json.parseToJsonElement(book.serialize().decodeToString()).jsonObject.getValue(alice)
 
-        assertEquals(mapOf(alice to "Alice Martin"), reread.deletedAccounts)
+        assertEquals(mapOf(alice to "Alice Martin"), reread.formerContacts)
         assertEquals(setOf(bob), reread.contacts.keys)
-        assertEquals(setOf("account_deleted", "full_name"), entry.jsonObject.keys)
+        assertEquals(setOf("former_contact", "full_name"), entry.jsonObject.keys)
     }
 
-    /** Nothing else is left to keep of her, so she goes as a removed contact does. */
+    /** Nothing else is left to keep of her, so she goes. */
     @Test
-    fun `a contact who deleted their account with no name known is dropped`() {
+    fun `a former contact with no name known is dropped`() {
         val book = ContactBook.EMPTY
             .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, mlsSignaturePublicKey = aliceSignatureKey))!!
             .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
-            .withDeletedAccount(userUuid = alice, fullName = null)
+            .withFormerContact(userUuid = alice, fullName = null)
 
         val reread = ContactBook.parse(plaintext = book.serialize())!!
 
-        assertTrue(reread.deletedAccounts.isEmpty())
+        assertTrue(reread.formerContacts.isEmpty())
         assertEquals(setOf(bob), reread.contacts.keys)
-        assertTrue(!book.serialize().decodeToString().contains(alice), "the deleted account is still there")
+        assertTrue(!book.serialize().decodeToString().contains(alice), "the former contact is still there")
     }
 
-    /** Marked as an account deleted, an entry is no contact's whatever else it carries. */
+    /** Marked as a former contact, an entry is no contact's whatever else it carries. */
     @Test
-    fun `the entry of a deleted account is not a contact even with a key`() {
+    fun `the entry of a former contact is not a contact even with a key`() {
         val plaintext = """
             {
-                "$alice": {"account_deleted": true, "full_name": "Alice Martin", "profile_encryption_key": "AQID"},
+                "$alice": {"former_contact": true, "full_name": "Alice Martin", "profile_encryption_key": "AQID"},
                 "$bob": {"profile_encryption_key": "BAUG"}
             }
         """.trimIndent().encodeToByteArray()
@@ -443,12 +443,12 @@ class ContactBookTest {
         val book = ContactBook.parse(plaintext = plaintext)!!
 
         assertEquals(setOf(bob), book.contacts.keys)
-        assertEquals(mapOf(alice to "Alice Martin"), book.deletedAccounts)
+        assertEquals(mapOf(alice to "Alice Martin"), book.formerContacts)
     }
 
-    /** Only the entry of the contact who deleted their account is replaced. */
+    /** Only the entry of the former contact is replaced. */
     @Test
-    fun `what this build does not know survives turning a contact into a deleted account`() {
+    fun `what this build does not know survives turning a contact into a former one`() {
         val plaintext = """
             {
                 "$alice": {"profile_encryption_key": "AQID", "nickname": "Al"},
@@ -458,7 +458,7 @@ class ContactBookTest {
         """.trimIndent().encodeToByteArray()
 
         val rewritten = ContactBook.parse(plaintext = plaintext)!!
-            .withDeletedAccount(userUuid = alice, fullName = "Alice Martin")
+            .withFormerContact(userUuid = alice, fullName = "Alice Martin")
             .serialize()
             .decodeToString()
 
@@ -467,30 +467,31 @@ class ContactBookTest {
             rewritten.contains("\"a_newer_kind_of_entry\":[1,2]"),
             "the unknown entry was dropped: $rewritten",
         )
-        assertTrue(!rewritten.contains("\"nickname\":\"Al\""), "the deleted account kept a field: $rewritten")
+        assertTrue(!rewritten.contains("\"nickname\":\"Al\""), "the former contact kept a field: $rewritten")
     }
 
     @Test
-    fun `a deleted account survives writing and removing other contacts`() {
+    fun `a former contact survives writing and removing other contacts`() {
         val book = ContactBook.EMPTY
-            .withDeletedAccount(userUuid = alice, fullName = "Alice Martin")
+            .withFormerContact(userUuid = alice, fullName = "Alice Martin")
             .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
             .without(userUuid = bob)
 
         val reread = ContactBook.parse(plaintext = book.serialize())!!
 
-        assertEquals(mapOf(alice to "Alice Martin"), reread.deletedAccounts)
+        assertEquals(mapOf(alice to "Alice Martin"), reread.formerContacts)
         assertTrue(reread.contacts.isEmpty())
     }
 
     /**
-     * Alice's deletion failed once its notice was out, and she and the user are contacts again.
-     * Kept, the mark would have every restore bring her back as a name alone, with no pin.
+     * A new request made Alice and the user contacts again, accepted either way. Kept, the marker
+     * would leave her out of the contacts, and every restore would bring her back as a name alone,
+     * with no pin.
      */
     @Test
-    fun `a contact added back over the entry of a deleted account is a contact again`() {
+    fun `a former contact added back is a contact again with nothing of the former one left`() {
         val book = ContactBook.EMPTY
-            .withDeletedAccount(userUuid = alice, fullName = "Alice Martin")
+            .withFormerContact(userUuid = alice, fullName = "Alice Martin")
             .with(
                 userUuid = alice,
                 contact = contact(profileEncryptionKey = aliceKey, mlsSignaturePublicKey = aliceSignatureKey),
@@ -502,16 +503,20 @@ class ContactBookTest {
         assertEquals(setOf(alice), reread.contacts.keys)
         assertContentEquals(aliceKey, reread.contacts[alice]?.profileEncryptionKey)
         assertContentEquals(aliceSignatureKey, reread.contacts[alice]?.mlsSignaturePublicKey)
-        assertTrue(reread.deletedAccounts.isEmpty())
+        assertTrue(reread.formerContacts.isEmpty())
         assertEquals(setOf("profile_encryption_key", "mls_signature_public_key"), entry.jsonObject.keys)
     }
 
     /**
-     * What a backup writes once Alice deleted her account and Bob was added: of her, her name
-     * alone is left.
+     * What a backup writes once Alice removed the user, Bob deleted his account and the user
+     * removed Carol, whom this device never read a name for, while Dave was added: of the first
+     * two, their names alone are left, the same way, and nothing at all of Carol.
      */
     @Test
-    fun `a backup keeps nothing of a contact who deleted their account but their name`() {
+    fun `a backup keeps nothing of a former contact but their name whoever ended it`() {
+        val carol = "f0b7a2a1-5a9c-4f0e-9a43-0c1d2e3f4a5b"
+        val dave = "5b4a3f2e-1d0c-43a9-8e0f-9c5a1a2b7f0a"
+
         val update = ContactBook.EMPTY
             .with(
                 userUuid = alice,
@@ -521,36 +526,27 @@ class ContactBookTest {
                     handedProfileKeyHash = handedNow,
                 ),
             )!!
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
+            .with(userUuid = carol, contact = contact(profileEncryptionKey = bobKey))!!
             .withChanges(
-                added = mapOf(bob to contact(profileEncryptionKey = bobKey)),
-                removed = emptyList(),
-                deletedAccounts = mapOf(alice to "Alice Martin"),
+                added = mapOf(dave to contact(profileEncryptionKey = aliceKey)),
+                removed = mapOf(alice to "Alice Martin", bob to "Bob Durand", carol to null),
             )
 
-        val reread = ContactBook.parse(plaintext = update.book.serialize())!!
-        val entry = Json.parseToJsonElement(update.book.serialize().decodeToString()).jsonObject.getValue(alice)
+        val serialized = update.book.serialize()
+        val reread = ContactBook.parse(plaintext = serialized)!!
+        val entries = Json.parseToJsonElement(serialized.decodeToString()).jsonObject
 
-        assertEquals(mapOf(alice to "Alice Martin"), reread.deletedAccounts)
-        assertEquals(setOf(bob), reread.contacts.keys)
-        assertEquals(setOf("account_deleted", "full_name"), entry.jsonObject.keys)
+        assertEquals(mapOf(alice to "Alice Martin", bob to "Bob Durand"), reread.formerContacts)
+        assertEquals(setOf(dave), reread.contacts.keys)
+        assertEquals(setOf("former_contact", "full_name"), entries.getValue(alice).jsonObject.keys)
+        assertEquals(setOf("former_contact", "full_name"), entries.getValue(bob).jsonObject.keys)
+        assertTrue(carol !in entries.keys, "the former contact with no name is still there")
         assertTrue(update.conflicting.isEmpty())
     }
 
-    /** This device never read Alice's profile, and nothing else is left to keep of her. */
     @Test
-    fun `a backup drops a contact who deleted their account with no name known`() {
-        val update = ContactBook.EMPTY
-            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, mlsSignaturePublicKey = aliceSignatureKey))!!
-            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
-            .withChanges(added = emptyMap(), removed = emptyList(), deletedAccounts = mapOf(alice to null))
-
-        assertTrue(update.book.deletedAccounts.isEmpty())
-        assertEquals(setOf(bob), update.book.contacts.keys)
-        assertTrue(!update.book.serialize().decodeToString().contains(alice), "the deleted account is still there")
-    }
-
-    @Test
-    fun `a backup drops the contacts removed and leaves one pinned as somebody else as it was`() {
+    fun `a backup leaves a contact pinned as somebody else as it was`() {
         val update = ContactBook.EMPTY
             .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, mlsSignaturePublicKey = aliceSignatureKey))!!
             .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
@@ -558,14 +554,14 @@ class ContactBookTest {
                 added = mapOf(
                     alice to contact(profileEncryptionKey = byteArrayOf(9, 9), mlsSignaturePublicKey = byteArrayOf(8, 8, 8)),
                 ),
-                removed = listOf(bob),
-                deletedAccounts = emptyMap(),
+                removed = mapOf(bob to "Bob Durand"),
             )
 
         assertEquals(setOf(alice), update.conflicting)
         assertEquals(setOf(alice), update.book.contacts.keys)
         assertContentEquals(aliceKey, update.book.contacts[alice]?.profileEncryptionKey)
         assertContentEquals(aliceSignatureKey, update.book.contacts[alice]?.mlsSignaturePublicKey)
+        assertEquals(mapOf(bob to "Bob Durand"), update.book.formerContacts)
     }
 
     @Test

@@ -14,10 +14,15 @@ import androidx.room.PrimaryKey
  * retried against the vault until [isBackedUp].
  *
  * A removed contact therefore stays as a tombstone, [isRemoved], until the vault no
- * longer holds them either, and only then goes. One the user removed waits for their
- * profile key to rotate first, see [rotatesProfileKey]. One who deleted their account
- * leaves their name in the vault in place of their entry, when this device holds one for
- * them, see [isAccountDeleted].
+ * longer holds them as a contact either, and only then goes. One the user removed waits
+ * for their profile key to rotate first, see [rotatesProfileKey]. Whoever removed whom, and
+ * whether or not their account was deleted, they leave their name in the vault in place of
+ * their entry, when this device holds one for them, see
+ * [ContactBook.formerContacts][vault.ContactBook.formerContacts]: the key to their profile
+ * goes with the contact, and nothing else is left to tell a device that lost its data who
+ * they were in the expenses the two of them share. One this device holds no name for, never
+ * having read their profile, goes from the vault altogether: there is nothing else to keep
+ * of them.
  *
  * Their name is not here but in [UserEntity], which is what the contact list shows, and
  * the group the two of them talk through is not here either but in [DirectChannelEntity]:
@@ -70,7 +75,8 @@ class ContactEntity(
 
     /**
      * Whether the vault agrees with this row: it holds the contact, or for a removed one,
-     * it no longer does. A removed contact never gets there, it is deleted instead.
+     * it holds them as a former contact, or not at all. A removed contact never gets there,
+     * it is deleted instead.
      */
     val isBackedUp: Boolean,
 
@@ -81,8 +87,8 @@ class ContactEntity(
      * Whether this removal waits for the key to the user's profile to rotate before it
      * reaches the vault, see
      * [ContactRepository.backUp][database.data.repository.ContactRepository.backUp]. Only
-     * one the user made does, never a contact's notice that they removed the user: the key
-     * only ever rotates on the user's own action.
+     * one the user made does, never a contact's notice that they removed the user, nor their
+     * account having been deleted: the key only ever rotates on the user's own action.
      *
      * Kept on the device until the key has rotated: a removal that reached the vault first
      * would, after a log-out, leave the removed contact holding the current key for good, with
@@ -90,19 +96,4 @@ class ContactEntity(
      * contact, which is consistent with the key they hold.
      */
     val rotatesProfileKey: Boolean = false,
-
-    /**
-     * Whether this removal is the contact having deleted their account, see
-     * [ContactRepository.receiveAccountDeletion][database.data.repository.ContactRepository.receiveAccountDeletion].
-     * The vault then keeps the name this device showed for them in place of their entry, rather
-     * than dropping them, see [ContactBook.deletedAccounts][vault.ContactBook.deletedAccounts]:
-     * the server deletes their profile with the account, and nothing else is left to tell a
-     * device that lost its data who they were in the expenses the two of them share. One this
-     * device holds no name for, never having read their profile, is dropped all the same, as any
-     * removal is: there is nothing else to keep of them.
-     *
-     * Never waits for the key to the user's profile to rotate, see [rotatesProfileKey]: it only
-     * ever rotates on the user's own action.
-     */
-    val isAccountDeleted: Boolean = false,
 )

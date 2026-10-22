@@ -82,17 +82,10 @@ internal class ContactTables {
             add(row.copy(isBackedUp = true))
         }
 
-        override suspend fun markRemoved(userUuid: String, rotatesProfileKey: Boolean, isAccountDeleted: Boolean) {
+        override suspend fun markRemoved(userUuid: String, rotatesProfileKey: Boolean) {
             val row = contacts[userUuid] ?: return
 
-            add(
-                row.copy(
-                    isBackedUp = false,
-                    isRemoved = true,
-                    rotatesProfileKey = rotatesProfileKey,
-                    isAccountDeleted = isAccountDeleted,
-                ),
-            )
+            add(row.copy(isBackedUp = false, isRemoved = true, rotatesProfileKey = rotatesProfileKey))
         }
 
         override suspend fun clearProfileKeyRotation(userUuids: List<String>) {
@@ -267,7 +260,6 @@ internal fun ContactEntity.copy(
     isBackedUp: Boolean = this.isBackedUp,
     isRemoved: Boolean = this.isRemoved,
     rotatesProfileKey: Boolean = this.rotatesProfileKey,
-    isAccountDeleted: Boolean = this.isAccountDeleted,
 ) = ContactEntity(
     userUuid = userUuid,
     profileEncryptionKey = profileEncryptionKey,
@@ -276,7 +268,6 @@ internal fun ContactEntity.copy(
     isBackedUp = isBackedUp,
     isRemoved = isRemoved,
     rotatesProfileKey = rotatesProfileKey,
-    isAccountDeleted = isAccountDeleted,
 )
 
 internal fun PendingProfileKeyEntity.copy(

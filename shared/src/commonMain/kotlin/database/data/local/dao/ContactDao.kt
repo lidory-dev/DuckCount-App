@@ -26,9 +26,9 @@ interface ContactDao {
      * [ContactRepository.remove][database.data.repository.ContactRepository.remove], and then
      * sent a request the user accepted.
      *
-     * A former contact starts over unverified: the vault drops the mark along with them once
-     * their removal reaches it, and keeping their tombstone's would only depend on whether it
-     * had yet.
+     * A former contact starts over unverified: the vault keeps nothing of them but their name
+     * once their removal reaches it, and keeping their tombstone's mark would only depend on
+     * whether it had yet.
      *
      * In one transaction, so that a mark made in between is not lost.
      */
@@ -113,18 +113,16 @@ interface ContactDao {
     )
 
     /**
-     * Records that the user no longer has the contact [userUuid], until the vault no longer
-     * holds them either, whether that waits for the user's profile key to rotate, see
-     * [ContactEntity.rotatesProfileKey], and whether it is them having deleted their account, see
-     * [ContactEntity.isAccountDeleted].
+     * Records that the user no longer has the contact [userUuid], until the vault holds them as a
+     * former contact too, by their name alone, or no longer holds them at all, and whether that
+     * waits for the user's profile key to rotate, see [ContactEntity.rotatesProfileKey].
      */
     @Query(
         """UPDATE ContactEntity
-        SET isRemoved = true, isBackedUp = false, rotatesProfileKey = :rotatesProfileKey,
-        isAccountDeleted = :isAccountDeleted
+        SET isRemoved = true, isBackedUp = false, rotatesProfileKey = :rotatesProfileKey
         WHERE userUuid = :userUuid""",
     )
-    suspend fun markRemoved(userUuid: String, rotatesProfileKey: Boolean, isAccountDeleted: Boolean)
+    suspend fun markRemoved(userUuid: String, rotatesProfileKey: Boolean)
 
     /**
      * Records that the removals of the contacts in [userUuids] no longer wait for the user's
@@ -182,8 +180,8 @@ interface ContactDao {
     suspend fun setVerifiedSafetyNumber(userUuid: String, verifiedSafetyNumber: String?)
 
     /**
-     * Drops the tombstones of the contacts in [userUuids], once the vault no longer holds
-     * them, or holds only the name of one who deleted their account.
+     * Drops the tombstones of the contacts in [userUuids], once the vault holds them as former
+     * contacts, by their name alone, or no longer holds them at all.
      *
      * One added back in the meantime is left alone, its addition still has to reach the
      * vault.

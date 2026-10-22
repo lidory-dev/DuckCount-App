@@ -60,6 +60,7 @@ private const val ALICE = "11111111-1111-1111-1111-111111111111"
 private const val USER = "22222222-2222-2222-2222-222222222222"
 private const val CAROL = "55555555-5555-5555-5555-555555555555"
 private const val DAVE = "77777777-7777-7777-7777-777777777777"
+private const val ERIN = "99999999-9999-9999-9999-999999999999"
 
 /**
  * What the messages about the contact relationship, and the reads of the contacts' profiles,
@@ -205,17 +206,21 @@ class ContactRepositoryTest {
         assertContentEquals(pendingKey, userVault.pendingKey)
     }
 
-    /** Her account is still there: the vault drops her, her name along with her. */
+    /**
+     * Her account is still there, and her name is only hidden from the contact list all the same,
+     * for the next backup to keep in the vault in place of her entry: the key to her profile goes
+     * with the contact she no longer is.
+     */
     @Test
-    fun `a contact's notice of removal is not taken for an account deletion`() = runBlocking<Unit> {
+    fun `a contact's notice of removal forgets them and keeps their name`() = runBlocking<Unit> {
         tables.add(contact(ALICE, key = aliceFirstKey))
+        tables.names[ALICE] = "Alice Martin"
 
         receive(from = ALICE, payload = ContactRemoval.serialize())
 
-        val alice = tables.contacts.getValue(ALICE)
-
-        assertTrue(alice.isRemoved)
-        assertFalse(alice.isAccountDeleted)
+        assertTrue(tables.contacts.getValue(ALICE).isRemoved)
+        assertNull(tables.names[ALICE])
+        assertEquals("Alice Martin", tables.hidden[ALICE])
     }
 
     /**
@@ -238,7 +243,6 @@ class ContactRepositoryTest {
             val alice = tables.contacts.getValue(ALICE)
 
             assertTrue(alice.isRemoved)
-            assertTrue(alice.isAccountDeleted)
             assertFalse(alice.rotatesProfileKey)
             assertFalse(alice.isBackedUp)
             assertNull(tables.names[ALICE])
@@ -259,7 +263,6 @@ class ContactRepositoryTest {
         contacts.receiveAccountDeletion(userUuid = CAROL)
 
         assertTrue(tables.contacts.getValue(DAVE).rotatesProfileKey)
-        assertFalse(tables.contacts.getValue(DAVE).isAccountDeleted)
         assertNull(tables.contacts[CAROL])
     }
 
@@ -280,7 +283,6 @@ class ContactRepositoryTest {
         val alice = tables.contacts.getValue(ALICE)
 
         assertTrue(alice.isRemoved)
-        assertTrue(alice.isAccountDeleted)
         assertFalse(alice.rotatesProfileKey)
         assertNull(tables.names[ALICE])
         assertEquals("Alice Martin", tables.hidden[ALICE])
@@ -288,28 +290,39 @@ class ContactRepositoryTest {
     }
 
     /**
-     * Alice and Dave deleted their accounts. Forgetting them hid Alice's name from the contact
-     * list, and the backup keeps it all the same. This device never read Dave's profile, so
-     * nothing is kept of him.
+     * Alice deleted her account, Carol removed the user, the user removed Dave, and Erin deleted
+     * her account too. Forgetting them hid their names from the contact list, and the backup keeps
+     * each all the same, Dave's only once the key he holds has rotated. This device never read
+     * Erin's profile, so nothing is kept of her.
      */
     @Test
-    fun `a backup keeps the hidden name of a contact who deleted their account`() = runBlocking<Unit> {
-        tables.add(contact(ALICE, key = aliceFirstKey))
-        tables.add(contact(DAVE, key = aliceFirstKey))
+    fun `a backup keeps the hidden name of every former contact`() = runBlocking<Unit> {
+        listOf(ALICE, CAROL, DAVE, ERIN).forEach { tables.add(contact(it, key = aliceFirstKey)) }
         tables.names[ALICE] = "Alice Martin"
+        tables.names[CAROL] = "Carol Petit"
+        tables.names[DAVE] = "Dave Moreau"
 
         contacts.receiveAccountDeletion(userUuid = ALICE)
-        contacts.receiveAccountDeletion(userUuid = DAVE)
+        receive(from = CAROL, payload = ContactRemoval.serialize())
+        assertIs<Result.Success<Unit>>(contacts.remove(userUuid = DAVE))
+        contacts.receiveAccountDeletion(userUuid = ERIN)
 
         val pending = PendingBackUp(contacts = tables.contactDao.getNotBackedUp())
 
-        assertNull(tables.names[ALICE])
-        assertEquals(mapOf(ALICE to "Alice Martin", DAVE to null), contacts.namesKept(pending = pending))
+        assertTrue(tables.names.isEmpty())
+        assertEquals(
+            mapOf(ALICE to "Alice Martin", CAROL to "Carol Petit", ERIN to null),
+            contacts.namesKept(removals = pending.removals(isProfileKeyRotated = false)),
+        )
+        assertEquals(
+            mapOf(ALICE to "Alice Martin", CAROL to "Carol Petit", DAVE to "Dave Moreau", ERIN to null),
+            contacts.namesKept(removals = pending.removals(isProfileKeyRotated = true)),
+        )
     }
 
     /**
-     * Carol was never a contact, and Dave is one no longer: neither can have a name kept, nor a
-     * tombstone turned into one that keeps it.
+     * Carol was never a contact, and Dave is one no longer: neither can have this device keep
+     * anything of them, nor a tombstone marked anew, which would skip the rotation it waits for.
      */
     @Test
     fun `a notice of account deletion from anybody but a contact changes nothing`() = runBlocking<Unit> {
@@ -319,17 +332,17 @@ class ContactRepositoryTest {
         assertEquals(DirectMessageHandling.HANDLED, receive(from = DAVE, payload = AccountDeletionNotice.serialize()))
 
         assertNull(tables.contacts[CAROL])
-        assertFalse(tables.contacts.getValue(DAVE).isAccountDeleted)
         assertTrue(tables.contacts.getValue(DAVE).rotatesProfileKey)
     }
 
     /**
-     * Alice deleted her account, and the vault holds nothing of her but her name: it comes back
-     * hidden, for the expenses she shares with the user to show, and she is no contact. Dave comes
-     * back a contact, his name for the read of his profile to tell.
+     * Alice deleted her account and Carol removed the user, and the vault holds nothing of either
+     * but their name: each comes back hidden, for the expenses they share with the user to show,
+     * and neither is a contact. Dave comes back a contact, and nothing else, his name for the read
+     * of his profile to tell.
      */
     @Test
-    fun `a contact who deleted their account comes back as a hidden name and no contact`() = runBlocking<Unit> {
+    fun `every former contact comes back as a hidden name and no contact`() = runBlocking<Unit> {
         val daveKey = generateSymmetricEncryptionKey()
         val book = ContactBook.EMPTY
             .with(
@@ -341,14 +354,15 @@ class ContactRepositoryTest {
                     verifiedSafetyNumber = null,
                 ),
             )!!
-            .withDeletedAccount(userUuid = ALICE, fullName = "Alice Martin")
+            .withFormerContact(userUuid = ALICE, fullName = "Alice Martin")
+            .withFormerContact(userUuid = CAROL, fullName = "Carol Petit")
 
         contacts.putBack(book = book)
 
         assertEquals(setOf(DAVE), tables.contacts.keys)
         assertTrue(tables.contacts.getValue(DAVE).isBackedUp)
-        assertNull(tables.names[ALICE])
-        assertEquals("Alice Martin", tables.hidden[ALICE])
+        assertTrue(tables.names.isEmpty())
+        assertEquals(mapOf(ALICE to "Alice Martin", CAROL to "Carol Petit"), tables.hidden)
         assertEquals(listOf(DAVE), tables.contactDao.getDueForRead().map { it.userUuid })
     }
 
@@ -441,7 +455,10 @@ class ContactRepositoryTest {
         assertFalse(alice.isBackedUp)
     }
 
-    /** The vault drops the mark along with her once her removal reaches it, so her tombstone's goes too. */
+    /**
+     * The vault keeps nothing of her but her name once her removal reaches it, so her tombstone's
+     * mark goes too.
+     */
     @Test
     fun `a former contact made one again starts over unverified`() = runBlocking<Unit> {
         tables.add(

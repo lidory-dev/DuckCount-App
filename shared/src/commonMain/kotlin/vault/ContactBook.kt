@@ -23,10 +23,10 @@ private const val HANDED_PROFILE_KEY_HASH = "handed_profile_key_hash"
 /** The field of a contact holding the safety number the user verified with them. */
 private const val VERIFIED_SAFETY_NUMBER = "verified_safety_number"
 
-/** The field marking the entry of a contact who deleted their account, always `true`. */
-private const val ACCOUNT_DELETED = "account_deleted"
+/** The field marking the entry of a former contact, always `true`. */
+private const val FORMER_CONTACT = "former_contact"
 
-/** The field of a contact who deleted their account holding the name this device showed for them. */
+/** The field of a former contact holding the name this device showed for them. */
 private const val FULL_NAME = "full_name"
 
 /**
@@ -52,41 +52,43 @@ private const val FULL_NAME = "full_name"
  * them do it again, see
  * [ContactEntity.verifiedSafetyNumber][database.data.local.entity.ContactEntity.verifiedSafetyNumber].
  *
- * A contact who deleted their account leaves an entry of another kind, under the same UUID, whose
- * `account_deleted` is `true` and whose `full_name` is the name this device showed for them, and
- * nothing else: no key, their profile going with the account, and no pin, there being nobody
- * left to reach. The server deletes the profile, every version of it, along with the account, so a
- * device that lost its data, to a log-out, a reinstall or a new phone, would otherwise never learn
- * again who they were in the expenses the two of them share, see [deletedAccounts]. Only theirs: a
- * contact still there names themselves through their profile, whose read is also what finds a key
- * of theirs missing, see
- * [ContactRepository.resolveNames][database.data.repository.ContactRepository.resolveNames], and
- * one removed for any other reason goes, see [without]. One written as a contact again, the
- * deletion that was announced having failed, is one again, see [with].
+ * A former contact, whichever of the two removed the other, or whose account was deleted, leaves
+ * an entry of another kind, under the same UUID, whose `former_contact` is `true` and whose
+ * `full_name` is the name this device showed for them, and nothing else: no key and no pin, which
+ * only somebody this device still reads and reaches as a contact has any use for. The key to their
+ * profile goes with the contact, and the server deletes a deleted account's profile, every version
+ * of it, along with the account, so a device that lost its data, to a log-out, a reinstall or a new
+ * phone, would otherwise never learn again who they were in the expenses the two of them share, see
+ * [formerContacts]. A contact still there names themselves through their profile instead, whose
+ * read is also what finds a key of theirs missing, see
+ * [ContactRepository.resolveNames][database.data.repository.ContactRepository.resolveNames]. One
+ * this device showed no name for goes, see [without], there being nothing else to keep of them,
+ * and one written as a contact again, made one by a new request either way, is one again, see
+ * [with].
  *
  * Follows the first of [KeyRing]'s rules for the same reason: a newer app version may
  * add a contact field, or a new kind of entry, that an older one still running
  * somewhere must not drop when it adds a contact. So this holds the [JsonObject] it was
  * read from, and adding a contact rewrites the fields of that contact this build knows,
- * and nothing else, unless the entry it rewrites is that of somebody who deleted their
- * account, which goes whole, see [with].
+ * and nothing else, unless the entry it rewrites is that of a former contact, which goes
+ * whole, see [with].
  */
 class ContactBook private constructor(private val entries: JsonObject) {
 
     /**
      * Each contact, keyed by their user UUID.
      *
-     * The entry of one who deleted their account is no contact's, and is left out, see
-     * [deletedAccounts]. So is an entry that does not carry a Base64 profile key, which only a
-     * newer build could have written: nothing here can read that contact's profile anyway. One
-     * with no pinned identity is kept, since it only means this book was written before
-     * pins travelled with it, or by a device that had none. So is one with no handed hash,
-     * which only means nobody knows which of the user's keys they hold, and one with no
-     * verified number, which only means the user has not verified them.
+     * The entry of a former contact is no contact's, and is left out, see [formerContacts]. So
+     * is an entry that does not carry a Base64 profile key, which only a newer build could have
+     * written: nothing here can read that contact's profile anyway. One with no pinned identity
+     * is kept, since it only means this book was written before pins travelled with it, or by a
+     * device that had none. So is one with no handed hash, which only means nobody knows which of
+     * the user's keys they hold, and one with no verified number, which only means the user has
+     * not verified them.
      */
     val contacts: Map<String, VaultContact>
         get() = entries.mapNotNull { (userUuid, contact) ->
-            if (contact.isDeletedAccount()) return@mapNotNull null
+            if (contact.isFormerContact()) return@mapNotNull null
 
             contact.key(field = PROFILE_ENCRYPTION_KEY)?.let { profileEncryptionKey ->
                 userUuid to VaultContact(
@@ -99,28 +101,28 @@ class ContactBook private constructor(private val entries: JsonObject) {
         }.toMap()
 
     /**
-     * The name of each contact who deleted their account, keyed by their user UUID: what the
-     * expenses the two of them share show for them on a device that lost its data, which has no
-     * other way left to learn it, see
-     * [ContactRepository.restore][database.data.repository.ContactRepository.restore].
+     * The name of each former contact, keyed by their user UUID: what the expenses the two of them
+     * share show for them on a device that lost its data, which has no other way left to learn it,
+     * see [ContactRepository.restore][database.data.repository.ContactRepository.restore].
      *
      * An entry whose name is not text, which only a newer build could have written, is left out.
      */
-    val deletedAccounts: Map<String, String>
+    val formerContacts: Map<String, String>
         get() = entries.mapNotNull { (userUuid, entry) ->
-            entry.takeIf { it.isDeletedAccount() }?.text(field = FULL_NAME)?.let { userUuid to it }
+            entry.takeIf { it.isFormerContact() }?.text(field = FULL_NAME)?.let { userUuid to it }
         }.toMap()
 
     /**
      * This book with [contact] as the contact [userUuid], adding them when they are not in
-     * it yet, or are in it as somebody who deleted their account, or null when it pins another
-     * identity for them than [contact] does.
+     * it yet, or are in it as a former contact, or null when it pins another identity for them
+     * than [contact] does.
      *
-     * The entry of one who deleted their account is replaced whole, as if there were none: the
-     * notice of a deletion goes out before the account does, see [account.AccountDeletion], so
-     * that account may still be there, the deletion having failed, and the two of them contacts
-     * again. Carried over, its marker would leave them out of [contacts], and a device restoring
-     * from the book would bring them back as nothing but a name, with no pin.
+     * The entry of a former contact is replaced whole, as if there were none: a new request,
+     * accepted either way, made them a contact again, which even one whose account deletion was
+     * announced can be, the notice going out before the account does and the deletion having
+     * failed, see [account.AccountDeletion]. Carried over, its marker would leave them out of
+     * [contacts], and a device restoring from the book would bring them back as nothing but a
+     * name, with no pin.
      *
      * The other fields of a contact already in it are carried over as they were read, and
      * so is their pinned identity when [contact] carries none: a device that has not met
@@ -139,7 +141,7 @@ class ContactBook private constructor(private val entries: JsonObject) {
      * book.
      */
     fun with(userUuid: String, contact: VaultContact): ContactBook? {
-        val stored = (entries[userUuid] as? JsonObject)?.takeUnless { it.isDeletedAccount() }
+        val stored = (entries[userUuid] as? JsonObject)?.takeUnless { it.isFormerContact() }
             ?: JsonObject(emptyMap())
 
         val storedPin = stored.key(field = MLS_SIGNATURE_PUBLIC_KEY)
@@ -177,20 +179,20 @@ class ContactBook private constructor(private val entries: JsonObject) {
         ContactBook(JsonObject(entries - userUuid))
 
     /**
-     * This book with [userUuid] as a contact who deleted their account, under [fullName], the name
-     * this device showed for them, see [deletedAccounts], or without them when it showed none,
-     * there being nothing else to keep of them.
+     * This book with [userUuid] as a former contact, under [fullName], the name this device showed
+     * for them, see [formerContacts], or without them when it showed none, there being nothing
+     * else to keep of them.
      *
      * Their entry is replaced whole, every field it carried going as [without] has them go: their
-     * key and their pin, and whatever this build does not know, all of it about a contact who is
-     * no more.
+     * key and their pin, and whatever this build does not know, all of it about a contact they no
+     * longer are.
      */
-    fun withDeletedAccount(userUuid: String, fullName: String?): ContactBook {
+    fun withFormerContact(userUuid: String, fullName: String?): ContactBook {
         fullName ?: return without(userUuid = userUuid)
 
         val entry = JsonObject(
             mapOf(
-                ACCOUNT_DELETED to JsonPrimitive(true),
+                FORMER_CONTACT to JsonPrimitive(true),
                 FULL_NAME to JsonPrimitive(fullName),
             ),
         )
@@ -200,29 +202,21 @@ class ContactBook private constructor(private val entries: JsonObject) {
 
     /**
      * This book with what a backup carries, see [VaultRepository.updateContacts]: each contact in
-     * [added] written, see [with], each one in [deletedAccounts] kept as nothing but the name it
-     * maps them to, see [withDeletedAccount], and each one in [removed] dropped, see [without].
+     * [added] written, see [with], and each one in [removed] kept as nothing but the name it maps
+     * them to, or dropped when it maps them to none, see [withFormerContact].
      *
      * A contact in [added] this book pins another identity for than the one they come with stays
      * as it held them, and is among the [ContactBookUpdate.conflicting].
      */
-    fun withChanges(
-        added: Map<String, VaultContact>,
-        removed: Collection<String>,
-        deletedAccounts: Map<String, String?>,
-    ): ContactBookUpdate {
+    fun withChanges(added: Map<String, VaultContact>, removed: Map<String, String?>): ContactBookUpdate {
         val conflicting = mutableSetOf<String>()
 
         val withAdditions = added.entries.fold(this) { book, (userUuid, contact) ->
             book.with(userUuid = userUuid, contact = contact) ?: book.also { conflicting += userUuid }
         }
 
-        val withDeletions = deletedAccounts.entries.fold(withAdditions) { book, (userUuid, fullName) ->
-            book.withDeletedAccount(userUuid = userUuid, fullName = fullName)
-        }
-
-        val updated = removed.fold(withDeletions) { book, userUuid ->
-            book.without(userUuid = userUuid)
+        val updated = removed.entries.fold(withAdditions) { book, (userUuid, fullName) ->
+            book.withFormerContact(userUuid = userUuid, fullName = fullName)
         }
 
         return ContactBookUpdate(book = updated, conflicting = conflicting)
@@ -254,8 +248,8 @@ class ContactBook private constructor(private val entries: JsonObject) {
 class ContactBookUpdate(val book: ContactBook, val conflicting: Set<String>)
 
 /**
- * One contact as the vault holds them. One who deleted their account is no longer one, and the
- * vault holds only their name, see [ContactBook.deletedAccounts].
+ * One contact as the vault holds them. A former contact is no longer one, and the vault holds only
+ * their name, see [ContactBook.formerContacts].
  *
  * [mlsSignaturePublicKey] is null for a contact recorded before pins travelled with the
  * book, or by a device that never reached them over MLS.
@@ -287,6 +281,6 @@ private fun JsonElement.key(field: String): ByteArray? {
 private fun JsonElement.text(field: String): String? =
     ((this as? JsonObject)?.get(field) as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
 
-/** Whether this is the entry of a contact who deleted their account, see [ContactBook.deletedAccounts]. */
-private fun JsonElement.isDeletedAccount(): Boolean =
-    ((this as? JsonObject)?.get(ACCOUNT_DELETED) as? JsonPrimitive)?.booleanOrNull == true
+/** Whether this is the entry of a former contact, see [ContactBook.formerContacts]. */
+private fun JsonElement.isFormerContact(): Boolean =
+    ((this as? JsonObject)?.get(FORMER_CONTACT) as? JsonPrimitive)?.booleanOrNull == true

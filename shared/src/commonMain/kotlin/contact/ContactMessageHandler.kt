@@ -17,9 +17,8 @@ import message.DirectMessageHandling
  * [ContactRepository.receiveRemoval] and [ContactRepository.receiveAccountDeletion]. Either only
  * ever forgets whoever sent it, so nobody can have the user forget anybody else: what the check
  * stops is a former contact, whose tombstone may still be waiting for the vault, marking it anew,
- * which would skip the rotation of the key the user owes them or have their name kept, and having
- * whatever they put the user on noted as owed. Each is claimed whatever it turns out to be, so
- * nothing else acts on it.
+ * which would skip the rotation of the key the user owes them, and having whatever they put the
+ * user on noted as owed. Each is claimed whatever it turns out to be, so nothing else acts on it.
  *
  * A card carries no `type`, it predates there being more than one kind of direct message,
  * so it is recognised by its shape. Everything added since says what it is.

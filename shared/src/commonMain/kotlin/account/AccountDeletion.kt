@@ -40,7 +40,7 @@ import kotlin.io.encoding.Base64
  *
  * The contacts are told before the account goes, while the user can still send to them, so a
  * deletion that then fails leaves contacts who dropped the user, keeping only the user's name as
- * for an account gone, until they are contacts again, see [ContactBook.with][vault.ContactBook.with].
+ * for any former contact, until they are contacts again, see [ContactBook.with][vault.ContactBook.with].
  * Trying again sees it through.
  *
  * The server deletes the account before it answers, so a deletion whose answer never comes back
@@ -292,7 +292,7 @@ class AccountDeletion internal constructor(
     /**
      * Tells every contact the user deleted their account, with an [AccountDeletionNotice] rather
      * than the notice a removal sends, see [ContactRepository.sendNotice]: their app drops the user
-     * as on a removal, but keeps the user's name in their own vault, which a removal would drop, see
+     * as on a removal, keeping nothing of them in their own vault but the user's name, see
      * `ContactRepository.receiveAccountDeletion`. The account takes the user's profile with it, so
      * nothing else could tell their devices who the user was in the expenses the two of them share
      * once one of them lost its data.

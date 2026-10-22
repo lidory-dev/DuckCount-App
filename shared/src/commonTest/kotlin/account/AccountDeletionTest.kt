@@ -116,10 +116,7 @@ class AccountDeletionTest {
         assertEquals(listOf(finalizationOf(handshake = 1)), finalizations)
     }
 
-    /**
-     * Their app reads it as the account gone rather than as a removal, and keeps the user's name
-     * for the expenses the two of them share, which a removal would drop.
-     */
+    /** Their app reads it as the account gone rather than as a removal. */
     @Test
     fun `every contact is told of the deletion rather than of a removal`() = runBlocking<Unit> {
         assertIs<Result.Success<Unit>>(deletion.delete(userUuid = USER, password = PASSWORD))
