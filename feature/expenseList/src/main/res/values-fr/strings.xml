@@ -52,6 +52,16 @@
     <string name="write_error_unknown">Une erreur est survenue, réessayez</string>
     <string name="unknown_person">Quelqu’un d’autre</string>
     <string name="write_error_key_missing">Cette dépense n’est pas encore modifiable sur cet appareil : sa clé n’est pas arrivée</string>
+    <plurals name="write_error_beneficiaries_deleted">
+        <item quantity="one" tools:ignore="ImpliedQuantity">%1$s a supprimé son compte</item>
+        <item quantity="other">%1$s ont supprimé leur compte</item>
+    </plurals>
+    <plurals name="write_error_unnamed_beneficiaries_deleted">
+        <item quantity="one" tools:ignore="ImpliedQuantity">Un participant a supprimé son compte</item>
+        <item quantity="other">%1$d participants ont supprimé leur compte</item>
+    </plurals>
+    <string name="names_list_separator">", "</string>
+    <string name="names_list_last">%1$s et %2$s</string>
 
     <!-- ErrorCard -->
     <string name="no_beneficiaries">Une dépense doit avoir au moins un participant</string>

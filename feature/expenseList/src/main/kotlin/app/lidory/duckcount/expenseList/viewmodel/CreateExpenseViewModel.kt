@@ -11,6 +11,7 @@ import app.lidory.duckcount.expenseList.callBacks.CreateExpenseCallBacks
 import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.BeneficiaryUi
 import app.lidory.duckcount.expenseList.model.Currency
+import app.lidory.duckcount.expenseList.model.ExpenseSaveError
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import app.lidory.duckcount.expenseList.model.User
@@ -63,8 +64,8 @@ class CreateExpenseViewModel(
 
     // Emitted with the reason when the write failed, so the screen can surface a
     // message that matches the actual cause instead of silently dropping the expense.
-    private val _showError = Channel<ExpenseWriteError>(Channel.BUFFERED)
-    val showError: Flow<ExpenseWriteError> = _showError.receiveAsFlow()
+    private val _showError = Channel<ExpenseSaveError>(Channel.BUFFERED)
+    val showError: Flow<ExpenseSaveError> = _showError.receiveAsFlow()
 
     // True while a create/update write is in flight, so the confirm button can show
     // an in-place spinner and stay disabled until the write completes.
@@ -316,7 +317,7 @@ class CreateExpenseViewModel(
                 ),
             )
 
-            if (error == null) _isSaved.value = true else _showError.send(error)
+            if (error == null) _isSaved.value = true else report(error)
         } finally {
             _isSaving.value = false
         }
@@ -330,7 +331,7 @@ class CreateExpenseViewModel(
         // Editing an existing expense always has a uuid; guard the impossible null case.
         val expenseUuid = expenseUuid
         if (expenseUuid == null) {
-            _showError.send(ExpenseWriteError.UNKNOWN)
+            _showError.send(ExpenseSaveError.Write(ExpenseWriteError.UNKNOWN))
             return@launch
         }
 
@@ -359,10 +360,28 @@ class CreateExpenseViewModel(
                 ),
             )
 
-            if (error == null) _isSaved.value = true else _showError.send(error)
+            if (error == null) _isSaved.value = true else report(error)
         } finally {
             _isSaving.value = false
         }
+    }
+
+    /**
+     * Tells the screen why the write failed. When it was for naming people who deleted their
+     * account, they are taken out of the selection first and the shares worked out again without
+     * them, see [withoutDeletedAccounts], so that the user can save again.
+     */
+    private suspend fun report(error: ExpenseSaveError) {
+        if (error is ExpenseSaveError.BeneficiariesDeleted) {
+            onBeneficiariesSelected(
+                uuids = withoutDeletedAccounts(
+                    beneficiaryUuids = _state.value.beneficiaries.map { it.userUuid },
+                    deletedUserUuids = error.beneficiaries.map { it.userUuid },
+                ),
+            )
+        }
+
+        _showError.send(error)
     }
 
     fun getCreditorName() {
@@ -595,6 +614,18 @@ fun toggleableState(
     selectedUuids.isNotEmpty() -> ToggleableState.Indeterminate
     else -> ToggleableState.Off
 }
+
+/**
+ * The beneficiaries who stay selected once the server refused [deletedUserUuids] for having
+ * deleted their account: everybody else in [beneficiaryUuids], in the same order.
+ *
+ * Only the ones it names go. On an edit, it names only those the edit adds: one the expense
+ * named already stays on it, whether or not they deleted their account since.
+ */
+fun withoutDeletedAccounts(
+    beneficiaryUuids: List<String>,
+    deletedUserUuids: List<String>,
+): Set<String> = beneficiaryUuids.toSet() - deletedUserUuids.toSet()
 
 /**
  * [selected] with [uuid] taken out, or added when that keeps it within [max]: past the limit,

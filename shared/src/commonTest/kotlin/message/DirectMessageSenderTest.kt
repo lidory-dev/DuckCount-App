@@ -23,7 +23,8 @@ private const val BOB = "33333333-3333-3333-3333-333333333333"
  *
  * Only a `410` says she deleted her account, and only on it is she forgotten, whichever pass was
  * sending, once nothing she sent is left waiting to be read: what the passes drop on
- * [DirectSendError.RecipientDeleted] they read off this.
+ * [DirectSendError.RecipientDeleted] they read off this. The server saying so in answer to
+ * anything else forgets her the same way, see [DirectMessageSender.receiveAccountDeletions].
  */
 class DirectMessageSenderTest {
 
@@ -157,6 +158,49 @@ class DirectMessageSenderTest {
         assertEquals(listOf(ALICE), posted.map { it.recipientUserUuid })
         assertTrue(forgotten.isEmpty())
     }
+
+    /** The server's word on anything else, an expense naming them for instance, goes as far. */
+    @Test
+    fun `accounts the server says were deleted are forgotten with no message sent`() = runBlocking<Unit> {
+        sender.receiveAccountDeletions(userUuids = listOf(ALICE, BOB))
+
+        assertEquals(listOf(ALICE, BOB), forgotten)
+        assertTrue(posted.isEmpty())
+    }
+
+    @Test
+    fun `an account the server says was deleted is kept while something they sent is waiting`() =
+        runBlocking<Unit> {
+            waiting = Result.Success(ListDirectMessagesResponse(messages = listOf(messageFrom(ALICE))))
+
+            sender.receiveAccountDeletions(userUuids = listOf(ALICE, BOB))
+
+            assertEquals(listOf(BOB), forgotten)
+        }
+
+    @Test
+    fun `accounts the server says were deleted are kept when it cannot say what is waiting`() =
+        runBlocking<Unit> {
+            waiting = Result.Error(NetworkError.REQUEST_TIMEOUT)
+
+            sender.receiveAccountDeletions(userUuids = listOf(ALICE, BOB))
+
+            assertTrue(forgotten.isEmpty())
+        }
+
+    /** The next expense refused for naming them, all that is left for a contact with no group. */
+    @Test
+    fun `an account kept when the server could not say what is waiting is forgotten by the next refusal`() =
+        runBlocking<Unit> {
+            waiting = Result.Error(NetworkError.REQUEST_TIMEOUT)
+            sender.receiveAccountDeletions(userUuids = listOf(ALICE))
+
+            waiting = Result.Success(ListDirectMessagesResponse(messages = emptyList()))
+            sender.receiveAccountDeletions(userUuids = listOf(ALICE))
+
+            assertEquals(listOf(ALICE), forgotten)
+            assertTrue(posted.isEmpty())
+        }
 }
 
 /** A message [senderUserUuid] sent the user, what is in it being nothing to the sender. */

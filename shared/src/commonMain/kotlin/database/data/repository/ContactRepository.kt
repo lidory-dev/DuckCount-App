@@ -145,23 +145,27 @@ class ContactRepository(
      * [ContactEntity.isAccountDeleted]: the server deletes their profile with the account. Anybody
      * else is left alone, so that no stranger can have this device keep or drop anything.
      *
-     * This device learns it one of two ways. Their app tells every contact it holds a group with
+     * This device learns it one of three ways. Their app tells every contact it holds a group with
      * as the account goes, see [AccountDeletionNotice], read by
      * [ContactMessageHandler][contact.ContactMessageHandler]. That reaches only those, and can go
      * missing on the way, while the server tells nobody of a deletion: the others find out from
-     * the `410` a message addressed to them comes back with, see
-     * [SendDirectMessageError.RecipientDeleted], the first time this device sends them anything
-     * after in a group it holds with them. Every message goes through
+     * the `410` the server answers once this device names them. A message addressed to them comes
+     * back with one, see [SendDirectMessageError.RecipientDeleted], the first time this device
+     * sends them anything after in a group it holds with them. Every message goes through
      * [message.DirectMessageSender], which brings it here, but the notices this repository posts
      * itself: [remove] acts on the `410` to its own the same way, see [RemovalNotice], and
-     * [sendNotice] leaves them as they are, see there.
+     * [sendNotice] leaves them as they are, see there. A one-time expense the user creates naming
+     * them, or edits to add them, comes back with one too, and takes no group: the server refuses
+     * it, naming them, see [ExpenseRepository.createOneTimeExpense], and the refusal is brought
+     * here through [message.DirectMessageSender.receiveAccountDeletions].
      *
-     * The `410` is brought here only once nothing they sent is left to read, which opens only in
-     * the groups forgetting them deletes, see [message.DirectMessageSender]. With no group, the
-     * key package a new one needs is asked for first, which the server answers for a deleted
-     * account as for one that published none, see
+     * Either `410` is brought here only once nothing they sent is left to read, which opens only
+     * in the groups forgetting them deletes, see [message.DirectMessageSender]. With no group, a
+     * message asks first for the key package a new one needs, which the server answers for a
+     * deleted account as for one that published none, see
      * [DirectChannelError.Unreachable][channel.DirectChannelError.Unreachable], and they stay a
-     * contact. What else they were owed is the sender's to settle.
+     * contact until the user names them on a new one-time expense or adds them to one. What else
+     * they were owed is the sender's to settle.
      *
      * Their key to the user's profile is not rotated away, as for any notice of removal, see
      * [ContactEntity.rotatesProfileKey]: it only ever rotates on the user's own action. Their

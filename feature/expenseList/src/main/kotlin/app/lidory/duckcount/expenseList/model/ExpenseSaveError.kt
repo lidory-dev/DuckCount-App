@@ -1,0 +1,76 @@
+package app.lidory.duckcount.expenseList.model
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import app.lidory.duckcount.expenseList.R
+
+/**
+ * Why saving the expense form did not go through, at a granularity the form can explain.
+ * The composeApp callback impl maps the shared error onto this.
+ */
+sealed interface ExpenseSaveError {
+
+    /** For a reason told in a sentence of its own, see [ExpenseWriteError]. */
+    data class Write(val error: ExpenseWriteError) : ExpenseSaveError
+
+    /**
+     * The server refused the expense for naming people who deleted their account, [beneficiaries],
+     * in the order the form lists them: every one a new expense names, and only the ones an edit
+     * adds, one the expense names already being kept. The form takes them out of its selection, see
+     * [withoutDeletedAccounts][app.lidory.duckcount.expenseList.viewmodel.withoutDeletedAccounts],
+     * for the user to save it again: the list beneficiaries are picked from drops a contact known
+     * to have deleted their account, who could then not be unticked there.
+     */
+    data class BeneficiariesDeleted(val beneficiaries: List<DeletedBeneficiary>) : ExpenseSaveError
+}
+
+/** Somebody who deleted their account, by the name this device shows for them, [fullName], if any. */
+data class DeletedBeneficiary(val userUuid: String, val fullName: String?)
+
+/**
+ * The names [ExpenseSaveError.BeneficiariesDeleted] is told with, in its order, or null when this
+ * device has none for one of them: the form then says how many deleted their account, rather than
+ * leaving somebody out of a list of names.
+ */
+fun ExpenseSaveError.BeneficiariesDeleted.fullNames(): List<String>? =
+    beneficiaries.mapNotNull { it.fullName }.takeIf { it.size == beneficiaries.size }
+
+/**
+ * [names], at least one, as a sentence lists them: [separator] between all but the last, and
+ * [lastPair], the language's "%1$s and %2$s", joining the others to the last, as in "Alice",
+ * "Alice and Bob", "Alice, Bob and Carol".
+ */
+fun listedNames(names: List<String>, separator: String, lastPair: String): String {
+    val others = names.dropLast(1)
+
+    return if (others.isEmpty()) names.single() else lastPair.format(others.joinToString(separator), names.last())
+}
+
+/** What the form says of [this]. */
+@Composable
+fun ExpenseSaveError.message(): String = when (this) {
+    is ExpenseSaveError.Write -> stringResource(error.messageRes())
+
+    is ExpenseSaveError.BeneficiariesDeleted -> {
+        val names = fullNames()
+
+        if (names == null) {
+            pluralStringResource(
+                R.plurals.write_error_unnamed_beneficiaries_deleted,
+                beneficiaries.size,
+                beneficiaries.size,
+            )
+        } else {
+            pluralStringResource(
+                R.plurals.write_error_beneficiaries_deleted,
+                names.size,
+                listedNames(
+                    names = names,
+                    separator = stringResource(R.string.names_list_separator),
+                    lastPair = stringResource(R.string.names_list_last),
+                ),
+            )
+        }
+    }
+}

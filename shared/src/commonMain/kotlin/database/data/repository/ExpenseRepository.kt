@@ -16,6 +16,7 @@ import database.data.mappers.toExpenseWithBeneficiariesEntity
 import database.data.remote.ExpenseApi
 import database.data.remote.ExpenseRemoteMediator
 import database.data.remote.SetOneTimeExpenseSettledRequestBody
+import database.data.remote.WriteOneTimeExpenseError
 import database.domain.Beneficiary
 import database.domain.Currency
 import database.domain.Expense
@@ -39,6 +40,7 @@ import expense.unsealOneTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.TimeZone
+import message.DirectMessageSender
 import mls.MlsIdentityRepository
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import uniffi.lib_duckcount.newOneTimeExpenseId
@@ -59,6 +61,7 @@ class ExpenseRepository(
     private val oneTimeExpenseKeyRepository: OneTimeExpenseKeyRepository,
     private val oneTimeExpenseSync: OneTimeExpenseSync,
     private val mlsIdentityRepository: MlsIdentityRepository,
+    private val directMessageSender: DirectMessageSender,
 ) {
 
     @OptIn(ExperimentalPagingApi::class)
@@ -93,6 +96,11 @@ class ExpenseRepository(
      * it exists, and reporting a failure would invite a retry that creates a second one. A
      * beneficiary the key did not reach is handed it by a later sync, and the key went to the
      * server with the expense, so a device that lost it gets it back from there.
+     *
+     * An expense naming somebody who deleted their account is refused, and the server stores
+     * none of it. The key and who is owed it stay all the same, as after any failed post, for an
+     * expense that does not exist. Each of them is forgotten as a contact unless something they
+     * sent is still waiting to be read, see [refusalOf].
      */
     suspend fun createOneTimeExpense(
         expenseWithBeneficiaries: ExpenseWithBeneficiaries,
@@ -141,7 +149,7 @@ class ExpenseRepository(
         )
 
         if (created is Result.Error) {
-            return Result.Error(OneTimeExpenseWriteError.Network(created.error))
+            return Result.Error(refusalOf(error = created.error, beneficiaryUuids = beneficiaryUuids))
         }
 
         val synced = expenseWithBeneficiaries.copy(
@@ -194,6 +202,12 @@ class ExpenseRepository(
      * not do, since after a removal with no answer it goes on naming somebody the server has
      * dropped, who would then not be handed the key when added back. An edit the server
      * accepts settles it for anybody it no longer names, who is owed nothing.
+     *
+     * An edit adding somebody who deleted their account is refused, and each of them is forgotten
+     * as a contact unless something they sent is still waiting to be read, see [refusalOf]. One
+     * the expense names already stays on it. The record and what is owed stay as after any other
+     * refusal, until the next edit the server accepts: the expense as shown never names them, so
+     * they are never handed the key.
      */
     suspend fun updateOneTimeExpense(
         expenseWithBeneficiaries: ExpenseWithBeneficiaries,
@@ -246,7 +260,7 @@ class ExpenseRepository(
         val update = expenseApi.updateOneTimeExpense(uuid = expenseUuid, body = body)
 
         if (update is Result.Error) {
-            return Result.Error(OneTimeExpenseWriteError.Network(update.error))
+            return Result.Error(refusalOf(error = update.error, beneficiaryUuids = beneficiaryUuids))
         }
 
         expenseDao.upsertOneTimeExpense(
@@ -368,6 +382,31 @@ class ExpenseRepository(
             }
             .asEmptyDataResult()
 
+    /**
+     * What the server's refusal of a write naming [beneficiaryUuids] comes to, see
+     * [toOneTimeExpenseWriteError], once whoever it says deleted their account is handed to
+     * [DirectMessageSender.receiveAccountDeletions]: the server tells nobody of a deletion, and
+     * they would otherwise stay in the list the user picks beneficiaries from.
+     *
+     * A contact is forgotten there only once nothing they sent is left to read, and nobody is
+     * while the server cannot say what is waiting: one left stays in that list until their
+     * notice of the deletion is read, or the next message to them, or the next write the server
+     * refuses for naming them, hands them over again. For a contact this device holds no group
+     * with, that write is the only one of these left, see
+     * [ContactRepository.receiveAccountDeletion]. The caller is told of every one of them either
+     * way.
+     */
+    private suspend fun refusalOf(
+        error: WriteOneTimeExpenseError,
+        beneficiaryUuids: List<String>,
+    ): OneTimeExpenseWriteError {
+        if (error is WriteOneTimeExpenseError.BeneficiariesDeleted) {
+            directMessageSender.receiveAccountDeletions(userUuids = error.userUuids)
+        }
+
+        return error.toOneTimeExpenseWriteError(beneficiaryUuids = beneficiaryUuids)
+    }
+
     /** Notes that each of [recipientUuids] is owed the key to [expenseUuid]. */
     private suspend fun owe(expenseUuid: String, recipientUuids: List<String>) {
         owedExpenseKeyDao.insertAll(
@@ -452,3 +491,19 @@ class ExpenseRepository(
         return expenseDao.getCurrency(expenseUuid)
     }
 }
+
+/**
+ * What the server's refusal of a write naming [beneficiaryUuids] says to whoever made it. Who it
+ * says deleted their account are named in the order the expense names them, as the form lists
+ * them, rather than sorted by UUID as the server sends them.
+ */
+internal fun WriteOneTimeExpenseError.toOneTimeExpenseWriteError(
+    beneficiaryUuids: List<String>,
+): OneTimeExpenseWriteError =
+    when (this) {
+        is WriteOneTimeExpenseError.BeneficiariesDeleted -> OneTimeExpenseWriteError.BeneficiariesDeleted(
+            userUuids = userUuids.sortedBy { beneficiaryUuids.indexOf(it) },
+        )
+
+        is WriteOneTimeExpenseError.Network -> OneTimeExpenseWriteError.Network(error)
+    }

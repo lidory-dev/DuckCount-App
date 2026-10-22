@@ -43,8 +43,8 @@ import app.lidory.duckcount.expenseList.component.BeneficiariesDialog
 import app.lidory.duckcount.expenseList.component.CreditorDialog
 import app.lidory.duckcount.expenseList.component.CreditorSelector
 import app.lidory.duckcount.expenseList.component.beneficiaryList.beneficiaryList
-import app.lidory.duckcount.expenseList.model.ExpenseWriteError
-import app.lidory.duckcount.expenseList.model.messageRes
+import app.lidory.duckcount.expenseList.model.ExpenseSaveError
+import app.lidory.duckcount.expenseList.model.message
 import app.lidory.duckcount.expenseList.viewmodel.CreateExpenseViewModel
 import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
@@ -69,7 +69,7 @@ fun CreateExpenseScreen(
     val hasChanges by viewModel.hasChanges.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
-    var pendingError by remember { mutableStateOf<ExpenseWriteError?>(null) }
+    var pendingError by remember { mutableStateOf<ExpenseSaveError?>(null) }
 
     // Do not allow navigating back while saving the expense.
     BackHandler(enabled = isSaving) {}
@@ -89,7 +89,7 @@ fun CreateExpenseScreen(
     }
 
     pendingError?.let { error ->
-        val message = stringResource(error.messageRes())
+        val message = error.message()
         LaunchedEffect(error) {
             snackbarHostState.showSnackbar(message)
             pendingError = null

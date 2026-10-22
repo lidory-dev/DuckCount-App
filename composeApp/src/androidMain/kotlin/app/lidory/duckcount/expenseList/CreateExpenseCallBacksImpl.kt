@@ -8,8 +8,8 @@ import app.lidory.duckcount.expenseList.callBacks.CreateExpenseCallBacks
 import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.Expense
+import app.lidory.duckcount.expenseList.model.ExpenseSaveError
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
-import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import app.lidory.duckcount.expenseList.model.User
 import app.lidory.duckcount.networking.NetworkConnectivity
 import database.data.repository.BeneficiaryRepository
@@ -18,6 +18,7 @@ import database.data.repository.GroupRepository
 import database.data.repository.UserRepository
 import database.domain.CurrencyCatalog
 import database.domain.currencyDisplayName
+import expense.OneTimeExpenseWriteError
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
@@ -54,7 +55,7 @@ class CreateExpenseCallBacksImpl(
         beneficiaryRepository.insert(beneficiary.toDb())
     }
 
-    override suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseWriteError? {
+    override suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseSaveError? {
         // Group expense: local-only write. Returning early is essential, the one-time
         // branch below must not also run (it would POST the expense to the server and
         // insert a second local copy).
@@ -66,7 +67,7 @@ class CreateExpenseCallBacksImpl(
         // One-time expense: online-first write-through.
         return when (val result = expenseRepository.createOneTimeExpense(expenseWithBeneficiaries.toDb())) {
             is Result.Success -> null
-            is Result.Error -> result.error.toExpenseWriteError(networkConnectivity.isOnline())
+            is Result.Error -> result.error.toSaveError()
         }
     }
 
@@ -82,7 +83,7 @@ class CreateExpenseCallBacksImpl(
         return expenseRepository.getWithBeneficiaries(expenseUuid).filterNotNull().map { it.toExpenseListModel() }
     }
 
-    override suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseWriteError? {
+    override suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseSaveError? {
         // Group expense: local-only write. Returning early is essential, the one-time
         // branch below must not also run (it would PUT the expense to the server).
         if (expenseWithBeneficiaries.groupUuid != null) {
@@ -93,9 +94,20 @@ class CreateExpenseCallBacksImpl(
         // One-time expense: online-first write-through.
         return when (val result = expenseRepository.updateOneTimeExpense(expenseWithBeneficiaries.toDb())) {
             is Result.Success -> null
-            is Result.Error -> result.error.toExpenseWriteError(networkConnectivity.isOnline())
+            is Result.Error -> result.error.toSaveError()
         }
     }
+
+    /**
+     * [this] as the form tells it. Whoever deleted their account is named as this device shows
+     * them, hidden or not: a contact may have been forgotten for it already, which hides them and
+     * keeps their name, see `message.DirectMessageSender.receiveAccountDeletions`.
+     */
+    private suspend fun OneTimeExpenseWriteError.toSaveError(): ExpenseSaveError =
+        toExpenseSaveError(
+            isOnline = networkConnectivity.isOnline(),
+            fullNameOf = { userRepository.getFullNameEvenIfHidden(uuid = it) },
+        )
 
     override fun getAuthenticatedUserUuid(): String? {
         return authenticationUtils.getAuthenticatedUserUuid()

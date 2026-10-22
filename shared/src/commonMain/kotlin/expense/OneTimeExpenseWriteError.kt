@@ -43,6 +43,16 @@ sealed interface OneTimeExpenseWriteError : Error {
      */
     data object KeyMissing : OneTimeExpenseWriteError
 
+    /**
+     * The server refused the expense for naming people who deleted their account, [userUuids], in
+     * the order the expense names them: every one a new expense names, and only the ones an edit
+     * adds, one the expense names already being kept. The server wrote nothing.
+     *
+     * A deleted account never opens the expense: no message reaches it, so it is never handed the
+     * key, and the others would split the amount with somebody who never sees it.
+     */
+    data class BeneficiariesDeleted(val userUuids: List<String>) : OneTimeExpenseWriteError
+
     /** The server could not be reached, or refused the call. */
     data class Network(val error: NetworkError) : OneTimeExpenseWriteError
 }

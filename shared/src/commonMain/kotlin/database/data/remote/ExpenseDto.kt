@@ -80,3 +80,14 @@ data class ListOneTimeExpenseChangesResponse(
     val feed_token: String,
     val has_more: Boolean,
 )
+
+/**
+ * Body of the `410` that `POST /expenses` and `PUT /expenses/{uuid}` refuse an expense naming
+ * people who deleted their account with: who they are, sorted by UUID, never none. Every one an
+ * expense being created names, and only the ones an edit adds: one the expense names already is
+ * kept, whether or not they deleted their account since.
+ */
+@Serializable
+data class DeletedBeneficiariesResponse(
+    val deleted_user_uuids: List<String>,
+)

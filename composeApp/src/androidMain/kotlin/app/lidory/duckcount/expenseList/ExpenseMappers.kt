@@ -3,8 +3,10 @@ package app.lidory.duckcount.expenseList
 import app.lidory.duckcount.ExpenseError
 import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.Currency
+import app.lidory.duckcount.expenseList.model.DeletedBeneficiary
 import app.lidory.duckcount.expenseList.model.Expense
 import app.lidory.duckcount.expenseList.model.ExpenseHistoryError
+import app.lidory.duckcount.expenseList.model.ExpenseSaveError
 import app.lidory.duckcount.expenseList.model.ExpenseVersion
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.ExpenseWriteError
@@ -31,7 +33,7 @@ import vault.VaultError
  * not be reached is told apart like the server itself, and a missing root key like a session
  * that is gone. The other vault, identity and sealing failures are folded into `UNKNOWN` the
  * way the contact mappers fold theirs, since there is nothing a user can do differently about
- * any of them.
+ * any of them. Who deleted their account is told by name instead, see [toExpenseSaveError].
  */
 fun OneTimeExpenseWriteError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError =
     when (this) {
@@ -58,9 +60,29 @@ fun OneTimeExpenseWriteError.toExpenseWriteError(isOnline: Boolean): ExpenseWrit
                 -> ExpenseWriteError.UNKNOWN
         }
 
+        // Told apart by toExpenseSaveError, for the form, the one place it comes up: nothing but
+        // creating or editing an expense names anybody.
+        is OneTimeExpenseWriteError.BeneficiariesDeleted -> ExpenseWriteError.INVALID_DATA
+
         is OneTimeExpenseWriteError.Identity,
         OneTimeExpenseWriteError.Crypto,
             -> ExpenseWriteError.UNKNOWN
+    }
+
+/**
+ * Why saving the expense form failed, as the form explains it: who deleted their account, by the
+ * name [fullNameOf] reads for each of them, or else as [toExpenseWriteError] tells it.
+ */
+suspend fun OneTimeExpenseWriteError.toExpenseSaveError(
+    isOnline: Boolean,
+    fullNameOf: suspend (userUuid: String) -> String?,
+): ExpenseSaveError =
+    when (this) {
+        is OneTimeExpenseWriteError.BeneficiariesDeleted -> ExpenseSaveError.BeneficiariesDeleted(
+            beneficiaries = userUuids.map { DeletedBeneficiary(userUuid = it, fullName = fullNameOf(it)) },
+        )
+
+        else -> ExpenseSaveError.Write(error = toExpenseWriteError(isOnline = isOnline))
     }
 
 /**

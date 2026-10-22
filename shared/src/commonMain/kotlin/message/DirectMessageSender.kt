@@ -29,15 +29,17 @@ import util.Result
  * Except for what the server says of the recipient's account. One who deleted it is forgotten
  * as a contact here, see [ContactRepository.receiveAccountDeletion], before the caller is told
  * so, see [DirectSendError.RecipientDeleted], whatever the message was: the server tells nobody
- * of a deletion, and a message to them is how this device finds out.
+ * of a deletion, and a message to them is how this device finds out. So is anybody the server
+ * says deleted it in answer to anything else, see [receiveAccountDeletions].
  *
  * Not while anything they sent is still waiting for this device to read. The server keeps what
  * a deleted account sent, the key to an expense of theirs for instance, which opens only in the
  * groups forgetting them deletes, and they never send it again. So they are forgotten once it
  * is read, as their notice of the deletion, sent last, would have them: by that notice, should it
  * be among what is waiting, see [AccountDeletionNotice][contact.AccountDeletionNotice], or else by
- * the next message to them, which finds the account gone and nothing of theirs left. The server
- * not saying what is waiting leaves them to that next message too.
+ * the next message to them, or the next expense the server refuses for naming them, either of
+ * which finds the account gone and nothing of theirs left. The server not saying what is waiting
+ * leaves them to those too.
  *
  * [ensureChannel] and [noteWelcomeAttached] are [DirectChannelRepository.ensureChannel] and
  * [DirectChannelRepository.noteWelcomeAttached], [encrypt] opens the user's MLS client and
@@ -163,9 +165,7 @@ class DirectMessageSender internal constructor(
                     )
 
                     SendDirectMessageError.RecipientDeleted -> {
-                        if (hasNothingWaitingFrom(senderUserUuid = recipientUserUuid)) {
-                            receiveAccountDeletion(recipientUserUuid)
-                        }
+                        receiveAccountDeletions(userUuids = listOf(recipientUserUuid))
 
                         DirectSendError.RecipientDeleted
                     }
@@ -177,19 +177,34 @@ class DirectMessageSender internal constructor(
     }
 
     /**
-     * Whether the server holds nothing [senderUserUuid] sent that this device has yet to read, see
-     * [DirectMessageSender]. False when it could not be asked.
+     * Acts on the server's word that each of [userUuids] deleted their account: a contact among
+     * them is forgotten, see [ContactRepository.receiveAccountDeletion], once nothing they sent is
+     * left to read, see [DirectMessageSender], and anybody else is left alone.
+     *
+     * Brought here by a message to them coming back so, and by anything else the server refuses
+     * for naming them, an expense for instance, see
+     * [ExpenseRepository][database.data.repository.ExpenseRepository]: it tells nobody of a
+     * deletion otherwise. One left, for what they sent or for the server not saying what is
+     * waiting, is forgotten by the next message to them or expense naming them to come back so, or
+     * by their notice of the deletion among what is waiting.
+     */
+    suspend fun receiveAccountDeletions(userUuids: Collection<String>) {
+        val waiting = sendersWaiting() ?: return
+
+        userUuids.filterNot { it in waiting }.forEach { receiveAccountDeletion(it) }
+    }
+
+    /**
+     * Who sent what the server holds for this device to read, see [DirectMessageSender], or null
+     * when it could not be asked.
      *
      * Not waiting for a [DirectMessageSync] under way, as [DirectMessageSync.hasNothingWaiting]
      * does: the pass sends too, and would wait on itself. What it read and has yet to acknowledge
      * is still listed, which leaves the sender to their notice of the deletion, read in that pass,
-     * or to the next message to them.
+     * or to the next message to them or expense refused for naming them.
      */
-    private suspend fun hasNothingWaitingFrom(senderUserUuid: String): Boolean {
-        val listed = listWaiting()
-
-        return listed is Result.Success && listed.data.messages.none { it.senderUserUuid == senderUserUuid }
-    }
+    private suspend fun sendersWaiting(): Set<String>? =
+        (listWaiting() as? Result.Success)?.data?.messages?.mapTo(HashSet()) { it.senderUserUuid }
 }
 
 /**

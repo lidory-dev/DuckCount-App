@@ -298,10 +298,13 @@ class AccountDeletion internal constructor(
      * once one of them lost its data.
      *
      * At best: nothing here keeps the account from being deleted. A contact who could not be told,
-     * or whom this device holds no group with, learns of it only if their own device still holds a
-     * group with the user and sends something in it: the server then answers that the account was
-     * deleted, see `ContactRepository.receiveAccountDeletion`. One whose device holds none asks for
-     * a key package first, which a deleted account has none of, and keeps the user as a contact.
+     * or whom this device holds no group with, learns of it only once their own device names the
+     * user to the server, which then answers that the account was deleted, see
+     * `ContactRepository.receiveAccountDeletion`: by sending something in a group it still holds
+     * with the user, or by naming them on a new one-time expense or adding them to one. One whose
+     * device holds no group asks for a key package first, which a deleted account has none of,
+     * and keeps the user as a contact until it names them on a new one-time expense or adds them
+     * to one.
      * Past what the user may send one contact, the others are still told. Past what they may send
      * everybody, nothing more would go out, and the rest are left to those odds.
      */

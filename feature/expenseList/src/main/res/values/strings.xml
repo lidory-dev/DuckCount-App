@@ -52,6 +52,16 @@
     <string name="write_error_unknown">Something went wrong, please try again</string>
     <string name="unknown_person">Someone else</string>
     <string name="write_error_key_missing">This expense cannot be edited on this device yet: its key has not arrived</string>
+    <plurals name="write_error_beneficiaries_deleted">
+        <item quantity="one">%1$s deleted their account</item>
+        <item quantity="other">%1$s deleted their accounts</item>
+    </plurals>
+    <plurals name="write_error_unnamed_beneficiaries_deleted">
+        <item quantity="one">A beneficiary deleted their account</item>
+        <item quantity="other">%1$d beneficiaries deleted their accounts</item>
+    </plurals>
+    <string name="names_list_separator">", "</string>
+    <string name="names_list_last">%1$s and %2$s</string>
 
     <!-- ErrorCard -->
     <string name="no_beneficiaries">An expense must have at least one beneficiary</string>

@@ -1,7 +1,16 @@
 package database.data.remote
 
+import io.ktor.client.call.body
+import io.ktor.client.request.post
+import io.ktor.client.request.put
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
 import networking.DuckCountClient
 import networking.DuckCountRoutes
+import util.Error
 import util.NetworkError
 import util.Result
 
@@ -49,24 +58,55 @@ class ExpenseApi(
             queryParams = mapOf(SINCE_QUERY to since),
         )
 
-    /** A `409` means an expense already has the UUID the nonce derives to. */
+    /**
+     * A `409` means an expense already has the UUID the nonce derives to, and a `410` that the
+     * expense names people who deleted their account, see
+     * [WriteOneTimeExpenseError.BeneficiariesDeleted].
+     */
     suspend fun createOneTimeExpense(
         body: CreateOneTimeExpenseRequestBody,
-    ): Result<Unit, NetworkError> =
-        client.post<Unit, CreateOneTimeExpenseRequestBody>(
-            route = DuckCountRoutes.Expense.EXPENSES,
-            body = body,
-        )
+    ): Result<Unit, WriteOneTimeExpenseError> =
+        write {
+            client.httpClient.post(urlString = DuckCountRoutes.Expense.EXPENSES) {
+                setBody(body)
+                contentType(ContentType.Application.Json)
+            }
+        }
 
+    /**
+     * A `410` means the edit adds people who deleted their account, see
+     * [WriteOneTimeExpenseError.BeneficiariesDeleted]. One the expense names already is no
+     * addition, whether or not they deleted their account since.
+     */
     suspend fun updateOneTimeExpense(
         uuid: String,
         body: OneTimeExpenseRequestBody,
-    ): Result<Unit, NetworkError> =
-        client.put<Unit, OneTimeExpenseRequestBody>(
-            route = DuckCountRoutes.Expense.EXPENSE_BY_UUID,
-            pathParams = mapOf("expense_uuid" to uuid),
-            body = body,
-        )
+    ): Result<Unit, WriteOneTimeExpenseError> =
+        write {
+            client.httpClient.put(
+                urlString = DuckCountRoutes.Expense.EXPENSE_BY_UUID.replace(oldValue = ":expense_uuid", newValue = uuid),
+            ) {
+                setBody(body)
+                contentType(ContentType.Application.Json)
+            }
+        }
+
+    /** Sends a write of a one-time expense, reading off the response what [writeRefusalOf] says. */
+    private suspend fun write(request: suspend () -> HttpResponse): Result<Unit, WriteOneTimeExpenseError> {
+        // Read off the response as it comes back, a NetworkError having no room for it.
+        var refusal: WriteOneTimeExpenseError? = null
+
+        val written = client.execute<Unit> {
+            request().also { response ->
+                refusal = writeRefusalOf(status = response.status) { response.body() }
+            }
+        }
+
+        return when (written) {
+            is Result.Success -> Result.Success(Unit)
+            is Result.Error -> Result.Error(refusal ?: WriteOneTimeExpenseError.Network(written.error))
+        }
+    }
 
     /**
      * Writes the caller's own copy of the key to the expense [uuid]. A `404` means the
@@ -118,3 +158,33 @@ class ExpenseApi(
             pathParams = mapOf("expense_uuid" to uuid),
         )
 }
+
+/** Why `POST /expenses` or `PUT /expenses/{uuid}` did not take a one-time expense. */
+sealed interface WriteOneTimeExpenseError : Error {
+
+    /**
+     * The server refused the expense for naming people who deleted their account, [userUuids],
+     * sorted as the server sorts them: every one a new expense names, and only the ones an edit
+     * adds, one the expense names already being kept, see [DeletedBeneficiariesResponse]. Nothing
+     * was written.
+     */
+    data class BeneficiariesDeleted(val userUuids: List<String>) : WriteOneTimeExpenseError
+
+    /** The server could not be reached, or refused the call for any other reason. */
+    data class Network(val error: NetworkError) : WriteOneTimeExpenseError
+}
+
+/**
+ * What a response with [status] to a write of a one-time expense says that a [NetworkError] has
+ * no room for, or null when it says nothing more: who a `410` names, from the body [deleted]
+ * reads, see [WriteOneTimeExpenseError.BeneficiariesDeleted]. Neither route answers one for
+ * anything else.
+ */
+internal suspend fun writeRefusalOf(
+    status: HttpStatusCode,
+    deleted: suspend () -> DeletedBeneficiariesResponse,
+): WriteOneTimeExpenseError? =
+    when (status) {
+        HttpStatusCode.Gone -> WriteOneTimeExpenseError.BeneficiariesDeleted(userUuids = deleted().deleted_user_uuids)
+        else -> null
+    }
