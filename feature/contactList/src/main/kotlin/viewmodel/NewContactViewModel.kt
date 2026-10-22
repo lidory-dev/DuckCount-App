@@ -9,10 +9,14 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import model.AddContactError
+import model.UsernameInputError
 
 class NewContactViewModel(
     private val contactCallBacks: ContactCallBacks,
 ) : ViewModel() {
+
+    val maxUsernameLength = contactCallBacks.maxUsernameLength
+
     private val _state = MutableStateFlow(NewContactState())
     val state = _state.stateIn(
         scope = viewModelScope,
@@ -21,17 +25,35 @@ class NewContactViewModel(
     )
 
     fun updateUsername(username: String) {
+        // Lowercased like the usernames are reserved, but not trimmed: trimming what is being
+        // typed would swallow a space typed at the end and move the cursor past one typed at the
+        // start. What is checked and sent is trimmed instead (see NewContactState.trimmedUsername).
+        val typed = username.lowercase()
+
         _state.update {
-            it.copy(username = username, error = null, isSent = false)
+            it.copy(
+                username = typed,
+                // Nothing typed yet isn't a mistake worth pointing out, the button
+                // stays disabled anyway.
+                inputError = if (typed.isBlank()) {
+                    null
+                } else {
+                    contactCallBacks.validateUsername(username = typed.trim())
+                },
+                error = null,
+            )
         }
     }
 
     fun sendContactRequest() {
-        val username = _state.value.username
+        // Only what the button would send: the keyboard's send action calls this too.
+        if (!_state.value.canSend) return
+
+        val username = _state.value.trimmedUsername
 
         viewModelScope.launch {
             _state.update {
-                it.copy(isSending = true, error = null, isSent = false)
+                it.copy(isSending = true, error = null)
             }
 
             val error = contactCallBacks.sendContactRequest(username = username)
@@ -42,18 +64,48 @@ class NewContactViewModel(
                     username = if (error == null) "" else it.username,
                     isSending = false,
                     error = error,
-                    isSent = error == null,
+                    sentTo = if (error == null) username else it.sentTo,
                 )
             }
+        }
+    }
+
+    /**
+     * Called once the screen has confirmed the request to [username]. Only that one is cleared:
+     * the next request can be sent before the confirmation of this one is over.
+     */
+    fun onSentConfirmed(username: String) {
+        _state.update {
+            if (it.sentTo == username) it.copy(sentTo = null) else it
         }
     }
 }
 
 data class NewContactState(
+    /** What the user typed, lowercased, emptied once a request is sent. */
     val username: String = "",
+
+    /** Why [trimmedUsername] cannot be anybody's, null while nothing is typed. */
+    val inputError: UsernameInputError? = null,
+
+    /** Whether a request is being sent, which the user can neither repeat nor leave. */
     val isSending: Boolean = false,
+
+    /** Why the last request could not be sent, cleared as soon as the username changes. */
     val error: AddContactError? = null,
-    val isSent: Boolean = false,
+
+    /**
+     * The username the last request went to, until the screen has confirmed it to the user. A
+     * state rather than an event: the request can complete while the app is in the background,
+     * where nothing can be shown, and it is confirmed once the user is back.
+     */
+    val sentTo: String? = null,
 ) {
-    val canSend: Boolean = username.isNotBlank() && !isSending
+    /**
+     * [username] without the whitespace around it, which is what is checked and sent: one pasted
+     * with a stray space still goes through, a space never being valid.
+     */
+    val trimmedUsername: String = username.trim()
+
+    val canSend: Boolean = username.isNotBlank() && inputError == null && !isSending
 }

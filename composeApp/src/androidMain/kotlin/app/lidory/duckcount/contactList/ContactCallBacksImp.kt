@@ -4,6 +4,8 @@ import ContactCallBacks
 import android.util.Log
 import app.lidory.duckcount.networking.NetworkConnectivity
 import app.lidory.duckcount.push.ContactNotifier
+import app.lidory.duckcount.usernameMaximumLength
+import app.lidory.duckcount.validateUsername as validateUsernameShared
 import authenticationUtils.getDiscoveryUsernameFlow
 import contact.AnswerContactRequestError as SharedAnswerContactRequestError
 import contact.ContactArrivals
@@ -21,6 +23,7 @@ import model.ContactRequest
 import model.ContactVerification
 import model.RemoveContactError
 import model.User
+import model.UsernameInputError
 import util.Result
 import util.onError
 
@@ -37,6 +40,9 @@ class ContactCallBacksImp(
     private val safetyNumbers: SafetyNumbers,
     private val networkConnectivity: NetworkConnectivity,
 ) : ContactCallBacks {
+
+    override val maxUsernameLength: Int = usernameMaximumLength()
+
     override suspend fun getFilteredUsers(filter: String): Flow<List<User>> {
         return userRepository.getAllFiltered(filter)
             .map { users ->
@@ -181,6 +187,10 @@ class ContactCallBacksImp(
                 refusal.error.toAnswerContactRequestError(isOnline = networkConnectivity.isOnline())
             }
         }
+
+    override fun validateUsername(username: String): UsernameInputError? {
+        return validateUsernameShared(username = username)?.toUsernameInputError()
+    }
 
     override suspend fun sendContactRequest(username: String): AddContactError? =
         when (val request = contactRequestRepository.sendContactRequest(username = username)) {

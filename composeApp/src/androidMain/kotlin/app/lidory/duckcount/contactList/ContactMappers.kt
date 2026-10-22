@@ -9,8 +9,10 @@ import model.ContactVerification
 import model.ContactVerificationError
 import model.RemoveContactError
 import model.User
+import model.UsernameInputError
 import util.NetworkError
 import vault.VaultError
+import app.lidory.duckcount.UsernameError as SharedUsernameError
 import contact.AnswerContactRequestError as SharedAnswerContactRequestError
 import contact.ContactVerification as SharedContactVerification
 import contact.ContactVerificationError as SharedContactVerificationError
@@ -22,6 +24,13 @@ fun User.toDb(): UserDB = UserDB(
     username = username,
     fullName = fullName,
 )
+
+fun SharedUsernameError.toUsernameInputError(): UsernameInputError = when (this) {
+    SharedUsernameError.EMPTY -> UsernameInputError.EMPTY
+    SharedUsernameError.MUST_START_WITH_LETTER -> UsernameInputError.MUST_START_WITH_LETTER
+    SharedUsernameError.INVALID_CHARACTER -> UsernameInputError.INVALID_CHARACTER
+    SharedUsernameError.TOO_LONG -> UsernameInputError.TOO_LONG
+}
 
 /**
  * Maps a failed contact request to the reason the UI surfaces.

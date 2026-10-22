@@ -5,8 +5,13 @@ import model.ContactRequest
 import model.ContactVerification
 import model.RemoveContactError
 import model.User
+import model.UsernameInputError
 
 interface ContactCallBacks {
+
+    /** Longest username `lib-duckcount` accepts, for the "too long" message to count against. */
+    val maxUsernameLength: Int
+
     suspend fun getFilteredUsers(filter: String): Flow<List<User>>
 
     suspend fun getUser(uuid: String): Flow<User>
@@ -93,6 +98,9 @@ interface ContactCallBacks {
      * added as a contact, which [AnswerContactRequestError.ALREADY_ACCEPTED] says.
      */
     suspend fun refuseContactRequest(requestUuid: String): AnswerContactRequestError?
+
+    /** Returns why [username] cannot be looked up as typed, or null when it is valid. */
+    fun validateUsername(username: String): UsernameInputError?
 
     /**
      * Sends a contact request to whoever reserved the discovery [username].
