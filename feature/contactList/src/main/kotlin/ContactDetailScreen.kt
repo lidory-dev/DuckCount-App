@@ -14,7 +14,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -33,6 +32,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
 import app.lidory.contactList.R
+import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.constant.Padding
 import component.ContactDeletionDialog
@@ -97,7 +97,6 @@ fun ContactDetailScreen(
 
     Scaffold(
         modifier = modifier,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {},
@@ -129,51 +128,59 @@ fun ContactDetailScreen(
             )
         },
     ) { innerPadding ->
-        // Scrolls so that the entries below the picture stay within reach when the picture, as
-        // wide as a third of the screen, takes up most of its height, in landscape for instance.
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Padding.medium),
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(innerPadding),
         ) {
-            state.user?.let { user ->
-                with(sharedTransitionScope) {
-                    ProfilePictureCard(
-                        modifier = Modifier
-                            .fillMaxWidth(.3f)
-                            .sharedElement(
-                                sharedContentState = rememberSharedContentState(key = "profile_picture_${user.uuid}"),
+            // Scrolls so that the entries below the picture stay within reach when the picture, as
+            // wide as a third of the screen, takes up most of its height, in landscape for instance.
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = Padding.medium),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                state.user?.let { user ->
+                    with(sharedTransitionScope) {
+                        ProfilePictureCard(
+                            modifier = Modifier
+                                .fillMaxWidth(.3f)
+                                .sharedElement(
+                                    sharedContentState = rememberSharedContentState(key = "profile_picture_${user.uuid}"),
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                ),
+                            profilePicture = user.profilePicture,
+                            uuid = user.uuid,
+                            fullName = user.fullName,
+                        )
+
+                        Text(
+                            modifier = Modifier.sharedBounds(
+                                sharedContentState = rememberSharedContentState(key = "full_name_${user.uuid}"),
                                 animatedVisibilityScope = animatedVisibilityScope,
                             ),
-                        profilePicture = user.profilePicture,
-                        uuid = user.uuid,
-                        fullName = user.fullName,
-                    )
+                            text = user.fullName,
+                        )
+                    }
+                } ?: Text(text = stringResource(R.string.unresolved_user))
 
-                    Text(
-                        modifier = Modifier.sharedBounds(
-                            sharedContentState = rememberSharedContentState(key = "full_name_${user.uuid}"),
-                            animatedVisibilityScope = animatedVisibilityScope,
-                        ),
-                        text = user.fullName,
+                // Only a contact has an identity to check, and the entry waits until that is known.
+                val shownVerification = verification
+
+                if (shownVerification != null && shownVerification != ContactVerification.NotContact) {
+                    Spacer(modifier = Modifier.height(Padding.extraLarge))
+
+                    ContactVerificationCard(
+                        isVerified = (shownVerification as? ContactVerification.Available)?.isVerified == true,
+                        onClick = dropUnlessResumed { navigateToContactVerification() },
                     )
                 }
-            } ?: Text(text = stringResource(R.string.unresolved_user))
-
-            // Only a contact has an identity to check, and the entry waits until that is known.
-            val shownVerification = verification
-
-            if (shownVerification != null && shownVerification != ContactVerification.NotContact) {
-                Spacer(modifier = Modifier.height(Padding.extraLarge))
-
-                ContactVerificationCard(
-                    isVerified = (shownVerification as? ContactVerification.Available)?.isVerified == true,
-                    onClick = dropUnlessResumed { navigateToContactVerification() },
-                )
             }
+
+            DuckCountSnackbarHost(hostState = snackbarHostState)
         }
     }
 }

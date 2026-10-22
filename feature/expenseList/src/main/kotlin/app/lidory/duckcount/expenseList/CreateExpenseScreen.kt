@@ -4,8 +4,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -17,7 +17,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -35,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
@@ -134,7 +134,6 @@ fun CreateExpenseScreen(
     Scaffold(
         modifier = Modifier
             .fillMaxWidth(),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -157,7 +156,7 @@ fun CreateExpenseScreen(
             )
         },
     ) { innerPadding ->
-        Box(
+        Column(
             modifier = Modifier
                 .padding(
                     top = innerPadding.calculateTopPadding(),
@@ -165,18 +164,21 @@ fun CreateExpenseScreen(
                     start = Padding.medium,
                     end = Padding.medium,
                 )
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                ) {
+                    focusManager.clearFocus()
+                }
                 .fillMaxSize(),
         ) {
             LazyColumn(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .clickable(
-                        interactionSource = interactionSource,
-                        indication = null,
-                    ) {
-                        focusManager.clearFocus()
-                    }
-                    .fillMaxSize(),
+                    .weight(1f)
+                    .fillMaxWidth(),
+                // The last row as far from the button below as the rows are from each other.
+                contentPadding = PaddingValues(bottom = Padding.medium),
                 verticalArrangement = Arrangement.spacedBy(Padding.medium),
             ) {
                 item {
@@ -275,18 +277,14 @@ fun CreateExpenseScreen(
                         viewModel.removeBeneficiaryFixedShare(userUuid = userUuid)
                     },
                 )
-
-                item {
-                    // Spacer to place the last element above the add button
-                    Spacer(modifier = Modifier.padding(ButtonDefaults.MinHeight))
-                }
             }
+
+            DuckCountSnackbarHost(hostState = snackbarHostState)
 
             DuckCountElevatedLoadingButton(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = Padding.extraLarge)
-                    .align(Alignment.BottomCenter),
+                    .padding(bottom = Padding.extraLarge),
                 enabled = !isSaving
                         && !isSaved
                         && (viewModel.isNewExpense() || hasChanges)

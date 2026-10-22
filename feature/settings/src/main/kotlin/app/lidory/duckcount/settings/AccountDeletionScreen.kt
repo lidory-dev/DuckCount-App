@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.button.PasswordVisibilityButton
+import app.lidory.duckcount.android.ui.composable.text.DuckCountErrorText
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.settings.model.messageRes
@@ -94,70 +97,75 @@ fun AccountDeletionScreen(
                     end = Padding.large,
                 ),
         ) {
-            OutlinedCard(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.outlinedCardColors().copy(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                ),
-            ) {
-                Icon(
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .padding(top = Padding.large)
-                        .size(32.dp),
-                    painter = painterResource(R.drawable.ic_dangerous),
-                    contentDescription = null,
-                )
-
-                Text(
-                    modifier = Modifier.padding(
-                        top = Padding.small,
-                        bottom = Padding.medium,
-                        start = Padding.medium,
-                        end = Padding.medium,
-                    ),
-                    textAlign = TextAlign.Center,
-                    text = stringResource(R.string.account_deletion_disclaimer),
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            DuckCountTextField(
+            // Scrolls, the button staying pinned below, so that the field stays within reach when
+            // the card takes up most of the height, in landscape or with a large font for instance.
+            Column(
                 modifier = Modifier
-                    .semantics {
-                        contentType = ContentType.Password
-                    }
-                    .fillMaxWidth(),
-                value = password,
-                onValueChange = { viewModel.onPasswordChanged(it) },
-                focusManager = focusManager,
-                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                singleLine = true,
-                labelName = stringResource(R.string.password),
-                keyboardOptions = KeyboardOptions(
-                    imeAction = ImeAction.Next,
-                ),
-                enabled = !isDeleting,
-                isInError = password.isBlank(),
-                error = stringResource(androidUiR.string.required),
-                trailingIcon = {
-                    PasswordVisibilityButton(
-                        onClick = { isPasswordVisible = !isPasswordVisible },
-                        isPasswordVisible = isPasswordVisible,
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                OutlinedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.outlinedCardColors().copy(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                    ),
+                ) {
+                    Icon(
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .padding(top = Padding.large)
+                            .size(32.dp),
+                        painter = painterResource(R.drawable.ic_dangerous),
+                        contentDescription = null,
                     )
-                },
-            )
 
-            error?.let { error ->
-                Text(
-                    modifier = Modifier.padding(top = Padding.medium),
-                    text = stringResource(error.messageRes()),
-                    color = MaterialTheme.colorScheme.error,
+                    Text(
+                        modifier = Modifier.padding(
+                            top = Padding.small,
+                            bottom = Padding.medium,
+                            start = Padding.medium,
+                            end = Padding.medium,
+                        ),
+                        textAlign = TextAlign.Center,
+                        text = stringResource(R.string.account_deletion_disclaimer),
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                DuckCountTextField(
+                    modifier = Modifier
+                        .semantics {
+                            contentType = ContentType.Password
+                        }
+                        .fillMaxWidth(),
+                    value = password,
+                    onValueChange = { viewModel.onPasswordChanged(it) },
+                    focusManager = focusManager,
+                    visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    singleLine = true,
+                    labelName = stringResource(R.string.password),
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Next,
+                    ),
+                    enabled = !isDeleting,
+                    isInError = password.isBlank(),
+                    error = stringResource(androidUiR.string.required),
+                    trailingIcon = {
+                        PasswordVisibilityButton(
+                            onClick = { isPasswordVisible = !isPasswordVisible },
+                            isPasswordVisible = isPasswordVisible,
+                        )
+                    },
                 )
-            }
 
-            Spacer(Modifier.weight(1f))
+                error?.let { error ->
+                    DuckCountErrorText(
+                        modifier = Modifier.padding(top = Padding.medium),
+                        text = stringResource(error.messageRes()),
+                    )
+                }
+            }
 
             DuckCountLoadingButton(
                 modifier = Modifier.fillMaxWidth(),

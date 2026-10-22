@@ -2,7 +2,9 @@ package app.lidory.duckcount.settings
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,7 +14,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.settings.component.PromotionalCard
 import app.lidory.duckcount.settings.viewmodel.AboutViewModel
@@ -55,7 +57,6 @@ fun AboutScreen(
 
     Scaffold(
         modifier = modifier,
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(text = stringResource(R.string.about)) },
@@ -72,79 +73,87 @@ fun AboutScreen(
             )
         },
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.padding(innerPadding),
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
         ) {
-            item {
-                PromotionalCard(
-                    modifier = Modifier.padding(horizontal = Padding.large),
-                    learnMoreButtonUrl = viewModel.learnMoreLink,
-                )
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+            ) {
+                item {
+                    PromotionalCard(
+                        modifier = Modifier.padding(horizontal = Padding.large),
+                        learnMoreButtonUrl = viewModel.learnMoreLink,
+                    )
 
-                Spacer(modifier = Modifier.height(24.dp))
-            }
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
 
-            item {
-                Text(
-                    modifier = Modifier
-                        .padding(horizontal = Padding.medium)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) {
-                            val now = System.currentTimeMillis()
-                            tapCount = if (now - lastTapTime <= EASTER_EGG_TAP_WINDOW_MS) {
-                                tapCount + 1
-                            } else {
-                                1
-                            }
-                            lastTapTime = now
-
-                            if (tapCount >= EASTER_EGG_TAP_COUNT) {
-                                tapCount = 0
-                                coroutineScope.launch {
-                                    snackbarHostState.showSnackbar(
-                                        message = quackMessage,
-                                    )
+                item {
+                    Text(
+                        modifier = Modifier
+                            .padding(horizontal = Padding.medium)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) {
+                                val now = System.currentTimeMillis()
+                                tapCount = if (now - lastTapTime <= EASTER_EGG_TAP_WINDOW_MS) {
+                                    tapCount + 1
+                                } else {
+                                    1
                                 }
-                            }
-                        },
-                    text = stringResource(
-                        R.string.app_version,
-                        viewModel.appVersionName,
-                    ),
-                )
+                                lastTapTime = now
 
-                Spacer(modifier = Modifier.height(12.dp))
+                                if (tapCount >= EASTER_EGG_TAP_COUNT) {
+                                    tapCount = 0
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            message = quackMessage,
+                                        )
+                                    }
+                                }
+                            },
+                        text = stringResource(
+                            R.string.app_version,
+                            viewModel.appVersionName,
+                        ),
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                item {
+                    HorizontalDivider(Modifier, DividerDefaults.Thickness)
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                item {
+                    Text(
+                        modifier = Modifier.padding(horizontal = Padding.medium),
+                        text = stringResource(R.string.app_and_lib_licence),
+                    )
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    HorizontalDivider(Modifier, DividerDefaults.Thickness)
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                item {
+                    Text(
+                        modifier = Modifier.padding(horizontal = Padding.medium),
+                        text = stringResource(R.string.trademarks_of_lidory),
+                    )
+                }
             }
 
-            item {
-                HorizontalDivider(Modifier, DividerDefaults.Thickness)
-
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            item {
-                Text(
-                    modifier = Modifier.padding(horizontal = Padding.medium),
-                    text = stringResource(R.string.app_and_lib_licence),
-                )
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(12.dp))
-
-                HorizontalDivider(Modifier, DividerDefaults.Thickness)
-
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            item {
-                Text(
-                    modifier = Modifier.padding(horizontal = Padding.medium),
-                    text = stringResource(R.string.trademarks_of_lidory),
-                )
-            }
+            DuckCountSnackbarHost(hostState = snackbarHostState)
         }
     }
 }

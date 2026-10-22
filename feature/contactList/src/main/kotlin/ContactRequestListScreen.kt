@@ -1,7 +1,9 @@
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,7 +12,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -26,6 +27,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.contactList.R
+import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.constant.Padding
 import component.ContactRequestCard
@@ -63,7 +65,6 @@ fun ContactRequestListScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -86,48 +87,56 @@ fun ContactRequestListScreen(
     ) { innerPadding ->
         val content = state as? ContactRequestListState.Content
 
-        when {
-            content == null || (content.requests.isEmpty() && content.isRefreshing) -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+        ) {
+            when {
+                content == null || (content.requests.isEmpty() && content.isRefreshing) -> {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
                 }
-            }
 
-            content.requests.isEmpty() -> {
-                EmptyContentContainer(
-                    modifier = Modifier.padding(innerPadding),
-                    icon = R.drawable.ic_envelop_checked,
-                    text = R.string.no_contact_requests,
-                )
-            }
+                content.requests.isEmpty() -> {
+                    EmptyContentContainer(
+                        modifier = Modifier.weight(1f),
+                        icon = R.drawable.ic_envelop_checked,
+                        text = R.string.no_contact_requests,
+                    )
+                }
 
-            else -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    contentPadding = PaddingValues(horizontal = Padding.medium),
-                    verticalArrangement = Arrangement.spacedBy(Padding.medium),
-                ) {
-                    items(
-                        items = content.requests,
-                        key = { request -> request.uuid },
-                    ) { request ->
-                        ContactRequestCard(
-                            modifier = Modifier.animateItem(),
-                            request = request,
-                            answer = content.answers[request.uuid],
-                            onAccept = { viewModel.accept(requestUuid = request.uuid) },
-                            onRefuse = { viewModel.refuse(requestUuid = request.uuid) },
-                        )
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = Padding.medium),
+                        verticalArrangement = Arrangement.spacedBy(Padding.medium),
+                    ) {
+                        items(
+                            items = content.requests,
+                            key = { request -> request.uuid },
+                        ) { request ->
+                            ContactRequestCard(
+                                modifier = Modifier.animateItem(),
+                                request = request,
+                                answer = content.answers[request.uuid],
+                                onAccept = { viewModel.accept(requestUuid = request.uuid) },
+                                onRefuse = { viewModel.refuse(requestUuid = request.uuid) },
+                            )
+                        }
                     }
                 }
             }
+
+            DuckCountSnackbarHost(hostState = snackbarHostState)
         }
     }
 }

@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -17,10 +15,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -44,7 +40,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.contactList.R
+import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
+import app.lidory.duckcount.android.ui.composable.text.DuckCountErrorText
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import model.messageRes
@@ -195,34 +193,18 @@ fun NewContactScreen(
                 )
 
                 state.error?.let { error ->
-                    // Brought into view, as it can appear below the scrolled area, and nothing
-                    // else on screen tells that the request failed.
-                    val bringIntoViewRequester = remember { BringIntoViewRequester() }
-
-                    LaunchedEffect(error) {
-                        bringIntoViewRequester.bringIntoView()
-                    }
-
-                    Text(
-                        modifier = Modifier
-                            .bringIntoViewRequester(bringIntoViewRequester)
-                            .padding(
-                                top = Padding.medium,
-                                start = Padding.medium,
-                                end = Padding.medium,
-                            ),
+                    DuckCountErrorText(
+                        modifier = Modifier.padding(
+                            top = Padding.medium,
+                            start = Padding.medium,
+                            end = Padding.medium,
+                        ),
                         text = stringResource(error.messageRes()),
-                        color = MaterialTheme.colorScheme.error,
                     )
                 }
             }
 
-            // Above the button rather than in the scaffold, which would lay the confirmation over
-            // the button and take the taps meant for it.
-            SnackbarHost(
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                hostState = snackbarHostState,
-            )
+            DuckCountSnackbarHost(hostState = snackbarHostState)
 
             DuckCountLoadingButton(
                 modifier = Modifier.fillMaxWidth(),
