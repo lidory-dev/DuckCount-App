@@ -99,7 +99,10 @@ interface ContactCallBacks {
      */
     suspend fun refuseContactRequest(requestUuid: String): AnswerContactRequestError?
 
-    /** Returns why [username] cannot be looked up as typed, or null when it is valid. */
+    /**
+     * Returns why [username] cannot be looked up as typed, or null when it is valid, or empty:
+     * nothing typed yet isn't a mistake worth pointing out, the button stays disabled anyway.
+     */
     fun validateUsername(username: String): UsernameInputError?
 
     /**

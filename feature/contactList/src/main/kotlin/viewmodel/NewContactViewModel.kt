@@ -33,13 +33,7 @@ class NewContactViewModel(
         _state.update {
             it.copy(
                 username = typed,
-                // Nothing typed yet isn't a mistake worth pointing out, the button
-                // stays disabled anyway.
-                inputError = if (typed.isBlank()) {
-                    null
-                } else {
-                    contactCallBacks.validateUsername(username = typed.trim())
-                },
+                inputError = contactCallBacks.validateUsername(username = typed.trim()),
                 error = null,
             )
         }

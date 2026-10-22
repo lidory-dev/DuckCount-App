@@ -72,7 +72,10 @@ interface SettingsCallBacks {
      */
     suspend fun refreshReservedDiscoveryUsername()
 
-    /** Returns why [username] cannot be reserved as typed, or null when it is valid. */
+    /**
+     * Returns why [username] cannot be reserved as typed, or null when it is valid, or empty:
+     * nothing typed yet isn't a mistake worth pointing out, the button stays disabled anyway.
+     */
     fun validateUsername(username: String): UsernameInputError?
 
     /** Returns the form [username] is reserved under, so it can be compared to a draft. */

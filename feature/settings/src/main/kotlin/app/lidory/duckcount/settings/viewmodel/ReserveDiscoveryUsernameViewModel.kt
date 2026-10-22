@@ -51,13 +51,7 @@ class ReserveDiscoveryUsernameViewModel(
 
             DiscoveryUsernameScreenState.Content(
                 username = username,
-                // Nothing typed yet isn't a mistake worth pointing out, the button
-                // stays disabled anyway.
-                inputError = if (username.isBlank()) {
-                    null
-                } else {
-                    settingsCallBacks.validateUsername(username = username)
-                },
+                inputError = settingsCallBacks.validateUsername(username = username),
                 isReserving = isReserving,
                 error = error,
                 hasReservedUsername = reserved != null,
@@ -89,9 +83,13 @@ class ReserveDiscoveryUsernameViewModel(
         // request.
         if (_isReserved.value) return
 
-        val username = (state.value as? DiscoveryUsernameScreenState.Content)?.username ?: return
+        val content = state.value as? DiscoveryUsernameScreenState.Content ?: return
 
-        if (settingsCallBacks.validateUsername(username = username) != null) return
+        // Only what the button would reserve: an empty username has no input error, so that
+        // alone would let one through.
+        if (!content.canReserve) return
+
+        val username = content.username
 
         viewModelScope.launch {
             isReserving.value = true

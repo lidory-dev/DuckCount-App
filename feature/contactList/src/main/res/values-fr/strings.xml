@@ -14,7 +14,6 @@
     <string name="no_contacts_yet">Aucun contact pour le moment</string>
     <string name="add_contact_disclaimer">Saisissez le nom d’utilisateur de la personne à ajouter. Elle recevra une demande de contact et, dès qu’elle l’aura acceptée, vous figurerez chacun dans les contacts de l’autre.\n\nSeule une empreinte du nom d’utilisateur parvient à nos serveurs, jamais le nom d’utilisateur lui-même.</string>
     <string name="contact_username">Nom d’utilisateur</string>
-    <string name="contact_username_error_empty">Un nom d’utilisateur est requis</string>
     <string name="contact_username_error_must_start_with_letter">Doit commencer par une lettre</string>
     <string name="contact_username_error_invalid_character">Lettres et chiffres uniquement</string>
     <string name="contact_username_error_too_long">Nom d’utilisateur trop long (%1$d/%2$d)</string>

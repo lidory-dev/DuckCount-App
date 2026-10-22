@@ -14,7 +14,6 @@
     <string name="no_contacts_yet">You don’t have any contacts yet</string>
     <string name="add_contact_disclaimer">Enter the username of the person you want to add. They will receive a contact request, and once they accept it, you will be in each other’s contacts.\n\nOnly a fingerprint of the username reaches our servers, never the username itself.</string>
     <string name="contact_username">Username</string>
-    <string name="contact_username_error_empty">A username is required</string>
     <string name="contact_username_error_must_start_with_letter">Must start with a letter</string>
     <string name="contact_username_error_invalid_character">Letters and digits only</string>
     <string name="contact_username_error_too_long">Username too long (%1$d/%2$d)</string>

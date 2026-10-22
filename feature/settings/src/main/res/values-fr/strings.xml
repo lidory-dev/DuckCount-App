@@ -32,7 +32,6 @@
     <string name="save">Enregistrer</string>
     <string name="trademarks_of_lidory">© 2026 Lidory SASU. Tous droits réservés.\nDuckCount® et Lidory® sont des marques déposées de Lidory SASU.</string>
 
-    <string name="discovery_username_error_empty">Un nom d’utilisateur est requis</string>
     <string name="discovery_username_error_must_start_with_letter">Doit commencer par une lettre</string>
     <string name="discovery_username_error_invalid_character">Lettres et chiffres uniquement</string>
     <string name="discovery_username_error_too_long">Nom d’utilisateur trop long (%1$d/%2$d)</string>

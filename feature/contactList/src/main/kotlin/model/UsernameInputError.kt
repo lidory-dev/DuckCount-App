@@ -8,9 +8,6 @@ import app.lidory.contactList.R
  * The rules themselves live in `lib-duckcount`, composeApp maps them onto this.
  */
 enum class UsernameInputError {
-    /** Nothing was typed. */
-    EMPTY,
-
     /** The username does not start with a letter. */
     MUST_START_WITH_LETTER,
 
@@ -27,7 +24,6 @@ enum class UsernameInputError {
  */
 @StringRes
 fun UsernameInputError.messageRes(): Int = when (this) {
-    UsernameInputError.EMPTY -> R.string.contact_username_error_empty
     UsernameInputError.MUST_START_WITH_LETTER -> R.string.contact_username_error_must_start_with_letter
     UsernameInputError.INVALID_CHARACTER -> R.string.contact_username_error_invalid_character
     UsernameInputError.TOO_LONG -> R.string.contact_username_error_too_long

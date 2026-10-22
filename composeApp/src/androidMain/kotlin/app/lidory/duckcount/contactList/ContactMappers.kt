@@ -25,8 +25,9 @@ fun User.toDb(): UserDB = UserDB(
     fullName = fullName,
 )
 
-fun SharedUsernameError.toUsernameInputError(): UsernameInputError = when (this) {
-    SharedUsernameError.EMPTY -> UsernameInputError.EMPTY
+/** An empty username is no mistake to point out, see [ContactCallBacks.validateUsername]. */
+fun SharedUsernameError.toUsernameInputError(): UsernameInputError? = when (this) {
+    SharedUsernameError.EMPTY -> null
     SharedUsernameError.MUST_START_WITH_LETTER -> UsernameInputError.MUST_START_WITH_LETTER
     SharedUsernameError.INVALID_CHARACTER -> UsernameInputError.INVALID_CHARACTER
     SharedUsernameError.TOO_LONG -> UsernameInputError.TOO_LONG
