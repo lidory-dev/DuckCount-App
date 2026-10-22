@@ -1,11 +1,13 @@
 package app.lidory.duckcount.settings
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -90,7 +92,7 @@ fun AccountDeletionScreen(
             )
         },
     ) { innerPadding ->
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .padding(
                     top = innerPadding.calculateTopPadding(),
@@ -101,12 +103,14 @@ fun AccountDeletionScreen(
                 .consumeWindowInsets(innerPadding)
                 .imePadding(),
         ) {
-            // Scrolls, the button staying pinned below, so that the field stays within reach when
-            // the card takes up most of the height, in landscape or with a large font for instance.
+            // Scrolls when the form does not fit, above the keyboard, in landscape or with a large
+            // font for instance, and is at least as tall as the room it has so that the button sits
+            // at the bottom while there is room for it, and scrolls with the form rather than
+            // hiding the field when there is not.
             Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(rememberScrollState())
+                    .heightIn(min = maxHeight),
             ) {
                 OutlinedCard(
                     modifier = Modifier.fillMaxWidth(),
@@ -169,21 +173,25 @@ fun AccountDeletionScreen(
                         text = stringResource(error.messageRes()),
                     )
                 }
-            }
 
-            DuckCountLoadingButton(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    focusManager.clearFocus()
-                    viewModel.onConfirmClicked()
-                },
-                enabled = password.isNotBlank() && !isDeleting,
-                isLoading = isDeleting,
-                colors = ButtonDefaults.buttonColors().copy(
-                    containerColor = MaterialTheme.colorScheme.error,
-                ),
-            ) {
-                Text(stringResource(androidUiR.string.confirm))
+                Spacer(modifier = Modifier.weight(1f))
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                DuckCountLoadingButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        focusManager.clearFocus()
+                        viewModel.onConfirmClicked()
+                    },
+                    enabled = password.isNotBlank() && !isDeleting,
+                    isLoading = isDeleting,
+                    colors = ButtonDefaults.buttonColors().copy(
+                        containerColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) {
+                    Text(stringResource(androidUiR.string.confirm))
+                }
             }
         }
     }

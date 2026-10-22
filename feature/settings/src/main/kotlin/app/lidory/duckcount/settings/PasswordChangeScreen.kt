@@ -1,10 +1,12 @@
 package app.lidory.duckcount.settings
 
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -76,7 +78,7 @@ fun PasswordChangeScreen(
             )
         },
     ) { innerPadding ->
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .padding(
                     top = innerPadding.calculateTopPadding(),
@@ -87,12 +89,14 @@ fun PasswordChangeScreen(
                 .consumeWindowInsets(innerPadding)
                 .imePadding(),
         ) {
-            // Scrolls, the button staying pinned below, so that the fields stay within reach when
-            // they do not fit, above the keyboard or in landscape for instance.
+            // Scrolls when the form does not fit, above the keyboard, in landscape or with a large
+            // font for instance, and is at least as tall as the room it has so that the button sits
+            // at the bottom while there is room for it, and scrolls with the form rather than
+            // hiding the fields when there is not.
             Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(rememberScrollState())
+                    .heightIn(min = maxHeight),
             ) {
                 DuckCountTextField(
                     modifier = Modifier
@@ -178,16 +182,20 @@ fun PasswordChangeScreen(
                         )
                     },
                 )
-            }
 
-            DuckCountButton(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { viewModel.onConfirmClicked() },
-                enabled = state.value.currentPassword.isNotBlank()
-                        && !viewModel.isNewPasswordTooShort()
-                        && viewModel.isNewPasswordConfirmationValid(),
-            ) {
-                Text(stringResource(androidUiR.string.confirm))
+                Spacer(modifier = Modifier.weight(1f))
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                DuckCountButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { viewModel.onConfirmClicked() },
+                    enabled = state.value.currentPassword.isNotBlank()
+                            && !viewModel.isNewPasswordTooShort()
+                            && viewModel.isNewPasswordConfirmationValid(),
+                ) {
+                    Text(stringResource(androidUiR.string.confirm))
+                }
             }
         }
     }

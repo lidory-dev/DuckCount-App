@@ -1,12 +1,14 @@
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -33,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -128,99 +131,115 @@ fun NewContactScreen(
                 .imePadding()
                 .padding(horizontal = Padding.large),
         ) {
-            // Scrolls, the button staying pinned below, so that the field stays within reach when
-            // the card takes up most of the height, in landscape or with a large font for instance.
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState()),
+            BoxWithConstraints(
+                modifier = Modifier.weight(1f),
             ) {
-                OutlinedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(
-                        modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .padding(top = Padding.large)
-                            .size(32.dp),
-                        painter = painterResource(R.drawable.ic_person_add),
-                        contentDescription = null,
-                    )
-
-                    Text(
-                        modifier = Modifier.padding(
-                            top = Padding.small,
-                            bottom = Padding.medium,
-                            start = Padding.medium,
-                            end = Padding.medium,
-                        ),
-                        textAlign = TextAlign.Center,
-                        text = stringResource(R.string.add_contact_disclaimer),
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                DuckCountTextField(
+                // Scrolls when the form does not fit, above the keyboard, in landscape or with a
+                // large font for instance, and is at least as tall as the room it has so that the
+                // button sits at the bottom while there is room for it, and scrolls with the form
+                // rather than hiding the field when there is not.
+                Column(
                     modifier = Modifier
-                        .focusRequester(focusRequester)
-                        .fillMaxWidth(),
-                    value = state.username,
-                    onValueChange = viewModel::updateUsername,
-                    focusManager = focusManager,
-                    singleLine = true,
-                    labelName = stringResource(R.string.contact_username),
-                    keyboardOptions = KeyboardOptions(
-                        // Usernames are ASCII letters and digits.
-                        keyboardType = KeyboardType.Ascii,
-                        imeAction = ImeAction.Send,
-                        autoCorrectEnabled = false,
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onSend = {
-                            // Nothing to send yet, so the keyboard stays up to finish typing.
-                            if (!state.canSend) return@KeyboardActions
+                        .verticalScroll(rememberScrollState())
+                        .heightIn(min = maxHeight),
+                ) {
+                    OutlinedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .padding(top = Padding.large)
+                                .size(32.dp),
+                            painter = painterResource(R.drawable.ic_person_add),
+                            contentDescription = null,
+                        )
 
+                        Text(
+                            modifier = Modifier.padding(
+                                top = Padding.small,
+                                bottom = Padding.medium,
+                                start = Padding.medium,
+                                end = Padding.medium,
+                            ),
+                            textAlign = TextAlign.Center,
+                            text = stringResource(R.string.add_contact_disclaimer),
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    DuckCountTextField(
+                        modifier = Modifier
+                            .focusRequester(focusRequester)
+                            // Starting the next request dismisses the confirmation of the last
+                            // one, which would otherwise leave the field hardly any room above the
+                            // keyboard, in landscape for instance.
+                            .onFocusChanged {
+                                if (it.isFocused) snackbarHostState.currentSnackbarData?.dismiss()
+                            }
+                            .fillMaxWidth(),
+                        value = state.username,
+                        onValueChange = viewModel::updateUsername,
+                        focusManager = focusManager,
+                        singleLine = true,
+                        labelName = stringResource(R.string.contact_username),
+                        keyboardOptions = KeyboardOptions(
+                            // Usernames are ASCII letters and digits.
+                            keyboardType = KeyboardType.Ascii,
+                            imeAction = ImeAction.Send,
+                            autoCorrectEnabled = false,
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onSend = {
+                                // Nothing to send yet, so the keyboard stays up to finish typing.
+                                if (!state.canSend) return@KeyboardActions
+
+                                focusManager.clearFocus()
+                                viewModel.sendContactRequest()
+                            },
+                        ),
+                        enabled = !state.isSending,
+                        isInError = state.inputError != null,
+                        error = state.inputError?.let {
+                            stringResource(
+                                it.messageRes(),
+                                state.trimmedUsername.length,
+                                viewModel.maxUsernameLength,
+                            )
+                        },
+                    )
+
+                    state.error?.let { error ->
+                        DuckCountErrorText(
+                            modifier = Modifier.padding(
+                                top = Padding.medium,
+                                start = Padding.medium,
+                                end = Padding.medium,
+                            ),
+                            text = stringResource(error.messageRes()),
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    DuckCountLoadingButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
                             focusManager.clearFocus()
                             viewModel.sendContactRequest()
                         },
-                    ),
-                    enabled = !state.isSending,
-                    isInError = state.inputError != null,
-                    error = state.inputError?.let {
-                        stringResource(
-                            it.messageRes(),
-                            state.trimmedUsername.length,
-                            viewModel.maxUsernameLength,
-                        )
-                    },
-                )
-
-                state.error?.let { error ->
-                    DuckCountErrorText(
-                        modifier = Modifier.padding(
-                            top = Padding.medium,
-                            start = Padding.medium,
-                            end = Padding.medium,
-                        ),
-                        text = stringResource(error.messageRes()),
-                    )
+                        enabled = state.canSend,
+                        isLoading = state.isSending,
+                    ) {
+                        Text(text = stringResource(R.string.send_contact_request))
+                    }
                 }
             }
 
             DuckCountSnackbarHost(hostState = snackbarHostState)
-
-            DuckCountLoadingButton(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    focusManager.clearFocus()
-                    viewModel.sendContactRequest()
-                },
-                enabled = state.canSend,
-                isLoading = state.isSending,
-            ) {
-                Text(text = stringResource(R.string.send_contact_request))
-            }
         }
     }
 }
