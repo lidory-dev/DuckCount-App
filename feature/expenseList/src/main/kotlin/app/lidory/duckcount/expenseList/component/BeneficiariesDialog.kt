@@ -3,12 +3,12 @@ package app.lidory.duckcount.expenseList.component
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -100,104 +100,12 @@ fun BeneficiariesDialog(
                     },
                 )
             },
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(
-                        top = innerPadding.calculateTopPadding(),
-                        bottom = Padding.medium,
-                        start = Padding.medium,
-                        end = Padding.medium,
-                    ),
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(Padding.large),
-                ) {
-                    DuckCountSearchBar(
-                        modifier = Modifier.fillMaxWidth(),
-                        searchQuery = searchQuery,
-                        onSearchChange = { onSearchQueryChange(it) },
-                        focusManager = focusManager,
-                    )
-
-                    // Above the list rather than in it, so that it stays in view while scrolling:
-                    // a group's "Select all", or, for a one-time expense, which has none, the count
-                    // against the limit in its place, shown while searching too, since the cards
-                    // not selected are disabled once it is reached.
-                    if (isSelectAllShown) {
-                        AnimatedVisibility(
-                            modifier = Modifier.align(Alignment.End),
-                            visible = searchQuery.isBlank() && usersList.isNotEmpty(),
-                        ) {
-                            SelectAllPill(
-                                toggleSelectAllUsers = toggleSelectAllUsers,
-                                toggleableListState = toggleableListState,
-                            )
-                        }
-                    } else {
-                        Text(
-                            modifier = Modifier.align(Alignment.End),
-                            text = pluralStringResource(
-                                R.plurals.selected_beneficiaries_out_of_limit,
-                                selectedUuids.size,
-                                selectedUuids.size,
-                                maxBeneficiaries,
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    if (usersList.isEmpty()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
-                        ) {
-                            Text(text = stringResource(R.string.no_result))
-                        }
-                    } else {
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier
-                                .fillMaxSize(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            items(
-                                items = usersList,
-                                key = { user -> user.uuid },
-                            ) { user ->
-                                val isChecked = selectedUuids.contains(user.uuid)
-
-                                UserSelectableCard(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .animateItem(
-                                            fadeInSpec = tween(200),
-                                            placementSpec = tween(200),
-                                        )
-                                        .padding(vertical = Padding.medium),
-                                    toggleSelectedUser = { toggleSelectedUser(user) },
-                                    fullName = user.fullName,
-                                    isChecked = isChecked,
-                                    // A selected card stays enabled so that it can still be
-                                    // unselected once the selection is full.
-                                    enabled = isChecked || selectedUuids.size < maxBeneficiaries,
-                                )
-                            }
-
-                            item {
-                                // Spacer to place the last element above the add button
-                                Spacer(modifier = Modifier.padding(ButtonDefaults.MinHeight))
-                            }
-                        }
-                    }
-                }
-
+            bottomBar = {
                 DuckCountElevatedButton(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
                         .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = Padding.medium)
                         .padding(bottom = Padding.extraLarge),
                     onClick = {
                         onSelectUsers(selectedUuids)
@@ -210,6 +118,95 @@ fun BeneficiariesDialog(
                         modifier = Modifier.padding(Padding.small),
                         text = stringResource(androidUiR.string.confirm),
                     )
+                }
+            },
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        top = innerPadding.calculateTopPadding(),
+                        start = Padding.medium,
+                        end = Padding.medium,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(Padding.large),
+            ) {
+                DuckCountSearchBar(
+                    modifier = Modifier.fillMaxWidth(),
+                    searchQuery = searchQuery,
+                    onSearchChange = { onSearchQueryChange(it) },
+                    focusManager = focusManager,
+                )
+
+                // Above the list rather than in it, so that it stays in view while scrolling:
+                // a group's "Select all", or, for a one-time expense, which has none, the count
+                // against the limit in its place, shown while searching too, since the cards
+                // not selected are disabled once it is reached.
+                if (isSelectAllShown) {
+                    AnimatedVisibility(
+                        modifier = Modifier.align(Alignment.End),
+                        visible = searchQuery.isBlank() && usersList.isNotEmpty(),
+                    ) {
+                        SelectAllPill(
+                            toggleSelectAllUsers = toggleSelectAllUsers,
+                            toggleableListState = toggleableListState,
+                        )
+                    }
+                } else {
+                    Text(
+                        modifier = Modifier.align(Alignment.End),
+                        text = pluralStringResource(
+                            R.plurals.selected_beneficiaries_out_of_limit,
+                            selectedUuids.size,
+                            selectedUuids.size,
+                            maxBeneficiaries,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                if (usersList.isEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        Text(text = stringResource(R.string.no_result))
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        // The list scrolls under the button, which floats over its end: past
+                        // the last card, room enough for it to be scrolled clear of the button.
+                        contentPadding = PaddingValues(
+                            bottom = innerPadding.calculateBottomPadding() + Padding.medium,
+                        ),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        items(
+                            items = usersList,
+                            key = { user -> user.uuid },
+                        ) { user ->
+                            val isChecked = selectedUuids.contains(user.uuid)
+
+                            UserSelectableCard(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .animateItem(
+                                        fadeInSpec = tween(200),
+                                        placementSpec = tween(200),
+                                    )
+                                    .padding(vertical = Padding.medium),
+                                toggleSelectedUser = { toggleSelectedUser(user) },
+                                fullName = user.fullName,
+                                isChecked = isChecked,
+                                // A selected card stays enabled so that it can still be
+                                // unselected once the selection is full.
+                                enabled = isChecked || selectedUuids.size < maxBeneficiaries,
+                            )
+                        }
+                    }
                 }
             }
         }

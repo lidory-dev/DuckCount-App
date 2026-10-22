@@ -4,8 +4,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
@@ -100,12 +102,40 @@ fun CreateOrEditGroupScreen(
                 },
             )
         },
+        bottomBar = {
+            (state as? CreateGroupState.Content)?.let { content ->
+                DuckCountElevatedButton(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = Padding.medium)
+                        .padding(bottom = Padding.extraLarge),
+                    enabled = viewModel.isOwnerInMembers()
+                            && content.members.size >= 2
+                            && content.title.length in (1..viewModel.maxTitleLength)
+                            && content.description.length in (0..viewModel.maxDescriptionLength),
+                    colors = ButtonDefaults.buttonColors()
+                        .copy(containerColor = MaterialTheme.colorScheme.primary),
+                    onClick = {
+                        viewModel.groupUuid?.let {
+                            viewModel.updateGroup()
+                        } ?: run { viewModel.createGroup() }
+
+                        onBack()
+                    },
+                ) {
+                    Text(
+                        modifier = Modifier.padding(Padding.small),
+                        text = stringResource(androidUiR.string.confirm),
+                    )
+                }
+            }
+        },
     ) { innerPadding ->
         Box(
             modifier = Modifier
                 .padding(
                     top = innerPadding.calculateTopPadding(),
-                    bottom = Padding.medium,
                     start = Padding.medium,
                     end = Padding.medium,
                 )
@@ -132,6 +162,11 @@ fun CreateOrEditGroupScreen(
                                 focusManager.clearFocus()
                             }
                             .fillMaxSize(),
+                        // The list scrolls under the button, which floats over its end: past the
+                        // last member, room enough for them to be scrolled clear of the button.
+                        contentPadding = PaddingValues(
+                            bottom = innerPadding.calculateBottomPadding() + Padding.medium,
+                        ),
                         verticalArrangement = Arrangement.spacedBy(Padding.medium),
                     ) {
                         item {
@@ -187,31 +222,6 @@ fun CreateOrEditGroupScreen(
                             removeMember = { member ->
                                 viewModel.removeMember(member)
                             },
-                        )
-                    }
-
-                    DuckCountElevatedButton(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = Padding.extraLarge)
-                            .align(Alignment.BottomCenter),
-                        enabled = viewModel.isOwnerInMembers()
-                                && state.members.size >= 2
-                                && state.title.length in (1..viewModel.maxTitleLength)
-                                && state.description.length in (0..viewModel.maxDescriptionLength),
-                        colors = ButtonDefaults.buttonColors()
-                            .copy(containerColor = MaterialTheme.colorScheme.primary),
-                        onClick = {
-                            viewModel.groupUuid?.let {
-                                viewModel.updateGroup()
-                            } ?: run { viewModel.createGroup() }
-
-                            onBack()
-                        },
-                    ) {
-                        Text(
-                            modifier = Modifier.padding(Padding.small),
-                            text = stringResource(androidUiR.string.confirm),
                         )
                     }
                 }
