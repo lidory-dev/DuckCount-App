@@ -2,10 +2,14 @@ package app.lidory.duckcount.settings
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -79,94 +83,102 @@ fun PasswordChangeScreen(
                     bottom = innerPadding.calculateBottomPadding(),
                     start = Padding.large,
                     end = Padding.large,
-                ),
+                )
+                .consumeWindowInsets(innerPadding)
+                .imePadding(),
         ) {
-            DuckCountTextField(
+            // Scrolls, the button staying pinned below, so that the fields stay within reach when
+            // they do not fit, above the keyboard or in landscape for instance.
+            Column(
                 modifier = Modifier
-                    .semantics {
-                        contentType = ContentType.Password
-                    }
-                    .fillMaxWidth(),
-                value = state.value.currentPassword,
-                onValueChange = { viewModel.onCurrentPasswordChanged(it) },
-                focusManager = focusManager,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Next,
-                ),
-                visualTransformation = if (isCurrentPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                isInError = state.value.currentPassword.isBlank(),
-                error = stringResource(androidUiR.string.required),
-                singleLine = true,
-                labelName = stringResource(R.string.password),
-                trailingIcon = {
-                    PasswordVisibilityButton(
-                        onClick = { isCurrentPasswordVisible = !isCurrentPasswordVisible },
-                        isPasswordVisible = isCurrentPasswordVisible,
-                    )
-                },
-            )
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                DuckCountTextField(
+                    modifier = Modifier
+                        .semantics {
+                            contentType = ContentType.Password
+                        }
+                        .fillMaxWidth(),
+                    value = state.value.currentPassword,
+                    onValueChange = { viewModel.onCurrentPasswordChanged(it) },
+                    focusManager = focusManager,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Next,
+                    ),
+                    visualTransformation = if (isCurrentPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    isInError = state.value.currentPassword.isBlank(),
+                    error = stringResource(androidUiR.string.required),
+                    singleLine = true,
+                    labelName = stringResource(R.string.password),
+                    trailingIcon = {
+                        PasswordVisibilityButton(
+                            onClick = { isCurrentPasswordVisible = !isCurrentPasswordVisible },
+                            isPasswordVisible = isCurrentPasswordVisible,
+                        )
+                    },
+                )
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-            DuckCountTextField(
-                modifier = Modifier
-                    .semantics {
-                        contentType = ContentType.Password
-                    }
-                    .fillMaxWidth(),
-                value = state.value.newPassword,
-                onValueChange = { viewModel.onNewPasswordChanged(it) },
-                focusManager = focusManager,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Next,
-                ),
-                visualTransformation = if (isNewPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                singleLine = true,
-                labelName = stringResource(R.string.new_password),
-                isInError = viewModel.isNewPasswordTooShort(),
-                error = stringResource(
-                    R.string.error_password_too_short,
-                    viewModel.passwordStrength,
-                ),
-                trailingIcon = {
-                    PasswordVisibilityButton(
-                        onClick = { isNewPasswordVisible = !isNewPasswordVisible },
-                        isPasswordVisible = isNewPasswordVisible,
-                    )
-                },
-            )
+                DuckCountTextField(
+                    modifier = Modifier
+                        .semantics {
+                            contentType = ContentType.Password
+                        }
+                        .fillMaxWidth(),
+                    value = state.value.newPassword,
+                    onValueChange = { viewModel.onNewPasswordChanged(it) },
+                    focusManager = focusManager,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Next,
+                    ),
+                    visualTransformation = if (isNewPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    singleLine = true,
+                    labelName = stringResource(R.string.new_password),
+                    isInError = viewModel.isNewPasswordTooShort(),
+                    error = stringResource(
+                        R.string.error_password_too_short,
+                        viewModel.passwordStrength,
+                    ),
+                    trailingIcon = {
+                        PasswordVisibilityButton(
+                            onClick = { isNewPasswordVisible = !isNewPasswordVisible },
+                            isPasswordVisible = isNewPasswordVisible,
+                        )
+                    },
+                )
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-            DuckCountTextField(
-                modifier = Modifier
-                    .semantics {
-                        contentType = ContentType.Password
-                    }
-                    .fillMaxWidth(),
-                value = state.value.newPasswordConfirmation,
-                onValueChange = { viewModel.onNewPasswordConfirmationChanged(it) },
-                focusManager = focusManager,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done,
-                ),
-                visualTransformation = if (isNewPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                singleLine = true,
-                labelName = stringResource(R.string.new_password_confirmation),
-                isInError = !viewModel.isNewPasswordConfirmationValid(),
-                error = stringResource(R.string.error_new_password_confirmation),
-                trailingIcon = {
-                    PasswordVisibilityButton(
-                        onClick = { isNewPasswordVisible = !isNewPasswordVisible },
-                        isPasswordVisible = isNewPasswordVisible,
-                    )
-                },
-            )
-
-            Spacer(Modifier.weight(1f))
+                DuckCountTextField(
+                    modifier = Modifier
+                        .semantics {
+                            contentType = ContentType.Password
+                        }
+                        .fillMaxWidth(),
+                    value = state.value.newPasswordConfirmation,
+                    onValueChange = { viewModel.onNewPasswordConfirmationChanged(it) },
+                    focusManager = focusManager,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done,
+                    ),
+                    visualTransformation = if (isNewPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    singleLine = true,
+                    labelName = stringResource(R.string.new_password_confirmation),
+                    isInError = !viewModel.isNewPasswordConfirmationValid(),
+                    error = stringResource(R.string.error_new_password_confirmation),
+                    trailingIcon = {
+                        PasswordVisibilityButton(
+                            onClick = { isNewPasswordVisible = !isNewPasswordVisible },
+                            isPasswordVisible = isNewPasswordVisible,
+                        )
+                    },
+                )
+            }
 
             DuckCountButton(
                 modifier = Modifier.fillMaxWidth(),

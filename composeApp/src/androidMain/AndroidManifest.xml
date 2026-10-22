@@ -26,9 +26,15 @@
         android:localeConfig="@xml/locales_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.DuckCount.Splash">
+        <!-- The keyboard comes as insets rather than panning the window, which brings only
+             the cursor into view and leaves the rest of the form under the keyboard. Drawn
+             edge to edge, the window is not resized either, so each screen whose fields
+             the keyboard can cover takes the insets itself (imePadding): what scrolls
+             gives up the room and keeps the field being filled in view. -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

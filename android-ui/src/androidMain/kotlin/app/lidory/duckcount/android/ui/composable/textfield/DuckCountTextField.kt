@@ -7,6 +7,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -19,11 +21,13 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
@@ -31,6 +35,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.android.ui.constant.Padding
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,6 +75,9 @@ fun DuckCountTextField(
 
     val isFocused by interactionSource.collectIsFocusedAsState()
 
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    val coroutineScope = rememberCoroutineScope()
+
     val borderWidth by animateDpAsState(
         targetValue = if (isFocused) TextFieldDefaults.FocusedIndicatorThickness else 0.dp,
         animationSpec = tween(200),
@@ -100,6 +108,13 @@ fun DuckCountTextField(
 
     BasicTextField(
         modifier = modifier
+            // Focusing brings the field into view only as it is then: brought in again as it grows
+            // while being filled, by an error line or another line of text, which would otherwise
+            // appear under the keyboard.
+            .bringIntoViewRequester(bringIntoViewRequester)
+            .onSizeChanged {
+                if (isFocused) coroutineScope.launch { bringIntoViewRequester.bringIntoView() }
+            }
             .border(width = borderWidth, color = borderColor, shape = RoundedCornerShape(Padding.large))
             .background(color = containerColor, shape = RoundedCornerShape(Padding.large)),
         value = value,

@@ -3,8 +3,10 @@ package app.lidory.duckcount.settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -95,7 +97,9 @@ fun AccountDeletionScreen(
                     bottom = innerPadding.calculateBottomPadding(),
                     start = Padding.large,
                     end = Padding.large,
-                ),
+                )
+                .consumeWindowInsets(innerPadding)
+                .imePadding(),
         ) {
             // Scrolls, the button staying pinned below, so that the field stays within reach when
             // the card takes up most of the height, in landscape or with a large font for instance.

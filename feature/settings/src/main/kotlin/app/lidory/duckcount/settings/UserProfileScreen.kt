@@ -6,10 +6,12 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -119,6 +121,8 @@ fun UserProfileScreen(
                     modifier = Modifier
                         .fillMaxHeight()
                         .padding(innerPadding)
+                        .consumeWindowInsets(innerPadding)
+                        .imePadding()
                         .padding(horizontal = Padding.large),
                 ) {
                     // Scrolls, the button staying pinned below, so that the field stays within

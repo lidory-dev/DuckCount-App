@@ -4,9 +4,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.add
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -139,6 +144,9 @@ fun CreateOrEditGroupScreen(
                     start = Padding.medium,
                     end = Padding.medium,
                 )
+                // The keyboard's inset taken whole: the padding above leaves out the Scaffold's
+                // bottom, the Box running under the button to the screen's bottom.
+                .imePadding()
                 .fillMaxSize(),
         ) {
             when (val state = state) {
@@ -163,10 +171,12 @@ fun CreateOrEditGroupScreen(
                             }
                             .fillMaxSize(),
                         // The list scrolls under the button, which floats over its end: past the
-                        // last member, room enough for them to be scrolled clear of the button.
-                        contentPadding = PaddingValues(
-                            bottom = innerPadding.calculateBottomPadding() + Padding.medium,
-                        ),
+                        // last member, room enough for them to be scrolled clear of the button, or
+                        // of what of it the keyboard leaves uncovered.
+                        contentPadding = WindowInsets(bottom = innerPadding.calculateBottomPadding())
+                            .exclude(WindowInsets.ime)
+                            .add(WindowInsets(bottom = Padding.medium))
+                            .asPaddingValues(),
                         verticalArrangement = Arrangement.spacedBy(Padding.medium),
                     ) {
                         item {

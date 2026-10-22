@@ -6,8 +6,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
@@ -155,15 +158,52 @@ fun CreateExpenseScreen(
                 },
             )
         },
+        // Out of the column, which ends above the keyboard, so that the keyboard covers the button
+        // rather than pushing it up: in landscape, the height left above the keyboard would hardly
+        // hold both the button and the field being filled.
+        bottomBar = {
+            DuckCountElevatedLoadingButton(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = Padding.medium)
+                    .padding(bottom = Padding.extraLarge),
+                enabled = !isSaving
+                        && !isSaved
+                        && (viewModel.isNewExpense() || hasChanges)
+                        && expenseState.error == null
+                        && expenseState.amount.isNotBlank()
+                        && expenseState.title.length in (1..viewModel.maxTitleLength)
+                        && expenseState.description.length in (0..viewModel.maxDescriptionLength),
+                colors = ButtonDefaults.buttonColors()
+                    .copy(containerColor = MaterialTheme.colorScheme.primary),
+                onClick = {
+                    if (viewModel.isNewExpense())
+                        viewModel.createExpense()
+                    else
+                        viewModel.updateExpense()
+                    // Navigation happens via viewModel.isSaved once write completes,
+                    // otherwise popping this screen cancels the in-flight network write.
+                },
+                isLoading = isSaving,
+            ) {
+                Text(
+                    modifier = Modifier.padding(Padding.small),
+                    text = stringResource(androidUiR.string.confirm),
+                )
+            }
+        },
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .padding(
                     top = innerPadding.calculateTopPadding(),
-                    bottom = Padding.medium,
+                    bottom = innerPadding.calculateBottomPadding(),
                     start = Padding.medium,
                     end = Padding.medium,
                 )
+                .consumeWindowInsets(innerPadding)
+                .imePadding()
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,
@@ -280,35 +320,6 @@ fun CreateExpenseScreen(
             }
 
             DuckCountSnackbarHost(hostState = snackbarHostState)
-
-            DuckCountElevatedLoadingButton(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = Padding.extraLarge),
-                enabled = !isSaving
-                        && !isSaved
-                        && (viewModel.isNewExpense() || hasChanges)
-                        && expenseState.error == null
-                        && expenseState.amount.isNotBlank()
-                        && expenseState.title.length in (1..viewModel.maxTitleLength)
-                        && expenseState.description.length in (0..viewModel.maxDescriptionLength),
-                colors = ButtonDefaults.buttonColors()
-                    .copy(containerColor = MaterialTheme.colorScheme.primary),
-                onClick = {
-                    if (viewModel.isNewExpense())
-                        viewModel.createExpense()
-                    else
-                        viewModel.updateExpense()
-                    // Navigation happens via viewModel.isSaved once write completes,
-                    // otherwise popping this screen cancels the in-flight network write.
-                },
-                isLoading = isSaving,
-            ) {
-                Text(
-                    modifier = Modifier.padding(Padding.small),
-                    text = stringResource(androidUiR.string.confirm),
-                )
-            }
         }
     }
 }
