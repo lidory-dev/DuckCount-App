@@ -29,6 +29,12 @@ internal class ContactTables {
     /** The names shown, by user UUID. A user hidden, or never read, has none. */
     val names = mutableMapOf<String, String>()
 
+    /**
+     * The names of the users hidden from the contact list, by user UUID, which the expenses
+     * still show.
+     */
+    val hidden = mutableMapOf<String, String>()
+
     /** Who is blocked, see [IdentityConflictEntity]. */
     val blocked = mutableSetOf<String>()
 
@@ -76,10 +82,17 @@ internal class ContactTables {
             add(row.copy(isBackedUp = true))
         }
 
-        override suspend fun markRemoved(userUuid: String, rotatesProfileKey: Boolean) {
+        override suspend fun markRemoved(userUuid: String, rotatesProfileKey: Boolean, isAccountDeleted: Boolean) {
             val row = contacts[userUuid] ?: return
 
-            add(row.copy(isBackedUp = false, isRemoved = true, rotatesProfileKey = rotatesProfileKey))
+            add(
+                row.copy(
+                    isBackedUp = false,
+                    isRemoved = true,
+                    rotatesProfileKey = rotatesProfileKey,
+                    isAccountDeleted = isAccountDeleted,
+                ),
+            )
         }
 
         override suspend fun clearProfileKeyRotation(userUuids: List<String>) {
@@ -147,7 +160,7 @@ internal class ContactTables {
             val askable = unblocked().map { it.userUuid }.toSet()
 
             return pending.values
-                .filter { !it.isAccountGone && it.userUuid in askable }
+                .filter { it.userUuid in askable }
                 .sortedWith(
                     compareBy<PendingProfileKeyEntity> { it.lastRequestedAt != null }
                         .thenBy { it.lastRequestedAt }
@@ -159,12 +172,6 @@ internal class ContactTables {
             val row = pending[userUuid] ?: return
 
             pending[userUuid] = row.copy(lastRequestedAt = requestedAt, requestCount = row.requestCount + 1)
-        }
-
-        override suspend fun markAccountGone(userUuid: String) {
-            val row = pending[userUuid] ?: return
-
-            pending[userUuid] = row.copy(isAccountGone = true)
         }
 
         override suspend fun delete(userUuid: String) {
@@ -188,17 +195,22 @@ internal class ContactTables {
         override suspend fun getBlocked(): List<String> = blocked.toList()
     }
 
-    /** The names, which is all the contact code asks of the users. */
+    /** The names, shown or hidden, which is all the contact code asks of the users. */
     val userDao: UserDao = object : UserDao {
         override suspend fun insert(userEntity: UserEntity) {
-            names[userEntity.uuid] = userEntity.fullName
+            val (kept, other) = if (userEntity.isDeleted) hidden to names else names to hidden
+
+            other.remove(userEntity.uuid)
+            kept[userEntity.uuid] = userEntity.fullName
         }
 
         override suspend fun remove(userUuid: String) {
-            names.remove(userUuid)
+            names.remove(userUuid)?.let { hidden[userUuid] = it }
         }
 
         override suspend fun getFullName(uuid: String): String? = names[uuid]
+
+        override suspend fun getFullNameEvenIfHidden(uuid: String): String? = names[uuid] ?: hidden[uuid]
 
         override suspend fun update(userEntity: UserEntity) = error("Not used here")
         override suspend fun delete(userEntity: UserEntity) = error("Not used here")
@@ -255,6 +267,7 @@ internal fun ContactEntity.copy(
     isBackedUp: Boolean = this.isBackedUp,
     isRemoved: Boolean = this.isRemoved,
     rotatesProfileKey: Boolean = this.rotatesProfileKey,
+    isAccountDeleted: Boolean = this.isAccountDeleted,
 ) = ContactEntity(
     userUuid = userUuid,
     profileEncryptionKey = profileEncryptionKey,
@@ -263,17 +276,16 @@ internal fun ContactEntity.copy(
     isBackedUp = isBackedUp,
     isRemoved = isRemoved,
     rotatesProfileKey = rotatesProfileKey,
+    isAccountDeleted = isAccountDeleted,
 )
 
 internal fun PendingProfileKeyEntity.copy(
     profileEncryptionKey: ByteArray = this.profileEncryptionKey,
     lastRequestedAt: Long? = this.lastRequestedAt,
     requestCount: Int = this.requestCount,
-    isAccountGone: Boolean = this.isAccountGone,
 ) = PendingProfileKeyEntity(
     userUuid = userUuid,
     profileEncryptionKey = profileEncryptionKey,
     lastRequestedAt = lastRequestedAt,
     requestCount = requestCount,
-    isAccountGone = isAccountGone,
 )

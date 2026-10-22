@@ -15,7 +15,9 @@ import androidx.room.PrimaryKey
  *
  * A removed contact therefore stays as a tombstone, [isRemoved], until the vault no
  * longer holds them either, and only then goes. One the user removed waits for their
- * profile key to rotate first, see [rotatesProfileKey].
+ * profile key to rotate first, see [rotatesProfileKey]. One who deleted their account
+ * leaves their name in the vault in place of their entry, when this device holds one for
+ * them, see [isAccountDeleted].
  *
  * Their name is not here but in [UserEntity], which is what the contact list shows, and
  * the group the two of them talk through is not here either but in [DirectChannelEntity]:
@@ -88,4 +90,19 @@ class ContactEntity(
      * contact, which is consistent with the key they hold.
      */
     val rotatesProfileKey: Boolean = false,
+
+    /**
+     * Whether this removal is the contact having deleted their account, see
+     * [ContactRepository.receiveAccountDeletion][database.data.repository.ContactRepository.receiveAccountDeletion].
+     * The vault then keeps the name this device showed for them in place of their entry, rather
+     * than dropping them, see [ContactBook.deletedAccounts][vault.ContactBook.deletedAccounts]:
+     * the server deletes their profile with the account, and nothing else is left to tell a
+     * device that lost its data who they were in the expenses the two of them share. One this
+     * device holds no name for, never having read their profile, is dropped all the same, as any
+     * removal is: there is nothing else to keep of them.
+     *
+     * Never waits for the key to the user's profile to rotate, see [rotatesProfileKey]: it only
+     * ever rotates on the user's own action.
+     */
+    val isAccountDeleted: Boolean = false,
 )

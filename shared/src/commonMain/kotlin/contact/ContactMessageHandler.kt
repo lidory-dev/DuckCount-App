@@ -7,14 +7,19 @@ import message.DirectMessageHandling
 
 /**
  * The direct messages that are about the contact relationship itself: a card accepting a
- * request the user sent, a notice that a contact removed the user, a contact's new key to
- * their profile, and a contact asking for the user's.
+ * request the user sent, a notice that a contact removed the user, one that a contact deleted
+ * their account, a contact's new key to their profile, and a contact asking for the user's.
  *
  * A card is only an answer in the group the request created, see
  * [ContactRequestRepository.receiveAnswer], an update only counts from a contact, see
  * [ContactRepository.receiveProfileKey], and only a contact's request is answered, see
- * [ProfileKeyPull.answer]. Each is claimed whatever it turns out to be, so nothing else acts
- * on it.
+ * [ProfileKeyPull.answer]. Both notices only count from a contact too, see
+ * [ContactRepository.receiveRemoval] and [ContactRepository.receiveAccountDeletion]. Either only
+ * ever forgets whoever sent it, so nobody can have the user forget anybody else: what the check
+ * stops is a former contact, whose tombstone may still be waiting for the vault, marking it anew,
+ * which would skip the rotation of the key the user owes them or have their name kept, and having
+ * whatever they put the user on noted as owed. Each is claimed whatever it turns out to be, so
+ * nothing else acts on it.
  *
  * A card carries no `type`, it predates there being more than one kind of direct message,
  * so it is recognised by its shape. Everything added since says what it is.
@@ -52,6 +57,8 @@ internal class ContactMessageHandler(
 
             ContactMessage.Removal -> contactRepository.receiveRemoval(senderUserUuid = senderUserUuid)
 
+            ContactMessage.AccountDeleted -> contactRepository.receiveAccountDeletion(userUuid = senderUserUuid)
+
             null -> return DirectMessageHandling.NOT_MINE
         }
 
@@ -85,6 +92,9 @@ internal sealed interface ContactMessage {
     /** A [ContactRemoval]. */
     data object Removal : ContactMessage
 
+    /** An [AccountDeletionNotice]. */
+    data object AccountDeleted : ContactMessage
+
     /** A [ProfileKeyUpdate]. */
     class ProfileKey(val update: ProfileKeyUpdate) : ContactMessage
 
@@ -98,11 +108,14 @@ internal sealed interface ContactMessage {
          * An update and a request are tried before a card: a card is recognised by carrying a
          * `profile_encryption_key`, its unknown keys ignored, so anything that carries one, as
          * an update does, would be taken for an answer to a request, found to answer none, and
-         * lost. Both say what they are, and are recognised by that.
+         * lost. Both say what they are, and are recognised by that. So do a notice of account
+         * deletion and a removal, which carry no key, and are never taken for a card wherever
+         * they are tried.
          */
         fun read(payload: ByteArray): ContactMessage? =
             ProfileKeyUpdate.parse(plaintext = payload)?.let { ProfileKey(update = it) }
                 ?: KeyRequest.takeIf { ProfileKeyRequest.matches(plaintext = payload) }
+                ?: AccountDeleted.takeIf { AccountDeletionNotice.matches(plaintext = payload) }
                 ?: ContactCard.parse(plaintext = payload)?.let { Answer(card = it) }
                 ?: Removal.takeIf { ContactRemoval.matches(plaintext = payload) }
     }

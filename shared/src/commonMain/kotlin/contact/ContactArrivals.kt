@@ -62,9 +62,11 @@ class ContactArrivals(
     /**
      * Who [snapshot] knew as a contact and this device no longer does.
      *
-     * A contact who removed the user, in practice: their client sends the notice and
-     * the sync acts on it, which makes anything still being said about them on screen
-     * untrue.
+     * A contact who removed the user or deleted their account, in practice: the sync acts
+     * on the notice their client sends, or for a deleted account on the `410` a message to
+     * them comes back with, see
+     * [ContactRepository.receiveAccountDeletion][database.data.repository.ContactRepository.receiveAccountDeletion].
+     * Either makes anything still being said about them on screen untrue.
      */
     suspend fun departures(snapshot: ContactSnapshot): List<String> {
         val contacts = contactDao.getUserUuids().toHashSet()

@@ -1,6 +1,7 @@
 package app.lidory.duckcount.di
 
 import AuthenticationCallBacks
+import account.di.accountModule
 import ContactCallBacks
 import app.lidory.duckcount.AppViewModel
 import app.lidory.duckcount.authentication.AuthenticationCallBacksImpl
@@ -110,6 +111,7 @@ val appModule = listOf(
     channelModule,
     pushModule,
     pushPlatformModule,
+    accountModule,
     expenseListModule,
     authenticationModule,
     authenticationCallBacksModule,

@@ -29,7 +29,8 @@ abstract class Client {
      *
      * The default does nothing: only a client that authenticates its requests has a session to
      * react about. Ktor's `Auth` plugin has already had its go at refreshing the credentials by
-     * this point, so a `401` here is one that survived the refresh.
+     * this point, so a `401` here is one that survived the refresh, unless the request was sent
+     * past the plugin and no refresh was tried, see `DuckCountClient.isSessionAccepted`.
      *
      * Public because [execute] is `inline`.
      */

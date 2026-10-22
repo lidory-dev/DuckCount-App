@@ -9,6 +9,7 @@ import kotlinx.coroutines.runBlocking
 import message.DirectSendError
 import message.ResendsBooked
 import util.EmptyResult
+import util.NetworkError
 import util.Result
 import util.nowEpochMilliseconds
 import kotlin.test.Test
@@ -147,6 +148,44 @@ class ExpenseKeyPullTest {
         assertTrue(requests.recipients.isEmpty())
         assertNull(pending.rows.getValue(LUNCH).lastRequestedAt)
     }
+
+    /**
+     * Nobody holds Alice's keys any more, the ones this request named and every other: none is
+     * asked for again, and that is no failure.
+     */
+    @Test
+    fun `a creditor who deleted their account is never asked again`() = runBlocking<Unit> {
+        pending.add(LUNCH, creditorUuid = ALICE)
+        pending.add(DINNER, creditorUuid = ALICE)
+        requests.outcomes[ALICE] = Result.Error(DirectSendError.RecipientDeleted)
+
+        assertIs<Result.Success<Unit>>(pull.requestMissingKeys(ownUserUuid = USER))
+
+        assertEquals(PendingExpenseKeyState.CREDITOR_GONE, pending.rows.getValue(LUNCH).state)
+        assertEquals(PendingExpenseKeyState.CREDITOR_GONE, pending.rows.getValue(DINNER).state)
+
+        pending.budgets.clear()
+        pull.requestMissingKeys(ownUserUuid = USER)
+
+        assertEquals(listOf(ALICE), requests.recipients)
+    }
+
+    /**
+     * The proxy answers a `404` while the API is being redeployed, so it says nothing of Alice's
+     * account: her keys stay due, as after any other failure, and the request is charged to her
+     * budget, the server having perhaps taken it. An account an administrator removed answers one
+     * for good, which no retry of the sync changes, so it is not reported.
+     */
+    @Test
+    fun `a 404 leaves the creditor's keys due and is not reported`() = runBlocking<Unit> {
+        pending.add(LUNCH, creditorUuid = ALICE)
+        requests.outcomes[ALICE] = Result.Error(DirectSendError.Network(NetworkError.NOT_FOUND))
+
+        assertIs<Result.Success<Unit>>(pull.requestMissingKeys(ownUserUuid = USER))
+
+        assertEquals(PendingExpenseKeyState.PENDING, pending.rows.getValue(LUNCH).state)
+        assertTrue(pending.budgets.getValue(ALICE) > nowEpochMilliseconds())
+    }
 }
 
 /** Sends nothing anywhere, answering each recipient as told and every other one with success. */
@@ -198,6 +237,22 @@ private class PendingKeys : PendingExpenseKeyDao {
         }
     }
 
+    override suspend fun setState(expenseUuids: List<String>, state: PendingExpenseKeyState) {
+        expenseUuids.forEach { expenseUuid ->
+            val row = rows.getValue(expenseUuid)
+
+            rows[expenseUuid] = PendingExpenseKeyEntity(
+                expenseUuid = row.expenseUuid,
+                creditorUuid = row.creditorUuid,
+                firstSeenAt = row.firstSeenAt,
+                lastRequestedAt = row.lastRequestedAt,
+                requestCount = row.requestCount,
+                state = state,
+                isAwaitedAtRemoval = row.isAwaitedAtRemoval,
+            )
+        }
+    }
+
     override suspend fun getRequestBudgetFullAt(creditorUuid: String): Long? = budgets[creditorUuid]
 
     override suspend fun setRequestBudget(budget: KeyRequestBudgetEntity) {
@@ -207,7 +262,6 @@ private class PendingKeys : PendingExpenseKeyDao {
     override suspend fun insertNew(expenseUuid: String, creditorUuid: String, firstSeenAt: Long) = error("Not used here")
     override suspend fun markAwaitedAtRemoval(creditorUuid: String) = error("Not used here")
     override suspend fun getAwaitedAtRemoval(creditorUuid: String): List<String> = error("Not used here")
-    override suspend fun setState(expenseUuids: List<String>, state: PendingExpenseKeyState) = error("Not used here")
     override suspend fun deleteNotIn(expenseUuids: List<String>) = error("Not used here")
     override suspend fun deleteAll() = error("Not used here")
 }

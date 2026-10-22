@@ -16,6 +16,7 @@ import message.ResendScheduler
 import message.givesBudgetBack
 import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
 import util.EmptyResult
+import util.NetworkError
 import util.Result
 import util.backoffFor
 import util.nowEpochMilliseconds
@@ -109,14 +110,18 @@ class ProfileKeyPull internal constructor(
      * Asks each contact this device is missing the current profile key of for it, blocked ones
      * aside, once the backoff since the last try allows, see [backoffFor].
      *
-     * Asking again is the backoff's to decide, and nothing else's: no read of the contact's
-     * profile puts back what was tried, neither the one a new key of theirs coming in calls for
-     * nor, for a contact with no name, the one every sync makes, see
+     * Asking again is the backoff's to decide, not a read's: no read of the contact's profile
+     * puts back what was tried, neither the one a new key of theirs coming in calls for nor, for
+     * a contact with no name, the one every sync makes, see
      * [PendingProfileKeyEntity.profileEncryptionKey]. What settles it is a read that opens their
      * latest version, or their answer handing over the very key this device holds. A
-     * contact whose account is gone, or who never answers, is asked ever more rarely, down to
-     * once a day, and one the server says is gone never again, see
-     * [PendingProfileKeyEntity.isAccountGone].
+     * contact who never answers is asked ever more rarely, down to once a day, and one the server
+     * says deleted their account never again once the send forgets them, see
+     * [DirectSendError.RecipientDeleted], and their row goes with them: at once, or, when
+     * something they sent was still waiting to be read, at a later send that finds nothing of
+     * theirs left, which their budget spaces out rather than the backoff, see below. Not one the
+     * server answers a `404` for, which says nothing of the account, see [DirectSendError.Network]:
+     * that is a try like any other failure.
      *
      * Each contact is also asked out of a budget, as a creditor is for the keys to expenses: two
      * requests at once and one more an hour after that, see [claimRequest]. A contact whose
@@ -125,9 +130,11 @@ class ProfileKeyPull internal constructor(
      * One message per contact. A refusal for the user's allowances of messages is no try: the
      * contact stays due, their budget goes back, and they are asked as the pass runs again once
      * the allowance reopens, see [ResendScheduler]. Past what the user may send that contact, the
-     * next one is asked; past what they may send everybody, the pass stops. Any other failure
-     * counts as a try, so the contact waits out the backoff, and is reported unless no retry can
-     * change it.
+     * next one is asked; past what they may send everybody, the pass stops. A contact the server
+     * says deleted their account is no try either: they stay due for the send that forgets them,
+     * asked again as their budget allows. Any other failure counts as a try, so the contact waits
+     * out the backoff, and is reported, unless no retry can change it or it is a `404`, see
+     * [DirectSendError.Network].
      */
     suspend fun requestMissingKeys(): EmptyResult<ContactSyncError> = mutex.withLock {
         val askable = pendingProfileKeyDao.getAskable()
@@ -178,8 +185,11 @@ class ProfileKeyPull internal constructor(
             }
 
             when (error) {
-                // The server knows of no such user, which for an account is final.
-                DirectSendError.RecipientGone -> pendingProfileKeyDao.markAccountGone(userUuid = row.userUuid)
+                // They deleted their account, and the send forgot them, which took their row. Or a
+                // later one will, something they sent having still been waiting to be read, see
+                // DirectSendError.RecipientDeleted, and the row is left due for it, with no try
+                // recorded that would hold that send back.
+                DirectSendError.RecipientDeleted -> Unit
 
                 is DirectSendError.RateLimited -> {
                     resendScheduler.resendAfter(seconds = error.retryAfterSeconds)
@@ -193,6 +203,11 @@ class ProfileKeyPull internal constructor(
                 DirectSendError.Channel(DirectChannelError.Unreachable),
                 DirectSendError.Channel(DirectChannelError.NotPinned),
                 DirectSendError.Channel(DirectChannelError.IdentityChanged),
+                    -> pendingProfileKeyDao.markRequested(userUuid = row.userUuid, requestedAt = now)
+
+                // A contact the server knows nothing of, which says nothing of their account, see
+                // DirectSendError.Network: a try, as any other failure is, but not reported.
+                DirectSendError.Network(NetworkError.NOT_FOUND),
                     -> pendingProfileKeyDao.markRequested(userUuid = row.userUuid, requestedAt = now)
 
                 else -> {

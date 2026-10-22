@@ -12,6 +12,7 @@ import message.ResendScheduler
 import mls.MlsIdentityError
 import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
 import util.EmptyResult
+import util.NetworkError
 import util.Result
 import vault.ProfileKeyVault
 
@@ -31,14 +32,17 @@ import vault.ProfileKeyVault
  * every one, reads nothing from the vault. One that owes somebody reads the key once.
  *
  * Retried until it lands, or there turns out to be nobody to hand it to, as the keys to
- * one-time expenses are, see [ExpenseKeyDelivery][expense.ExpenseKeyDelivery]: one message per
- * contact, and a refusal for the user's allowances of messages holds back what it refused until
- * the pass runs again as the allowance reopens, see [ResendScheduler]. Past what the user may
- * send one contact, the pass goes on to the others, though what they may send everybody can
- * still refuse them; past that, the pass stops. A key that landed and was lost on the receiving
- * end, unreadable in a group the contact no longer holds, counts as handed here: they ask for it
- * once a read of the profile shows them the key they hold opens no newer version, see
- * [ProfileKeyPull], which is the next time anything is read with it.
+ * one-time expenses are, see [ExpenseKeyDelivery][expense.ExpenseKeyDelivery]: a contact who
+ * deleted their account, whom the send forgets, see [DirectSendError.RecipientDeleted], or a
+ * later one does when something they sent was still waiting to be read, or one this build has
+ * no way to reach. One message per contact, and a refusal for the user's allowances of messages
+ * holds back what it refused until the pass runs again as the allowance reopens, see
+ * [ResendScheduler]. Past what the user may send one contact, the pass goes on to the others,
+ * though what they may send everybody can still refuse them; past that, the pass stops. A key
+ * that landed and was lost on the receiving end, unreadable in a group the contact no longer
+ * holds, counts as handed here: they ask for it once a read of the profile shows them the key
+ * they hold opens no newer version, see [ProfileKeyPull], which is the next time anything is
+ * read with it.
  *
  * [send] is [DirectMessageSender.send], or what a test stands in for it: it builds a channel to
  * a contact this device holds none to, one restored from the vault for instance.
@@ -76,7 +80,7 @@ class ProfileKeyDelivery internal constructor(
      *
      * Every contact owed is attempted until the user's allowance of messages runs out, which
      * stops the pass, and the first failure is reported. A refusal for either allowance is not
-     * one: the resend it books is what comes of it.
+     * one: the resend it books is what comes of it. Nor is a `404`, see [DirectSendError.Network].
      */
     suspend fun handOut(): EmptyResult<ContactSyncError> = mutex.withLock {
         // The key itself, when the hash had to be read from it: whoever is owed is handed it.
@@ -113,15 +117,23 @@ class ProfileKeyDelivery internal constructor(
                 )
 
                 is Result.Error -> when (val error = sent.error) {
-                    // Nobody to hand the key to: their account is gone, or the server offers no
-                    // way to reach them that this build can use. If they come back, they ask for
-                    // it, see ProfileKeyPull.
-                    DirectSendError.RecipientGone,
+                    // They deleted their account, and the send forgot them, see
+                    // DirectSendError.RecipientDeleted: a former contact is owed no key. Or a later
+                    // one will, something they sent having still been waiting to be read.
+                    DirectSendError.RecipientDeleted -> Unit
+
+                    // Nobody to hand the key to: the server offers no way to reach them that this
+                    // build can use. If they come back, they ask for it, see ProfileKeyPull.
                     DirectSendError.Channel(DirectChannelError.Unreachable),
                         -> contactDao.setHandedProfileKeyHash(
                         userUuid = contact.userUuid,
                         handedProfileKeyHash = handedHash,
                     )
+
+                    // A contact the server knows nothing of, which says nothing of their account,
+                    // see DirectSendError.Network: the key goes out again at the next pass, as
+                    // after any other failure, but this is not reported.
+                    DirectSendError.Network(NetworkError.NOT_FOUND) -> Unit
 
                     // Somebody this device no longer has pinned, or whose identity is in doubt.
                     // No retry changes either, so the key waits until that does.
@@ -158,5 +170,5 @@ internal fun DirectSendError.toContactSyncError(): ContactSyncError =
 
         is DirectSendError.Network -> ContactSyncError.Network(error)
 
-        DirectSendError.RecipientGone, is DirectSendError.RateLimited -> ContactSyncError.Storage
+        DirectSendError.RecipientDeleted, is DirectSendError.RateLimited -> ContactSyncError.Storage
     }

@@ -1,5 +1,6 @@
 package app.lidory.duckcount
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
 import android.widget.Toast
@@ -32,9 +33,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         // Only on the launch the restart itself started: an activity recreated afterwards,
-        // by a rotation for instance, carries the same intent and has already said it.
-        if (savedInstanceState == null && intent.getBooleanExtra(EXTRA_SESSION_EXPIRED, false)) {
-            Toast.makeText(this, R.string.session_expired, Toast.LENGTH_LONG).show()
+        // by a rotation for instance, carries the same intent and has already said it. Nor
+        // on a launch from Recents, which hands a finished task its first intent again, the
+        // restart's when the restart is what made the task.
+        val isFromRecents = (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
+
+        if (savedInstanceState == null && !isFromRecents) {
+            intent.restartNotice()?.let { notice ->
+                Toast.makeText(this, notice.messageRes(), Toast.LENGTH_LONG).show()
+            }
         }
 
         // Likewise only on the launch the notification started: a recreated activity gets

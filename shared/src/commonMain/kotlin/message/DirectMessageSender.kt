@@ -1,12 +1,15 @@
 package message
 
+import channel.DirectChannel
 import channel.DirectChannelError
 import channel.DirectChannelRepository
 import database.data.remote.DirectMessageApi
 import database.data.remote.DirectMessageKindDto
+import database.data.remote.ListDirectMessagesResponse
 import database.data.remote.MessageLimitScope
 import database.data.remote.SendDirectMessageBody
 import database.data.remote.SendDirectMessageError
+import database.data.repository.ContactRepository
 import mls.MlsIdentityRepository
 import mls.encryptApplicationMessage
 import mls.isRetryable
@@ -22,12 +25,49 @@ import util.Result
  * The payload is encrypted to the MLS group the two of them share, built on demand when
  * this device holds none, and the server is handed an opaque string addressed to a user
  * uuid. What goes inside is the caller's business; this is the envelope and the channel.
+ *
+ * Except for what the server says of the recipient's account. One who deleted it is forgotten
+ * as a contact here, see [ContactRepository.receiveAccountDeletion], before the caller is told
+ * so, see [DirectSendError.RecipientDeleted], whatever the message was: the server tells nobody
+ * of a deletion, and a message to them is how this device finds out.
+ *
+ * Not while anything they sent is still waiting for this device to read. The server keeps what
+ * a deleted account sent, the key to an expense of theirs for instance, which opens only in the
+ * groups forgetting them deletes, and they never send it again. So they are forgotten once it
+ * is read, as their notice of the deletion, sent last, would have them: by that notice, should it
+ * be among what is waiting, see [AccountDeletionNotice][contact.AccountDeletionNotice], or else by
+ * the next message to them, which finds the account gone and nothing of theirs left. The server
+ * not saying what is waiting leaves them to that next message too.
+ *
+ * [ensureChannel] and [noteWelcomeAttached] are [DirectChannelRepository.ensureChannel] and
+ * [DirectChannelRepository.noteWelcomeAttached], [encrypt] opens the user's MLS client and
+ * encrypts with it, see [encryptIn], [post] is [DirectMessageApi.sendDirectMessage], [listWaiting]
+ * is [DirectMessageApi.getDirectMessages] and [receiveAccountDeletion] is
+ * [ContactRepository.receiveAccountDeletion], or what a test stands in for any of them.
  */
-class DirectMessageSender(
-    private val directMessageApi: DirectMessageApi,
-    private val directChannelRepository: DirectChannelRepository,
-    private val mlsIdentityRepository: MlsIdentityRepository,
+class DirectMessageSender internal constructor(
+    private val ensureChannel: suspend (peerUuid: String) -> Result<DirectChannel, DirectChannelError>,
+    private val noteWelcomeAttached: suspend (peerUuid: String) -> Unit,
+    private val encrypt: suspend (mlsGroupId: ByteArray, payload: ByteArray) -> Result<ByteArray, DirectSendError>,
+    private val post: suspend (body: SendDirectMessageBody) -> EmptyResult<SendDirectMessageError>,
+    private val listWaiting: suspend () -> Result<ListDirectMessagesResponse, NetworkError>,
+    private val receiveAccountDeletion: suspend (userUuid: String) -> Unit,
 ) {
+    constructor(
+        directMessageApi: DirectMessageApi,
+        directChannelRepository: DirectChannelRepository,
+        mlsIdentityRepository: MlsIdentityRepository,
+        contactRepository: ContactRepository,
+    ) : this(
+        ensureChannel = directChannelRepository::ensureChannel,
+        noteWelcomeAttached = directChannelRepository::noteWelcomeAttached,
+        encrypt = { mlsGroupId, payload ->
+            encryptIn(mlsIdentityRepository = mlsIdentityRepository, mlsGroupId = mlsGroupId, payload = payload)
+        },
+        post = directMessageApi::sendDirectMessage,
+        listWaiting = directMessageApi::getDirectMessages,
+        receiveAccountDeletion = contactRepository::receiveAccountDeletion,
+    )
 
     /**
      * Sends [payload] to [recipientUserUuid], building a channel to them if there is none.
@@ -40,9 +80,7 @@ class DirectMessageSender(
         payload: ByteArray,
         kind: DirectMessageKindDto = DirectMessageKindDto.MESSAGE,
     ): EmptyResult<DirectSendError> {
-        val channel = when (
-            val ensured = directChannelRepository.ensureChannel(peerUuid = recipientUserUuid)
-        ) {
+        val channel = when (val ensured = ensureChannel(recipientUserUuid)) {
             is Result.Success -> ensured.data
             is Result.Error -> return Result.Error(DirectSendError.Channel(ensured.error))
         }
@@ -56,7 +94,7 @@ class DirectMessageSender(
         )
 
         if (sent is Result.Success && channel.welcome != null) {
-            directChannelRepository.noteWelcomeAttached(peerUuid = recipientUserUuid)
+            noteWelcomeAttached(recipientUserUuid)
         }
 
         return sent
@@ -95,17 +133,9 @@ class DirectMessageSender(
         payload: ByteArray,
         kind: DirectMessageKindDto,
     ): EmptyResult<DirectSendError> {
-        val client = when (val opened = mlsIdentityRepository.client()) {
-            is Result.Success -> opened.data
-            is Result.Error -> return Result.Error(DirectSendError.Channel(DirectChannelError.Identity(opened.error)))
-        }
-
-        val message = try {
-            client.encryptApplicationMessage(mlsGroupId = mlsGroupId, payload = payload)
-        } catch (exception: MlsException) {
-            return Result.Error(
-                if (exception.isRetryable()) DirectSendError.Storage else DirectSendError.GroupUnusable,
-            )
+        val message = when (val encrypted = encrypt(mlsGroupId, payload)) {
+            is Result.Success -> encrypted.data
+            is Result.Error -> return encrypted
         }
 
         val ciphertext = DirectMessageEnvelope(
@@ -114,8 +144,8 @@ class DirectMessageSender(
             welcome = welcome,
         ).serialize()
 
-        val send = directMessageApi.sendDirectMessage(
-            body = SendDirectMessageBody(
+        val send = post(
+            SendDirectMessageBody(
                 recipientUserUuid = recipientUserUuid,
                 ciphertext = ciphertext,
                 kind = kind,
@@ -132,13 +162,55 @@ class DirectMessageSender(
                         scope = error.scope,
                     )
 
-                    is SendDirectMessageError.Network -> when (error.error) {
-                        NetworkError.NOT_FOUND -> DirectSendError.RecipientGone
-                        else -> DirectSendError.Network(error.error)
+                    SendDirectMessageError.RecipientDeleted -> {
+                        if (hasNothingWaitingFrom(senderUserUuid = recipientUserUuid)) {
+                            receiveAccountDeletion(recipientUserUuid)
+                        }
+
+                        DirectSendError.RecipientDeleted
                     }
+
+                    is SendDirectMessageError.Network -> DirectSendError.Network(error.error)
                 },
             )
         }
+    }
+
+    /**
+     * Whether the server holds nothing [senderUserUuid] sent that this device has yet to read, see
+     * [DirectMessageSender]. False when it could not be asked.
+     *
+     * Not waiting for a [DirectMessageSync] under way, as [DirectMessageSync.hasNothingWaiting]
+     * does: the pass sends too, and would wait on itself. What it read and has yet to acknowledge
+     * is still listed, which leaves the sender to their notice of the deletion, read in that pass,
+     * or to the next message to them.
+     */
+    private suspend fun hasNothingWaitingFrom(senderUserUuid: String): Boolean {
+        val listed = listWaiting()
+
+        return listed is Result.Success && listed.data.messages.none { it.senderUserUuid == senderUserUuid }
+    }
+}
+
+/**
+ * Encrypts [payload] to the group [mlsGroupId] with the user's own MLS client, what
+ * [DirectMessageSender] sends: a group that cannot be used for good is told apart from storage
+ * that failed this once.
+ */
+private suspend fun encryptIn(
+    mlsIdentityRepository: MlsIdentityRepository,
+    mlsGroupId: ByteArray,
+    payload: ByteArray,
+): Result<ByteArray, DirectSendError> {
+    val client = when (val opened = mlsIdentityRepository.client()) {
+        is Result.Success -> opened.data
+        is Result.Error -> return Result.Error(DirectSendError.Channel(DirectChannelError.Identity(opened.error)))
+    }
+
+    return try {
+        Result.Success(client.encryptApplicationMessage(mlsGroupId = mlsGroupId, payload = payload))
+    } catch (exception: MlsException) {
+        Result.Error(if (exception.isRetryable()) DirectSendError.Storage else DirectSendError.GroupUnusable)
     }
 }
 
@@ -158,8 +230,16 @@ sealed interface DirectSendError : Error {
     /** The user's own storage failed, so the same message can be sent again later. */
     data object Storage : DirectSendError
 
-    /** The recipient's account is gone. Nobody is going to receive this. */
-    data object RecipientGone : DirectSendError
+    /**
+     * The recipient deleted their account, see [SendDirectMessageError.RecipientDeleted]. Nobody
+     * is going to receive this, nor anything after it.
+     *
+     * A contact is forgotten by the time a caller reads this, see
+     * [ContactRepository.receiveAccountDeletion], unless something they sent is still waiting to
+     * be read, see [DirectMessageSender]: they are forgotten after it, and a pass may try them
+     * once more meanwhile. What the caller kept for them is its own to drop either way.
+     */
+    data object RecipientDeleted : DirectSendError
 
     /**
      * Refused for one of the server's two limits on sending, the one [scope] names, which
@@ -174,7 +254,20 @@ sealed interface DirectSendError : Error {
      */
     data class RateLimited(val retryAfterSeconds: Long, val scope: MessageLimitScope) : DirectSendError
 
-    /** The server could not be reached, or refused the call. */
+    /**
+     * The server could not be reached, or refused the call.
+     *
+     * A `404` included, [NetworkError.NOT_FOUND]: a recipient the server knows nothing of, which
+     * for somebody the server once named to this device means an account an administrator removed,
+     * or the proxy in front of the API, which answers one for every route while the API is being
+     * redeployed. Neither says the user deleted their account, so nothing a caller drops on
+     * [RecipientDeleted] is dropped on it.
+     *
+     * Nor do the passes that send in the background report it, though they keep what they would
+     * after any other failure and try again on their own schedule: the account an administrator
+     * removed answers it for good, which no retry of the sync changes, and a redeploy fails the
+     * reads a sync starts with, which report it.
+     */
     data class Network(val error: NetworkError) : DirectSendError
 }
 
@@ -182,7 +275,7 @@ sealed interface DirectSendError : Error {
  * Whether the message certainly never reached the server, which counts one against the user's
  * allowance only once it is posted: it failed on this device first, building the channel or
  * encrypting, or the host never resolved, so nothing was sent. Every other failure is taken as
- * posted. Some were: refused for the limit, sent to an account that is gone, a `5xx` the proxy
+ * posted. Some were: refused for the limit, sent to an account that was deleted, a `5xx` the proxy
  * may return after the message was stored. The rest cannot be told from those: a timeout, or
  * a server out of reach, which `networking.Client` reports the same whether the connection was
  * refused before anything was written or dropped after.
@@ -193,7 +286,7 @@ internal fun DirectSendError.neverReachedServer(): Boolean =
     when (this) {
         is DirectSendError.Channel, DirectSendError.Storage, DirectSendError.GroupUnusable -> true
         is DirectSendError.Network -> error == NetworkError.NO_INTERNET
-        DirectSendError.RecipientGone, is DirectSendError.RateLimited -> false
+        DirectSendError.RecipientDeleted, is DirectSendError.RateLimited -> false
     }
 
 /**

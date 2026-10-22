@@ -107,7 +107,8 @@ class PushSyncWorker(
 
         // Whatever did arrive, or change, is worth showing even when a later step failed,
         // and whatever left takes what was said about it down: a contact who removed the
-        // user while the notification was still up is no longer a contact to announce.
+        // user, or deleted their account, while the notification was still up is no longer
+        // a contact to announce.
         contactNotifier.notify(arrivals = contactArrivals.since(snapshot = contactsBefore))
         contactNotifier.forget(userUuids = contactArrivals.departures(snapshot = contactsBefore))
 

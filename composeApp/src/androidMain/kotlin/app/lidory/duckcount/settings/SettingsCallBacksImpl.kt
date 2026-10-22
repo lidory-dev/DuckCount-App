@@ -1,12 +1,15 @@
 package app.lidory.duckcount.settings
 
+import account.AccountDeletion
 import android.content.Context
 import android.util.Log
 import app.lidory.duckcount.BuildConfig
 import app.lidory.duckcount.ExternalLinks.LIDORY_WEBSITE
 import app.lidory.duckcount.LICENCES_LIST
 import app.lidory.duckcount.PasswordRequirements
+import app.lidory.duckcount.RestartNotice
 import app.lidory.duckcount.networking.NetworkConnectivity
+import app.lidory.duckcount.settings.model.AccountDeletionError
 import app.lidory.duckcount.settings.model.ProfileSaveError
 import app.lidory.duckcount.settings.model.ReserveDiscoveryUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
@@ -37,6 +40,7 @@ class SettingsCallBacksImpl(
     private val profileRepository: ProfileRepository,
     private val discoveryUsernameRepository: DiscoveryUsernameRepository,
     private val pushRegistrar: PushRegistrar,
+    private val accountDeletion: AccountDeletion,
 ) : SettingsCallBacks {
 
     override val maxUsernameLength: Int = usernameMaximumLength()
@@ -68,6 +72,32 @@ class SettingsCallBacksImpl(
             context.restartApp()
         }
     }
+
+    /**
+     * Not cancellable, restart included, for the reasons [logOut] gives: the screen that asked
+     * can be left while the contacts are being told or the account deleted, and a deletion that
+     * went through must still end in a restart.
+     *
+     * There is no push tear-down here, unlike [logOut]: the server dropped this device's push
+     * subscription along with the account, and the distributor's side goes once the app is up
+     * again with nobody signed in, see [app.lidory.duckcount.push.PushTearDown].
+     */
+    override suspend fun deleteAccount(password: String): AccountDeletionError =
+        withContext(NonCancellable) {
+            val userUuid = getAuthenticatedUserUuid() ?: return@withContext AccountDeletionError.UNKNOWN
+
+            when (val deletion = accountDeletion.delete(userUuid = userUuid, password = password)) {
+                // The session ended with the account, and the next one needs a process of its
+                // own, as after a log-out.
+                is Result.Success -> context.restartApp(notice = RestartNotice.ACCOUNT_DELETED)
+
+                is Result.Error -> {
+                    Log.w(TAG, "deleteAccount: could not delete the account: ${deletion.error}")
+
+                    deletion.error.toAccountDeletionError(isOnline = networkConnectivity.isOnline())
+                }
+            }
+        }
 
     override fun getAuthenticatedUserUuid(): String? {
         return authenticationUtils.getAuthenticatedUserUuid()

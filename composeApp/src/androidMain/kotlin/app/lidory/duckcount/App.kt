@@ -16,6 +16,7 @@ import app.lidory.duckcount.android.ui.theme.AppTheme
 import app.lidory.duckcount.navigation.NavigationRoot
 import app.lidory.duckcount.navigation.key.ContactRequestListScreenKey
 import app.lidory.duckcount.navigation.key.DashboardKey
+import authenticationUtils.SessionEnd
 import navigation.key.OnBoardingScreenKey
 import org.koin.androidx.compose.koinViewModel
 
@@ -47,7 +48,7 @@ fun App(openContactRequests: Boolean = false) {
                 )
 
                 val context = LocalContext.current
-                val isSessionExpired by appViewModel.isSessionExpired.collectAsState()
+                val sessionEnd by appViewModel.sessionEnd.collectAsState()
 
                 if (state is Startup.LoggedIn) {
                     // Pushed on top of the dashboard rather than instead of it, so that
@@ -60,10 +61,15 @@ fun App(openContactRequests: Boolean = false) {
                 // The server has ended the session (the refresh token was turned down). Like
                 // a log-out, that takes a new process, which also lands on the onboarding
                 // screen and tells the user why.
-                LaunchedEffect(isSessionExpired) {
-                    if (!isSessionExpired) return@LaunchedEffect
+                LaunchedEffect(sessionEnd) {
+                    val end = sessionEnd ?: return@LaunchedEffect
 
-                    context.restartApp(sessionExpired = true)
+                    context.restartApp(
+                        notice = when (end) {
+                            SessionEnd.EXPIRED -> RestartNotice.SESSION_EXPIRED
+                            SessionEnd.ACCOUNT_DELETED -> RestartNotice.ACCOUNT_DELETED
+                        },
+                    )
                 }
 
                 NavigationRoot(

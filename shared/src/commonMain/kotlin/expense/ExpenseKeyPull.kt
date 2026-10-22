@@ -13,6 +13,7 @@ import message.DirectSendError
 import message.ResendScheduler
 import message.givesBudgetBack
 import util.EmptyResult
+import util.NetworkError
 import util.Result
 import util.backoffFor
 import util.nowEpochMilliseconds
@@ -154,13 +155,19 @@ class ExpenseKeyPull internal constructor(
                     }
 
                     when (val error = request.error) {
-                        // The server knows of no such user, which for an account is final: an
-                        // expense outlives its creditor, and the key does not. True of every
-                        // expense of theirs, not only the ones this request named.
-                        DirectSendError.RecipientGone -> pendingExpenseKeyDao.setState(
+                        // The creditor deleted their account, which is final: an expense outlives
+                        // its creditor, and the key does not. True of every expense of theirs, not
+                        // only the ones this request named.
+                        DirectSendError.RecipientDeleted -> pendingExpenseKeyDao.setState(
                             expenseUuids = rows.map { it.expenseUuid },
                             state = PendingExpenseKeyState.CREDITOR_GONE,
                         )
+
+                        // A creditor the server knows nothing of, which says nothing of their
+                        // account, see DirectSendError.Network: their rows stay due, as after any
+                        // other failure, and the budget the request kept spaces out the next tries,
+                        // but it is not reported.
+                        DirectSendError.Network(NetworkError.NOT_FOUND) -> Unit
 
                         // No channel could be built to them, which is never final: they have
                         // published no key package yet, the one served has outlived its lifetime

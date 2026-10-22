@@ -82,9 +82,11 @@ enum class PendingExpenseKeyState {
      * its creditor deleting their account, so the row stays and stays unreadable. It is
      * the one thing asking again cannot fix.
      *
-     * The server says so only to a message addressed to them. With no channel to the
-     * creditor, the key-package lookup that comes first answers a deleted account just as
-     * it answers one that has published nothing, and the row stays [PENDING].
+     * The server says so only to a message addressed to them, with a `410`, see
+     * [DirectSendError.RecipientDeleted][message.DirectSendError.RecipientDeleted]. A `404` is
+     * no such word, see [DirectSendError.Network][message.DirectSendError.Network]. With no
+     * channel to the creditor, the key-package lookup that comes first answers a deleted
+     * account just as it answers one that has published nothing, and the row stays [PENDING].
      */
     CREDITOR_GONE,
 }

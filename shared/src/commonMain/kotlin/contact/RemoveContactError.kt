@@ -1,5 +1,6 @@
 package contact
 
+import database.data.remote.MessageLimitScope
 import mls.MlsIdentityError
 import util.Error
 import util.NetworkError
@@ -26,8 +27,14 @@ sealed interface RemoveContactError : Error {
     /** The user's own MLS storage failed while encrypting the notice. */
     data object Storage : RemoveContactError
 
-    /** Too many direct messages sent in a short amount of time. */
-    data object RateLimited : RemoveContactError
+    /**
+     * Too many direct messages sent in a short amount of time, past the limit [scope] names.
+     *
+     * Either one leaves a removal for the user to try again. The scope is for the notices an
+     * account deletion sends, see
+     * [ContactRepository.sendNotice][database.data.repository.ContactRepository.sendNotice].
+     */
+    data class RateLimited(val scope: MessageLimitScope) : RemoveContactError
 
     /** The server could not be reached, or refused the call. */
     data class Network(val error: NetworkError) : RemoveContactError

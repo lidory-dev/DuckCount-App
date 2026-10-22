@@ -35,6 +35,12 @@ object DuckCountRoutes {
 
         /** The caller's MLS key packages. `PUT` to publish them. */
         val KEY_PACKAGE = "$USER_BASE_URL/:user_uuid/key-package"
+
+        /**
+         * The caller's account: `POST` starts the re-authentication deleting it takes, `PUT`
+         * finishes it and deletes the account.
+         */
+        val DELETION = "$USER_BASE_URL/:user_uuid/deletion"
     }
 
     object Contact {

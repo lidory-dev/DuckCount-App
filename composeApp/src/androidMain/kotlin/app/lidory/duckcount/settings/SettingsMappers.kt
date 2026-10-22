@@ -1,5 +1,6 @@
 package app.lidory.duckcount.settings
 
+import app.lidory.duckcount.settings.model.AccountDeletionError
 import app.lidory.duckcount.settings.model.ProfileSaveError
 import app.lidory.duckcount.settings.model.ReserveDiscoveryUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
@@ -7,6 +8,7 @@ import discoveryUsername.DiscoveryUsernameError
 import profile.ProfileError
 import util.NetworkError
 import vault.VaultError
+import account.AccountDeletionError as SharedAccountDeletionError
 import app.lidory.duckcount.UsernameError as SharedUsernameError
 
 fun SharedUsernameError.toUsernameInputError(): UsernameInputError = when (this) {
@@ -147,4 +149,44 @@ private fun NetworkError.toProfileSaveError(isOnline: Boolean): ProfileSaveError
     NetworkError.SERIALIZATION,
     NetworkError.UNKNOWN,
         -> ProfileSaveError.UNKNOWN
+}
+
+/**
+ * Maps a failed account deletion to the reason the UI surfaces.
+ *
+ * Only a wrong password, the network's failures and a deletion whose answer never came back are
+ * told apart, the ones the user can do something about. Not a `401`: one the refresh found the
+ * server turning the session down for has ended the session there, restarting the app and telling
+ * the user, see the `refreshTokens` block in `DuckCountClient` and its `expireSession`. Any other
+ * `401` is the refresh failing for a passing reason, a failure like any other.
+ *
+ * As in [toReserveUsernameError], [isOnline] corrects a [NetworkError.UNREACHABLE] that
+ * is really airplane mode.
+ */
+fun SharedAccountDeletionError.toAccountDeletionError(isOnline: Boolean): AccountDeletionError = when (this) {
+    SharedAccountDeletionError.WrongPassword -> AccountDeletionError.WRONG_PASSWORD
+
+    is SharedAccountDeletionError.Network -> when (error) {
+        NetworkError.NO_INTERNET -> AccountDeletionError.NO_INTERNET
+        NetworkError.REQUEST_TIMEOUT -> AccountDeletionError.TIMEOUT
+
+        NetworkError.UNREACHABLE ->
+            if (isOnline) AccountDeletionError.SERVER_UNREACHABLE else AccountDeletionError.NO_INTERNET
+
+        NetworkError.BAD_REQUEST,
+        NetworkError.UNAUTHORIZED,
+        NetworkError.NOT_FOUND,
+        NetworkError.CONFLICT,
+        NetworkError.PAYLOAD_TOO_LARGE,
+        NetworkError.UNPROCESSABLE_ENTITY,
+        NetworkError.TOO_MANY_REQUESTS,
+        NetworkError.SERVER_ERROR,
+        NetworkError.SERIALIZATION,
+        NetworkError.UNKNOWN,
+            -> AccountDeletionError.UNKNOWN
+    }
+
+    is SharedAccountDeletionError.Unconfirmed -> AccountDeletionError.UNCONFIRMED
+
+    SharedAccountDeletionError.Crypto -> AccountDeletionError.UNKNOWN
 }

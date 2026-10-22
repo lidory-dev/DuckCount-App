@@ -58,6 +58,11 @@ class UserRepository(
         return userDao.getUserFullNameAsFlow(uuid = uuid)
     }
 
+    /** The same name, read once, hidden or not, see [UserDao.getFullNameEvenIfHidden]. */
+    suspend fun getFullNameEvenIfHidden(uuid: String): String? {
+        return userDao.getFullNameEvenIfHidden(uuid = uuid)
+    }
+
     fun getAllFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> {
         return userDao.getAllFromGroupFiltered(filter, groupUuid).map { userEntities ->
             userEntities.map { it.toUser() }

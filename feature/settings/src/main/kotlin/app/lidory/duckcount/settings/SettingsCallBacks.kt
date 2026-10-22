@@ -1,5 +1,6 @@
 package app.lidory.duckcount.settings
 
+import app.lidory.duckcount.settings.model.AccountDeletionError
 import app.lidory.duckcount.settings.model.ProfileSaveError
 import app.lidory.duckcount.settings.model.ReserveDiscoveryUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
@@ -23,6 +24,18 @@ interface SettingsCallBacks {
      * the screen that asked. Does not return.
      */
     suspend fun logOut()
+
+    /**
+     * Deletes the user's account once [password] proves it is theirs, telling their contacts
+     * first, then ends the session and restarts the app like [logOut], whatever becomes of the
+     * screen that asked. Does not return then, nor when the account turns out to be gone already,
+     * an earlier attempt having deleted it without its answer coming back.
+     *
+     * Returns why it failed otherwise. The session is still there then, unless the server turned it
+     * down meanwhile, which ends it and restarts the app as any expiry does, and so is the account
+     * as far as the attempt could tell, but for [AccountDeletionError.UNCONFIRMED].
+     */
+    suspend fun deleteAccount(password: String): AccountDeletionError
 
     fun getAuthenticatedUserUuid(): String?
 

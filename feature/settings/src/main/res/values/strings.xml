@@ -52,4 +52,10 @@
     <string name="profile_error_unauthorized">Please log in again to change your profile</string>
     <string name="profile_error_conflict">Your profile changed on another device, please try again</string>
     <string name="profile_error_unknown">Your profile could not be saved</string>
+    <string name="account_deletion_error_wrong_password">Incorrect password</string>
+    <string name="account_deletion_error_no_internet">No internet connection</string>
+    <string name="account_deletion_error_timeout">The server took too long to answer, please try again</string>
+    <string name="account_deletion_error_server_unreachable">The server is unreachable, please try again later</string>
+    <string name="account_deletion_error_unknown">Your account could not be deleted</string>
+    <string name="account_deletion_error_unconfirmed">The server’s answer never arrived, so your account may already be deleted. Check your connection, then try again to find out</string>
 </resources>

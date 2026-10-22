@@ -153,6 +153,36 @@ class ExpenseKeyDeliveryTest {
         assertEquals(listOf(45L), resends.seconds)
     }
 
+    /** Nobody is going to read Bob's keys: they are owed no more, and that is no failure. */
+    @Test
+    fun `a recipient who deleted their account is owed nothing more`() = runBlocking<Unit> {
+        owed.add(LUNCH, ALICE, BOB)
+        owed.add(DINNER, BOB)
+        sends.outcomes[BOB] = Result.Error(DirectSendError.RecipientDeleted)
+
+        assertIs<Result.Success<Unit>>(delivery.handOver(ownUserUuid = USER))
+
+        assertEquals(listOf(ALICE, BOB), sends.recipients)
+        assertTrue(owed.rows.isEmpty())
+    }
+
+    /**
+     * The proxy answers a `404` while the API is being redeployed, so it says nothing of Alice's
+     * account: her key waits for the next pass, as after any other failure. An account an
+     * administrator removed answers one for good, which no retry of the sync changes, so it is
+     * not reported.
+     */
+    @Test
+    fun `a 404 leaves the key owed and is not reported`() = runBlocking<Unit> {
+        owed.add(LUNCH, ALICE, BOB)
+        sends.outcomes[ALICE] = Result.Error(DirectSendError.Network(NetworkError.NOT_FOUND))
+
+        assertIs<Result.Success<Unit>>(delivery.handOver(ownUserUuid = USER))
+
+        assertEquals(listOf(ALICE, BOB), sends.recipients)
+        assertEquals(listOf(LUNCH to ALICE), owed.rows)
+    }
+
     /** The user's own record of an expense they created, naming everybody on it. */
     private fun recordOf(expenseUuid: String) =
         OneTimeExpenseKeyRecord(

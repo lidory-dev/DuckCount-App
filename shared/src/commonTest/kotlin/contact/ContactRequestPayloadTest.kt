@@ -198,6 +198,39 @@ class ContactRequestPayloadTest {
     }
 
     @Test
+    fun `a notice of account deletion survives being encrypted and read back`() {
+        assertTrue(AccountDeletionNotice.matches(plaintext = AccountDeletionNotice.serialize()))
+        assertTrue(AccountDeletionNotice.matches(plaintext = """{"type":"account_deletion","at":1}""".encodeToByteArray()))
+    }
+
+    @Test
+    fun `a message that is not a notice of account deletion is not taken for one`() {
+        assertFalse(AccountDeletionNotice.matches(plaintext = "not a notice".encodeToByteArray()))
+        assertFalse(AccountDeletionNotice.matches(plaintext = "{}".encodeToByteArray()))
+        assertFalse(AccountDeletionNotice.matches(plaintext = ContactRemoval.serialize()))
+        assertFalse(AccountDeletionNotice.matches(plaintext = ProfileKeyRequest.serialize()))
+        assertFalse(AccountDeletionNotice.matches(plaintext = ProfileKeyUpdate(profileEncryptionKey).serialize()))
+        assertFalse(AccountDeletionNotice.matches(plaintext = ContactCard(profileEncryptionKey).serialize()))
+    }
+
+    /**
+     * Taken for a removal, it would drop the contact along with the name their vault is to keep;
+     * a removal taken for it would keep the name of somebody whose account is still there.
+     */
+    @Test
+    fun `a notice of account deletion is taken for nothing else and a removal is not taken for it`() {
+        val notice = AccountDeletionNotice.serialize()
+
+        assertSame(ContactMessage.AccountDeleted, ContactMessage.read(payload = notice))
+        assertFalse(ContactRemoval.matches(plaintext = notice))
+        assertNull(ContactCard.parse(plaintext = notice))
+        assertNull(ProfileKeyUpdate.parse(plaintext = notice))
+        assertFalse(ProfileKeyRequest.matches(plaintext = notice))
+
+        assertSame(ContactMessage.Removal, ContactMessage.read(payload = ContactRemoval.serialize()))
+    }
+
+    @Test
     fun `a message about something else is no contact message`() {
         assertNull(ContactMessage.read(payload = "not a contact message".encodeToByteArray()))
         assertNull(ContactMessage.read(payload = """{"type":"something_else"}""".encodeToByteArray()))

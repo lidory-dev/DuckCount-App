@@ -146,8 +146,8 @@ class MlsIdentityRepository(
      * [WakeList].
      */
     private suspend fun restorePins(client: MlsClient): EmptyResult<MlsIdentityError> {
-        val contacts = when (val read = vaultRepository.getContacts()) {
-            is Result.Success -> read.data
+        val contacts = when (val read = vaultRepository.getContactBook()) {
+            is Result.Success -> read.data.contacts
             is Result.Error -> return Result.Error(MlsIdentityError.Vault(read.error))
         }
 

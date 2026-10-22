@@ -1,5 +1,7 @@
 package vault
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -379,6 +381,191 @@ class ContactBookTest {
 
         assertEquals(setOf(alice), reread.keys)
         assertNull(reread[alice]?.verifiedSafetyNumber)
+    }
+
+    @Test
+    fun `an empty book holds no deleted account`() {
+        assertTrue(ContactBook.EMPTY.deletedAccounts.isEmpty())
+    }
+
+    /**
+     * Alice deleted her account: her profile went with it, so her name is all there is left to
+     * keep, and her key, her pin and the rest go with the contact she no longer is.
+     */
+    @Test
+    fun `a contact who deleted their account survives being sealed and read back as their name alone`() {
+        val book = ContactBook.EMPTY
+            .with(
+                userUuid = alice,
+                contact = contact(
+                    profileEncryptionKey = aliceKey,
+                    mlsSignaturePublicKey = aliceSignatureKey,
+                    handedProfileKeyHash = handedNow,
+                    verifiedSafetyNumber = aliceSafetyNumber,
+                ),
+            )!!
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
+            .withDeletedAccount(userUuid = alice, fullName = "Alice Martin")
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!
+        val entry = Json.parseToJsonElement(book.serialize().decodeToString()).jsonObject.getValue(alice)
+
+        assertEquals(mapOf(alice to "Alice Martin"), reread.deletedAccounts)
+        assertEquals(setOf(bob), reread.contacts.keys)
+        assertEquals(setOf("account_deleted", "full_name"), entry.jsonObject.keys)
+    }
+
+    /** Nothing else is left to keep of her, so she goes as a removed contact does. */
+    @Test
+    fun `a contact who deleted their account with no name known is dropped`() {
+        val book = ContactBook.EMPTY
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, mlsSignaturePublicKey = aliceSignatureKey))!!
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
+            .withDeletedAccount(userUuid = alice, fullName = null)
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!
+
+        assertTrue(reread.deletedAccounts.isEmpty())
+        assertEquals(setOf(bob), reread.contacts.keys)
+        assertTrue(!book.serialize().decodeToString().contains(alice), "the deleted account is still there")
+    }
+
+    /** Marked as an account deleted, an entry is no contact's whatever else it carries. */
+    @Test
+    fun `the entry of a deleted account is not a contact even with a key`() {
+        val plaintext = """
+            {
+                "$alice": {"account_deleted": true, "full_name": "Alice Martin", "profile_encryption_key": "AQID"},
+                "$bob": {"profile_encryption_key": "BAUG"}
+            }
+        """.trimIndent().encodeToByteArray()
+
+        val book = ContactBook.parse(plaintext = plaintext)!!
+
+        assertEquals(setOf(bob), book.contacts.keys)
+        assertEquals(mapOf(alice to "Alice Martin"), book.deletedAccounts)
+    }
+
+    /** Only the entry of the contact who deleted their account is replaced. */
+    @Test
+    fun `what this build does not know survives turning a contact into a deleted account`() {
+        val plaintext = """
+            {
+                "$alice": {"profile_encryption_key": "AQID", "nickname": "Al"},
+                "$bob": {"profile_encryption_key": "BAUG", "nickname": "Bobby"},
+                "a_newer_kind_of_entry": [1, 2]
+            }
+        """.trimIndent().encodeToByteArray()
+
+        val rewritten = ContactBook.parse(plaintext = plaintext)!!
+            .withDeletedAccount(userUuid = alice, fullName = "Alice Martin")
+            .serialize()
+            .decodeToString()
+
+        assertTrue(rewritten.contains("\"nickname\":\"Bobby\""), "the unknown field was dropped: $rewritten")
+        assertTrue(
+            rewritten.contains("\"a_newer_kind_of_entry\":[1,2]"),
+            "the unknown entry was dropped: $rewritten",
+        )
+        assertTrue(!rewritten.contains("\"nickname\":\"Al\""), "the deleted account kept a field: $rewritten")
+    }
+
+    @Test
+    fun `a deleted account survives writing and removing other contacts`() {
+        val book = ContactBook.EMPTY
+            .withDeletedAccount(userUuid = alice, fullName = "Alice Martin")
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
+            .without(userUuid = bob)
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!
+
+        assertEquals(mapOf(alice to "Alice Martin"), reread.deletedAccounts)
+        assertTrue(reread.contacts.isEmpty())
+    }
+
+    /**
+     * Alice's deletion failed once its notice was out, and she and the user are contacts again.
+     * Kept, the mark would have every restore bring her back as a name alone, with no pin.
+     */
+    @Test
+    fun `a contact added back over the entry of a deleted account is a contact again`() {
+        val book = ContactBook.EMPTY
+            .withDeletedAccount(userUuid = alice, fullName = "Alice Martin")
+            .with(
+                userUuid = alice,
+                contact = contact(profileEncryptionKey = aliceKey, mlsSignaturePublicKey = aliceSignatureKey),
+            )!!
+
+        val reread = ContactBook.parse(plaintext = book.serialize())!!
+        val entry = Json.parseToJsonElement(book.serialize().decodeToString()).jsonObject.getValue(alice)
+
+        assertEquals(setOf(alice), reread.contacts.keys)
+        assertContentEquals(aliceKey, reread.contacts[alice]?.profileEncryptionKey)
+        assertContentEquals(aliceSignatureKey, reread.contacts[alice]?.mlsSignaturePublicKey)
+        assertTrue(reread.deletedAccounts.isEmpty())
+        assertEquals(setOf("profile_encryption_key", "mls_signature_public_key"), entry.jsonObject.keys)
+    }
+
+    /**
+     * What a backup writes once Alice deleted her account and Bob was added: of her, her name
+     * alone is left.
+     */
+    @Test
+    fun `a backup keeps nothing of a contact who deleted their account but their name`() {
+        val update = ContactBook.EMPTY
+            .with(
+                userUuid = alice,
+                contact = contact(
+                    profileEncryptionKey = aliceKey,
+                    mlsSignaturePublicKey = aliceSignatureKey,
+                    handedProfileKeyHash = handedNow,
+                ),
+            )!!
+            .withChanges(
+                added = mapOf(bob to contact(profileEncryptionKey = bobKey)),
+                removed = emptyList(),
+                deletedAccounts = mapOf(alice to "Alice Martin"),
+            )
+
+        val reread = ContactBook.parse(plaintext = update.book.serialize())!!
+        val entry = Json.parseToJsonElement(update.book.serialize().decodeToString()).jsonObject.getValue(alice)
+
+        assertEquals(mapOf(alice to "Alice Martin"), reread.deletedAccounts)
+        assertEquals(setOf(bob), reread.contacts.keys)
+        assertEquals(setOf("account_deleted", "full_name"), entry.jsonObject.keys)
+        assertTrue(update.conflicting.isEmpty())
+    }
+
+    /** This device never read Alice's profile, and nothing else is left to keep of her. */
+    @Test
+    fun `a backup drops a contact who deleted their account with no name known`() {
+        val update = ContactBook.EMPTY
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, mlsSignaturePublicKey = aliceSignatureKey))!!
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
+            .withChanges(added = emptyMap(), removed = emptyList(), deletedAccounts = mapOf(alice to null))
+
+        assertTrue(update.book.deletedAccounts.isEmpty())
+        assertEquals(setOf(bob), update.book.contacts.keys)
+        assertTrue(!update.book.serialize().decodeToString().contains(alice), "the deleted account is still there")
+    }
+
+    @Test
+    fun `a backup drops the contacts removed and leaves one pinned as somebody else as it was`() {
+        val update = ContactBook.EMPTY
+            .with(userUuid = alice, contact = contact(profileEncryptionKey = aliceKey, mlsSignaturePublicKey = aliceSignatureKey))!!
+            .with(userUuid = bob, contact = contact(profileEncryptionKey = bobKey))!!
+            .withChanges(
+                added = mapOf(
+                    alice to contact(profileEncryptionKey = byteArrayOf(9, 9), mlsSignaturePublicKey = byteArrayOf(8, 8, 8)),
+                ),
+                removed = listOf(bob),
+                deletedAccounts = emptyMap(),
+            )
+
+        assertEquals(setOf(alice), update.conflicting)
+        assertEquals(setOf(alice), update.book.contacts.keys)
+        assertContentEquals(aliceKey, update.book.contacts[alice]?.profileEncryptionKey)
+        assertContentEquals(aliceSignatureKey, update.book.contacts[alice]?.mlsSignaturePublicKey)
     }
 
     @Test

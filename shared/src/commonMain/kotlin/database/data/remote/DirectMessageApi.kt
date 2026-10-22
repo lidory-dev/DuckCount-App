@@ -51,29 +51,30 @@ class DirectMessageApi(
     /**
      * Sends a message to [SendDirectMessageBody.recipientUserUuid].
      *
-     * A recipient that does not exist, their account deleted for instance, is a `404`.
-     * Sending is limited twice over, for what the caller sends this recipient and for what
-     * they send everybody together, and a `429` says which of the two refused the message and
-     * when it lets one through again, see [SendDirectMessageError.RateLimited].
+     * A recipient who deleted their account is a `410`, see
+     * [SendDirectMessageError.RecipientDeleted]. A `404` is a recipient the server knows nothing
+     * of, or the proxy in front of the API, which answers one for every route while the API is
+     * being redeployed, and comes back as [NetworkError.NOT_FOUND], like any other refusal.
+     * Sending is limited twice over, for what the caller sends this recipient and for what they
+     * send everybody together, and a `429` says which of the two refused the message and when it
+     * lets one through again, see [SendDirectMessageError.RateLimited].
      */
     suspend fun sendDirectMessage(body: SendDirectMessageBody): Result<Unit, SendDirectMessageError> {
         // Read off the response as it comes back, a NetworkError having no room for it.
-        var rateLimited: SendDirectMessageError.RateLimited? = null
+        var refusal: SendDirectMessageError? = null
 
         val sent = client.execute<Unit> {
             client.httpClient.post(urlString = DuckCountRoutes.Message.MESSAGES) {
                 setBody(body)
                 contentType(ContentType.Application.Json)
             }.also { response ->
-                if (response.status == HttpStatusCode.TooManyRequests) {
-                    rateLimited = response.headers.toRateLimited()
-                }
+                refusal = refusalOf(status = response.status, headers = response.headers)
             }
         }
 
         return when (sent) {
             is Result.Success -> Result.Success(Unit)
-            is Result.Error -> Result.Error(rateLimited ?: SendDirectMessageError.Network(sent.error))
+            is Result.Error -> Result.Error(refusal ?: SendDirectMessageError.Network(sent.error))
         }
     }
 
@@ -100,6 +101,16 @@ sealed interface SendDirectMessageError : Error {
      */
     data class RateLimited(val retryAfterSeconds: Long, val scope: MessageLimitScope) : SendDirectMessageError
 
+    /**
+     * The recipient deleted their account, the `410` the server answers from the trace a deletion
+     * leaves of it. Final: their UUID is never handed to anybody again.
+     *
+     * Told apart from the `404` of a recipient the server knows nothing of, which comes back as
+     * [Network]: the proxy in front of the API answers one for every route while the API is being
+     * redeployed, and a contact is dropped on this, see [message.DirectMessageSender].
+     */
+    data object RecipientDeleted : SendDirectMessageError
+
     /** The server could not be reached, or refused the call for any other reason. */
     data class Network(val error: NetworkError) : SendDirectMessageError
 }
@@ -123,6 +134,18 @@ enum class MessageLimitScope {
     /** What the user may send everybody together. Nothing more goes out until it reopens. */
     SENDER,
 }
+
+/**
+ * What a response from `POST /messages` with [status] and [headers] says that a [NetworkError]
+ * has no room for, or null when it says nothing more: the limit a `429` names, see
+ * [toRateLimited], and the deletion a `410` tells of, see [SendDirectMessageError.RecipientDeleted].
+ */
+internal fun refusalOf(status: HttpStatusCode, headers: Headers): SendDirectMessageError? =
+    when (status) {
+        HttpStatusCode.TooManyRequests -> headers.toRateLimited()
+        HttpStatusCode.Gone -> SendDirectMessageError.RecipientDeleted
+        else -> null
+    }
 
 /**
  * The limit a `429` from `POST /messages` names: `Retry-After` in whole seconds, and

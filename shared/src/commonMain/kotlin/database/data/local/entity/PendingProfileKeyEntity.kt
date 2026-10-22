@@ -18,8 +18,10 @@ import androidx.room.PrimaryKey
  * It goes once a read opens their latest version, once they hand over the very key this device
  * holds, which is them saying it is their current one, see
  * [ContactRepository.receiveProfileKey][database.data.repository.ContactRepository.receiveProfileKey],
- * and with them when they stop being a contact. Nothing about it is shown: the name read off an
- * older version is still the one they had.
+ * and with them when they stop being a contact, which is also what a request to an account its
+ * owner deleted comes to, see
+ * [ContactRepository.receiveAccountDeletion][database.data.repository.ContactRepository.receiveAccountDeletion].
+ * Nothing about it is shown: the name read off an older version is still the one they had.
  */
 @Entity
 class PendingProfileKeyEntity(
@@ -45,12 +47,4 @@ class PendingProfileKeyEntity(
 
     /** How many times this device has tried asking, which the backoff between tries grows with. */
     val requestCount: Int = 0,
-
-    /**
-     * Whether the server said the contact's account is gone, answering a request addressed to
-     * them, which for an account is final: they are never asked again. The row stays rather
-     * than going, so the read of their profile, which finds none, does not write a new one with
-     * nothing tried and have them asked again at once, at every sync.
-     */
-    val isAccountGone: Boolean = false,
 )

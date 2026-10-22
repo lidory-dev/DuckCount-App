@@ -2,6 +2,7 @@ package database.data.repository
 
 import authenticationUtils.SessionExpiry
 import channel.DirectChannelRepository
+import contact.AccountDeletionNotice
 import contact.ContactMessageHandler
 import contact.ContactRemoval
 import contact.ContactSyncError
@@ -41,8 +42,10 @@ import push.WakeList
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import util.NetworkError
 import util.Result
+import vault.ContactBook
 import vault.InMemoryProfileKeyVault
 import vault.VaultApi
+import vault.VaultContact
 import vault.VaultRepository
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -200,6 +203,153 @@ class ContactRepositoryTest {
         assertTrue(alice.isRemoved)
         assertFalse(alice.rotatesProfileKey)
         assertContentEquals(pendingKey, userVault.pendingKey)
+    }
+
+    /** Her account is still there: the vault drops her, her name along with her. */
+    @Test
+    fun `a contact's notice of removal is not taken for an account deletion`() = runBlocking<Unit> {
+        tables.add(contact(ALICE, key = aliceFirstKey))
+
+        receive(from = ALICE, payload = ContactRemoval.serialize())
+
+        val alice = tables.contacts.getValue(ALICE)
+
+        assertTrue(alice.isRemoved)
+        assertFalse(alice.isAccountDeleted)
+    }
+
+    /**
+     * A message to Alice found her account deleted: she is forgotten as if her notice of removal
+     * had come in, her row of a missing key going with her, and the user's key is left as it is.
+     * Her name is only hidden from the contact list, for the next backup to keep in the vault in
+     * place of her entry: the server deleted her profile with the account.
+     */
+    @Test
+    fun `a contact who deleted their account is forgotten without a rotation and keeps their name`() =
+        runBlocking<Unit> {
+            tables.add(contact(ALICE, key = aliceFirstKey))
+            tables.names[ALICE] = "Alice Martin"
+            missing(ALICE)
+            val pendingKey = generateSymmetricEncryptionKey()
+            userVault.pendingKey = pendingKey
+
+            contacts.receiveAccountDeletion(userUuid = ALICE)
+
+            val alice = tables.contacts.getValue(ALICE)
+
+            assertTrue(alice.isRemoved)
+            assertTrue(alice.isAccountDeleted)
+            assertFalse(alice.rotatesProfileKey)
+            assertFalse(alice.isBackedUp)
+            assertNull(tables.names[ALICE])
+            assertEquals("Alice Martin", tables.userDao.getFullNameEvenIfHidden(uuid = ALICE))
+            assertTrue(tables.pending.isEmpty())
+            assertContentEquals(pendingKey, userVault.pendingKey)
+        }
+
+    /**
+     * Dave is a contact no longer, his removal still waiting for the rotation it owes, and Carol
+     * never was one: what the server says of their accounts changes nothing here.
+     */
+    @Test
+    fun `an account deletion of anybody but a contact changes nothing`() = runBlocking<Unit> {
+        tables.add(contact(DAVE, key = aliceFirstKey).copy(isRemoved = true, isBackedUp = false, rotatesProfileKey = true))
+
+        contacts.receiveAccountDeletion(userUuid = DAVE)
+        contacts.receiveAccountDeletion(userUuid = CAROL)
+
+        assertTrue(tables.contacts.getValue(DAVE).rotatesProfileKey)
+        assertFalse(tables.contacts.getValue(DAVE).isAccountDeleted)
+        assertNull(tables.contacts[CAROL])
+    }
+
+    /**
+     * Alice's app told the user as her account went, before any message to her could find it out.
+     * Her deletion may yet fail and leave her account holding the user's key, which stays as it is
+     * all the same: it rotates on the user's own action only.
+     */
+    @Test
+    fun `a contact's notice of their account deletion forgets them and keeps their name`() = runBlocking<Unit> {
+        tables.add(contact(ALICE, key = aliceFirstKey))
+        tables.names[ALICE] = "Alice Martin"
+        val pendingKey = generateSymmetricEncryptionKey()
+        userVault.pendingKey = pendingKey
+
+        assertEquals(DirectMessageHandling.HANDLED, receive(from = ALICE, payload = AccountDeletionNotice.serialize()))
+
+        val alice = tables.contacts.getValue(ALICE)
+
+        assertTrue(alice.isRemoved)
+        assertTrue(alice.isAccountDeleted)
+        assertFalse(alice.rotatesProfileKey)
+        assertNull(tables.names[ALICE])
+        assertEquals("Alice Martin", tables.hidden[ALICE])
+        assertContentEquals(pendingKey, userVault.pendingKey)
+    }
+
+    /**
+     * Alice and Dave deleted their accounts. Forgetting them hid Alice's name from the contact
+     * list, and the backup keeps it all the same. This device never read Dave's profile, so
+     * nothing is kept of him.
+     */
+    @Test
+    fun `a backup keeps the hidden name of a contact who deleted their account`() = runBlocking<Unit> {
+        tables.add(contact(ALICE, key = aliceFirstKey))
+        tables.add(contact(DAVE, key = aliceFirstKey))
+        tables.names[ALICE] = "Alice Martin"
+
+        contacts.receiveAccountDeletion(userUuid = ALICE)
+        contacts.receiveAccountDeletion(userUuid = DAVE)
+
+        val pending = PendingBackUp(contacts = tables.contactDao.getNotBackedUp())
+
+        assertNull(tables.names[ALICE])
+        assertEquals(mapOf(ALICE to "Alice Martin", DAVE to null), contacts.namesKept(pending = pending))
+    }
+
+    /**
+     * Carol was never a contact, and Dave is one no longer: neither can have a name kept, nor a
+     * tombstone turned into one that keeps it.
+     */
+    @Test
+    fun `a notice of account deletion from anybody but a contact changes nothing`() = runBlocking<Unit> {
+        tables.add(contact(DAVE, key = aliceFirstKey).copy(isRemoved = true, isBackedUp = false, rotatesProfileKey = true))
+
+        assertEquals(DirectMessageHandling.HANDLED, receive(from = CAROL, payload = AccountDeletionNotice.serialize()))
+        assertEquals(DirectMessageHandling.HANDLED, receive(from = DAVE, payload = AccountDeletionNotice.serialize()))
+
+        assertNull(tables.contacts[CAROL])
+        assertFalse(tables.contacts.getValue(DAVE).isAccountDeleted)
+        assertTrue(tables.contacts.getValue(DAVE).rotatesProfileKey)
+    }
+
+    /**
+     * Alice deleted her account, and the vault holds nothing of her but her name: it comes back
+     * hidden, for the expenses she shares with the user to show, and she is no contact. Dave comes
+     * back a contact, his name for the read of his profile to tell.
+     */
+    @Test
+    fun `a contact who deleted their account comes back as a hidden name and no contact`() = runBlocking<Unit> {
+        val daveKey = generateSymmetricEncryptionKey()
+        val book = ContactBook.EMPTY
+            .with(
+                userUuid = DAVE,
+                contact = VaultContact(
+                    profileEncryptionKey = daveKey,
+                    mlsSignaturePublicKey = null,
+                    handedProfileKeyHash = null,
+                    verifiedSafetyNumber = null,
+                ),
+            )!!
+            .withDeletedAccount(userUuid = ALICE, fullName = "Alice Martin")
+
+        contacts.putBack(book = book)
+
+        assertEquals(setOf(DAVE), tables.contacts.keys)
+        assertTrue(tables.contacts.getValue(DAVE).isBackedUp)
+        assertNull(tables.names[ALICE])
+        assertEquals("Alice Martin", tables.hidden[ALICE])
+        assertEquals(listOf(DAVE), tables.contactDao.getDueForRead().map { it.userUuid })
     }
 
     /**

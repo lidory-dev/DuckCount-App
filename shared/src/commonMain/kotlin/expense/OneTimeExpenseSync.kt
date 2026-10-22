@@ -398,7 +398,7 @@ internal fun DirectSendError.toSyncError(): OneTimeExpenseSyncError =
 
         is DirectSendError.Network -> OneTimeExpenseSyncError.Network(error)
 
-        DirectSendError.RecipientGone, is DirectSendError.RateLimited -> OneTimeExpenseSyncError.Storage
+        DirectSendError.RecipientDeleted, is DirectSendError.RateLimited -> OneTimeExpenseSyncError.Storage
     }
 
 /** Reads the listing's entries as this build knows them, ignoring what it does not. */

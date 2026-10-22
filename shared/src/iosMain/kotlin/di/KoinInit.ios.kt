@@ -1,5 +1,6 @@
 package di
 
+import account.di.accountModule
 import database.data.repository.BeneficiaryRepository
 import database.data.repository.ExpenseRepository
 import database.data.repository.UserRepository
@@ -36,6 +37,7 @@ fun initKoin() {
             messageModule,
             channelModule,
             pushModule,
+            accountModule,
             iosPlatformModule,
         )
     }

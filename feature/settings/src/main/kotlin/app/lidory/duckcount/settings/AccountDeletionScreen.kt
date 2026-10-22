@@ -1,5 +1,6 @@
 package app.lidory.duckcount.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,10 +37,11 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.lidory.duckcount.android.ui.composable.button.DuckCountButton
+import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.button.PasswordVisibilityButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.settings.model.messageRes
 import app.lidory.duckcount.settings.viewmodel.AccountDeletionViewModel
 import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
@@ -50,11 +52,16 @@ fun AccountDeletionScreen(
     onBack: () -> Unit,
 ) {
     val viewModel: AccountDeletionViewModel = koinViewModel()
-    val password = viewModel.password.collectAsStateWithLifecycle()
+    val password by viewModel.password.collectAsStateWithLifecycle()
+    val isDeleting by viewModel.isDeleting.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
 
     val focusManager = LocalFocusManager.current
 
     var isPasswordVisible by remember { mutableStateOf(false) }
+
+    // Do not allow navigating back while deleting the account.
+    BackHandler(enabled = isDeleting) {}
 
     Scaffold(
         topBar = {
@@ -67,6 +74,7 @@ fun AccountDeletionScreen(
                 navigationIcon = {
                     IconButton(
                         onClick = onBack,
+                        enabled = !isDeleting,
                     ) {
                         Icon(
                             painter = painterResource(androidUiR.drawable.ic_arrow_back),
@@ -121,7 +129,7 @@ fun AccountDeletionScreen(
                         contentType = ContentType.Password
                     }
                     .fillMaxWidth(),
-                value = password.value,
+                value = password,
                 onValueChange = { viewModel.onPasswordChanged(it) },
                 focusManager = focusManager,
                 visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -130,7 +138,8 @@ fun AccountDeletionScreen(
                 keyboardOptions = KeyboardOptions(
                     imeAction = ImeAction.Next,
                 ),
-                isInError = password.value.isBlank(),
+                enabled = !isDeleting,
+                isInError = password.isBlank(),
                 error = stringResource(androidUiR.string.required),
                 trailingIcon = {
                     PasswordVisibilityButton(
@@ -140,12 +149,24 @@ fun AccountDeletionScreen(
                 },
             )
 
+            error?.let { error ->
+                Text(
+                    modifier = Modifier.padding(top = Padding.medium),
+                    text = stringResource(error.messageRes()),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
             Spacer(Modifier.weight(1f))
 
-            DuckCountButton(
+            DuckCountLoadingButton(
                 modifier = Modifier.fillMaxWidth(),
-                onClick = { viewModel.onConfirmClicked() },
-                enabled = password.value.isNotBlank(),
+                onClick = {
+                    focusManager.clearFocus()
+                    viewModel.onConfirmClicked()
+                },
+                enabled = password.isNotBlank() && !isDeleting,
+                isLoading = isDeleting,
                 colors = ButtonDefaults.buttonColors().copy(
                     containerColor = MaterialTheme.colorScheme.error,
                 ),

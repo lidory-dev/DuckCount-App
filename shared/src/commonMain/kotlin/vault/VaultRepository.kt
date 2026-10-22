@@ -234,10 +234,10 @@ class VaultRepository(
     }
 
     /**
-     * Each of the user's contacts, keyed by their user UUID. Empty when the vault holds no
-     * contact yet.
+     * The user's contacts as the vault holds them, see [ContactBook]: each contact, and the name of
+     * each one who deleted their account. Empty when the vault holds no contact yet.
      */
-    suspend fun getContacts(): Result<Map<String, VaultContact>, VaultError> {
+    suspend fun getContactBook(): Result<ContactBook, VaultError> {
         val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
 
         val read = when (val singleton = readPart(rootKey = rootKey, part = VaultEntryKey.CONTACTS)) {
@@ -251,17 +251,19 @@ class VaultRepository(
                 ?: return Result.Error(VaultError.MalformedContactBook)
         }
 
-        return Result.Success(contactBook.contacts)
+        return Result.Success(contactBook)
     }
 
     /**
      * Adds the contacts in [added], keyed by their user UUID, replacing what the vault
-     * already holds for any of them, and drops the contacts in [removed].
+     * already holds for any of them, drops the contacts in [removed], and keeps of each
+     * contact in [deletedAccounts], who deleted their account, nothing but the name it maps
+     * them to, or nothing at all when it maps them to none, see [ContactBook.withDeletedAccount].
      *
      * Returns the contacts in [added] the vault pins another identity for than the one they
      * come with, which stay as the vault held them, see [ContactBook.with].
      *
-     * The contacts are sealed whole, so any change rewrites all of them, and both kinds go
+     * The contacts are sealed whole, so any change rewrites all of them, and every kind goes
      * in one write. The write goes against the version they were read at, so a contact
      * another device changed in between is refused as [VaultError.Contended] rather than
      * overwritten.
@@ -269,6 +271,7 @@ class VaultRepository(
     suspend fun updateContacts(
         added: Map<String, VaultContact>,
         removed: Collection<String>,
+        deletedAccounts: Map<String, String?>,
     ): Result<Set<String>, VaultError> {
         val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
 
@@ -283,26 +286,18 @@ class VaultRepository(
                 ?: return Result.Error(VaultError.MalformedContactBook)
         }
 
-        val conflicting = mutableSetOf<String>()
-
-        val withAdditions = added.entries.fold(contactBook) { book, (userUuid, contact) ->
-            book.with(userUuid = userUuid, contact = contact) ?: book.also { conflicting += userUuid }
-        }
-
-        val updated = removed.fold(withAdditions) { book, userUuid ->
-            book.without(userUuid = userUuid)
-        }
+        val update = contactBook.withChanges(added = added, removed = removed, deletedAccounts = deletedAccounts)
 
         val write = writePart(
             rootKey = rootKey,
             keyRing = read.keyRing,
             part = VaultEntryKey.CONTACTS,
-            plaintext = updated.serialize(),
+            plaintext = update.book.serialize(),
             expectedVersion = read.version,
         )
 
         return when (write) {
-            is Result.Success -> Result.Success(conflicting)
+            is Result.Success -> Result.Success(update.conflicting)
             is Result.Error -> write
         }
     }

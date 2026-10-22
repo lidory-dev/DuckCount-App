@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "a016b920162cb51e5048003fde0254e9",
+    "identityHash": "5cc8de93a2ae98bcab9211a9dcc6c70e",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -350,7 +350,7 @@
       },
       {
         "tableName": "ContactEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `handedProfileKeyHash` TEXT, `verifiedSafetyNumber` TEXT, `isBackedUp` INTEGER NOT NULL, `isRemoved` INTEGER NOT NULL, `rotatesProfileKey` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `handedProfileKeyHash` TEXT, `verifiedSafetyNumber` TEXT, `isBackedUp` INTEGER NOT NULL, `isRemoved` INTEGER NOT NULL, `rotatesProfileKey` INTEGER NOT NULL, `isAccountDeleted` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
         "fields": [
           {
             "fieldPath": "userUuid",
@@ -389,6 +389,12 @@
           {
             "fieldPath": "rotatesProfileKey",
             "columnName": "rotatesProfileKey",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isAccountDeleted",
+            "columnName": "isAccountDeleted",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -653,7 +659,7 @@
       },
       {
         "tableName": "PendingProfileKeyEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `lastRequestedAt` INTEGER, `requestCount` INTEGER NOT NULL, `isAccountGone` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `lastRequestedAt` INTEGER, `requestCount` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
         "fields": [
           {
             "fieldPath": "userUuid",
@@ -675,12 +681,6 @@
           {
             "fieldPath": "requestCount",
             "columnName": "requestCount",
-            "affinity": "INTEGER",
-            "notNull": true
-          },
-          {
-            "fieldPath": "isAccountGone",
-            "columnName": "isAccountGone",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -823,7 +823,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a016b920162cb51e5048003fde0254e9')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5cc8de93a2ae98bcab9211a9dcc6c70e')"
     ]
   }
 }

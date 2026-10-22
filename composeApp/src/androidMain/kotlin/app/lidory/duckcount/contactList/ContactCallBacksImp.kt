@@ -139,7 +139,8 @@ class ContactCallBacksImp(
 
         // Nothing is announced from here, the user is looking at the screen. What this
         // does have to do is take down what a push announced and this sync just undid:
-        // a contact who removed the user while their notification was still up.
+        // a contact who removed the user, or deleted their account, while their notification
+        // was still up.
         contactNotifier.forget(userUuids = contactArrivals.departures(snapshot = before))
     }
 

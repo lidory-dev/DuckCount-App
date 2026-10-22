@@ -92,7 +92,7 @@ class ContactRequestEnvelope(
 
 /**
  * What a contact sends the other when removing them from their contacts: nothing but the
- * fact of it.
+ * fact of it. Deleting their account sends an [AccountDeletionNotice] instead.
  *
  * It travels as the plaintext of an MLS application message in the group the two of them
  * share, so MLS authenticates who is leaving. Its `type` is what tells it apart from a
@@ -113,6 +113,40 @@ object ContactRemoval {
         runCatching {
             json.decodeFromString(
                 SerializedContactRemoval.serializer(),
+                plaintext.decodeToString(),
+            ).type == TYPE
+        }.getOrDefault(false)
+}
+
+/**
+ * What the user's app sends each contact as the user deletes their account, in place of a
+ * [ContactRemoval]: nothing but the fact of it, see [account.AccountDeletion].
+ *
+ * The contact's app forgets the user as it would on a removal, and keeps the name it shows for
+ * them in the vault, which a removal would drop, see
+ * [ContactRepository.receiveAccountDeletion][database.data.repository.ContactRepository.receiveAccountDeletion]:
+ * the server deletes the profile with the account, so nothing else could tell their devices who
+ * the user was in the expenses the two of them share once one of them lost its data.
+ *
+ * It travels as a removal does, so MLS authenticates who is leaving, and only a contact's counts.
+ * Its `type` tells it apart from a removal, and carrying no key, it is never taken for a
+ * [ContactCard], see [ContactMessage.read].
+ */
+object AccountDeletionNotice {
+    private const val TYPE = "account_deletion"
+
+    /** The plaintext to encrypt for each contact. */
+    fun serialize(): ByteArray =
+        json.encodeToString(
+            SerializedAccountDeletionNotice.serializer(),
+            SerializedAccountDeletionNotice(type = TYPE),
+        ).encodeToByteArray()
+
+    /** Whether a decrypted message is a notice of account deletion. */
+    fun matches(plaintext: ByteArray): Boolean =
+        runCatching {
+            json.decodeFromString(
+                SerializedAccountDeletionNotice.serializer(),
                 plaintext.decodeToString(),
             ).type == TYPE
         }.getOrDefault(false)
@@ -207,6 +241,11 @@ private class SerializedContactRequestEnvelope(
 
 @Serializable
 private class SerializedContactRemoval(
+    val type: String,
+)
+
+@Serializable
+private class SerializedAccountDeletionNotice(
     val type: String,
 )
 

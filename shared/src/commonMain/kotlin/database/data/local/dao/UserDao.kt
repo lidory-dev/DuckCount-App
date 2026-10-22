@@ -41,6 +41,10 @@ interface UserDao {
     @Query("SELECT fullName FROM UserEntity WHERE uuid = :uuid AND isDeleted = false")
     suspend fun getFullName(uuid: String): String?
 
+    /** The name the expenses show for [uuid], read once: theirs whether they are hidden or not. */
+    @Query("SELECT fullName FROM UserEntity WHERE uuid = :uuid")
+    suspend fun getFullNameEvenIfHidden(uuid: String): String?
+
     @Query(
         """SELECT UserEntity.* 
         FROM UserEntity 

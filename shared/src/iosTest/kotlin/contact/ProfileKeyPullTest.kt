@@ -130,22 +130,50 @@ class ProfileKeyPullTest {
         assertTrue(requests.recipients.isEmpty())
     }
 
-    /** Final for an account, and the row stays so the read that finds nothing does not ask again. */
+    /**
+     * The send forgot Alice as it came back, see [DirectSendError.RecipientDeleted], which took her
+     * row with her, as `DirectMessageSenderTest` has it: the pull puts nothing back to record a
+     * try on, reports nothing, and never asks her again.
+     */
     @Test
-    fun `a contact whose account is gone is never asked again`() = runBlocking<Unit> {
+    fun `a contact who deleted their account is no failure and never asked again`() = runBlocking<Unit> {
         tables.add(contact(ALICE))
         missing(ALICE)
-        requests.outcomes[ALICE] = Result.Error(DirectSendError.RecipientGone)
+        requests.outcomes[ALICE] = Result.Error(DirectSendError.RecipientDeleted)
+        requests.onRecipientDeleted = { userUuid -> tables.pendingProfileKeyDao.delete(userUuid = userUuid) }
 
         assertIs<Result.Success<Unit>>(pull.requestMissingKeys())
 
-        assertTrue(tables.pending.getValue(ALICE).isAccountGone)
+        assertNull(tables.pending[ALICE])
 
-        tables.pendingProfileKeyDao.recordStale(userUuid = ALICE, profileEncryptionKey = byteArrayOf(1, 2, 3))
         tables.budgets.clear()
         pull.requestMissingKeys()
 
         assertEquals(listOf(ALICE), requests.recipients)
+    }
+
+    /**
+     * The proxy answers a `404` while the API is being redeployed, so it says nothing of Alice's
+     * account: she is asked again once the backoff allows, as after any other failure. An account
+     * an administrator removed answers one for good, which no retry of the sync changes, so it is
+     * not reported.
+     */
+    @Test
+    fun `a 404 is not reported and the contact asked again on the backoff`() = runBlocking<Unit> {
+        tables.add(contact(ALICE))
+        missing(ALICE)
+        requests.outcomes[ALICE] = Result.Error(DirectSendError.Network(NetworkError.NOT_FOUND))
+
+        assertIs<Result.Success<Unit>>(pull.requestMissingKeys())
+
+        assertEquals(1, tables.pending.getValue(ALICE).requestCount)
+        assertFalse(tables.contacts.getValue(ALICE).isRemoved)
+
+        tables.pending[ALICE] = tables.pending.getValue(ALICE).copy(lastRequestedAt = nowEpochMilliseconds() - 2 * HOUR)
+        tables.budgets.clear()
+        pull.requestMissingKeys()
+
+        assertEquals(listOf(ALICE, ALICE), requests.recipients)
     }
 
     /**
@@ -242,7 +270,6 @@ class ProfileKeyPullTest {
         )
         assertEquals(1, tables.pending.getValue(ALICE).requestCount)
         assertEquals(1, tables.pending.getValue(BOB).requestCount)
-        assertFalse(tables.pending.getValue(ALICE).isAccountGone)
         assertTrue(assertNotNull(tables.budgets[ALICE]) <= nowEpochMilliseconds())
         assertTrue(assertNotNull(tables.budgets[BOB]) > nowEpochMilliseconds())
     }
@@ -362,6 +389,9 @@ class ProfileKeyPullTest {
 private class RequestsSent {
     val outcomes = mutableMapOf<String, EmptyResult<DirectSendError>>()
 
+    /** What the sender does before it hands back [DirectSendError.RecipientDeleted]: forgets them. */
+    var onRecipientDeleted: suspend (userUuid: String) -> Unit = { }
+
     val recipients = mutableListOf<String>()
     val payloads = mutableListOf<ByteArray>()
 
@@ -369,7 +399,11 @@ private class RequestsSent {
         recipients += recipientUserUuid
         payloads += payload
 
-        return outcomes[recipientUserUuid] ?: Result.Success(Unit)
+        val outcome = outcomes[recipientUserUuid] ?: Result.Success(Unit)
+
+        if (outcome == Result.Error(DirectSendError.RecipientDeleted)) onRecipientDeleted(recipientUserUuid)
+
+        return outcome
     }
 }
 

@@ -5,11 +5,17 @@ import expense.OneTimeExpenseMessageHandler
 import message.DirectMessageHandler
 import message.DirectMessageSender
 import message.DirectMessageSync
-import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
 
 val messageModule = module {
-    singleOf(::DirectMessageSender)
+    single {
+        DirectMessageSender(
+            directMessageApi = get(),
+            directChannelRepository = get(),
+            mlsIdentityRepository = get(),
+            contactRepository = get(),
+        )
+    }
 
     /**
      * The handlers, in the order a message is offered to them.

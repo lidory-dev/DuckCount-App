@@ -18,7 +18,8 @@ interface PushRegistrar {
      *
      * Called before the session ends, while the tokens that call needs still exist. The
      * platform's own side is the platform's to drop once nobody is signed in: a session the
-     * server ends gets no chance to call this.
+     * server ends gets no chance to call this. Nor does an account deletion need to, the server
+     * dropping the subscription along with the account, see [account.AccountDeletion].
      */
     suspend fun tearDown()
 }

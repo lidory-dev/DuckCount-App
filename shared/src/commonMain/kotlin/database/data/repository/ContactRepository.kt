@@ -3,6 +3,7 @@ package database.data.repository
 import authenticationUtils.clearContactsToRestore
 import authenticationUtils.getAuthenticatedUserUuid
 import authenticationUtils.hasContactsToRestore
+import contact.AccountDeletionNotice
 import contact.ContactRemoval
 import contact.ContactSyncError
 import contact.RemoveContactError
@@ -36,10 +37,12 @@ import uniffi.lib_duckcount.MlsException
 import util.EmptyResult
 import util.NetworkError
 import util.Result
+import util.asEmptyDataResult
 import vault.VaultRepository
 import mls.pinnedSignatureKeyFor
 import mls.restorePin
 import mls.withPeerLock
+import vault.ContactBook
 import vault.VaultContact
 
 /**
@@ -48,7 +51,8 @@ import vault.VaultContact
  *
  * The vault is where contacts are kept, since the server holds no record of them.
  * This device keeps a copy, and their names in [UserRepository], which is what the contact
- * list shows.
+ * list shows. Of a contact who deleted their account, the vault keeps nothing but their name,
+ * see [receiveAccountDeletion].
  *
  * Every change lands on the device first, and [backUp] carries it to the vault.
  *
@@ -131,7 +135,47 @@ class ContactRepository(
      * see [forget], already open by then: the notice was just read with it.
      */
     internal suspend fun receiveRemoval(senderUserUuid: String) {
-        forget(userUuid = senderUserUuid, client = null, rotatesProfileKey = false)
+        forget(userUuid = senderUserUuid, client = null, rotatesProfileKey = false, isAccountDeleted = false)
+    }
+
+    /**
+     * Acts on [userUuid] having deleted their account: a contact is forgotten as if their notice of
+     * removal had come in, see [receiveRemoval], but for the name this device shows for them, which
+     * the next [backUp] keeps in the vault in place of their entry, see
+     * [ContactEntity.isAccountDeleted]: the server deletes their profile with the account. Anybody
+     * else is left alone, so that no stranger can have this device keep or drop anything.
+     *
+     * This device learns it one of two ways. Their app tells every contact it holds a group with
+     * as the account goes, see [AccountDeletionNotice], read by
+     * [ContactMessageHandler][contact.ContactMessageHandler]. That reaches only those, and can go
+     * missing on the way, while the server tells nobody of a deletion: the others find out from
+     * the `410` a message addressed to them comes back with, see
+     * [SendDirectMessageError.RecipientDeleted], the first time this device sends them anything
+     * after in a group it holds with them. Every message goes through
+     * [message.DirectMessageSender], which brings it here, but the notices this repository posts
+     * itself: [remove] acts on the `410` to its own the same way, see [RemovalNotice], and
+     * [sendNotice] leaves them as they are, see there.
+     *
+     * The `410` is brought here only once nothing they sent is left to read, which opens only in
+     * the groups forgetting them deletes, see [message.DirectMessageSender]. With no group, the
+     * key package a new one needs is asked for first, which the server answers for a deleted
+     * account as for one that published none, see
+     * [DirectChannelError.Unreachable][channel.DirectChannelError.Unreachable], and they stay a
+     * contact. What else they were owed is the sender's to settle.
+     *
+     * Their key to the user's profile is not rotated away, as for any notice of removal, see
+     * [ContactEntity.rotatesProfileKey]: it only ever rotates on the user's own action. Their
+     * account need not even be gone: their notice goes out ahead of the deletion, which can still
+     * fail and leave the account, its session and the key they hold as they were, see
+     * [account.AccountDeletion].
+     *
+     * Not cancellable: forgotten halfway, they would be no contact any more, and so never forgotten
+     * again, while still on the wake list, see [WakeList], and in the groups the two of them shared.
+     */
+    internal suspend fun receiveAccountDeletion(userUuid: String) {
+        withContext(NonCancellable) {
+            forget(userUuid = userUuid, client = null, rotatesProfileKey = false, isAccountDeleted = true)
+        }
     }
 
     /**
@@ -171,13 +215,15 @@ class ContactRepository(
      *
      * The notice travels in the group the request between the two of them created, so it
      * can only be sent while this device still holds it: a contact restored from the vault
-     * after a log-out or a reinstall is removed without one, and keeps the user. Nothing is
+     * after a log-out or a reinstall is removed without one, and keeps the user, as is one the
+     * server answers it has no way to reach, see [toRemovalNotice]. Otherwise nothing is
      * removed while the notice has yet to go out, so a failure can simply be retried.
      *
      * Either way, they hold the key to the user's profile, which is owed a rotation from then on,
      * see [ProfileRepository.oweProfileKeyRotation], done by the next [backUp] before the vault
      * drops them, see [ContactEntity.rotatesProfileKey], or by an edit of the profile made first:
-     * they then read the profile as it is now, and nothing the user writes after.
+     * they then read the profile as it is now, and nothing the user writes after. Unless the notice
+     * finds they deleted their account, which forgets them as [receiveAccountDeletion] does.
      *
      * The rotation is owed before the notice goes out, see
      * [ProfileRepository.oweProfileKeyRotation] on why, under a lock that waits for any rotation
@@ -202,7 +248,7 @@ class ContactRepository(
         val mlsGroupId = directChannelDao.get(peerUuid = userUuid)?.mlsGroupId
 
         if (mlsGroupId == null) {
-            forget(userUuid = userUuid, client = null, rotatesProfileKey = true)
+            forget(userUuid = userUuid, client = null, rotatesProfileKey = true, isAccountDeleted = false)
 
             return Result.Success(Unit)
         }
@@ -212,15 +258,58 @@ class ContactRepository(
             is Result.Error -> return Result.Error(RemoveContactError.Identity(opened.error))
         }
 
-        val notice = sendRemovalNotice(client = client, userUuid = userUuid, mlsGroupId = mlsGroupId)
+        val sent = postNotice(
+            client = client,
+            userUuid = userUuid,
+            mlsGroupId = mlsGroupId,
+            notice = ContactRemoval.serialize(),
+        )
 
-        if (notice is Result.Error) return notice
+        val notice = when (sent) {
+            is Result.Success -> sent.data
+            is Result.Error -> return sent
+        }
 
         withContext(NonCancellable) {
-            forget(userUuid = userUuid, client = client, rotatesProfileKey = true)
+            // One who turns out to have deleted their account is forgotten as any contact who did
+            // is, see [receiveAccountDeletion], owing the key no rotation and leaving their name.
+            // The new key the removal already minted stays owed all the same, which costs one
+            // rotation more, at the next edit, see [ProfileRepository.oweProfileKeyRotation].
+            forget(
+                userUuid = userUuid,
+                client = client,
+                rotatesProfileKey = notice.rotatesProfileKey,
+                isAccountDeleted = notice.isAccountDeleted,
+            )
         }
 
         return Result.Success(Unit)
+    }
+
+    /**
+     * Tells the contact [userUuid] what [notice] says, for an account deletion, see
+     * [account.AccountDeletion], whose [AccountDeletionNotice] it is: their app forgets the user
+     * and keeps their name, see [receiveAccountDeletion], the server telling nobody of a deletion.
+     *
+     * Nothing more. They are not forgotten, nor is a rotation of the key to the user's profile
+     * owed, as [remove] would: the deletion takes the profile with the account, and ending the
+     * session that follows wipes the contacts off this device.
+     *
+     * Only in the group this device holds with them, as for [remove]. With none, there is nothing
+     * to tell them in, and nothing is sent. Nor is anybody told who deleted their own account,
+     * and they are not forgotten either, see [receiveAccountDeletion]: should the user's deletion
+     * then fail, the next message this device sends them finds it out again.
+     */
+    suspend fun sendNotice(userUuid: String, notice: ByteArray): EmptyResult<RemoveContactError> {
+        val mlsGroupId = directChannelDao.get(peerUuid = userUuid)?.mlsGroupId ?: return Result.Success(Unit)
+
+        val client = when (val opened = mlsIdentityRepository.client()) {
+            is Result.Success -> opened.data
+            is Result.Error -> return Result.Error(RemoveContactError.Identity(opened.error))
+        }
+
+        return postNotice(client = client, userUuid = userUuid, mlsGroupId = mlsGroupId, notice = notice)
+            .asEmptyDataResult()
     }
 
     /**
@@ -240,6 +329,11 @@ class ContactRepository(
      * every such removal read, ahead of the write. When it fails, the rest is written all the
      * same, those removals wait on the device for the next attempt, and the failure is
      * reported.
+     *
+     * A contact who deleted their account waits for nothing, and leaves in the vault nothing but
+     * the name this device shows for them, their key and their pin going, see
+     * [ContactEntity.isAccountDeleted]. One it never read a name for simply goes, as any removal
+     * does: there is nothing else to keep of them.
      */
     suspend fun backUp(): EmptyResult<ContactSyncError> = backUpMutex.withLock {
         val pending = PendingBackUp(contacts = contactDao.getNotBackedUp())
@@ -256,12 +350,14 @@ class ContactRepository(
 
         val rotation = pending.rotating.takeIf { it.isNotEmpty() }?.let { rotateProfileKey(rotating = it) }
 
-        val removed = pending.removals(isProfileKeyRotated = rotation !is Result.Error)
+        val isProfileKeyRotated = rotation !is Result.Error
+
+        val removed = pending.removals(isProfileKeyRotated = isProfileKeyRotated)
 
         // Reported once whatever does not wait for it is written.
         val failure = (rotation as? Result.Error)?.error
 
-        if (pending.added.isEmpty() && removed.isEmpty()) {
+        if (!pending.writesAnything(isProfileKeyRotated = isProfileKeyRotated)) {
             return@withLock failure?.let { Result.Error(it) } ?: Result.Success(Unit)
         }
 
@@ -285,6 +381,7 @@ class ContactRepository(
         val update = vaultRepository.updateContacts(
             added = contacts,
             removed = removed.map { it.userUuid },
+            deletedAccounts = namesKept(pending = pending),
         )
 
         val conflicting = when (update) {
@@ -309,10 +406,20 @@ class ContactRepository(
             )
         }
 
-        contactDao.deleteRemoved(userUuids = removed.map { it.userUuid })
+        contactDao.deleteRemoved(userUuids = pending.settled(isProfileKeyRotated = isProfileKeyRotated).map { it.userUuid })
 
         failure?.let { Result.Error(it) } ?: Result.Success(Unit)
     }
+
+    /**
+     * The name [backUp] keeps in the vault for each contact in [pending] who deleted their account,
+     * see [PendingBackUp.deletedAccounts]: the one their user, hidden as they were forgotten, still
+     * holds, see [forget]. None for one whose profile this device never read, who simply goes.
+     */
+    internal suspend fun namesKept(pending: PendingBackUp): Map<String, String?> =
+        pending.deletedAccounts.associate { contact ->
+            contact.userUuid to userRepository.getFullNameEvenIfHidden(uuid = contact.userUuid)
+        }
 
     /**
      * Reads the profile of every contact this device has no name for, or was missing the current
@@ -357,7 +464,8 @@ class ContactRepository(
                 is Result.Error -> when (read.error) {
                     // Pruned since, or never stored: the key opens nothing of theirs any more.
                     // One gone with its owner's account reads the same, and is asked about until
-                    // the server says so, see PendingProfileKeyEntity.isAccountGone.
+                    // the request finds the account deleted, which forgets them, see
+                    // receiveAccountDeletion.
                     ProfileError.NotStored -> pendingProfileKeyDao.recordStale(
                         userUuid = contact.userUuid,
                         profileEncryptionKey = contact.profileEncryptionKey,
@@ -398,7 +506,8 @@ class ContactRepository(
      *
      * The safety number the user verified with each of them comes back too, see
      * [ContactEntity.verifiedSafetyNumber], and counts again only if it is still the one computed
-     * from the identities now pinned, see [SafetyNumbers][contact.SafetyNumbers].
+     * from the identities now pinned, see [SafetyNumbers][contact.SafetyNumbers]. So does the name
+     * of each contact who deleted their account, as nobody's contact, see [putBack].
      *
      * Whatever needs to know who the contacts are runs this first: reading the messages, see
      * [DirectMessageSync][message.DirectMessageSync], and sending or accepting a contact
@@ -424,7 +533,7 @@ class ContactRepository(
 
     /** Puts back the contacts the vault holds, and their pins, for [restore]. */
     private suspend fun bringBack(): EmptyResult<ContactSyncError> {
-        val contacts = when (val read = vaultRepository.getContacts()) {
+        val book = when (val read = vaultRepository.getContactBook()) {
             is Result.Success -> read.data
             is Result.Error -> return Result.Error(ContactSyncError.Vault(read.error))
         }
@@ -435,7 +544,7 @@ class ContactRepository(
         }
 
         try {
-            contacts.forEach { (userUuid, contact) ->
+            book.contacts.forEach { (userUuid, contact) ->
                 val signatureKey = contact.mlsSignaturePublicKey ?: return@forEach
 
                 if (!client.restorePin(peerUuid = userUuid, signatureKey = signatureKey)) {
@@ -446,8 +555,25 @@ class ContactRepository(
             return Result.Error(ContactSyncError.Storage)
         }
 
+        putBack(book = book)
+
+        clearContactsToRestore()
+
+        return Result.Success(Unit)
+    }
+
+    /**
+     * Puts what [book] holds back on this device, for [bringBack] once the pins are back: each
+     * contact, as the vault holds them, and the name of each one who deleted their account.
+     *
+     * That name comes back as a hidden user, as forgetting them left it, see [forget]: the
+     * expenses the two of them share show it, the contact list does not, and no contact comes
+     * back with it, there being nobody left to reach, see
+     * [ContactBook.deletedAccounts][vault.ContactBook.deletedAccounts].
+     */
+    internal suspend fun putBack(book: ContactBook) {
         contactDao.insertNew(
-            contacts = contacts.map { (userUuid, contact) ->
+            contacts = book.contacts.map { (userUuid, contact) ->
                 ContactEntity(
                     userUuid = userUuid,
                     profileEncryptionKey = contact.profileEncryptionKey,
@@ -458,12 +584,12 @@ class ContactRepository(
             },
         )
 
+        book.deletedAccounts.forEach { (userUuid, fullName) ->
+            saveName(userUuid = userUuid, fullName = fullName, isHidden = true)
+        }
+
         // Whoever came back may wake the user again, the blocked ones aside.
         wakeList.rebuild()
-
-        clearContactsToRestore()
-
-        return Result.Success(Unit)
     }
 
     /**
@@ -489,48 +615,42 @@ class ContactRepository(
         return Result.Success(Unit)
     }
 
-    /** Tells the contact [userUuid], in the group [mlsGroupId], that the user removed them. */
-    private suspend fun sendRemovalNotice(
+    /**
+     * Tells the contact [userUuid], in the group [mlsGroupId], what [notice] says: that the user
+     * removed them, or deleted their account.
+     *
+     * Posted here rather than through [message.DirectMessageSender], which brings the server's
+     * word that an account is gone to [receiveAccountDeletion] and so needs this repository: what
+     * the sender would do is left to the callers, a removal forgetting them and a deletion having
+     * no use for it, see [RemovalNotice].
+     *
+     * What the server answers is read by [toRemovalNotice].
+     */
+    private suspend fun postNotice(
         client: MlsClient,
         userUuid: String,
         mlsGroupId: ByteArray,
-    ): EmptyResult<RemoveContactError> {
+        notice: ByteArray,
+    ): Result<RemovalNotice, RemoveContactError> {
         val message = try {
             client.encryptApplicationMessage(
                 mlsGroupId = mlsGroupId,
-                payload = ContactRemoval.serialize(),
+                payload = notice,
             )
         } catch (exception: MlsException) {
             if (exception.isRetryable()) return Result.Error(RemoveContactError.Storage)
 
             // The group is unusable for good, so there is no way left to tell them, and
             // refusing to remove the contact would keep them forever.
-            return Result.Success(Unit)
+            return Result.Success(RemovalNotice.DONE)
         }
 
-        val send = directMessageApi.sendDirectMessage(
+        return directMessageApi.sendDirectMessage(
             body = SendDirectMessageBody(
                 recipientUserUuid = userUuid,
                 ciphertext = DirectMessageEnvelope(mlsGroupId = mlsGroupId, message = message).serialize(),
             ),
-        )
-
-        return when (send) {
-            is Result.Success -> Result.Success(Unit)
-
-            is Result.Error -> when (val error = send.error) {
-                // Whichever of the two limits it was, the user is the one waiting on the
-                // removal, so they are told, and try again.
-                is SendDirectMessageError.RateLimited -> Result.Error(RemoveContactError.RateLimited)
-
-                is SendDirectMessageError.Network -> when (error.error) {
-                    // Their account is gone, and there is nobody left to tell.
-                    NetworkError.NOT_FOUND -> Result.Success(Unit)
-
-                    else -> Result.Error(RemoveContactError.Network(error.error))
-                }
-            }
-        }
+        ).toRemovalNotice()
     }
 
     /**
@@ -538,8 +658,9 @@ class ContactRepository(
      * carry the removal to the vault, and deletes the groups the two of them shared.
      *
      * Their user stays, hidden from the contact list, rather than being deleted: a user can
-     * be more than a contact, and a group the two of them are in still lists them. Their
-     * channel row stays too, emptied, see [DirectChannelEntity].
+     * be more than a contact, a group the two of them are in still lists them, and an expense
+     * they share still names them, by the name [backUp] keeps in the vault for one who deleted
+     * their account. Their channel row stays too, emptied, see [DirectChannelEntity].
      *
      * What this device is still waiting for from them is noted first: the keys to those
      * expenses are the only ones they can still hand over, see
@@ -549,12 +670,18 @@ class ContactRepository(
      * see [ContactEntity.rotatesProfileKey]. One that does is written once the rotation is owed,
      * under the lock every rotation of the key and edit of the profile takes, see [remove] and
      * [ProfileRepository.oweProfileKeyRotation]: from then on, nothing the user writes goes under
-     * the key the contact holds.
+     * the key the contact holds. [isAccountDeleted] is whether they deleted their account, see
+     * [ContactEntity.isAccountDeleted].
      *
      * Nor is their own profile key asked for any longer, see
      * [PendingProfileKeyEntity][database.data.local.entity.PendingProfileKeyEntity].
      */
-    private suspend fun forget(userUuid: String, client: MlsClient?, rotatesProfileKey: Boolean) {
+    private suspend fun forget(
+        userUuid: String,
+        client: MlsClient?,
+        rotatesProfileKey: Boolean,
+        isAccountDeleted: Boolean,
+    ) {
         contactDao.get(userUuid = userUuid) ?: return
 
         // First, so that there is no moment when they are no longer a contact and what they
@@ -563,7 +690,11 @@ class ContactRepository(
         // put the user on owed.
         pendingExpenseKeyDao.markAwaitedAtRemoval(creditorUuid = userUuid)
 
-        contactDao.markRemoved(userUuid = userUuid, rotatesProfileKey = rotatesProfileKey)
+        contactDao.markRemoved(
+            userUuid = userUuid,
+            rotatesProfileKey = rotatesProfileKey,
+            isAccountDeleted = isAccountDeleted,
+        )
 
         pendingProfileKeyDao.delete(userUuid = userUuid)
 
@@ -594,7 +725,8 @@ class ContactRepository(
         }
     }
 
-    private suspend fun saveName(userUuid: String, fullName: String) {
+    /** Saves [fullName] as the name of [userUuid], [isHidden] from the contact list or not. */
+    private suspend fun saveName(userUuid: String, fullName: String, isHidden: Boolean = false) {
         userRepository.insert(
             User(
                 uuid = userUuid,
@@ -602,13 +734,70 @@ class ContactRepository(
                 // this device.
                 username = "",
                 fullName = fullName,
+                isDeleted = isHidden,
             ),
         )
     }
 }
 
 /**
- * The changes [ContactRepository.backUp] read, sorted by what each has to wait for.
+ * What became of a notice of removal that leaves nothing to try again, see
+ * `ContactRepository.postNotice`.
+ *
+ * [rotatesProfileKey] is whether the contact it was for, once forgotten, waits on a rotation of
+ * the key to the user's profile, see [ContactEntity.rotatesProfileKey], and [isAccountDeleted]
+ * whether they deleted their account, see [ContactEntity.isAccountDeleted].
+ */
+internal enum class RemovalNotice(val rotatesProfileKey: Boolean, val isAccountDeleted: Boolean) {
+
+    /** Out, or with no way left to send it. They hold the key, which rotates away from them. */
+    DONE(rotatesProfileKey = true, isAccountDeleted = false),
+
+    /**
+     * Not out: the contact deleted their account, see [SendDirectMessageError.RecipientDeleted],
+     * and the key they held went with it, see `ContactRepository.receiveAccountDeletion`, which
+     * keeps their name.
+     */
+    RECIPIENT_DELETED(rotatesProfileKey = false, isAccountDeleted = true),
+}
+
+/**
+ * What the server's answer to a notice of removal comes to, for `ContactRepository.remove` to
+ * act on, see [RemovalNotice], or to report for the user to try again.
+ *
+ * A refusal for either of the two limits is reported: the user is the one waiting on a removal,
+ * and tries again. Which one it was is for an account deletion, which tells every contact this
+ * device holds a group with, one after the other, see `ContactRepository.sendNotice`.
+ *
+ * A `404` is no way left to send it, as for a contact with no group left to tell them in: an
+ * account an administrator removed answers one for good, which nothing else would ever drop
+ * them for, so a removal refused on it could never go through. It is also what the proxy in
+ * front of the API answers every route with while the API is being redeployed, and a removal
+ * that goes ahead then leaves the contact holding the user, but not reading anything they write
+ * after, see [ContactEntity.rotatesProfileKey]. Nobody is forgotten for an account deleted on
+ * it, which only a `410` says, see [SendDirectMessageError.RecipientDeleted].
+ */
+internal fun EmptyResult<SendDirectMessageError>.toRemovalNotice(): Result<RemovalNotice, RemoveContactError> =
+    when (this) {
+        is Result.Success -> Result.Success(RemovalNotice.DONE)
+
+        is Result.Error -> when (val refusal = error) {
+            is SendDirectMessageError.RateLimited -> Result.Error(RemoveContactError.RateLimited(scope = refusal.scope))
+
+            SendDirectMessageError.RecipientDeleted -> Result.Success(RemovalNotice.RECIPIENT_DELETED)
+
+            is SendDirectMessageError.Network ->
+                if (refusal.error == NetworkError.NOT_FOUND) {
+                    Result.Success(RemovalNotice.DONE)
+                } else {
+                    Result.Error(RemoveContactError.Network(refusal.error))
+                }
+        }
+    }
+
+/**
+ * The changes [ContactRepository.backUp] read, sorted by what each has to wait for, and by what
+ * the vault is to make of them.
  *
  * Only the removals the user made wait, for the key to their profile to rotate, see
  * [ContactEntity.rotatesProfileKey]. The rest goes out whatever comes of that.
@@ -621,12 +810,35 @@ internal class PendingBackUp(private val contacts: List<ContactEntity>) {
     /** The removals that wait for the user's profile key to rotate. */
     val rotating: List<ContactEntity> = contacts.filter { it.isRemoved && it.rotatesProfileKey }
 
+    /**
+     * The contacts who deleted their account, whose entry the vault turns into one holding their
+     * name rather than drops, when this device holds one for them, see
+     * [ContactEntity.isAccountDeleted] and [ContactRepository.namesKept]. None waits for the key.
+     */
+    val deletedAccounts: List<ContactEntity> = contacts.filter { it.isRemoved && it.isAccountDeleted }
+
     fun isEmpty(): Boolean = contacts.isEmpty()
 
     /**
-     * The removals to write: every one once the key has rotated, and otherwise only those
-     * that do not wait for it.
+     * The removals to write, the vault dropping the contact: every one once the key has rotated,
+     * and otherwise only those that do not wait for it. Not the [deletedAccounts].
      */
     fun removals(isProfileKeyRotated: Boolean): List<ContactEntity> =
-        contacts.filter { it.isRemoved && (isProfileKeyRotated || !it.rotatesProfileKey) }
+        contacts.filter { it.isRemoved && !it.isAccountDeleted && (isProfileKeyRotated || !it.rotatesProfileKey) }
+
+    /**
+     * Whether the vault has anything to take: an addition, a removal to write, see [removals], or
+     * a contact who deleted their account, who waits for nothing. Left out, one pending alone
+     * would stay on the device until some other change came along, and a log-out in between would
+     * lose their name for good.
+     */
+    fun writesAnything(isProfileKeyRotated: Boolean): Boolean =
+        added.isNotEmpty() || removals(isProfileKeyRotated = isProfileKeyRotated).isNotEmpty() || deletedAccounts.isNotEmpty()
+
+    /**
+     * The tombstones a write that landed is done with, for the device to delete: the [removals] it
+     * carried and the [deletedAccounts]. Kept, one would be written again by every backup after.
+     */
+    fun settled(isProfileKeyRotated: Boolean): List<ContactEntity> =
+        removals(isProfileKeyRotated = isProfileKeyRotated) + deletedAccounts
 }

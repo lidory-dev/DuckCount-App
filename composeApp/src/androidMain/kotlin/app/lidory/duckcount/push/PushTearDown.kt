@@ -12,8 +12,8 @@ import org.koin.compose.koinInject
  * in, see [UnifiedPushRegistrar.dropSubscription].
  *
  * The counterpart of [PushSetUp], on the screen the signed-out app shows. That is where the
- * process a log-out or an expiry relaunches into lands, and unlike the one that ended the
- * session, it lives on long enough for the distributor to act on being told.
+ * process a log-out, an account deletion or an expiry relaunches into lands, and unlike the one
+ * that ended the session, it lives on long enough for the distributor to act on being told.
  */
 @Composable
 fun PushTearDown() {

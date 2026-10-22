@@ -172,9 +172,9 @@ class ContactNotifier(
     /**
      * Takes down what was said about [userUuids] accepting a request.
      *
-     * For the ones who removed the user again while the notification was still up: it
-     * announced a contact they no longer have, and tapping it would open a contact that
-     * is gone.
+     * For the ones who removed the user again, or deleted their account, while the
+     * notification was still up: it announced a contact they no longer have, and tapping
+     * it would open a contact that is gone.
      *
      * Their ids stay in the record [clear] reads. Taking one down a second time does
      * nothing, and a later notification under the same id is one [clear] should take down.

@@ -235,7 +235,8 @@ fun NavigationRoot(
                             key = key,
                         ) {
                             // The signed-out app, as the dashboard is the signed-in one: the
-                            // process a log-out or an expiry relaunches into lands here.
+                            // process a log-out, an account deletion or an expiry relaunches
+                            // into lands here.
                             PushTearDown()
 
                             AuthenticationFlow(

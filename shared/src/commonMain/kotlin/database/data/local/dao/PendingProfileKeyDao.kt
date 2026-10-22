@@ -25,8 +25,8 @@ interface PendingProfileKeyDao {
 
     @Query(
         """INSERT OR IGNORE INTO PendingProfileKeyEntity
-        (userUuid, profileEncryptionKey, lastRequestedAt, requestCount, isAccountGone)
-        VALUES (:userUuid, :profileEncryptionKey, NULL, 0, false)""",
+        (userUuid, profileEncryptionKey, lastRequestedAt, requestCount)
+        VALUES (:userUuid, :profileEncryptionKey, NULL, 0)""",
     )
     suspend fun insertNew(userUuid: String, profileEncryptionKey: ByteArray)
 
@@ -41,8 +41,7 @@ interface PendingProfileKeyDao {
      */
     @Query(
         """SELECT * FROM PendingProfileKeyEntity
-        WHERE isAccountGone = false
-        AND userUuid IN (SELECT userUuid FROM ContactEntity WHERE isRemoved = false)
+        WHERE userUuid IN (SELECT userUuid FROM ContactEntity WHERE isRemoved = false)
         AND userUuid NOT IN (SELECT peerUuid FROM IdentityConflictEntity)
         ORDER BY lastRequestedAt IS NOT NULL, lastRequestedAt, userUuid""",
     )
@@ -54,10 +53,6 @@ interface PendingProfileKeyDao {
         WHERE userUuid = :userUuid""",
     )
     suspend fun markRequested(userUuid: String, requestedAt: Long)
-
-    /** See [PendingProfileKeyEntity.isAccountGone]. */
-    @Query("UPDATE PendingProfileKeyEntity SET isAccountGone = true WHERE userUuid = :userUuid")
-    suspend fun markAccountGone(userUuid: String)
 
     /** Drops the row of [userUuid], once a read opens their latest version or they stop being a contact. */
     @Query("DELETE FROM PendingProfileKeyEntity WHERE userUuid = :userUuid")

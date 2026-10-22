@@ -10,6 +10,7 @@ import message.DirectMessageSender
 import message.DirectSendError
 import message.ResendScheduler
 import util.EmptyResult
+import util.NetworkError
 import util.Result
 
 /**
@@ -69,7 +70,7 @@ class ExpenseKeyDelivery internal constructor(
      *
      * Every recipient owed is attempted until the user's allowance of messages runs out, and
      * the first failure is reported. A refusal for either allowance is not one: the resend it
-     * books is what comes of it.
+     * books is what comes of it. Nor is a `404`, see [DirectSendError.Network].
      */
     suspend fun handOver(ownUserUuid: String): EmptyResult<OneTimeExpenseSyncError> = mutex.withLock {
         val owed = owedExpenseKeyDao.getListed()
@@ -94,15 +95,20 @@ class ExpenseKeyDelivery internal constructor(
                 )
 
                 is Result.Error -> when (val error = sent.error) {
-                    // Nobody to hand the key to: their account is gone, or the server offers
-                    // no way to reach them that this build can use. If they come back, they
-                    // ask for the key, and the record answers them.
-                    DirectSendError.RecipientGone,
+                    // Nobody to hand the key to: they deleted their account, or the server offers
+                    // no way to reach them that this build can use, and should they come back,
+                    // they ask for the key and the record answers them.
+                    DirectSendError.RecipientDeleted,
                     DirectSendError.Channel(DirectChannelError.Unreachable),
                         -> owedExpenseKeyDao.delete(
                         recipientUuid = recipientUuid,
                         expenseUuids = expenseUuids,
                     )
+
+                    // A recipient the server knows nothing of, which says nothing of their
+                    // account, see DirectSendError.Network: the keys wait for the next pass, as
+                    // after any other failure, but it is not reported.
+                    DirectSendError.Network(NetworkError.NOT_FOUND) -> Unit
 
                     // Somebody this device no longer has pinned, or whose identity is in
                     // doubt. No retry changes either, so the keys wait until that does.

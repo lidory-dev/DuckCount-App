@@ -31,11 +31,11 @@ class AppViewModel(
     val startup = _startup.asStateFlow()
 
     /**
-     * Turns true when the server has ended this device's session. The credentials are already gone
-     * by then; all that is left is to restart the app, which takes the user off the screens that
-     * can no longer load anything.
+     * Turns to why the server ended this device's session, once it has. The credentials are
+     * already gone by then; all that is left is to restart the app, which takes the user off the
+     * screens that can no longer load anything, and tell them why.
      */
-    val isSessionExpired = sessionExpiry.isExpired
+    val sessionEnd = sessionExpiry.end
 
     init {
         viewModelScope.launch {

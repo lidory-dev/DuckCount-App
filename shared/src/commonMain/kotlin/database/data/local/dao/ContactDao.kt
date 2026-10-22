@@ -114,15 +114,17 @@ interface ContactDao {
 
     /**
      * Records that the user no longer has the contact [userUuid], until the vault no longer
-     * holds them either, and whether that waits for the user's profile key to rotate, see
-     * [ContactEntity.rotatesProfileKey].
+     * holds them either, whether that waits for the user's profile key to rotate, see
+     * [ContactEntity.rotatesProfileKey], and whether it is them having deleted their account, see
+     * [ContactEntity.isAccountDeleted].
      */
     @Query(
         """UPDATE ContactEntity
-        SET isRemoved = true, isBackedUp = false, rotatesProfileKey = :rotatesProfileKey
+        SET isRemoved = true, isBackedUp = false, rotatesProfileKey = :rotatesProfileKey,
+        isAccountDeleted = :isAccountDeleted
         WHERE userUuid = :userUuid""",
     )
-    suspend fun markRemoved(userUuid: String, rotatesProfileKey: Boolean)
+    suspend fun markRemoved(userUuid: String, rotatesProfileKey: Boolean, isAccountDeleted: Boolean)
 
     /**
      * Records that the removals of the contacts in [userUuids] no longer wait for the user's
@@ -181,7 +183,7 @@ interface ContactDao {
 
     /**
      * Drops the tombstones of the contacts in [userUuids], once the vault no longer holds
-     * them.
+     * them, or holds only the name of one who deleted their account.
      *
      * One added back in the meantime is left alone, its addition still has to reach the
      * vault.

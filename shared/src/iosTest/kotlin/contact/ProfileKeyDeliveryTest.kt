@@ -109,18 +109,46 @@ class ProfileKeyDeliveryTest {
         assertEquals(currentHash, contacts.handedTo(ALICE))
     }
 
-    /** Their account is gone, or the server offers no way to reach them: nobody to hand it to. */
+    /** The server offers no way to reach them: nobody to hand it to. */
     @Test
     fun `a contact who cannot be reached counts as handed the key`() = runBlocking<Unit> {
-        val contacts = ContactsOf(contact(ALICE, handed = olderHash), contact(BOB, handed = olderHash))
-        val sends = Sends(
-            ALICE to Result.Error(DirectSendError.RecipientGone),
-            BOB to Result.Error(DirectSendError.Channel(DirectChannelError.Unreachable)),
-        )
+        val contacts = ContactsOf(contact(ALICE, handed = olderHash))
+        val sends = Sends(ALICE to Result.Error(DirectSendError.Channel(DirectChannelError.Unreachable)))
 
         assertIs<Result.Success<Unit>>(delivery(contacts, sends).handOut())
 
         assertEquals(currentHash, contacts.handedTo(ALICE))
+    }
+
+    /**
+     * The send forgot Alice as it came back, see [DirectSendError.RecipientDeleted]: nothing is
+     * recorded of a key a former contact holds, and that is no failure.
+     */
+    @Test
+    fun `a contact who deleted their account is no failure`() = runBlocking<Unit> {
+        val contacts = ContactsOf(contact(ALICE, handed = olderHash), contact(BOB, handed = olderHash))
+        val sends = Sends(ALICE to Result.Error(DirectSendError.RecipientDeleted))
+
+        assertIs<Result.Success<Unit>>(delivery(contacts, sends).handOut())
+
+        assertEquals(olderHash, contacts.handedTo(ALICE))
+        assertEquals(currentHash, contacts.handedTo(BOB))
+    }
+
+    /**
+     * The proxy answers a `404` while the API is being redeployed, so it says nothing of Alice's
+     * account: she is still owed the key, and handed it at the next pass, as after any other
+     * failure. An account an administrator removed answers one for good, which no retry of the
+     * sync changes, so it is not reported.
+     */
+    @Test
+    fun `a 404 is not reported and the contact handed the key again next time`() = runBlocking<Unit> {
+        val contacts = ContactsOf(contact(ALICE, handed = olderHash), contact(BOB, handed = olderHash))
+        val sends = Sends(ALICE to Result.Error(DirectSendError.Network(NetworkError.NOT_FOUND)))
+
+        assertIs<Result.Success<Unit>>(delivery(contacts, sends).handOut())
+
+        assertEquals(olderHash, contacts.handedTo(ALICE))
         assertEquals(currentHash, contacts.handedTo(BOB))
     }
 
@@ -258,7 +286,8 @@ private class ContactsOf(vararg contacts: ContactEntity) : ContactDao {
         verifiedSafetyNumber: String?,
     ) = error("Not used here")
 
-    override suspend fun markRemoved(userUuid: String, rotatesProfileKey: Boolean) = error("Not used here")
+    override suspend fun markRemoved(userUuid: String, rotatesProfileKey: Boolean, isAccountDeleted: Boolean) =
+        error("Not used here")
     override suspend fun clearProfileKeyRotation(userUuids: List<String>) = error("Not used here")
 
     override suspend fun replaceProfileEncryptionKey(userUuid: String, profileEncryptionKey: ByteArray) =

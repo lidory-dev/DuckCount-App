@@ -6,6 +6,7 @@
     <string name="on_boarding_title">Partagez vos dépenses, pas vos données.</string>
     <string name="on_boarding_description">Partagez la note avec votre groupe en quelques secondes. Les montants et leur nature restent chiffrés, nous ne pouvons pas les lire.</string>
     <string name="session_expired">Votre session a expiré, veuillez vous reconnecter.</string>
+    <string name="account_deleted">Votre compte a été supprimé.</string>
     <string name="push_channel_contacts_name">Contacts</string>
     <string name="push_channel_contacts_description">Nouvelles demandes de contact, et demandes acceptées par vos contacts.</string>
     <string name="push_channel_sync_name">Mise à jour</string>

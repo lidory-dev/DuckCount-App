@@ -155,7 +155,7 @@ private fun VaultError.toAnswerContactRequestError(isOnline: Boolean): AnswerCon
  * [RemoveContactError.UNKNOWN], network failures are reported as such.
  */
 fun SharedRemoveContactError.toRemoveContactError(isOnline: Boolean): RemoveContactError = when (this) {
-    SharedRemoveContactError.RateLimited -> RemoveContactError.RATE_LIMITED
+    is SharedRemoveContactError.RateLimited -> RemoveContactError.RATE_LIMITED
 
     is SharedRemoveContactError.Network -> error.toRemoveContactError(isOnline = isOnline)
 

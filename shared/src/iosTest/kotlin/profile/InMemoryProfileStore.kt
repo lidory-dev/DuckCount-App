@@ -96,6 +96,7 @@ internal class UsersWritten : UserDao {
     override fun getUserAsFlow(uuid: String): Flow<UserEntity?> = error("Not used here")
     override fun getUserFullNameAsFlow(uuid: String): Flow<String?> = error("Not used here")
     override suspend fun getFullName(uuid: String): String? = error("Not used here")
+    override suspend fun getFullNameEvenIfHidden(uuid: String): String? = error("Not used here")
     override fun getAllFromGroupFiltered(filter: String, groupUuid: String): Flow<List<UserEntity>> =
         error("Not used here")
 
