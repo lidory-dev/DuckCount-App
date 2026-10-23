@@ -31,7 +31,6 @@ import mls.MlsIdentityError
 import networking.DuckCountClient
 import networking.DuckCountRoutes
 import networking.HaveIBeenPwnedClient
-import networking.HaveIBeenPwnedRoutes
 import org.json.JSONException
 import org.json.JSONObject
 import profile.ProfileError
@@ -66,10 +65,7 @@ class AuthenticationCallBacksImpl(
     override suspend fun passwordLeakAmount(password: String): AuthOutcome<Int> {
         val sha1 = password.sha1().uppercase()
 
-        val result = haveIBeenPwnedClient.get<String>(
-            route = HaveIBeenPwnedRoutes.Password.CHECK,
-            pathParams = mapOf("sha1FiveFirstCharacters" to sha1.take(5)),
-        )
+        val result = haveIBeenPwnedClient.passwordRange(hashPrefix = sha1.take(5))
 
         return when (result) {
             is Result.Success -> {
