@@ -29,8 +29,20 @@ fun BottomNavigationBar(
                 label = { Text(item.title()) },
                 // Checks if the last item in the back stack matches the current item.
                 selected = backStack.lastOrNull() == item,
-                onClick = { if (backStack.lastOrNull() != item) backStack.add(item) },
+                onClick = { backStack.selectTab(item) },
             )
         }
     }
+}
+
+/**
+ * Shows [tab], keeping only the first tab under it: back from any other tab leads straight to the
+ * first one, rather than through every tab visited on the way, and back from the first leaves.
+ */
+fun MutableList<NavKey>.selectTab(tab: NavigableTabNavKey) {
+    val firstTab = NavigableTabNavKey.tabs.first()
+
+    // Added before the others go, so that the back stack is never left empty.
+    if (tab != firstTab && lastOrNull() != tab) add(tab)
+    removeAll { it != firstTab && it != tab }
 }
