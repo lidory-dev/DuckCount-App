@@ -1,8 +1,5 @@
 package app.lidory.duckcount.settings.navigation
 
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.dropUnlessResumed
@@ -12,6 +9,8 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import app.lidory.duckcount.android.ui.animation.popTransition
+import app.lidory.duckcount.android.ui.animation.pushTransition
 import app.lidory.duckcount.settings.AboutScreen
 import app.lidory.duckcount.settings.AccountDeletionScreen
 import app.lidory.duckcount.settings.AccountScreen
@@ -52,15 +51,9 @@ fun NavigationRoot(
             rememberSaveableStateHolderNavEntryDecorator(),
             rememberViewModelStoreNavEntryDecorator(),
         ),
-        transitionSpec = {
-            slideInHorizontally(initialOffsetX = { it }) togetherWith slideOutHorizontally(targetOffsetX = { -it })
-        },
-        popTransitionSpec = {
-            slideInHorizontally(initialOffsetX = { -it }) togetherWith slideOutHorizontally(targetOffsetX = { it })
-        },
-        predictivePopTransitionSpec = {
-            slideInHorizontally(initialOffsetX = { -it }) togetherWith slideOutHorizontally(targetOffsetX = { it })
-        },
+        transitionSpec = { pushTransition() },
+        popTransitionSpec = { popTransition() },
+        predictivePopTransitionSpec = { popTransition() },
         entryProvider = entryProvider {
             entry<SettingsScreenKey> {
                 SettingsScreen(

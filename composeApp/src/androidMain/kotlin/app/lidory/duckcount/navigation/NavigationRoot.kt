@@ -21,6 +21,9 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
 import app.lidory.duckcount.R
+import app.lidory.duckcount.android.ui.animation.popTransition
+import app.lidory.duckcount.android.ui.animation.pushTransition
+import app.lidory.duckcount.android.ui.animation.replaceTransition
 import app.lidory.duckcount.android.ui.theme.isAppInDarkTheme
 import app.lidory.duckcount.authentication.KeyPackageSetUp
 import app.lidory.duckcount.expenseList.CreateExpenseScreen
@@ -73,11 +76,17 @@ fun NavigationRoot(
                 rememberViewModelStoreNavEntryDecorator(),
             ),
             sceneStrategy = listDetailStrategy,
+            transitionSpec = { pushTransition() },
+            popTransitionSpec = { popTransition() },
+            predictivePopTransitionSpec = { popTransition() },
             entryProvider = { key ->
                 when (key) {
                     is DashboardKey -> {
                         NavEntry(
                             key = key,
+                            // Signing in replaces the signed-out app with it rather than opening
+                            // it on top: there is nothing to slide back to.
+                            metadata = NavDisplay.transitionSpec { replaceTransition() },
                         ) {
                             // Here rather than keyed off the launch state: `Startup` is
                             // resolved once, when the app opens, and says where to land.
