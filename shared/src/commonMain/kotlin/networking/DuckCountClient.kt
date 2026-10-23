@@ -33,10 +33,12 @@ import io.ktor.http.encodedPath
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import util.EmptyResult
 import util.NetworkError
 import util.Result
 
@@ -45,11 +47,36 @@ import util.Result
  */
 private const val REQUEST_TIMEOUT_MILLIS = 5_000L
 
+/**
+ * How long a pair a password authentication issued waits to be stored again once the vault has
+ * turned it down, see [storeUntilTaken]: what it waits for is the user unlocking the device.
+ */
+private const val TOKEN_STORE_RETRY_MILLIS = 1_000L
+
 /** Where every authentication route lives, see [DuckCountRoutes.Auth]. */
 private const val AUTH_PATH = "/auth/"
 
 /** The path of [DuckCountRoutes.User.DELETION], whoever's account it names. */
 private val DELETION_PATH = Regex("/users/[^/]+/deletion")
+
+/** The path of [DuckCountRoutes.User.PASSWORD], whoever's account it names. */
+private val PASSWORD_PATH = Regex("/users/[^/]+/password")
+
+/**
+ * Whether a request to [encodedPath] may be logged, in a debug build, see [logsHttpTraffic].
+ *
+ * Even then, nothing that would let whoever reads the log act as the user. Not the calls to the
+ * authentication routes, whose bodies carry the long-lived token one way or the other. Nor the
+ * account deletion's, an OPAQUE login on the user's password like the one signing in runs, which
+ * is no more the log's business. Nor the password change's: both of its requests carry OPAQUE
+ * messages of the current password and the new one, and the answer to the second a new pair of
+ * tokens. Their failures still show, logged by whatever made the call. A route added later that
+ * returns tokens belongs with them.
+ */
+internal fun isLoggable(encodedPath: String): Boolean =
+    !encodedPath.startsWith(AUTH_PATH) &&
+        !DELETION_PATH.matches(encodedPath) &&
+        !PASSWORD_PATH.matches(encodedPath)
 
 /**
  * Whether a request with [method] to [encodedPath] is the one deleting the account, the `PUT` of
@@ -58,6 +85,18 @@ private val DELETION_PATH = Regex("/users/[^/]+/deletion")
  */
 internal fun isAccountDeletion(method: HttpMethod, encodedPath: String): Boolean =
     method == HttpMethod.Put && DELETION_PATH.matches(encodedPath)
+
+/**
+ * Runs [store] again, every [retryMillis], until it says the vault took the pair it stores, or
+ * [hasSessionEnded] that nothing will be stored any more, see [DuckCountClient.replaceTokens].
+ */
+internal suspend fun storeUntilTaken(
+    store: suspend () -> Boolean,
+    hasSessionEnded: suspend () -> Boolean,
+    retryMillis: Long = TOKEN_STORE_RETRY_MILLIS,
+) {
+    while (!store() && !hasSessionEnded()) delay(retryMillis)
+}
 
 class DuckCountClient(
     private val sessionExpiry: SessionExpiry,
@@ -82,11 +121,12 @@ class DuckCountClient(
     private var isDeletionOut = false
 
     /**
-     * Held for every exchange of the long-lived token, the [Auth] plugin's refresh and
-     * [isSessionAccepted] alike. The server takes the token an exchange replaced only until the
-     * new one is first used, and an exchange presenting it again retires that new one: two
-     * exchanges reading the vault's token at once could leave it a token the server no longer
-     * takes. The plugin keeps its own refreshes from overlapping, but not one of these.
+     * Held for every exchange of the long-lived token, the [Auth] plugin's refresh,
+     * [isSessionAccepted] and [refreshSession] alike. The server takes the token an exchange
+     * replaced only until the new one is first used, and an exchange presenting it again retires
+     * that new one: two exchanges reading the vault's token at once could leave it a token the
+     * server no longer takes. The plugin keeps its own refreshes from overlapping, but not one of
+     * these.
      */
     private val tokenExchange = Mutex()
 
@@ -100,18 +140,10 @@ class DuckCountClient(
                 level = LogLevel.ALL
 
                 // Even in a debug build, nothing that would let whoever reads the log act as
-                // the user: the bearer token on every request, and the calls to the
-                // authentication routes, whose bodies carry the long-lived token one way or the
-                // other. Nor the account deletion's, an OPAQUE login on the user's password like
-                // the one signing in runs, which is no more the log's business. Their failures
-                // still show, logged by whatever made the call. A route added later that returns
-                // tokens belongs with them, as the password change will.
+                // the user: the bearer token on every request, and the calls whose bodies carry
+                // tokens or OPAQUE messages, see [isLoggable].
                 sanitizeHeader { it.equals(HttpHeaders.Authorization, ignoreCase = true) }
-                filter { request ->
-                    val path = request.url.encodedPath
-
-                    !path.startsWith(AUTH_PATH) && !DELETION_PATH.matches(path)
-                }
+                filter { request -> isLoggable(encodedPath = request.url.encodedPath) }
             }
         }
         install(ContentNegotiation) {
@@ -123,6 +155,14 @@ class DuckCountClient(
         }
         install(Auth) {
             bearer {
+                // Not for an exchange of the long-lived token, which carries no short-lived one
+                // anyway: the plugin's own, or one sent under [tokenExchange], see
+                // [exchangeLongLivedToken]. The plugin loads the pair it caches for every request
+                // this lets it send one with, and with none cached that load waits for any
+                // refresh under way, which waits on [tokenExchange]: neither would ever finish.
+                // None is cached once a refresh was turned down, with a `500` for instance, and
+                // the `401` of another request that carried the same token sets one off then.
+                sendWithoutRequest { request -> !request.attributes.contains(AuthCircuitBreaker) }
                 loadTokens {
                     getShortLivedToken()?.let { shortLivedToken ->
                         BearerTokens(
@@ -194,14 +234,15 @@ class DuckCountClient(
 
     /**
      * Stores [tokens], the server's answer to an exchange of the long-lived token, unless the
-     * session has ended.
+     * session has ended, and says whether the vault now holds them.
      *
      * Never throws. A pair the vault cannot take, on a device that locked during the refresh
      * most likely, is no loss: the server still takes the token the vault holds, which is what
-     * the next refresh sends.
+     * the next refresh sends. Unlike a pair a password authentication issued, see
+     * [replaceTokens].
      */
-    private suspend fun storeTokens(tokens: TokenResponse) = tokenStorage.withLock {
-        if (sessionEnded) return@withLock
+    private suspend fun storeTokens(tokens: TokenResponse): Boolean = tokenStorage.withLock {
+        if (sessionEnded) return@withLock false
 
         // The token exchanged would have gone with the account, so a deletion this device sent
         // and never had the answer to did not go through, see [clearAccountDeletionInDoubt].
@@ -216,8 +257,11 @@ class DuckCountClient(
         withContext(NonCancellable) {
             try {
                 setTokens(shortLivedToken = tokens.shortLivedToken, longLivedToken = tokens.longLivedToken)
+
+                true
             } catch (_: Exception) {
                 // Left to the next refresh, see above.
+                false
             }
         }
     }
@@ -257,14 +301,114 @@ class DuckCountClient(
      * could not be asked about, [NetworkError.UNAUTHORIZED].
      */
     suspend fun isSessionAccepted(): Result<Boolean, NetworkError> = tokenExchange.withLock {
+        when (val exchange = exchangeLongLivedToken()) {
+            is Result.Success -> {
+                val tokens = exchange.data ?: return@withLock Result.Success(false)
+
+                storeTokens(tokens = tokens)
+
+                Result.Success(true)
+            }
+
+            is Result.Error -> Result.Error(exchange.error)
+        }
+    }
+
+    /**
+     * Exchanges the long-lived token the vault holds as [isSessionAccepted] does, then, once the
+     * vault holds the pair the server answered with, drops the one the [Auth] plugin caches, so
+     * that every request from here on loads the short-lived token just issued: for a password
+     * change, see `account.PasswordChange`, about to retire the long-lived token with none of the
+     * grace an exchange leaves. With that short-lived token good for the next 20 minutes, no
+     * request sent after sets off a refresh while the change is out, which would present the
+     * retired token and end the session on its `401`.
+     *
+     * Turned down, the session ends here as for a refresh turned down, see [expireSession], and
+     * the `401` is returned. Not asked, why it could not be, as for [isSessionAccepted].
+     *
+     * A pair the vault did not take, on a device locked since the exchange went out most likely,
+     * is [NetworkError.UNAUTHORIZED] as well, as a vault this device cannot read is, and the
+     * plugin keeps its own: the next request would load the vault's otherwise, which a locked
+     * device fails before it is sent, and a change failing unsent that way would pass for one
+     * whose answer never came back. The session is none the worse, the server still taking the
+     * token the vault holds, see [storeTokens].
+     */
+    suspend fun refreshSession(): EmptyResult<NetworkError> = tokenExchange.withLock {
+        when (val exchange = exchangeLongLivedToken()) {
+            is Result.Success -> {
+                val tokens = exchange.data
+
+                when {
+                    tokens == null -> {
+                        expireSession()
+
+                        Result.Error(NetworkError.UNAUTHORIZED)
+                    }
+
+                    storeTokens(tokens = tokens) -> {
+                        httpClient.clearAuthTokens()
+
+                        Result.Success(Unit)
+                    }
+
+                    // The plugin's pair kept, see above.
+                    else -> Result.Error(NetworkError.UNAUTHORIZED)
+                }
+            }
+
+            is Result.Error -> Result.Error(exchange.error)
+        }
+    }
+
+    /**
+     * Stores [tokens], a pair a password authentication issued, see `account.PasswordChange`,
+     * over the one the vault holds, as an exchange's are stored, then drops the pair the [Auth]
+     * plugin caches, so that the next request loads the new short-lived token.
+     *
+     * Unlike an exchange's, a pair the vault cannot take, on a device locked since the change went
+     * out most likely, is not left to the next refresh: the long-lived token the vault keeps is
+     * one the password authentication retired, and that refresh, turned down, would end the
+     * session. It is stored again instead, every second, until the vault takes it, the device
+     * unlocked, see [storeUntilTaken]. Only the session ending stops it, nothing being stored over
+     * an ended session.
+     *
+     * Without [tokenExchange], since nothing refreshes meanwhile. The short-lived token the plugin
+     * caches is fresh from [refreshSession], good for 20 minutes, and past those a locked device
+     * sends nothing: the workers wait for an unlock before anything else, see `PushSyncWorker`
+     * and `PushRegistrationWorker`. A request made in the second after the unlock can still set a
+     * refresh off before the pair goes in, ending the session: accepted.
+     *
+     * Seen through even if the caller goes away, which would drop the pair too. A process ended
+     * before the device is unlocked still loses it, and the session then ends at the next
+     * refresh, as an expired one.
+     */
+    suspend fun replaceTokens(tokens: TokenResponse) {
+        withContext(NonCancellable) {
+            storeUntilTaken(
+                store = { storeTokens(tokens = tokens) },
+                hasSessionEnded = { tokenStorage.withLock { sessionEnded } },
+            )
+
+            httpClient.clearAuthTokens()
+        }
+    }
+
+    /**
+     * Exchanges the long-lived token the vault holds, as a refresh does: the pair the server
+     * answers with once it took the token, for the caller to store as a refresh stores it, see
+     * [storeTokens], null once it turned it down, or why it could not be asked. For
+     * [isSessionAccepted] and [refreshSession], under [tokenExchange], which they hold.
+     */
+    private suspend fun exchangeLongLivedToken(): Result<TokenResponse?, NetworkError> {
         val refreshToken = try {
             getLongLivedToken()?.takeIf { it.isNotBlank() }
         } catch (_: IllegalStateException) {
             // The vault is sealed against a locked device, which this one may have become since
             // the caller started: a deletion carries on with the screen off, see
-            // `account.AccountDeletion`.
+            // `account.AccountDeletion`, and so does a password change, see
+            // `account.PasswordChange`.
             null
-        } ?: return@withLock Result.Error(NetworkError.UNAUTHORIZED)
+        } ?: return Result.Error(NetworkError.UNAUTHORIZED)
 
         val exchange = execute<TokenResponse> {
             httpClient.post(urlString = DuckCountRoutes.Auth.TOKEN) {
@@ -274,15 +418,11 @@ class DuckCountClient(
             }
         }
 
-        when (exchange) {
-            is Result.Success -> {
-                storeTokens(tokens = exchange.data)
-
-                Result.Success(true)
-            }
+        return when (exchange) {
+            is Result.Success -> exchange
 
             is Result.Error ->
-                if (exchange.error == NetworkError.UNAUTHORIZED) Result.Success(false) else exchange
+                if (exchange.error == NetworkError.UNAUTHORIZED) Result.Success(null) else exchange
         }
     }
 
@@ -298,7 +438,8 @@ class DuckCountClient(
      * succeeded (and the server turned the request down for its own reasons) or failed for a
      * transient reason, and neither is worth throwing the user out over. Or that no refresh was
      * tried: [isSessionAccepted] exchanges the token past the [Auth] plugin, and its `401` is the
-     * server turning the session down, which is the caller's to act on.
+     * server turning the session down, which is the caller's to act on, and [refreshSession]'s,
+     * which ends it.
      *
      * Nor is one this device cannot read the credentials for, on a device locked since the request
      * went out, a deletion's last check on the session among them, see `account.AccountDeletion`:

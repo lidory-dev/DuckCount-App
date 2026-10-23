@@ -41,6 +41,13 @@ object DuckCountRoutes {
          * finishes it and deletes the account.
          */
         val DELETION = "$USER_BASE_URL/:user_uuid/deletion"
+
+        /**
+         * The caller's password: `POST` starts the two handshakes changing it takes, a login with
+         * the current password and a registration of the new one, `PUT` finishes them and
+         * changes it.
+         */
+        val PASSWORD = "$USER_BASE_URL/:user_uuid/password"
     }
 
     object Contact {

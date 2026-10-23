@@ -22,6 +22,9 @@ import authenticationUtils.setPendingRegistration
 import authenticationUtils.setRootKey
 import authenticationUtils.setTokens
 import database.data.remote.EncryptedFieldDto
+import database.data.remote.LoginFinishBody
+import database.data.remote.LoginStartBody
+import database.data.remote.LoginStartResponse
 import database.data.repository.UserRepository
 import discoveryUsername.DiscoveryUsernameRepository
 import mls.KeyPackageError
@@ -62,24 +65,9 @@ class AuthenticationCallBacksImpl(
 
     override val passwordStrength: Int = PasswordRequirements.MINIMUM_PASSWORD_STRENGTH
 
-    override suspend fun passwordLeakAmount(password: String): AuthOutcome<Int> {
-        val sha1 = password.sha1().uppercase()
-
-        val result = haveIBeenPwnedClient.passwordRange(hashPrefix = sha1.take(5))
-
-        return when (result) {
-            is Result.Success -> {
-                // The range API returns lines of `SUFFIX:COUNT`; find the line for our suffix.
-                val suffix = sha1.drop(5)
-                val count = result.data.lineSequence()
-                    .firstOrNull { it.startsWith(prefix = suffix, ignoreCase = true) }
-                    ?.substringAfter(delimiter = ":")
-                    ?.trim()
-                    ?.toIntOrNull()
-                    ?: 0
-
-                AuthOutcome.Success(count)
-            }
+    override suspend fun passwordLeakAmount(password: String): AuthOutcome<Int> =
+        when (val result = haveIBeenPwnedClient.passwordLeakCount(password = password)) {
+            is Result.Success -> AuthOutcome.Success(result.data)
 
             is Result.Error -> {
                 Log.w(TAG, "passwordLeakAmount failed: ${result.error}")
@@ -87,7 +75,6 @@ class AuthenticationCallBacksImpl(
                 AuthOutcome.Failure(result.error.toAuthError())
             }
         }
-    }
 
     override suspend fun registration(username: String, password: String): AuthOutcome<String> {
         val registration = Registration()
@@ -179,7 +166,7 @@ class AuthenticationCallBacksImpl(
         val login = Login()
 
         try {
-            val startResult = duckCountClient.post<String, LoginStartBody>(
+            val startResult = duckCountClient.post<LoginStartResponse, LoginStartBody>(
                 route = DuckCountRoutes.Auth.SESSIONS,
                 body = LoginStartBody(
                     credentialRequestBytes = login.start(password).toBase64(),
@@ -192,9 +179,7 @@ class AuthenticationCallBacksImpl(
             // The username is not repeated when finishing: the server kept track of who is
             // logging in, keyed by the session id it just handed out.
             val (sessionId, responseBytes) = when (startResult) {
-                is Result.Success -> JSONObject(startResult.data).let {
-                    it.getString("session_id") to it.getString("credential_response_bytes")
-                }
+                is Result.Success -> startResult.data.sessionId to startResult.data.credentialResponseBytes
 
                 is Result.Error -> {
                     Log.w(TAG, "login start failed: ${startResult.error}")

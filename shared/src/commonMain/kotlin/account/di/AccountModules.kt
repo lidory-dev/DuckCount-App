@@ -1,6 +1,7 @@
 package account.di
 
 import account.AccountDeletion
+import account.PasswordChange
 import org.koin.dsl.module
 
 val accountModule = module {
@@ -10,6 +11,15 @@ val accountModule = module {
             contactDao = get(),
             contactRepository = get(),
             duckCountClient = get(),
+        )
+    }
+
+    single {
+        PasswordChange(
+            userApi = get(),
+            sessionApi = get(),
+            duckCountClient = get(),
+            haveIBeenPwnedClient = get(),
         )
     }
 }

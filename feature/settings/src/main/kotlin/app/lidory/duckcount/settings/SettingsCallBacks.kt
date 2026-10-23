@@ -1,6 +1,7 @@
 package app.lidory.duckcount.settings
 
 import app.lidory.duckcount.settings.model.AccountDeletionError
+import app.lidory.duckcount.settings.model.PasswordChangeError
 import app.lidory.duckcount.settings.model.ProfileSaveError
 import app.lidory.duckcount.settings.model.ReserveDiscoveryUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
@@ -36,6 +37,19 @@ interface SettingsCallBacks {
      * as far as the attempt could tell, but for [AccountDeletionError.UNCONFIRMED].
      */
     suspend fun deleteAccount(password: String): AccountDeletionError
+
+    /**
+     * Changes the user's password from [currentPassword] to [newPassword], once [newPassword]
+     * turns up in no known data breach, or the check could not be run, and returns why it failed,
+     * or null on success. Nothing else changes: the user's keys, their data and the session on
+     * this device stay as they are.
+     *
+     * Seen through once the change may be sent, whatever becomes of the screen that asked. The
+     * session is still there after a failure, unless the server turned it down meanwhile, which
+     * ends it and restarts the app as any expiry does, and so is the password, but for
+     * [PasswordChangeError.UNCONFIRMED].
+     */
+    suspend fun changePassword(currentPassword: String, newPassword: String): PasswordChangeError?
 
     fun getAuthenticatedUserUuid(): String?
 

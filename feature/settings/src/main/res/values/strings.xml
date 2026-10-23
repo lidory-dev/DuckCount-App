@@ -8,6 +8,7 @@
     <string name="change_fullName">Change full name</string>
     <string name="change_username">Change username</string>
     <string name="change_password">Change password</string>
+    <string name="current_password">Current password</string>
     <string name="connected_as">Connected as <b>%1$s</b></string>
     <string name="delete_account">Delete account</string>
     <string name="error_new_password_confirmation">The passwords do not match</string>
@@ -57,4 +58,13 @@
     <string name="account_deletion_error_server_unreachable">The server is unreachable, please try again later</string>
     <string name="account_deletion_error_unknown">Your account could not be deleted</string>
     <string name="account_deletion_error_unconfirmed">The server’s answer never arrived, so your account may already be deleted. Check your connection, then try again to find out</string>
+    <string name="password_changed">Your password has been changed</string>
+    <string name="password_change_error_wrong_password">Incorrect password</string>
+    <string name="password_change_error_leaked">This password has been leaked, please choose another one</string>
+    <string name="password_change_error_same_password">Must differ from your current password</string>
+    <string name="password_change_error_no_internet">No internet connection</string>
+    <string name="password_change_error_timeout">The server took too long to answer, please try again</string>
+    <string name="password_change_error_server_unreachable">The server is unreachable, please try again later</string>
+    <string name="password_change_error_unknown">Your password could not be changed</string>
+    <string name="password_change_error_unconfirmed">The server’s answer never arrived, so your password may already have been changed. If your current password is refused when you try again, or you’re asked to log in again, use your new password</string>
 </resources>

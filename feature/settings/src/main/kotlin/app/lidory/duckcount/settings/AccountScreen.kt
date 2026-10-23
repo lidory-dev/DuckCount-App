@@ -1,5 +1,6 @@
 package app.lidory.duckcount.settings
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,10 +12,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -26,6 +29,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.settings.component.ButtonLine
 import app.lidory.duckcount.settings.viewmodel.AccountViewModel
@@ -39,10 +43,28 @@ fun AccountScreen(
     onBack: () -> Unit,
     navigateToPasswordChangeScreen: () -> Unit,
     navigateToAccountDeletionScreen: () -> Unit,
+    isPasswordChanged: Boolean,
+    onPasswordChangedShown: () -> Unit,
 ) {
     val viewModel: AccountViewModel = koinViewModel()
 
     val openLogOutDialog = remember { mutableStateOf(false) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // The password change closes onto this screen once it succeeds, which says so here. Once:
+    // leaving while it shows drops it too, rather than saying it again on coming back.
+    if (isPasswordChanged) {
+        val message = stringResource(R.string.password_changed)
+
+        LaunchedEffect(Unit) {
+            try {
+                snackbarHostState.showSnackbar(message)
+            } finally {
+                onPasswordChangedShown()
+            }
+        }
+    }
 
     when {
         openLogOutDialog.value -> {
@@ -93,60 +115,68 @@ fun AccountScreen(
             )
         },
     ) { innerPadding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            item {
-                val username = viewModel.username ?: ""
-                val fullText = stringResource(R.string.connected_as, username)
-                val startIndex = fullText.lastIndexOf(username)
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                item {
+                    val username = viewModel.username ?: ""
+                    val fullText = stringResource(R.string.connected_as, username)
+                    val startIndex = fullText.lastIndexOf(username)
 
-                val annotatedText = buildAnnotatedString {
-                    append(fullText)
-                    if (startIndex >= 0) {
-                        addStyle(
-                            style = SpanStyle(fontWeight = FontWeight.Bold),
-                            start = startIndex,
-                            end = startIndex + username.length,
-                        )
+                    val annotatedText = buildAnnotatedString {
+                        append(fullText)
+                        if (startIndex >= 0) {
+                            addStyle(
+                                style = SpanStyle(fontWeight = FontWeight.Bold),
+                                start = startIndex,
+                                end = startIndex + username.length,
+                            )
+                        }
                     }
+
+                    Text(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Padding.large, vertical = Padding.large),
+                        text = annotatedText,
+                        textAlign = TextAlign.Center,
+                    )
                 }
 
-                Text(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Padding.large, vertical = Padding.large),
-                    text = annotatedText,
-                    textAlign = TextAlign.Center,
-                )
+                item {
+                    ButtonLine(
+                        text = R.string.change_password,
+                        icon = R.drawable.ic_password,
+                        onClick = navigateToPasswordChangeScreen,
+                    )
+                }
+
+                item {
+                    ButtonLine(
+                        text = R.string.logout,
+                        icon = R.drawable.ic_logout,
+                        onClick = { openLogOutDialog.value = !openLogOutDialog.value },
+                    )
+                }
+
+                item {
+                    ButtonLine(
+                        text = R.string.delete_account,
+                        icon = androidUiR.drawable.ic_delete,
+                        onClick = navigateToAccountDeletionScreen,
+                    )
+                }
             }
 
-            item {
-                ButtonLine(
-                    text = R.string.change_password,
-                    icon = R.drawable.ic_password,
-                    onClick = navigateToPasswordChangeScreen,
-                )
-            }
-
-            item {
-                ButtonLine(
-                    text = R.string.logout,
-                    icon = R.drawable.ic_logout,
-                    onClick = { openLogOutDialog.value = !openLogOutDialog.value },
-                )
-            }
-
-            item {
-                ButtonLine(
-                    text = R.string.delete_account,
-                    icon = androidUiR.drawable.ic_delete,
-                    onClick = navigateToAccountDeletionScreen,
-                )
-            }
+            DuckCountSnackbarHost(hostState = snackbarHostState)
         }
     }
 }

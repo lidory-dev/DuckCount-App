@@ -1,7 +1,6 @@
 package app.lidory.duckcount.authentication
 
 import org.json.JSONObject
-import java.security.MessageDigest
 import kotlin.io.encoding.Base64
 
 /** Base64-encodes these bytes using the standard alphabet. */
@@ -11,12 +10,6 @@ fun ByteArray.toBase64(): String =
 /** Decodes a standard-alphabet Base64 string into bytes. */
 fun String.decodeBase64ToByteArray(): ByteArray =
     Base64.Default.decode(this)
-
-/** Lowercase hex SHA-1 of this string (UTF-8). Used for the Have I Been Pwned range query. */
-fun String.sha1(): String {
-    val digest = MessageDigest.getInstance("SHA-1").digest(toByteArray(Charsets.UTF_8))
-    return digest.joinToString(separator = "") { "%02x".format(it) }
-}
 
 // JWTs use base64url, conventionally without padding; accept both padded and unpadded.
 private val jwtBase64 = Base64.UrlSafe.withPadding(Base64.PaddingOption.PRESENT_OPTIONAL)

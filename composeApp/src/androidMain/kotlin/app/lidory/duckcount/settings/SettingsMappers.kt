@@ -1,6 +1,7 @@
 package app.lidory.duckcount.settings
 
 import app.lidory.duckcount.settings.model.AccountDeletionError
+import app.lidory.duckcount.settings.model.PasswordChangeError
 import app.lidory.duckcount.settings.model.ProfileSaveError
 import app.lidory.duckcount.settings.model.ReserveDiscoveryUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
@@ -9,6 +10,7 @@ import profile.ProfileError
 import util.NetworkError
 import vault.VaultError
 import account.AccountDeletionError as SharedAccountDeletionError
+import account.PasswordChangeError as SharedPasswordChangeError
 import app.lidory.duckcount.UsernameError as SharedUsernameError
 
 /** An empty username is no mistake to point out, see [SettingsCallBacks.validateUsername]. */
@@ -190,4 +192,48 @@ fun SharedAccountDeletionError.toAccountDeletionError(isOnline: Boolean): Accoun
     is SharedAccountDeletionError.Unconfirmed -> AccountDeletionError.UNCONFIRMED
 
     SharedAccountDeletionError.Crypto -> AccountDeletionError.UNKNOWN
+}
+
+/**
+ * Maps a failed password change to the reason the UI surfaces.
+ *
+ * Only the two mistakes the form can show on a field, the network's failures and a change whose
+ * answer never came back are told apart, the ones the user can do something about. Not a `401`,
+ * as for [toAccountDeletionError]: one the server turned the session down with has ended it,
+ * restarting the app and telling the user. Nor a missing root key, which every login and
+ * registration stores, see `authenticationUtils.setRootKey`.
+ *
+ * As in [toReserveUsernameError], [isOnline] corrects a [NetworkError.UNREACHABLE] that
+ * is really airplane mode.
+ */
+fun SharedPasswordChangeError.toPasswordChangeError(isOnline: Boolean): PasswordChangeError = when (this) {
+    SharedPasswordChangeError.WrongPassword -> PasswordChangeError.WRONG_PASSWORD
+
+    SharedPasswordChangeError.Leaked -> PasswordChangeError.LEAKED
+
+    is SharedPasswordChangeError.Network -> when (error) {
+        NetworkError.NO_INTERNET -> PasswordChangeError.NO_INTERNET
+        NetworkError.REQUEST_TIMEOUT -> PasswordChangeError.TIMEOUT
+
+        NetworkError.UNREACHABLE ->
+            if (isOnline) PasswordChangeError.SERVER_UNREACHABLE else PasswordChangeError.NO_INTERNET
+
+        NetworkError.BAD_REQUEST,
+        NetworkError.UNAUTHORIZED,
+        NetworkError.NOT_FOUND,
+        NetworkError.CONFLICT,
+        NetworkError.PAYLOAD_TOO_LARGE,
+        NetworkError.UNPROCESSABLE_ENTITY,
+        NetworkError.TOO_MANY_REQUESTS,
+        NetworkError.SERVER_ERROR,
+        NetworkError.SERIALIZATION,
+        NetworkError.UNKNOWN,
+            -> PasswordChangeError.UNKNOWN
+    }
+
+    is SharedPasswordChangeError.Unconfirmed -> PasswordChangeError.UNCONFIRMED
+
+    SharedPasswordChangeError.MissingRootKey,
+    SharedPasswordChangeError.Crypto,
+        -> PasswordChangeError.UNKNOWN
 }

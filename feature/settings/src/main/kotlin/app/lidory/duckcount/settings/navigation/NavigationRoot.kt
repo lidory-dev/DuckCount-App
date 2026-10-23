@@ -1,6 +1,10 @@
 package app.lidory.duckcount.settings.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -43,6 +47,10 @@ fun NavigationRoot(
             arrayOf(SettingsScreenKey)
         },
     )
+
+    // Set as the password change closes on success, for the account screen it closes onto to
+    // say so: it has no confirmation of its own, the change being the only thing it is for.
+    var isPasswordChanged by rememberSaveable { mutableStateOf(false) }
 
     NavDisplay(
         modifier = modifier,
@@ -103,12 +111,18 @@ fun NavigationRoot(
                     navigateToAccountDeletionScreen = {
                         backStack.add(AccountDeletionScreenKey)
                     },
+                    isPasswordChanged = isPasswordChanged,
+                    onPasswordChangedShown = { isPasswordChanged = false },
                 )
             }
 
             entry<PasswordChangeScreenKey> {
                 PasswordChangeScreen(
                     onBack = dropUnlessResumed {
+                        backStack.removeIf { it is PasswordChangeScreenKey }
+                    },
+                    onPasswordChanged = dropUnlessResumed {
+                        isPasswordChanged = true
                         backStack.removeIf { it is PasswordChangeScreenKey }
                     },
                 )

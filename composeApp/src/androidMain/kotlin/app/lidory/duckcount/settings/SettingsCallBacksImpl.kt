@@ -1,6 +1,7 @@
 package app.lidory.duckcount.settings
 
 import account.AccountDeletion
+import account.PasswordChange
 import android.content.Context
 import android.util.Log
 import app.lidory.duckcount.BuildConfig
@@ -10,6 +11,7 @@ import app.lidory.duckcount.PasswordRequirements
 import app.lidory.duckcount.RestartNotice
 import app.lidory.duckcount.networking.NetworkConnectivity
 import app.lidory.duckcount.settings.model.AccountDeletionError
+import app.lidory.duckcount.settings.model.PasswordChangeError
 import app.lidory.duckcount.settings.model.ProfileSaveError
 import app.lidory.duckcount.settings.model.ReserveDiscoveryUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
@@ -41,6 +43,7 @@ class SettingsCallBacksImpl(
     private val discoveryUsernameRepository: DiscoveryUsernameRepository,
     private val pushRegistrar: PushRegistrar,
     private val accountDeletion: AccountDeletion,
+    private val passwordChange: PasswordChange,
 ) : SettingsCallBacks {
 
     override val maxUsernameLength: Int = usernameMaximumLength()
@@ -98,6 +101,33 @@ class SettingsCallBacksImpl(
                 }
             }
         }
+
+    /**
+     * Not wrapped as [deleteAccount] is: [PasswordChange.change] sees the change through itself
+     * once it may be sent, and nothing follows it here that has to happen, the session staying as
+     * it is.
+     */
+    override suspend fun changePassword(currentPassword: String, newPassword: String): PasswordChangeError? {
+        val userUuid = getAuthenticatedUserUuid() ?: return PasswordChangeError.UNKNOWN
+        val username = getAuthenticatedUserUsername() ?: return PasswordChangeError.UNKNOWN
+
+        val change = passwordChange.change(
+            userUuid = userUuid,
+            username = username,
+            currentPassword = currentPassword,
+            newPassword = newPassword,
+        )
+
+        return when (change) {
+            is Result.Success -> null
+
+            is Result.Error -> {
+                Log.w(TAG, "changePassword: could not change the password: ${change.error}")
+
+                change.error.toPasswordChangeError(isOnline = networkConnectivity.isOnline())
+            }
+        }
+    }
 
     override fun getAuthenticatedUserUuid(): String? {
         return authenticationUtils.getAuthenticatedUserUuid()
