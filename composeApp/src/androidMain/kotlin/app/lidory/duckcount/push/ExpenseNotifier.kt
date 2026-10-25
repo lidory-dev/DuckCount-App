@@ -1,17 +1,12 @@
 package app.lidory.duckcount.push
 
-import android.Manifest
 import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
 import app.lidory.duckcount.MainActivity
 import app.lidory.duckcount.R
 import expense.ExpenseArrival
@@ -553,20 +548,12 @@ class ExpenseNotifier(
         post(tag = tag, id = id, notification = notification)
     }
 
-    private fun createChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-
-        val channel = NotificationChannel(
-            EXPENSES_CHANNEL,
-            context.getString(R.string.push_channel_expenses_name),
-            NotificationManager.IMPORTANCE_DEFAULT,
-        ).apply {
-            description = context.getString(R.string.push_channel_expenses_description)
-        }
-
-        context.getSystemService(NotificationManager::class.java)
-            ?.createNotificationChannel(channel)
-    }
+    private fun createChannel() = context.createNotificationChannel(
+        id = EXPENSES_CHANNEL,
+        name = R.string.push_channel_expenses_name,
+        description = R.string.push_channel_expenses_description,
+        importance = NotificationManager.IMPORTANCE_DEFAULT,
+    )
 
     /**
      * Opens the app, which lands on the expense list.
@@ -587,22 +574,13 @@ class ExpenseNotifier(
         )
     }
 
-    /** Posts one notification, if the user has left the app able to. */
+    /** Posts one notification, see [postIfPermitted], and records it once up when it is an arrival. */
     private fun post(tag: String, id: Int, notification: Notification) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS,
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
-
-        NotificationManagerCompat.from(context).notify(tag, id, notification)
-
         // Only the arrivals are taken back down from the record, see [clearExpenses]: a change
         // stays up whatever is on screen, so nothing would ever read its ids.
-        if (tag == EXPENSE_TAG) posted.record(tag = tag, id = id)
+        if (context.postIfPermitted(tag = tag, id = id, notification = notification) && tag == EXPENSE_TAG) {
+            posted.record(tag = tag, id = id)
+        }
     }
 }
 

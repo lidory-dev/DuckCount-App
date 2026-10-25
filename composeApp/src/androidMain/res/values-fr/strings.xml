@@ -52,5 +52,11 @@
         <item quantity="one">%1$d dépense partagée mise à jour</item>
         <item quantity="other">%1$d dépenses partagées mises à jour</item>
     </plurals>
+    <string name="push_channel_groups_name">Groupes</string>
+    <string name="push_channel_groups_description">Les groupes auxquels d’autres personnes vous ajoutent.</string>
+    <string name="push_group_added_title">Nouveau groupe</string>
+    <string name="push_group_added_text">%1$s vient de vous ajouter au groupe «\u00A0%2$s\u00A0»</string>
+    <string name="push_group_added_text_unknown">Quelqu’un vient de vous ajouter au groupe «\u00A0%1$s\u00A0»</string>
+    <string name="push_group_added_text_locked">Quelqu’un vient de vous ajouter à un groupe</string>
     <string name="settings">Paramètres</string>
 </resources>

@@ -302,6 +302,36 @@ class VaultRepository(
     }
 
     /**
+     * Backs up [groupKey] as the key of the group [groupUuid], replacing whatever the vault held
+     * for it.
+     *
+     * Each group's key is an item of its own in [VaultEntryKey.GROUP_MASTER_KEY], so backing one
+     * up rewrites none of the others, see [writeItem].
+     */
+    suspend fun setGroupKey(groupUuid: String, groupKey: ByteArray): EmptyResult<VaultError> =
+        writeItem(part = VaultEntryKey.GROUP_MASTER_KEY, itemId = groupUuid, plaintext = groupKey)
+
+    /**
+     * The key of every group the vault holds one for, keyed by group UUID, see [readItems]: what
+     * opens the groups a log-out took off this device once the server lists them again. Empty
+     * when the vault holds none yet.
+     */
+    suspend fun getGroupKeys(): Result<Map<String, ByteArray>, VaultError> =
+        readItems(part = VaultEntryKey.GROUP_MASTER_KEY)
+
+    /**
+     * Drops the key of the group [groupUuid] from the vault: one whose creation the server
+     * refused, which no group on the server will ever be listed under.
+     */
+    suspend fun deleteGroupKey(groupUuid: String): EmptyResult<VaultError> =
+        when (
+            val deletion = vaultApi.deleteVaultEntry(entryKey = VaultEntryKey.GROUP_MASTER_KEY, itemId = groupUuid)
+        ) {
+            is Result.Success -> Result.Success(Unit)
+            is Result.Error -> Result.Error(VaultError.Network(deletion.error))
+        }
+
+    /**
      * The key sealing [part], generating it and writing the key ring back the first time.
      *
      * What a caller reaches for when it is about to seal something that will leave this
@@ -549,6 +579,91 @@ class VaultRepository(
                 },
             )
         }
+
+    /**
+     * Seals [plaintext] as the item [itemId] of the collection [part], replacing whatever the item
+     * held, under the part's key, see [getOrCreatePartKey], and bound to [itemId], see
+     * [itemContext].
+     *
+     * Unconditional, a single item never being written from what it held: a `409` can then only
+     * be the part already holding as many items as the server keeps of one, reported as
+     * [VaultError.Network] like any other refusal.
+     */
+    private suspend fun writeItem(
+        part: VaultEntryKey,
+        itemId: String,
+        plaintext: ByteArray,
+    ): EmptyResult<VaultError> {
+        val sealingKey = when (val key = getOrCreatePartKey(part = part)) {
+            is Result.Success -> key.data
+            is Result.Error -> return Result.Error(key.error)
+        }
+
+        val sealed = sealBound(
+            key = sealingKey,
+            context = itemContext(part = part, itemId = itemId),
+            plaintext = plaintext,
+        ) ?: return Result.Error(VaultError.Crypto)
+
+        return when (
+            val write = vaultApi.saveVaultEntry(
+                entryKey = part,
+                body = SaveVaultEntryRequestBody(itemId = itemId, content = sealed),
+            )
+        ) {
+            is Result.Success -> Result.Success(Unit)
+            is Result.Error -> Result.Error(VaultError.Network(write.error))
+        }
+    }
+
+    /**
+     * The plaintext of every item of the collection [part], keyed by item id, read with the key
+     * ring in one request.
+     *
+     * An item that does not open under its own id is left out, as though the vault did not hold
+     * it: it was sealed for another item, or tampered with, and either way it holds nothing this
+     * device can use. Failing the whole read on it would keep every other item out of reach for
+     * good, the server alone deciding which.
+     */
+    private suspend fun readItems(part: VaultEntryKey): Result<Map<String, ByteArray>, VaultError> {
+        val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
+
+        val entries = when (val vault = vaultApi.getVault(VaultEntryKey.KEY_RING, part)) {
+            is Result.Success -> vault.data.entries
+            is Result.Error -> return Result.Error(VaultError.Network(vault.error))
+        }
+
+        val keyRing = when (val unsealed = unsealKeyRing(rootKey = rootKey, entries = entries)) {
+            is Result.Success -> unsealed.data
+            is Result.Error -> return Result.Error(unsealed.error)
+        }
+
+        val items = entries.filter { it.entryKey == part.wireName }
+
+        if (items.isEmpty()) return Result.Success(emptyMap())
+
+        // Items are there, so the ring has to name the part, as for a singleton, see [readPart].
+        val sealingKey = keyRing.keyRing.keyFor(part = part)
+            ?: return Result.Error(VaultError.OrphanedEntry)
+
+        return Result.Success(
+            items.mapNotNull { item ->
+                unsealBound(
+                    key = sealingKey,
+                    context = itemContext(part = part, itemId = item.itemId),
+                    content = item.content,
+                )?.let { item.itemId to it }
+            }.toMap(),
+        )
+    }
+
+    /**
+     * What the item [itemId] of [part] is bound to when sealed, see [sealBound].
+     *
+     * Every item of a part is sealed under the same key, so without it the server could hand one
+     * item back under another's id, one group's key as another's, and it would open all the same.
+     */
+    private fun itemContext(part: VaultEntryKey, itemId: String): String = "${part.wireName}:$itemId"
 
     /** The entry of a singleton part, or null when the vault does not hold it. */
     private fun List<VaultEntryDto>.singleton(part: VaultEntryKey): VaultEntryDto? =

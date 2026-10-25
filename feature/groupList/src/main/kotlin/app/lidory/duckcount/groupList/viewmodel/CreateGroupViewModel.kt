@@ -3,11 +3,11 @@ package app.lidory.duckcount.groupList.viewmodel
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.state.ToggleableState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
 import app.lidory.duckcount.groupList.model.Currency
+import app.lidory.duckcount.groupList.model.GroupCreationError
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import app.lidory.duckcount.groupList.model.GroupWithMembers
@@ -15,16 +15,17 @@ import app.lidory.duckcount.groupList.model.User
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -40,53 +41,7 @@ class CreateGroupViewModel(
     fun currencyDisplayName(code: String): String = groupListCallBacks.getCurrencyDisplayName(code)
 
     private val _state = MutableStateFlow<CreateGroupState>(CreateGroupState.Loading)
-    val state: StateFlow<CreateGroupState> = _state.onStart {
-        val authenticatedUserUuid = getAuthenticatedUserUuid() ?: ""
-
-        groupUuid?.let { uuid ->
-            val group = groupListCallBacks.getGroupWithMembers(uuid).first()
-
-            _state.value = CreateGroupState.Content(
-                title = group.title,
-                description = group.description,
-                currency = Currency(
-                    name = group.currency.name,
-                    symbol = group.currency.symbol,
-                    hasSubunits = group.currency.hasSubunits,
-                ),
-                members = emptyList(),
-                authenticatedUserUuid = authenticatedUserUuid,
-            )
-            updateMembers(group.members)
-        } ?: run {
-            val defaultCurrency = groupListCallBacks.getDefaultCurrency()
-
-            _state.value = CreateGroupState.Content(
-                title = "",
-                description = "",
-                currency = Currency(
-                    name = defaultCurrency.name,
-                    symbol = defaultCurrency.symbol,
-                    hasSubunits = defaultCurrency.hasSubunits,
-                ),
-                members = emptyList(),
-                authenticatedUserUuid = authenticatedUserUuid,
-            )
-            updateMembers(
-                listOf(
-                    GroupMember(
-                        userUuid = authenticatedUserUuid,
-                        groupUuid = "",
-                        isAdmin = true,
-                    ),
-                ),
-            )
-        }
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000L),
-        initialValue = CreateGroupState.Loading,
-    )
+    val state: StateFlow<CreateGroupState> = _state.asStateFlow()
 
     private val content: CreateGroupState.Content?
         get() = _state.value as? CreateGroupState.Content
@@ -100,20 +55,47 @@ class CreateGroupViewModel(
     val maxTitleLength: Int = groupListCallBacks.maxTitleLength
     val maxDescriptionLength: Int = groupListCallBacks.maxDescriptionLength
 
+    /** The most members the group may have, the user included: see [GroupListCallBacks.maxMembers]. */
+    val maxMembers: Int = groupListCallBacks.maxMembers
+
+    // True once the group is created. The screen must wait for this before navigating: navigating
+    // away clears this ViewModel and cancels viewModelScope, which would otherwise cut the creation
+    // short. A state rather than an event: the creation can complete while the app is in the
+    // background, where the screen cannot navigate, and the screen then closes once the user is back.
+    private val _isCreated = MutableStateFlow(false)
+    val isCreated: StateFlow<Boolean> = _isCreated.asStateFlow()
+
+    // True once the group being edited is gone, deleted under the screen by a creation the server
+    // refused, see GroupListCallBacks.getGroupWithMembers. The screen closes then, as once a group
+    // is created: there is nothing left to edit.
+    private val _isGone = MutableStateFlow(false)
+    val isGone: StateFlow<Boolean> = _isGone.asStateFlow()
+
+    // True while the group is being created, so that the confirm button can show an in-place
+    // spinner and stay disabled until it is.
+    private val _isCreating = MutableStateFlow(false)
+    val isCreating: StateFlow<Boolean> = _isCreating.asStateFlow()
+
+    // Emitted with the reason when the creation failed, so that the screen can tell the user why,
+    // and who it was about.
+    private val _showError = Channel<GroupCreationError>(Channel.BUFFERED)
+    val showError: Flow<GroupCreationError> = _showError.receiveAsFlow()
+
     private var _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     var isMemberDialogShown by mutableStateOf(false)
 
+    // Who is picked to be in the group besides the user, who is in it whatever is picked, so never
+    // among them: the picker lists only the people the user can put in a group, see
+    // GroupListCallBacks.getInvitableUsersFiltered, which they are not.
     private val _selectedUuids = MutableStateFlow<Set<String>>(emptySet())
     val selectedUuids: StateFlow<Set<String>> = _selectedUuids
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val usersState: StateFlow<UserListState> = _searchQuery
         .flatMapLatest { query ->
-            groupListCallBacks.getUsersFiltered(filter = query).map {
-                it.filterNot { user -> user.uuid == groupListCallBacks.getAuthenticatedUserUuid() }
-            }
+            groupListCallBacks.getInvitableUsersFiltered(filter = query)
         }
         .map { users ->
             UserListState(users)
@@ -124,23 +106,61 @@ class CreateGroupViewModel(
             initialValue = UserListState(),
         )
 
-    val selectionToggleState: StateFlow<ToggleableState> = combine(
-        _selectedUuids,
-        usersState,
-    ) { selectedUuids, users ->
-        toggleableState(selectedUuids = selectedUuids, totalUsers = users.users.size)
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000L),
-        initialValue = ToggleableState.Off,
-    )
+    init {
+        // Once, and not whenever the form is collected again: coming back to the app after a few
+        // seconds away would otherwise read the group back over what the user typed.
+        viewModelScope.launch {
+            val authenticatedUserUuid = getAuthenticatedUserUuid() ?: ""
+
+            _state.value = groupUuid?.let { uuid ->
+                // Gone already, the screen opened from one still showing it.
+                val group = groupListCallBacks.getGroupWithMembers(uuid).first() ?: run {
+                    _isGone.value = true
+
+                    return@launch
+                }
+
+                _selectedUuids.value = group.members.mapTo(LinkedHashSet()) { it.userUuid } - authenticatedUserUuid
+
+                CreateGroupState.Content(
+                    title = group.title,
+                    description = group.description,
+                    currency = group.currency,
+                    members = withFullNames(group.members),
+                    authenticatedUserUuid = authenticatedUserUuid,
+                )
+            } ?: run {
+                CreateGroupState.Content(
+                    title = "",
+                    description = "",
+                    // As the catalogue holds it: the group is sealed with the currency's UUID alone,
+                    // which every member looks up in theirs.
+                    currency = groupListCallBacks.getDefaultCurrency(),
+                    members = withFullNames(
+                        listOf(
+                            GroupMember(
+                                userUuid = authenticatedUserUuid,
+                                groupUuid = "",
+                                isAdmin = true,
+                            ),
+                        ),
+                    ),
+                    authenticatedUserUuid = authenticatedUserUuid,
+                )
+            }
+
+            // Read once, for the form to keep what the user typed, and watched from then on for the
+            // group going, see isGone.
+            if (groupUuid != null) {
+                groupListCallBacks.getGroupWithMembers(groupUuid).first { it == null }
+
+                _isGone.value = true
+            }
+        }
+    }
 
     fun getAuthenticatedUserUuid(): String? {
         return groupListCallBacks.getAuthenticatedUserUuid()
-    }
-
-    fun isOwnerInMembers(): Boolean {
-        return content?.members?.any { it.member.userUuid == getAuthenticatedUserUuid() } == true
     }
 
     fun showMemberDialog() {
@@ -159,16 +179,9 @@ class CreateGroupViewModel(
         _searchQuery.value = query
     }
 
-    fun toggleSelectAllMembers() {
-        val allUuids = usersState.value.users.mapTo(mutableSetOf()) { it.uuid }
-        _selectedUuids.update { selected ->
-            if (selected == allUuids) emptySet() else allUuids
-        }
-    }
-
     fun toggleSelectedUser(uuid: String) {
         _selectedUuids.update { selected ->
-            if (uuid in selected) selected - uuid else selected + uuid
+            toggledSelection(selected = selected, uuid = uuid, maxMembers = maxMembers)
         }
     }
 
@@ -184,28 +197,23 @@ class CreateGroupViewModel(
         }
     }
 
-    fun updateMembers(members: List<GroupMember>) {
+    /** Lists the user and [uuids], the members picked besides them, in the form. */
+    fun onMembersSelected(uuids: Set<String>) {
         viewModelScope.launch {
-            val currentMembers = content?.members.orEmpty()
-            val existingUuids = currentMembers.map { it.member.userUuid }.toSet()
-            val newUuids = members.map { it.userUuid }.toSet()
+            val content = content ?: return@launch
 
-            val kept = currentMembers.filter { it.member.userUuid in newUuids }
-            val added = coroutineScope {
-                members
-                    .filterNot { it.userUuid in existingUuids }
-                    .map { member ->
-                        async {
-                            val fullName = groupListCallBacks.getUserFullName(member.userUuid).first()
-                                ?: member.userUuid
-                            GroupMemberWithFullName(member, fullName = fullName)
-                        }
-                    }
-                    .awaitAll()
-            }
+            val kept = keptMembers(
+                members = content.members,
+                selfUuid = content.authenticatedUserUuid,
+                selectedUuids = uuids,
+            )
+            val keptUuids = kept.mapTo(HashSet()) { it.member.userUuid }
+
+            val added = withFullNames(
+                (uuids - keptUuids).map { GroupMember(userUuid = it, groupUuid = "", isAdmin = false) },
+            )
 
             updateContent { it.copy(members = kept + added) }
-            _selectedUuids.update { newUuids }
         }
     }
 
@@ -215,21 +223,42 @@ class CreateGroupViewModel(
                 members = it.members.filterNot { memberWithFullName -> memberWithFullName.member.userUuid == member.userUuid },
             )
         }
-        _selectedUuids.update { selected ->
-            if (member.userUuid in selected) selected - member.userUuid else selected + member.userUuid
-        }
+        _selectedUuids.update { selected -> selected - member.userUuid }
     }
 
-    fun createGroup() {
-        val content = content ?: return
+    private suspend fun withFullNames(members: List<GroupMember>): List<GroupMemberWithFullName> = coroutineScope {
+        members
+            .map { member ->
+                async {
+                    GroupMemberWithFullName(
+                        member = member,
+                        fullName = groupListCallBacks.getUserFullName(member.userUuid).first(),
+                    )
+                }
+            }
+            .awaitAll()
+    }
 
-        viewModelScope.launch {
-            groupListCallBacks.createGroup(
+    fun createGroup() = viewModelScope.launch {
+        // Not once created either: each attempt is a group of its own, so a second one would
+        // create the same group twice.
+        if (_isCreating.value || _isCreated.value) return@launch
+
+        val content = content ?: return@launch
+
+        _isCreating.value = true
+
+        try {
+            val error = groupListCallBacks.createGroup(
                 title = content.title,
                 description = content.description,
                 members = content.members.map { it.member },
                 currency = content.currency,
             )
+
+            if (error == null) _isCreated.value = true else _showError.send(error)
+        } finally {
+            _isCreating.value = false
         }
     }
 
@@ -251,13 +280,10 @@ class CreateGroupViewModel(
         }
     }
 
-    fun updateCurrency(name: String, symbol: String, hasSubUnits: Boolean) {
+    /** Picks [currency], one of [currencies], kept as the catalogue holds it, as the default one is. */
+    fun updateCurrency(currency: Currency) {
         updateContent {
-            it.copy(
-                currency = Currency(
-                    name = name, symbol = symbol, hasSubunits = hasSubUnits,
-                ),
-            )
+            it.copy(currency = currency)
         }
     }
 }
@@ -277,11 +303,52 @@ data class UserListState(
     val users: List<User> = emptyList(),
 )
 
-fun toggleableState(
-    selectedUuids: Set<String>,
-    totalUsers: Int,
-): ToggleableState = when {
-    totalUsers > 0 && selectedUuids.size == totalUsers -> ToggleableState.On
-    selectedUuids.isNotEmpty() -> ToggleableState.Indeterminate
-    else -> ToggleableState.Off
+/**
+ * Whether [this] holds a group to confirm: the user and somebody else in it, and a title and a
+ * description within [maxTitleLength] and [maxDescriptionLength].
+ */
+fun CreateGroupState.Content.canConfirm(maxTitleLength: Int, maxDescriptionLength: Int): Boolean =
+    members.size >= 2 &&
+        title.length in (1..maxTitleLength) &&
+        description.length in (0..maxDescriptionLength)
+
+/**
+ * How many members the group has with [selectedUuids] picked besides the user, who is in every
+ * group they create, so counts against the limit as much as anybody picked.
+ */
+fun memberCount(selectedUuids: Set<String>): Int = selectedUuids.size + 1
+
+/**
+ * Whether [uuid] can be picked, or unpicked: always once picked, so that the selection can still
+ * shrink once full, and otherwise while [selectedUuids] leaves room for one more within
+ * [maxMembers], the user included, see [memberCount].
+ */
+fun isSelectable(uuid: String, selectedUuids: Set<String>, maxMembers: Int): Boolean =
+    uuid in selectedUuids || memberCount(selectedUuids) < maxMembers
+
+/**
+ * [selected] with [uuid] taken out, or added when that keeps the group within [maxMembers], the
+ * user included: past the limit, picking one more does nothing, and the picker shows that card
+ * disabled, see [isSelectable].
+ */
+fun toggledSelection(
+    selected: Set<String>,
+    uuid: String,
+    maxMembers: Int,
+): Set<String> = when {
+    uuid in selected -> selected - uuid
+    memberCount(selected) < maxMembers -> selected + uuid
+    else -> selected
 }
+
+/**
+ * The members of [members] the form keeps once [selectedUuids] are picked besides the user,
+ * [selfUuid], in the order it listed them: the user, whatever is picked, and whoever is still
+ * picked. Whoever is picked and not listed yet comes after them.
+ */
+fun keptMembers(
+    members: List<GroupMemberWithFullName>,
+    selfUuid: String,
+    selectedUuids: Set<String>,
+): List<GroupMemberWithFullName> =
+    members.filter { it.member.userUuid == selfUuid || it.member.userUuid in selectedUuids }

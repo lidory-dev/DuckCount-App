@@ -32,8 +32,9 @@ fun CurrencyDropDownMenu(
     currency: String,
     currencies: List<Currency>,
     currencyDisplayName: (String) -> String,
-    onValueChange: (String, String, Boolean) -> Unit,
+    onValueChange: (Currency) -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val focusManager = LocalFocusManager.current
     var expanded by remember { mutableStateOf(false) }
@@ -44,13 +45,14 @@ fun CurrencyDropDownMenu(
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = {
-                expanded = !expanded
+                if (enabled) expanded = !expanded
             },
         ) {
             DuckCountTextField(
                 value = currency,
                 onValueChange = { },
                 readOnly = true,
+                enabled = enabled,
                 trailingIcon = {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                 },
@@ -85,7 +87,7 @@ fun CurrencyDropDownMenu(
                             )
                         },
                         onClick = {
-                            onValueChange(currency.name, currency.symbol, currency.hasSubunits)
+                            onValueChange(currency)
                             expanded = false
                             focusManager.clearFocus()
                         },

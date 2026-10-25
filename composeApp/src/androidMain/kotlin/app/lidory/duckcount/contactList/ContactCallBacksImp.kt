@@ -139,7 +139,7 @@ class ContactCallBacksImp(
 
         // Nothing to tell the user about a failure: they keep seeing what they already
         // had, which is what caching it is for, and the next refresh tries again.
-        contactSync.sync().onError { error ->
+        contactSync.sync().failure?.let { error ->
             Log.w(TAG, "refreshContacts: could not sync the contacts: $error")
         }
 

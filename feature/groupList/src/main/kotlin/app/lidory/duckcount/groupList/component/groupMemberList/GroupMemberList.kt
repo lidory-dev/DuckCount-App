@@ -10,13 +10,17 @@ import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 
 fun LazyListScope.groupMemberList(
     members: List<GroupMemberWithFullName>,
+    maxMembers: Int,
+    enabled: Boolean,
     onModifyMemberList: () -> Unit,
     removeMember: (GroupMember) -> Unit,
     authenticatedUserUuid: String?,
 ) {
     item {
         GroupMemberHeader(
-            isMemberListEmpty = members.isEmpty(),
+            numberOfMembers = members.size,
+            maxMembers = maxMembers,
+            enabled = enabled,
             onModifyMemberList = onModifyMemberList,
         )
     }
@@ -47,6 +51,7 @@ fun LazyListScope.groupMemberList(
             member = memberWithFullName.member,
             memberFullName = memberWithFullName.fullName,
             removeMember = removeMember,
+            enabled = enabled,
         )
     }
 }

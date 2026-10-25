@@ -4,11 +4,11 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.Headers
-import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import networking.DuckCountClient
 import networking.DuckCountRoutes
+import networking.retryAfterSeconds
 import util.Error
 import util.NetworkError
 import util.Result
@@ -24,13 +24,6 @@ const val MAX_ACKNOWLEDGEMENT_BATCH = 100
  * [MessageLimitScope].
  */
 private const val RATE_LIMIT_SCOPE_HEADER = "X-Rate-Limit-Scope"
-
-/**
- * How long a `429` whose `Retry-After` does not read as the server writes it is taken to hold
- * for: a minute, the shortest window the server has. A resend that comes too early is refused
- * again, with the headers that say when.
- */
-private const val UNREAD_RETRY_AFTER_SECONDS = 60L
 
 /**
  * Remote data source for the caller's direct messages.
@@ -148,13 +141,12 @@ internal fun refusalOf(status: HttpStatusCode, headers: Headers): SendDirectMess
     }
 
 /**
- * The limit a `429` from `POST /messages` names: `Retry-After` in whole seconds, and
- * `recipient` or `sender` in `X-Rate-Limit-Scope`, as the server writes them. A scope that
- * reads otherwise is taken for the sender's, which holds back the most, and a `Retry-After`
- * for [UNREAD_RETRY_AFTER_SECONDS].
+ * The limit a `429` from `POST /messages` names: `Retry-After` in whole seconds, see
+ * [retryAfterSeconds], and `recipient` or `sender` in `X-Rate-Limit-Scope`, as the server writes
+ * them. A scope that reads otherwise is taken for the sender's, which holds back the most.
  */
 internal fun Headers.toRateLimited(): SendDirectMessageError.RateLimited =
     SendDirectMessageError.RateLimited(
-        retryAfterSeconds = get(HttpHeaders.RetryAfter)?.toLongOrNull() ?: UNREAD_RETRY_AFTER_SECONDS,
+        retryAfterSeconds = retryAfterSeconds(),
         scope = if (get(RATE_LIMIT_SCOPE_HEADER) == "recipient") MessageLimitScope.RECIPIENT else MessageLimitScope.SENDER,
     )

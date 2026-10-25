@@ -33,12 +33,14 @@ data class FinishAccountDeletionRequestBody(
     val credentialFinalizationBytes: String,
 ) {
     /**
-     * The MLS commits taking the user out of the groups the server holds, one for each group
-     * they would leave somebody behind in, which the server wants exactly.
+     * The MLS commits taking the user out of the groups the server holds, at most one for each
+     * group they leave somebody behind in.
      *
-     * Always none: the app is a member of no group the server knows of. The MLS groups it builds
-     * are the channels between two users, which the server never hears of, and the user's own
-     * groups live on this device alone.
+     * Always none, which the server takes: a commit there is the client's to give or not, since
+     * an invitee who never joined a group has no MLS state to build one from, and the user leaves
+     * every group all the same, with nothing relayed to its members. Nothing here builds one yet,
+     * so the members' groups keep the user's leaf until removing a member is something the app
+     * does.
      */
     @OptIn(ExperimentalSerializationApi::class)
     @EncodeDefault

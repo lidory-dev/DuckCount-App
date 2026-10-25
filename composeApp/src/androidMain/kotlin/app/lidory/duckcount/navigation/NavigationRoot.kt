@@ -64,6 +64,7 @@ fun NavigationRoot(
     modifier: Modifier = Modifier,
     backStack: NavBackStack<NavKey>,
     resumeRegistration: PendingProfile? = null,
+    openGroups: Boolean = false,
 ) {
     val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>()
 
@@ -101,6 +102,7 @@ fun NavigationRoot(
                             Dashboard(
                                 animatedVisibilityScope = LocalNavAnimatedContentScope.current,
                                 sharedTransitionScope = this@SharedTransitionLayout,
+                                openGroups = openGroups,
                                 navigateToExpenseDetailScreen = { expenseUuid, groupUuid ->
                                     backStack.add(
                                         ExpenseDetailScreenKey(

@@ -1,6 +1,5 @@
 package app.lidory.duckcount.groupList.component
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -27,33 +26,40 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.state.ToggleableState
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedButton
-import app.lidory.duckcount.android.ui.composable.checkbox.SelectAllPill
 import app.lidory.duckcount.android.ui.composable.checkbox.UserSelectableCard
 import app.lidory.duckcount.android.ui.composable.fullscreendialog.FullScreenDialog
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.R
 import app.lidory.duckcount.groupList.model.User
+import app.lidory.duckcount.groupList.viewmodel.isSelectable
+import app.lidory.duckcount.groupList.viewmodel.memberCount
 import app.lidory.duckcount.android.ui.R as androidUiR
 
+/**
+ * Picks the members of a group besides the user, from their contacts: [selectedUuids] never holds
+ * the user, who is in the group whatever is picked, and counts against [maxMembers] all the same.
+ *
+ * No "Select all", as for a one-time expense: the user can have more contacts than a group holds,
+ * which selecting them all would go past.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroupMemberFullScreenDialog(
     modifier: Modifier = Modifier,
     isDialogShown: Boolean,
-    onSelectUsers: (List<String>) -> Unit,
+    onSelectUsers: (Set<String>) -> Unit,
     onDismissRequest: () -> Unit,
     userList: List<User>,
     searchQuery: String,
     clearSearchQuery: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
-    toggleSelectAllUsers: () -> Unit,
     toggleSelectedUser: (User) -> Unit,
-    toggleableListState: ToggleableState,
     selectedUuids: Set<String>,
+    maxMembers: Int,
 ) {
     val focusManager = LocalFocusManager.current
 
@@ -100,7 +106,7 @@ fun GroupMemberFullScreenDialog(
                         .padding(horizontal = Padding.medium)
                         .padding(bottom = Padding.extraLarge),
                     onClick = {
-                        onSelectUsers(selectedUuids.toList())
+                        onSelectUsers(selectedUuids)
                         onDismissRequest()
                     },
                     colors = ButtonDefaults.buttonColors()
@@ -130,6 +136,22 @@ fun GroupMemberFullScreenDialog(
                     focusManager = focusManager,
                 )
 
+                // Above the list rather than in it, so that it stays in view while scrolling, and
+                // shown while searching too, since the cards not selected are disabled once the
+                // limit is reached.
+                val count = memberCount(selectedUuids = selectedUuids)
+
+                Text(
+                    modifier = Modifier.align(Alignment.End),
+                    text = pluralStringResource(
+                        R.plurals.selected_members_out_of_limit,
+                        count,
+                        count,
+                        maxMembers,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
                 if (userList.isEmpty()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -149,24 +171,6 @@ fun GroupMemberFullScreenDialog(
                         ),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        item {
-                            AnimatedVisibility(
-                                visible = searchQuery.isBlank(),
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.End,
-                                ) {
-                                    SelectAllPill(
-                                        toggleSelectAllUsers = toggleSelectAllUsers,
-                                        toggleableListState = toggleableListState,
-                                    )
-                                }
-                            }
-                        }
-
                         items(
                             items = userList,
                             key = { user -> user.uuid },
@@ -182,6 +186,11 @@ fun GroupMemberFullScreenDialog(
                                 toggleSelectedUser = { toggleSelectedUser(user) },
                                 fullName = user.fullName,
                                 isChecked = selectedUuids.contains(user.uuid),
+                                enabled = isSelectable(
+                                    uuid = user.uuid,
+                                    selectedUuids = selectedUuids,
+                                    maxMembers = maxMembers,
+                                ),
                             )
                         }
                     }

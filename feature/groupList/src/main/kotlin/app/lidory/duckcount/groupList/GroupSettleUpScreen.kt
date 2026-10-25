@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.constant.Padding
@@ -53,7 +54,7 @@ fun GroupSettleUpScreen(
                         if (transaction.creditorUuid == state.authenticatedUserUuid) {
                             SettlementCard(
                                 modifier = Modifier.padding(Padding.medium),
-                                debtorFullName = transaction.debtorFullName,
+                                debtorFullName = transaction.debtorFullName ?: stringResource(R.string.unknown_member),
                                 amount = transaction.amount,
                                 onValidateSettlement = {
                                     viewModel.validateSettlement(
@@ -66,7 +67,7 @@ fun GroupSettleUpScreen(
                         } else {
                             DebtCard(
                                 modifier = Modifier.padding(Padding.medium),
-                                creditorFullName = transaction.creditorFullName,
+                                creditorFullName = transaction.creditorFullName ?: stringResource(R.string.unknown_member),
                                 amount = transaction.amount,
                             )
                         }

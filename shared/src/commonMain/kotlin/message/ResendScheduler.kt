@@ -15,6 +15,10 @@ package message
  * it again for when that one reopens; one that comes too late holds back whatever could have
  * gone out meanwhile.
  *
+ * A group creation the server has not taken books it too, refused for the limit on creations or
+ * not answered at all, and before it first goes out, see `group.GroupCreationSender`: nothing else
+ * would send it again before the next sync either.
+ *
  * Bound on Android, which runs the sync a push starts, see `PushWork.enqueueResend` in
  * `:composeApp`; a no-op on iOS, which sends no direct message yet.
  */

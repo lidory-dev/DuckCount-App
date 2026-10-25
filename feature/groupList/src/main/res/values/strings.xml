@@ -2,7 +2,6 @@
 <resources>
     <string name="you_are_not_part_of_any_group">You are not part of any group</string>
     <string name="description_cant_exceed_max">Description too long (%1$s/%2$s)</string>
-    <string name="members">Members</string>
     <string name="select_new_members">Select new members</string>
     <string name="create_a_group">Create a group</string>
     <string name="expenses">Expenses</string>
@@ -20,4 +19,37 @@
     <string name="you_are_all_settled_up">You’re all settled up</string>
     <string name="everything_is_balanced">Everything is balanced</string>
     <string name="currency">Currency</string>
+
+    <!-- CreateOrEditGroupScreen -->
+    <plurals name="members_out_of_limit">
+        <item quantity="one">Member (%1$d/%2$d)</item>
+        <item quantity="other">Members (%1$d/%2$d)</item>
+    </plurals>
+    <string name="unknown_member">Someone else</string>
+    <string name="group_creation_error_no_internet">No connection, check your network and try again</string>
+    <string name="group_creation_error_timeout">The server took too long to answer, please try again</string>
+    <string name="group_creation_error_server_unreachable">Server is unreachable, please try again later</string>
+    <string name="group_creation_error_unknown">Something went wrong, please try again</string>
+    <plurals name="group_creation_error_not_contacts">
+        <item quantity="one">%1$s can’t be added to a group yet</item>
+        <item quantity="other">%1$s can’t be added to a group yet</item>
+    </plurals>
+    <plurals name="group_creation_error_identity_changed">
+        <item quantity="one">Your safety number with %1$s has changed, so the group was not created</item>
+        <item quantity="other">Your safety numbers with %1$s have changed, so the group was not created</item>
+    </plurals>
+    <plurals name="group_creation_error_unreachable">
+        <item quantity="one">%1$s can’t be invited right now, please try again later</item>
+        <item quantity="other">%1$s can’t be invited right now, please try again later</item>
+    </plurals>
+    <plurals name="group_creation_error_deleted">
+        <item quantity="one">%1$s deleted their account</item>
+        <item quantity="other">%1$s deleted their accounts</item>
+    </plurals>
+
+    <!-- GroupMemberFullScreenDialog -->
+    <plurals name="selected_members_out_of_limit">
+        <item quantity="one">%1$d/%2$d selected</item>
+        <item quantity="other">%1$d/%2$d selected</item>
+    </plurals>
 </resources>

@@ -58,6 +58,7 @@ class WakeDecisionTest {
         listOf(
             PushSignal.Kind.ONE_TIME_EXPENSE,
             PushSignal.Kind.ONE_TIME_EXPENSE_CHANGED,
+            PushSignal.Kind.GROUP_WELCOME,
             PushSignal.Kind.UNKNOWN,
         ).forEach { kind ->
             assertFalse(signal(kind, from = ALICE).mayWake(wakeList), "$kind")

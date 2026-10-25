@@ -30,6 +30,25 @@ interface UserDao {
     @Query("SELECT * FROM UserEntity WHERE fullName LIKE '%' ||:filter|| '%' AND isDeleted = false")
     fun getAllFiltered(filter: String): Flow<List<UserEntity>>
 
+    /**
+     * Who the user can put in a group they create, whose name contains [filter]: their contacts,
+     * removed and blocked ones aside, see
+     * [IdentityConflictEntity][database.data.local.entity.IdentityConflictEntity], with a name to
+     * show for them. Never the user themself, who is nobody's contact.
+     *
+     * A contact this device pinned no identity for is listed all the same, which only the MLS
+     * client can tell, and the creation names them, see `group.GroupCreationError.NotContacts`.
+     */
+    @Query(
+        """SELECT UserEntity.* FROM UserEntity
+        INNER JOIN ContactEntity ON ContactEntity.userUuid = UserEntity.uuid
+        WHERE UserEntity.fullName LIKE '%' ||:filter|| '%'
+        AND UserEntity.isDeleted = false
+        AND ContactEntity.isRemoved = false
+        AND UserEntity.uuid NOT IN (SELECT peerUuid FROM IdentityConflictEntity)""",
+    )
+    fun getInvitableFiltered(filter: String): Flow<List<UserEntity>>
+
     @Transaction
     @Query("SELECT * FROM UserEntity WHERE uuid = :uuid")
     fun getUserAsFlow(uuid: String): Flow<UserEntity?>

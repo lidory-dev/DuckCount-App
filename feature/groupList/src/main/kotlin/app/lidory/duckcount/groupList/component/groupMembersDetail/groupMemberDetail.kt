@@ -16,8 +16,10 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.groupList.R
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 
 fun LazyListScope.groupMemberDetail(
@@ -77,16 +79,18 @@ fun LazyItemScope.MemberDetailCard(
                 .fillMaxWidth()
                 .height(TextFieldDefaults.MinHeight),
         ) {
+            val displayName = member.fullName ?: stringResource(R.string.unknown_member)
+
             ProfilePictureCard(
                 modifier = Modifier.fillMaxHeight(),
                 // TODO: use profile picture
                 profilePicture = null,
                 uuid = member.member.userUuid,
-                fullName = member.fullName,
+                fullName = displayName,
             )
 
             Text(
-                text = member.fullName,
+                text = displayName,
             )
         }
     }

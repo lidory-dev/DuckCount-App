@@ -52,5 +52,11 @@
         <item quantity="one">%1$d shared expense updated</item>
         <item quantity="other">%1$d shared expenses updated</item>
     </plurals>
+    <string name="push_channel_groups_name">Groups</string>
+    <string name="push_channel_groups_description">Groups other people add you to.</string>
+    <string name="push_group_added_title">New group</string>
+    <string name="push_group_added_text">%1$s added you to the group “%2$s”</string>
+    <string name="push_group_added_text_unknown">Someone added you to the group “%1$s”</string>
+    <string name="push_group_added_text_locked">Someone added you to a group</string>
     <string name="settings">Settings</string>
 </resources>

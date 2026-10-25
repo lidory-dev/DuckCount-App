@@ -36,11 +36,14 @@ class UnansweredRequestTest {
         val keyPackage = alice.generateKeyPackages(oneTimeCount = 1u).oneTimeKeyPackages.single()
 
         val request = bob.createGroup(
+            groupUuid = null,
             invitees = listOf(InviteeKeyPackage(userUuid = ALICE, keyPackage = keyPackage)),
+            welcomePayload = null,
         )
 
         alice.joinGroup(
-            welcome = request.welcomes.single().welcome,
+            welcome = request.welcome,
+            expectedGroupUuid = null,
             expectedMembers = listOf(BOB),
             pinMembers = false,
         )

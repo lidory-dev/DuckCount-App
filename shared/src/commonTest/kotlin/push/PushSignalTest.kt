@@ -54,6 +54,14 @@ class PushSignalTest {
     }
 
     @Test
+    fun `parses a group welcome signal`() {
+        assertEquals(
+            PushSignal(kind = PushSignal.Kind.GROUP_WELCOME, from = ALICE),
+            PushSignal.parse("""{"type":"group_welcome","from":"$ALICE"}""".encodeToByteArray()),
+        )
+    }
+
+    @Test
     fun `reads a signal a newer server added as unknown`() {
         assertEquals(
             PushSignal(kind = PushSignal.Kind.UNKNOWN, from = ALICE),

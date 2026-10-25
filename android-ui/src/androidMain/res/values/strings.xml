@@ -22,4 +22,6 @@
     <string name="validate">Validate</string>
     <string name="modified_by">Modified by %1$s</string>
     <string name="date">%1$s, %2$s</string>
+    <string name="names_list_separator">", "</string>
+    <string name="names_list_last">%1$s and %2$s</string>
 </resources>

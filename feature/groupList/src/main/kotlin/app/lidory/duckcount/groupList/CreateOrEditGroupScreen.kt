@@ -1,9 +1,11 @@
 package app.lidory.duckcount.groupList
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.asPaddingValues
@@ -23,27 +25,35 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedButton
+import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
+import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.component.CurrencyDropDownMenu
 import app.lidory.duckcount.groupList.component.GroupMemberFullScreenDialog
 import app.lidory.duckcount.groupList.component.groupMemberList.groupMemberList
-import app.lidory.duckcount.groupList.model.GroupMember
+import app.lidory.duckcount.groupList.model.GroupCreationError
+import app.lidory.duckcount.groupList.model.message
 import app.lidory.duckcount.groupList.viewmodel.CreateGroupState
 import app.lidory.duckcount.groupList.viewmodel.CreateGroupViewModel
+import app.lidory.duckcount.groupList.viewmodel.canConfirm
 import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
 
@@ -56,31 +66,55 @@ fun CreateOrEditGroupScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val userListState by viewModel.usersState.collectAsStateWithLifecycle()
-    val selectionToggleState by viewModel.selectionToggleState.collectAsStateWithLifecycle()
     val selectedUuids by viewModel.selectedUuids.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val isCreating by viewModel.isCreating.collectAsStateWithLifecycle()
+    val isCreated by viewModel.isCreated.collectAsStateWithLifecycle()
+    val isGone by viewModel.isGone.collectAsStateWithLifecycle()
 
     val focusManager = LocalFocusManager.current
     val interactionSource = remember { MutableInteractionSource() }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    var pendingError by remember { mutableStateOf<GroupCreationError?>(null) }
+
+    // Do not allow navigating back while creating the group.
+    BackHandler(enabled = isCreating) {}
+
+    // Navigate back only once the group is created (see CreateGroupViewModel.isCreated), or the
+    // group being edited is gone (see CreateGroupViewModel.isGone), and on resuming: onBack does
+    // nothing until the screen is resumed, so a creation that completes while the app is in the
+    // background closes the screen once the user is back.
+    LifecycleResumeEffect(isCreated, isGone) {
+        if (isCreated || isGone) onBack()
+
+        onPauseOrDispose {}
+    }
+
+    // Tell why the creation failed, and who it was about.
+    LaunchedEffect(Unit) {
+        viewModel.showError.collect { pendingError = it }
+    }
+
+    pendingError?.let { error ->
+        val message = error.message()
+        LaunchedEffect(error) {
+            snackbarHostState.showSnackbar(message)
+            pendingError = null
+        }
+    }
+
     GroupMemberFullScreenDialog(
         isDialogShown = viewModel.isMemberDialogShown,
-        onSelectUsers = { uuids ->
-            viewModel.updateMembers(
-                uuids.map {
-                    GroupMember(userUuid = it, groupUuid = "", isAdmin = false)
-                },
-            )
-        },
+        onSelectUsers = { uuids -> viewModel.onMembersSelected(uuids) },
         onDismissRequest = { viewModel.hideMemberDialog() },
         userList = userListState.users,
         searchQuery = searchQuery,
         clearSearchQuery = { viewModel.clearSearchQuery() },
         onSearchQueryChange = { viewModel.updateSearchQuery(it) },
-        toggleSelectAllUsers = { viewModel.toggleSelectAllMembers() },
         toggleSelectedUser = { viewModel.toggleSelectedUser(it.uuid) },
-        toggleableListState = selectionToggleState,
         selectedUuids = selectedUuids,
+        maxMembers = viewModel.maxMembers,
     )
 
     Scaffold(
@@ -97,6 +131,7 @@ fun CreateOrEditGroupScreen(
                 },
                 navigationIcon = {
                     IconButton(
+                        enabled = !isCreating,
                         onClick = onBack,
                     ) {
                         Icon(
@@ -109,30 +144,45 @@ fun CreateOrEditGroupScreen(
         },
         bottomBar = {
             (state as? CreateGroupState.Content)?.let { content ->
-                DuckCountElevatedButton(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = Padding.medium)
-                        .padding(bottom = Padding.extraLarge),
-                    enabled = viewModel.isOwnerInMembers()
-                            && content.members.size >= 2
-                            && content.title.length in (1..viewModel.maxTitleLength)
-                            && content.description.length in (0..viewModel.maxDescriptionLength),
-                    colors = ButtonDefaults.buttonColors()
-                        .copy(containerColor = MaterialTheme.colorScheme.primary),
-                    onClick = {
-                        viewModel.groupUuid?.let {
-                            viewModel.updateGroup()
-                        } ?: run { viewModel.createGroup() }
+                // The snackbars above the button, in the bar rather than over the screen: the list
+                // running under the bar leaves room at its end for the bar's height, so its last
+                // rows can be scrolled clear of a snackbar as well as of the button, see
+                // DuckCountSnackbarHost.
+                Column {
+                    DuckCountSnackbarHost(hostState = snackbarHostState)
 
-                        onBack()
-                    },
-                ) {
-                    Text(
-                        modifier = Modifier.padding(Padding.small),
-                        text = stringResource(androidUiR.string.confirm),
-                    )
+                    DuckCountElevatedLoadingButton(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = Padding.medium)
+                            .padding(bottom = Padding.extraLarge),
+                        enabled = !isCreating
+                                && !isCreated
+                                && content.canConfirm(
+                                    maxTitleLength = viewModel.maxTitleLength,
+                                    maxDescriptionLength = viewModel.maxDescriptionLength,
+                                ),
+                        colors = ButtonDefaults.buttonColors()
+                            .copy(containerColor = MaterialTheme.colorScheme.primary),
+                        onClick = {
+                            if (viewModel.groupUuid != null) {
+                                viewModel.updateGroup()
+
+                                onBack()
+                            } else {
+                                // Navigation happens via viewModel.isCreated once the group is,
+                                // otherwise popping this screen cancels the creation under way.
+                                viewModel.createGroup()
+                            }
+                        },
+                        isLoading = isCreating,
+                    ) {
+                        Text(
+                            modifier = Modifier.padding(Padding.small),
+                            text = stringResource(androidUiR.string.confirm),
+                        )
+                    }
                 }
             }
         },
@@ -183,6 +233,7 @@ fun CreateOrEditGroupScreen(
                             DuckCountTextField(
                                 value = state.title,
                                 labelName = stringResource(androidUiR.string.title),
+                                enabled = !isCreating,
                                 onValueChange = { viewModel.updateTitle(title = it) },
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                                 focusManager = focusManager,
@@ -198,9 +249,8 @@ fun CreateOrEditGroupScreen(
                                     currency = viewModel.currencyDisplayName(state.currency.name),
                                     currencies = viewModel.currencies,
                                     currencyDisplayName = viewModel::currencyDisplayName,
-                                    onValueChange = { name, symbol, hasSubUnits ->
-                                        viewModel.updateCurrency(name, symbol, hasSubUnits)
-                                    },
+                                    onValueChange = viewModel::updateCurrency,
+                                    enabled = !isCreating,
                                 )
                             }
                         }
@@ -209,6 +259,7 @@ fun CreateOrEditGroupScreen(
                             DuckCountTextField(
                                 value = state.description,
                                 labelName = stringResource(androidUiR.string.description),
+                                enabled = !isCreating,
                                 onValueChange = { viewModel.updateDescription(description = it) },
                                 singleLine = false,
                                 maxLines = 5,
@@ -225,6 +276,8 @@ fun CreateOrEditGroupScreen(
 
                         groupMemberList(
                             members = state.members,
+                            maxMembers = viewModel.maxMembers,
+                            enabled = !isCreating,
                             authenticatedUserUuid = viewModel.getAuthenticatedUserUuid(),
                             onModifyMemberList = {
                                 viewModel.showMemberDialog()

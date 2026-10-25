@@ -3,6 +3,7 @@ package app.lidory.duckcount.expenseList.model
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import app.lidory.duckcount.android.ui.text.listedNames
 import app.lidory.duckcount.expenseList.R
 
 /**
@@ -36,17 +37,6 @@ data class DeletedBeneficiary(val userUuid: String, val fullName: String?)
 fun ExpenseSaveError.BeneficiariesDeleted.fullNames(): List<String>? =
     beneficiaries.mapNotNull { it.fullName }.takeIf { it.size == beneficiaries.size }
 
-/**
- * [names], at least one, as a sentence lists them: [separator] between all but the last, and
- * [lastPair], the language's "%1$s and %2$s", joining the others to the last, as in "Alice",
- * "Alice and Bob", "Alice, Bob and Carol".
- */
-fun listedNames(names: List<String>, separator: String, lastPair: String): String {
-    val others = names.dropLast(1)
-
-    return if (others.isEmpty()) names.single() else lastPair.format(others.joinToString(separator), names.last())
-}
-
 /** What the form says of [this]. */
 @Composable
 fun ExpenseSaveError.message(): String = when (this) {
@@ -65,11 +55,7 @@ fun ExpenseSaveError.message(): String = when (this) {
             pluralStringResource(
                 R.plurals.write_error_beneficiaries_deleted,
                 names.size,
-                listedNames(
-                    names = names,
-                    separator = stringResource(R.string.names_list_separator),
-                    lastPair = stringResource(R.string.names_list_last),
-                ),
+                listedNames(names = names),
             )
         }
     }

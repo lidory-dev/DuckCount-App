@@ -10,6 +10,7 @@ import uniffi.lib_duckcount.InviteeKeyPackage
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.MlsGroup
+import uniffi.lib_duckcount.WelcomeInspection
 import kotlin.io.encoding.Base64
 
 /** What reading an application message out of a group came to. */
@@ -47,9 +48,12 @@ internal sealed interface ApplicationMessageReading {
  * state is stored, so a message that was read has to be acted on, or kept, by the caller.
  *
  * Anything else, a Commit or a Proposal, is unreadable, and refused before it can change
- * the group. Every group this device holds is shared with one peer and never changes, and
- * the group a message is read in is whichever its sender named: the roster [joinGroupFrom]
- * checked would otherwise be theirs to change.
+ * the group. Every group a message is read in is shared with one peer and never changes,
+ * and which group that is, its sender names: the roster [joinGroupFrom] checked would
+ * otherwise be theirs to change. The user's groups of several members are the exception
+ * this device holds, which nothing reads in yet, and which a direct message naming one is
+ * never read in: the direct-message sync checks and reads under [group.withGroupJoinLock],
+ * which a group is joined and saved as one of them under, see [message.DirectMessageSync].
  */
 internal suspend fun MlsClient.readApplicationMessage(
     mlsGroupId: ByteArray,
@@ -125,6 +129,9 @@ internal suspend fun MlsClient.pruneKeyPackagesQuietly() {
  * Builds a group holding the user and [invitee], and returns it with the Welcome that lets
  * them in.
  *
+ * Its id is a channel's, derived from a nonce the library draws, which no group the server
+ * holds can have, see [joinGroupFrom].
+ *
  * One of the two operations [withGroup] cannot cover, its id being known to nobody until
  * it returns, so it carries its own dispatcher. Callers that build a group for a peer take
  * [withPeerLock] around the whole check-then-act instead, which is what keeps two of these
@@ -132,7 +139,82 @@ internal suspend fun MlsClient.pruneKeyPackagesQuietly() {
  */
 internal suspend fun MlsClient.createGroupWith(invitee: InviteeKeyPackage): GroupCreation =
     withContext(Dispatchers.IO) {
-        createGroup(invitees = listOf(invitee))
+        createGroup(groupUuid = null, invitees = listOf(invitee), welcomePayload = null)
+    }
+
+/**
+ * Builds the group the server is to hold under [groupUuid], holding the user and every one of
+ * [invitees], and returns it with the one Welcome that lets them all in, carrying [welcomePayload]
+ * to each of them.
+ *
+ * What a group the user creates is built with, as [createGroupWith] builds a channel. Its id is
+ * derived from [groupUuid], which is what its invitees join it as, see [inspectGroupWelcome]. There
+ * is no group to lock until this returns, as there, so it carries its own dispatcher, and what
+ * stands in for the group lock around it is [group.withGroupsLock], held by the creation for the
+ * whole of it.
+ */
+internal suspend fun MlsClient.createGroupOf(
+    groupUuid: String,
+    invitees: List<InviteeKeyPackage>,
+    welcomePayload: ByteArray,
+): GroupCreation =
+    withContext(Dispatchers.IO) {
+        createGroup(groupUuid = groupUuid, invitees = invitees, welcomePayload = welcomePayload)
+    }
+
+/**
+ * Reads the Welcome to the group of several members the server lists as [groupUuid], [welcome],
+ * for who wrote it, who else is in the group and what it hands over, and stores nothing, see
+ * [MlsClient.inspectWelcome].
+ *
+ * What a group the user was added to is trusted or refused on before [joinGroupOf] stores it: a
+ * group once stored is never joined again, deleted or not, so a Welcome joined only to be refused,
+ * or left waiting, would leave its group unjoinable here. A Welcome to any group but [groupUuid]
+ * is refused as well, the library deriving the group's id from its UUID, which no channel or
+ * contact request can have. Any member can derive it too, and create a group of their own under
+ * [groupUuid], whose Welcome this would read as one to that group: [welcome] is to be the one the
+ * server wrote with the group, see [group.GroupSync]. The members' identities are checked against
+ * those pinned for them, so a writer this device pinned is the one who signed it.
+ *
+ * Throws [MlsException] as the join does for a Welcome that is no way in, or when storage fails.
+ */
+internal suspend fun MlsClient.inspectGroupWelcome(welcome: ByteArray, groupUuid: String): WelcomeInspection =
+    withContext(Dispatchers.IO) {
+        inspectWelcome(welcome = welcome, expectedGroupUuid = groupUuid)
+    }
+
+/**
+ * Joins the group of several members the server lists as [groupUuid], from the Welcome [welcome],
+ * and returns its id, pinning nobody.
+ *
+ * What a group the user was added to is joined with, as [joinGroupFrom] joins a channel, once
+ * [inspectGroupWelcome] found it worth joining. The join is refused unless the Welcome is to
+ * [groupUuid], as the inspection checked, and the group holds exactly the user and
+ * [expectedMembers], the members that inspection read in the Welcome's tree, which whoever wrote
+ * it signed. Not those the server lists: that list is today's, the tree the one of the epoch the
+ * Welcome opens, and a member who deleted their account since is gone from the one and still in
+ * the other, nobody committing their removal yet.
+ *
+ * Those this device pinned an identity for are checked against it, the others left unpinned:
+ * theirs is whatever key package the server served whoever wrote the Welcome, which is not
+ * something to take its word for, and nothing here is read from them.
+ *
+ * Carries its own dispatcher, there being no group to lock until the join has stored it, as for
+ * [joinGroupFrom], and what stands in for the group lock around it is [group.withGroupsLock],
+ * held by the group sync for the whole of it.
+ */
+internal suspend fun MlsClient.joinGroupOf(
+    welcome: ByteArray,
+    groupUuid: String,
+    expectedMembers: List<String>,
+): ByteArray =
+    withContext(Dispatchers.IO) {
+        joinGroup(
+            welcome = welcome,
+            expectedGroupUuid = groupUuid,
+            expectedMembers = expectedMembers,
+            pinMembers = false,
+        )
     }
 
 /**
@@ -141,7 +223,10 @@ internal suspend fun MlsClient.createGroupWith(invitee: InviteeKeyPackage): Grou
  *
  * [peerUuid] is who the server says sent the Welcome, which it knows from their session.
  * The join is refused unless the group holds exactly the user and [peerUuid], so a
- * Welcome from one user cannot make a channel to another, or seat anybody else in it.
+ * Welcome from one user cannot make a channel to another, or seat anybody else in it, and
+ * unless its id is a channel's, see [createGroupWith]: a Welcome given the id of a group the
+ * server holds, which every member of that group reads, would otherwise be stored under it,
+ * and leave that group refused as already joined, see [inspectGroupWelcome].
  *
  * The other operation [withGroup] cannot cover: the id is only known once the join has
  * stored it, which is also why the id a caller was *told* the group has is worth nothing
@@ -153,7 +238,12 @@ internal suspend fun MlsClient.joinGroupFrom(
     pinPeer: Boolean,
 ): ByteArray =
     withContext(Dispatchers.IO) {
-        joinGroup(welcome = welcome, expectedMembers = listOf(peerUuid), pinMembers = pinPeer)
+        joinGroup(
+            welcome = welcome,
+            expectedGroupUuid = null,
+            expectedMembers = listOf(peerUuid),
+            pinMembers = pinPeer,
+        )
     }
 
 /**
@@ -285,7 +375,8 @@ internal fun MlsException.isRetryable(): Boolean =
  * through a function above. The two this cannot cover are creating and joining a group,
  * whose id is either known to nobody yet or known only once the join has stored it: those
  * are [createGroupWith] and [joinGroupFrom], and what stands in for the group lock around
- * them is [withPeerLock], which locks the peer instead.
+ * them is [withPeerLock], which locks the peer instead, and [createGroupOf] and
+ * [joinGroupOf], around which [group.withGroupsLock] does.
  */
 private suspend fun <T> MlsClient.withGroup(mlsGroupId: ByteArray, block: (MlsGroup) -> T): T =
     withGroupLock(mlsGroupId = mlsGroupId) {

@@ -302,24 +302,15 @@ class DirectChannelRepository(
             )
         }
 
-        val welcome = creation.welcomes.firstOrNull { it.userUuid == peerUuid }?.welcome
-
-        if (welcome == null) {
-            // A group the peer was never given a way into is of no use to anybody.
-            client.deleteGroupQuietly(mlsGroupId = creation.mlsGroupId)
-
-            return Result.Error(DirectChannelError.Unreachable)
-        }
-
         record(
             client = client,
             peerUuid = peerUuid,
             stored = stored,
             mlsGroupId = creation.mlsGroupId,
-            pendingWelcome = welcome,
+            pendingWelcome = creation.welcome,
         )
 
-        return Result.Success(DirectChannel(mlsGroupId = creation.mlsGroupId, welcome = welcome))
+        return Result.Success(DirectChannel(mlsGroupId = creation.mlsGroupId, welcome = creation.welcome))
     }
 }
 

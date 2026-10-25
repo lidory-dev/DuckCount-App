@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="you_are_not_part_of_any_group">Aucun groupe pour le moment</string>
     <string name="description_cant_exceed_max">Description trop longue (%1$s/%2$s)</string>
-    <string name="members">Membres</string>
     <string name="select_new_members">Sélectionner de nouveaux membres</string>
     <string name="create_a_group">Créer un groupe</string>
     <string name="expenses">Dépenses</string>
@@ -20,4 +19,37 @@
     <string name="you_are_all_settled_up">Tout est remboursé</string>
     <string name="everything_is_balanced">Les comptes sont équilibrés</string>
     <string name="currency">Devise</string>
+
+    <!-- CreateOrEditGroupScreen -->
+    <plurals name="members_out_of_limit">
+        <item quantity="one">Membre (%1$d/%2$d)</item>
+        <item quantity="other">Membres (%1$d/%2$d)</item>
+    </plurals>
+    <string name="unknown_member">Quelqu’un d’autre</string>
+    <string name="group_creation_error_no_internet">Aucune connexion. Vérifiez votre connexion et réessayez</string>
+    <string name="group_creation_error_timeout">Le serveur a mis trop de temps à répondre, réessayez plus tard</string>
+    <string name="group_creation_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
+    <string name="group_creation_error_unknown">Une erreur est survenue, réessayez</string>
+    <plurals name="group_creation_error_not_contacts">
+        <item quantity="one" tools:ignore="ImpliedQuantity">Impossible d’ajouter %1$s à un groupe pour le moment</item>
+        <item quantity="other">Impossible d’ajouter %1$s à un groupe pour le moment</item>
+    </plurals>
+    <plurals name="group_creation_error_identity_changed">
+        <item quantity="one" tools:ignore="ImpliedQuantity">Votre numéro de sécurité avec %1$s a changé, le groupe n’a pas été créé</item>
+        <item quantity="other">Vos numéros de sécurité avec %1$s ont changé, le groupe n’a pas été créé</item>
+    </plurals>
+    <plurals name="group_creation_error_unreachable">
+        <item quantity="one" tools:ignore="ImpliedQuantity">Impossible d’inviter %1$s pour le moment, réessayez plus tard</item>
+        <item quantity="other">Impossible d’inviter %1$s pour le moment, réessayez plus tard</item>
+    </plurals>
+    <plurals name="group_creation_error_deleted">
+        <item quantity="one" tools:ignore="ImpliedQuantity">%1$s a supprimé son compte</item>
+        <item quantity="other">%1$s ont supprimé leur compte</item>
+    </plurals>
+
+    <!-- GroupMemberFullScreenDialog -->
+    <plurals name="selected_members_out_of_limit">
+        <item quantity="one">%1$d/%2$d sélectionné</item>
+        <item quantity="other">%1$d/%2$d sélectionnés</item>
+    </plurals>
 </resources>

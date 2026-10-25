@@ -60,8 +60,6 @@
         <item quantity="one">A beneficiary deleted their account</item>
         <item quantity="other">%1$d beneficiaries deleted their accounts</item>
     </plurals>
-    <string name="names_list_separator">", "</string>
-    <string name="names_list_last">%1$s and %2$s</string>
 
     <!-- ErrorCard -->
     <string name="no_beneficiaries">An expense must have at least one beneficiary</string>

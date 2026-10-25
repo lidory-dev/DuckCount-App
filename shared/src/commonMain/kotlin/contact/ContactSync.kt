@@ -9,6 +9,19 @@ import util.EmptyResult
 import util.Result
 import util.onError
 
+/** What one [ContactSync.sync] came to. */
+class ContactSyncPass(
+    /**
+     * Whether everything the server held for the user was taken in, whatever came of the backup
+     * after it: whoever became a contact of the user by then is one on this device too, see
+     * [group.GroupSync.sync].
+     */
+    val isTakenIn: Boolean,
+
+    /** The first thing that kept the sync from doing all it had to, or null when nothing did. */
+    val failure: ContactSyncError?,
+)
+
 /**
  * Brings this device's contacts and contact requests in line with everything the
  * server is holding for the user, and carries what changed back to the vault.
@@ -27,22 +40,26 @@ class ContactSync(
     private val wakeList: WakeList,
 ) {
     /**
-     * Takes in what the server holds for the user, then [backUp]s what came of it.
+     * Takes in what the server holds for the user, then [backUp]s what came of it, and says
+     * whether all of it was taken in, see [ContactSyncPass].
      *
      * Every step is attempted even when one fails, and the first failure is
      * reported: they are independent of each other, and whatever did not get done is
      * picked up by the next sync.
      */
-    suspend fun sync(): EmptyResult<ContactSyncError> {
+    suspend fun sync(): ContactSyncPass {
         var failure: ContactSyncError? = null
 
         contactRequestRepository.refresh().onError { failure = failure ?: it }
 
         directMessageSync.sync().onError { failure = failure ?: it.toContactSyncError() }
 
+        // The only steps that bring anybody in: the backup failing says nothing of who is a contact.
+        val isTakenIn = failure == null
+
         backUp().onError { failure = failure ?: it }
 
-        return failure?.let { Result.Error(it) } ?: Result.Success(Unit)
+        return ContactSyncPass(isTakenIn = isTakenIn, failure = failure)
     }
 
     /**

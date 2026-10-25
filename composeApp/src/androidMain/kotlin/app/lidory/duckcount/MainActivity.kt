@@ -15,6 +15,12 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
  */
 const val EXTRA_OPEN_CONTACT_REQUESTS = "app.lidory.duckcount.extra.OPEN_CONTACT_REQUESTS"
 
+/**
+ * Set on the intent a notification about a group the user was added to opens, so the app lands
+ * on the group list, where the group is, rather than on the expenses.
+ */
+const val EXTRA_OPEN_GROUPS = "app.lidory.duckcount.extra.OPEN_GROUPS"
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // Must run before super.onCreate. Backports the Android 12 splash to API 24+.
@@ -48,9 +54,10 @@ class MainActivity : ComponentActivity() {
         // its back stack restored, request list included, and would push it a second time.
         val openContactRequests = savedInstanceState == null &&
             intent.getBooleanExtra(EXTRA_OPEN_CONTACT_REQUESTS, false)
+        val openGroups = savedInstanceState == null && intent.getBooleanExtra(EXTRA_OPEN_GROUPS, false)
 
         setContent {
-            App(openContactRequests = openContactRequests)
+            App(openContactRequests = openContactRequests, openGroups = openGroups)
         }
     }
 }

@@ -93,6 +93,7 @@ internal class UsersWritten : UserDao {
     override suspend fun remove(userUuid: String) = error("Not used here")
     override fun getAllAsFlow(): Flow<List<UserEntity>> = error("Not used here")
     override fun getAllFiltered(filter: String): Flow<List<UserEntity>> = error("Not used here")
+    override fun getInvitableFiltered(filter: String): Flow<List<UserEntity>> = error("Not used here")
     override fun getUserAsFlow(uuid: String): Flow<UserEntity?> = error("Not used here")
     override fun getUserFullNameAsFlow(uuid: String): Flow<String?> = error("Not used here")
     override suspend fun getFullName(uuid: String): String? = error("Not used here")

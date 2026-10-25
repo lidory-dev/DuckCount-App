@@ -52,8 +52,7 @@ class GroupBalanceCallBacksImpl(
                         groupUuid = groupMember.groupUuid,
                         isAdmin = groupMember.isAdmin,
                     ),
-                    // TODO: Show that the username was not found?
-                    fullName = userRepository.getFullName(groupMember.userUuid).first() ?: groupMember.userUuid,
+                    fullName = userRepository.getFullName(groupMember.userUuid).first(),
                 )
             }
         }

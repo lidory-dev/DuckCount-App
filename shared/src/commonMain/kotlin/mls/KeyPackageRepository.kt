@@ -3,6 +3,7 @@ package mls
 import authenticationUtils.getKeyPackagesPublishedAt
 import authenticationUtils.setKeyPackagesPublishedAt
 import database.data.repository.ContactRequestRepository
+import group.GroupSync
 import message.DirectMessageSync
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +46,7 @@ class KeyPackageRepository(
     private val mlsIdentityRepository: MlsIdentityRepository,
     private val contactRequestRepository: ContactRequestRepository,
     private val directMessageSync: DirectMessageSync,
+    private val groupSync: GroupSync,
 ) {
 
     /** Whether [publishIfDue] has already tried in this process. */
@@ -132,10 +134,11 @@ class KeyPackageRepository(
      *
      * A Welcome waits there until this device reads it, and how long that takes is up to the
      * device: a direct message until the next sync, a contact request until the contacts are
-     * next refreshed, however long that is. Once neither holds anything unread, every Welcome
-     * sealed to a key package expired long enough to be pruned has been read: one is only
-     * built from a key package still on offer, and peers stop attaching it within days.
-     * Otherwise pruning waits for the next publication.
+     * next refreshed, a group's until the groups are next synced, however long that is. Once
+     * none of them holds anything unread, every Welcome sealed to a key package expired long
+     * enough to be pruned has been read: one is only built from a key package still on offer,
+     * and peers stop attaching it within days. Otherwise pruning waits for the next
+     * publication.
      *
      * Only after the publications of [publishIfDue], which is when the secrets pile up: after
      * a login or a registration there is nothing to prune yet.
@@ -144,6 +147,8 @@ class KeyPackageRepository(
         if (!directMessageSync.hasNothingWaiting()) return
 
         if (!contactRequestRepository.hasOpenedEveryRequest()) return
+
+        if (!groupSync.hasNoWelcomeWaiting()) return
 
         val client = (mlsIdentityRepository.client() as? Result.Success)?.data ?: return
 

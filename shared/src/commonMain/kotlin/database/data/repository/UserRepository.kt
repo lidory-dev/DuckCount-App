@@ -48,6 +48,13 @@ class UserRepository(
         }
     }
 
+    /** Who the user can put in a group they create, see [UserDao.getInvitableFiltered]. */
+    fun getInvitableFiltered(filter: String): Flow<List<User>> {
+        return userDao.getInvitableFiltered(filter = filter).map { userEntities ->
+            userEntities.map { it.toUser() }
+        }
+    }
+
     fun get(uuid: String): Flow<User> {
         return userDao.getUserAsFlow(uuid = uuid).filterNotNull().map { userEntity ->
             userEntity.toUser()

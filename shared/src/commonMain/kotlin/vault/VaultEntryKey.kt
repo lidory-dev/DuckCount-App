@@ -37,7 +37,15 @@ enum class VaultEntryKey(val wireName: String) {
      */
     KEY_RING("key_ring"),
 
-    /** The master key of one MLS group. Collection, keyed by the group's UUID. */
+    /**
+     * The key of each group the user is a member of, which the group's fields on the server are
+     * sealed under, see `group.GroupSealing`. Collection, keyed by the group's UUID, each item
+     * sealed under this part's key and bound to its UUID, see `VaultRepository.setGroupKey`.
+     *
+     * A log-out wipes the local database, and the device's copy of each key with it, while the
+     * Welcome that handed a key over is acknowledged once read: without this entry, nothing would
+     * open a group's fields again.
+     */
     GROUP_MASTER_KEY("group_master_key"),
 
     /**

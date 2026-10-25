@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.constant.Padding
@@ -63,7 +64,7 @@ fun GroupBalanceScreen(
                         key = { it.member.member.userUuid },
                     ) { member ->
                         BalanceGraphItem(
-                            fullName = member.member.fullName,
+                            fullName = member.member.fullName ?: stringResource(R.string.unknown_member),
                             debt = member.balance.toBigDecimal(),
                             maxAmount = membersWithBalanceSorted.maxOf { it.balance.toBigDecimal().abs() },
                             currencySymbol = state.currencySymbol,

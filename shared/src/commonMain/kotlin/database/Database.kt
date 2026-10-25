@@ -28,6 +28,7 @@ import database.data.local.entity.ChangeFeedEntity
 import database.data.local.entity.ContactEntity
 import database.data.local.entity.ContactRequestEntity
 import database.data.local.entity.CurrencyEntity
+import database.data.local.entity.DeclinedGroupEntity
 import database.data.local.entity.DirectChannelEntity
 import database.data.local.entity.ExpenseEntity
 import database.data.local.entity.GroupEntity
@@ -42,6 +43,7 @@ import database.data.local.entity.OneTimeExpenseSettledMarkEntity
 import database.data.local.entity.OutgoingContactRequestEntity
 import database.data.local.entity.OwedExpenseKeyEntity
 import database.data.local.entity.PendingExpenseKeyEntity
+import database.data.local.entity.PendingGroupCreationEntity
 import database.data.local.entity.PendingProfileKeyEntity
 import database.data.local.entity.ProfileKeyRequestBudgetEntity
 import database.data.local.entity.UnverifiedExpenseKeyEntity
@@ -61,6 +63,8 @@ import org.koin.mp.KoinPlatform.getKoin
         BeneficiaryEntity::class,
         GroupEntity::class,
         GroupMemberEntity::class,
+        PendingGroupCreationEntity::class,
+        DeclinedGroupEntity::class,
         ContactRequestEntity::class,
         OutgoingContactRequestEntity::class,
         ContactEntity::class,

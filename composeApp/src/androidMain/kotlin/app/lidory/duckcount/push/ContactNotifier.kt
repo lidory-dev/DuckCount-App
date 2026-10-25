@@ -1,17 +1,12 @@
 package app.lidory.duckcount.push
 
-import android.Manifest
 import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
 import androidx.work.ForegroundInfo
 import app.lidory.duckcount.EXTRA_OPEN_CONTACT_REQUESTS
 import app.lidory.duckcount.MainActivity
@@ -70,7 +65,7 @@ class ContactNotifier(
     fun notifyWhileLocked(signal: PushSignal) {
         if (signal.kind != PushSignal.Kind.CONTACT_REQUEST) return
 
-        createChannel(
+        context.createNotificationChannel(
             id = CONTACTS_CHANNEL,
             name = R.string.push_channel_contacts_name,
             description = R.string.push_channel_contacts_description,
@@ -107,7 +102,7 @@ class ContactNotifier(
         var standInIsFree = arrivals.any { it.kind == ContactArrival.Kind.REQUEST } &&
             standIns.takeDown(kind = StandIns.Kind.CONTACT_REQUEST)
 
-        createChannel(
+        context.createNotificationChannel(
             id = CONTACTS_CHANNEL,
             name = R.string.push_channel_contacts_name,
             description = R.string.push_channel_contacts_description,
@@ -254,7 +249,7 @@ class ContactNotifier(
      * and a foreground service must show something.
      */
     fun syncForegroundInfo(): ForegroundInfo {
-        createChannel(
+        context.createNotificationChannel(
             id = SYNC_CHANNEL,
             name = R.string.push_channel_sync_name,
             description = R.string.push_channel_sync_description,
@@ -271,37 +266,9 @@ class ContactNotifier(
         return ForegroundInfo(SYNC_NOTIFICATION, notification)
     }
 
-    /**
-     * Posts one notification, if the user has left the app able to.
-     *
-     * The check sits against the call rather than at the top of the callers: it is
-     * the form the platform's own tooling recognizes, and the permission can be taken
-     * away between one notification and the next.
-     */
+    /** Posts one notification, see [postIfPermitted], and records it once up. */
     private fun post(tag: String, id: Int, notification: Notification) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS,
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
-
-        NotificationManagerCompat.from(context).notify(tag, id, notification)
-
-        posted.record(tag = tag, id = id)
-    }
-
-    private fun createChannel(id: String, name: Int, description: Int, importance: Int) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-
-        val channel = NotificationChannel(id, context.getString(name), importance).apply {
-            this.description = context.getString(description)
-        }
-
-        context.getSystemService(NotificationManager::class.java)
-            ?.createNotificationChannel(channel)
+        if (context.postIfPermitted(tag = tag, id = id, notification = notification)) posted.record(tag = tag, id = id)
     }
 
     private fun titleOf(arrival: ContactArrival): Int = when (arrival.kind) {
@@ -323,8 +290,9 @@ class ContactNotifier(
     }
 
     /**
-     * Opens the app where the news is: the request list for something to answer, the
-     * contact list for somebody who is already a contact.
+     * Opens the app on the request list for something to answer. Somebody who is already a
+     * contact is nothing to answer, and the app opens where it always does, on the expenses,
+     * the contacts a tab away.
      */
     private fun contentIntent(
         requestUuid: Int,

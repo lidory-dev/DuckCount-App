@@ -251,9 +251,11 @@ class ContactRequestRepository(
         val group = try {
             withContext(Dispatchers.IO) {
                 client.createGroup(
+                    groupUuid = null,
                     invitees = listOf(
                         InviteeKeyPackage(userUuid = recipient.userUuid, keyPackage = keyPackage),
                     ),
+                    welcomePayload = null,
                 )
             }
         } catch (_: MlsException.IdentityKeyMismatch) {
@@ -268,9 +270,7 @@ class ContactRequestRepository(
                 payload = ContactCard(profileEncryptionKey = profileEncryptionKey).serialize(),
             )
 
-            // One invitee, so one Welcome: the library fails the creation rather than leave
-            // an invitee without theirs.
-            ContactRequestEnvelope(welcome = group.welcomes.single().welcome, message = message)
+            ContactRequestEnvelope(welcome = group.welcome, message = message)
         } catch (_: MlsException) {
             client.deleteGroupQuietly(mlsGroupId = group.mlsGroupId)
 

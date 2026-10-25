@@ -12,6 +12,7 @@ import message.NoResendScheduler
 import message.ResendScheduler
 import message.di.messageModule
 import expense.di.expenseModule
+import group.di.groupModule
 import mls.di.mlsModule
 import networking.di.networkingModule
 import org.koin.core.component.KoinComponent
@@ -36,6 +37,7 @@ fun initKoin() {
             expenseModule,
             messageModule,
             channelModule,
+            groupModule,
             pushModule,
             accountModule,
             iosPlatformModule,

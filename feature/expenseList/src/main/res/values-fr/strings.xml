@@ -60,8 +60,6 @@
         <item quantity="one" tools:ignore="ImpliedQuantity">Un participant a supprimé son compte</item>
         <item quantity="other">%1$d participants ont supprimé leur compte</item>
     </plurals>
-    <string name="names_list_separator">", "</string>
-    <string name="names_list_last">%1$s et %2$s</string>
 
     <!-- ErrorCard -->
     <string name="no_beneficiaries">Une dépense doit avoir au moins un participant</string>

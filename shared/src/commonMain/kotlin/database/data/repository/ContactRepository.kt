@@ -509,7 +509,9 @@ class ContactRepository(
      * Whatever needs to know who the contacts are runs this first: reading the messages, see
      * [DirectMessageSync][message.DirectMessageSync], and sending or accepting a contact
      * request, see [ContactRequestRepository], which would otherwise pin one of them from
-     * whatever identity the server hands over.
+     * whatever identity the server hands over, and creating or joining a group, see
+     * [GroupCreator][group.GroupCreator] and [GroupSync][group.GroupSync], which would take
+     * them for strangers.
      *
      * A name that could not be read is not reported: the next [ContactSync][contact.ContactSync]
      * reads it again.

@@ -6,6 +6,7 @@ import app.lidory.duckcount.groupList.model.GroupWithMembers
 import database.data.repository.GroupRepository
 import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 
 class GroupSettingsCallBacksImpl(
@@ -17,7 +18,7 @@ class GroupSettingsCallBacksImpl(
     }
 
     override suspend fun getGroupWithMembers(groupUuid: String): Flow<GroupWithMembers> {
-        return groupRepository.getWithMembers(groupUuid).map { groupWithMembers ->
+        return groupRepository.getWithMembers(groupUuid).filterNotNull().map { groupWithMembers ->
             GroupWithMembers(
                 uuid = groupWithMembers.uuid,
                 title = groupWithMembers.title,

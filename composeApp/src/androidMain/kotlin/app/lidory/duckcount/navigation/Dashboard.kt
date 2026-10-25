@@ -43,6 +43,7 @@ fun Dashboard(
     modifier: Modifier = Modifier,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
+    openGroups: Boolean,
     navigateToExpenseDetailScreen: (String, String?) -> Unit,
     navigateToCreateExpenseScreen: () -> Unit,
     navigateToContactDetailScreen: (String) -> Unit,
@@ -53,7 +54,11 @@ fun Dashboard(
     navigateToSettingsScreen: () -> Unit,
     navigateToUsernameReservation: () -> Unit,
 ) {
-    val backStack = rememberNavBackStack(ExpenseListScreenKey)
+    // On the groups when a notification about one opened the app, the first tab under them as
+    // picking them would leave it, see selectTab. Only the stack the dashboard starts with: the
+    // one it saved is what comes back from then on.
+    val startTabs = if (openGroups) listOf(ExpenseListScreenKey, GroupListScreenKey) else listOf(ExpenseListScreenKey)
+    val backStack = rememberNavBackStack(*startTabs.toTypedArray())
 
     // The contacts tab asks for a username to be reserved until there is one.
     val reservedUsername by remember { getDiscoveryUsernameFlow() }

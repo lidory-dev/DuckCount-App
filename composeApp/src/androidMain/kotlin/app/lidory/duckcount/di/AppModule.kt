@@ -27,6 +27,7 @@ import app.lidory.duckcount.groupList.di.groupListModule
 import app.lidory.duckcount.networking.NetworkConnectivity
 import app.lidory.duckcount.push.ContactNotifier
 import app.lidory.duckcount.push.ExpenseNotifier
+import app.lidory.duckcount.push.GroupNotifier
 import app.lidory.duckcount.push.NotificationLeftovers
 import app.lidory.duckcount.push.UnifiedPushRegistrar
 import app.lidory.duckcount.push.WorkManagerResendScheduler
@@ -44,6 +45,7 @@ import channel.di.channelModule
 import message.ResendScheduler
 import message.di.messageModule
 import expense.di.expenseModule
+import group.di.groupModule
 import mls.di.mlsModule
 import networking.di.networkingModule
 import org.koin.android.ext.koin.androidContext
@@ -74,6 +76,7 @@ val pushPlatformModule = module {
     single { NotificationLeftovers(androidContext()) }.bind<SessionLeftovers>()
     single { ContactNotifier(androidContext()) }
     single { ExpenseNotifier(androidContext()) }
+    single { GroupNotifier(androidContext()) }
     single { WorkManagerResendScheduler(androidContext()) }.bind<ResendScheduler>()
 }
 val groupCallBacks = module {
@@ -109,6 +112,7 @@ val appModule = listOf(
     expenseModule,
     messageModule,
     channelModule,
+    groupModule,
     pushModule,
     pushPlatformModule,
     accountModule,

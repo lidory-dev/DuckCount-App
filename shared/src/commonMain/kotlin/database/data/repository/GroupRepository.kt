@@ -2,10 +2,8 @@ package database.data.repository
 
 import database.data.local.dao.GroupDao
 import database.data.mappers.toGroup
-import database.data.mappers.toGroupEntity
 import database.data.mappers.toGroupMemberEntity
 import database.data.mappers.toGroupWithMembers
-import database.data.mappers.toGroupWithMembersEntity
 import database.domain.Group
 import database.domain.GroupMember
 import database.domain.GroupWithMembers
@@ -16,32 +14,26 @@ import kotlinx.coroutines.flow.map
 class GroupRepository(
     private val groupDao: GroupDao,
 ) {
-    suspend fun insert(group: Group) {
-        groupDao.insert(groupEntity = group.toGroupEntity())
-    }
-
     suspend fun insertMembers(groupMembers: List<GroupMember>) {
         groupDao.insertMembers(groupMemberEntities = groupMembers.map { it.toGroupMemberEntity() })
     }
 
-    suspend fun insertWithMembers(groupWithMembers: GroupWithMembers) {
-        groupDao.insertWithMembers(groupWithMembers.toGroupWithMembersEntity())
-    }
-
-    suspend fun update(group: Group) {
-        groupDao.update(groupEntity = group.toGroupEntity())
-    }
-
+    /**
+     * Takes what the user edited of the group and its members, on this device only: what the
+     * server and the MLS group hold of it stays as it was.
+     */
     suspend fun updateWithMembers(groupWithMembers: GroupWithMembers) {
-        groupDao.updateWithMembers(groupWithMembers.toGroupWithMembersEntity())
+        groupDao.updateWithMembers(
+            uuid = groupWithMembers.uuid,
+            title = groupWithMembers.title,
+            description = groupWithMembers.description,
+            currency = groupWithMembers.currency,
+            members = groupWithMembers.groupMembers.map { it.toGroupMemberEntity() },
+        )
     }
 
     suspend fun removeGroupMember(userUuid: String, groupUuid: String) {
         groupDao.removeGroupMember(userUuid, groupUuid)
-    }
-
-    suspend fun delete(group: Group) {
-        groupDao.delete(groupEntity = group.toGroupEntity())
     }
 
     fun getAll(): Flow<List<Group>> {
@@ -56,9 +48,14 @@ class GroupRepository(
         }
     }
 
-    fun getWithMembers(uuid: String): Flow<GroupWithMembers> {
-        return groupDao.getWithMembers(uuid).filterNotNull().map { groupWithMembersEntity ->
-            groupWithMembersEntity.toGroupWithMembers()
+    /**
+     * Emits the group [uuid] with its members, or null while there is no such group: a creation the
+     * server refused deletes its group under whatever screen is open, see
+     * [GroupDao.deleteRefusedCreation].
+     */
+    fun getWithMembers(uuid: String): Flow<GroupWithMembers?> {
+        return groupDao.getWithMembers(uuid).map { groupWithMembersEntity ->
+            groupWithMembersEntity?.toGroupWithMembers()
         }
     }
 }

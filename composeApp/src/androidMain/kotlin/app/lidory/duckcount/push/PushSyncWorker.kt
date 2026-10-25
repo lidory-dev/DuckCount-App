@@ -12,6 +12,7 @@ import contact.ContactSync
 import expense.ExpenseArrivals
 import expense.ExpenseChanges
 import expense.OneTimeExpenseSync
+import group.GroupSync
 import kotlinx.coroutines.CancellationException
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -29,6 +30,7 @@ private const val TAG = "PushSyncWorker"
  *
  * Only a contact's expenses are told about, arriving or changing: a former contact's still
  * come in and change in the app, without a word, see [ExpenseArrivals] and [ExpenseChanges].
+ * Only a contact's groups are joined, and each one is told about, see [GroupSync].
  *
  * Also run with no signal at all, once the server's limit on messages lets through again what
  * a sync left unsent, see [PushWork.enqueueResend]: the passes that send are part of a sync.
@@ -42,6 +44,10 @@ class PushSyncWorker(
     private val contactArrivals: ContactArrivals by inject()
 
     private val contactNotifier: ContactNotifier by inject()
+
+    private val groupSync: GroupSync by inject()
+
+    private val groupNotifier: GroupNotifier by inject()
 
     private val oneTimeExpenseSync: OneTimeExpenseSync by inject()
 
@@ -101,8 +107,12 @@ class PushSyncWorker(
         // Order matters. Draining the messages comes first because that is where the keys
         // to expenses arrive, and the expense sync asks creditors for the ones it finds
         // missing: run the other way round, it would ask for keys sitting unread in the
-        // very response it had not opened yet.
+        // very response it had not opened yet. The groups come after the contacts, a group
+        // being joined only from a contact: one this very sync brought in would otherwise be
+        // taken for a stranger, and their group declined for good. So would one it failed to
+        // bring in, which is why the groups hear whether it did.
         val contacts = contactSync.sync()
+        val groups = groupSync.sync(contactsTakenIn = contacts.isTakenIn)
         val expenses = oneTimeExpenseSync.sync()
 
         // Whatever did arrive, or change, is worth showing even when a later step failed,
@@ -112,11 +122,19 @@ class PushSyncWorker(
         contactNotifier.notify(arrivals = contactArrivals.since(snapshot = contactsBefore))
         contactNotifier.forget(userUuids = contactArrivals.departures(snapshot = contactsBefore))
 
+        groupNotifier.notify(arrivals = groups.joined)
+
         expenseNotifier.notify(arrivals = expenseArrivals.since(snapshot = expensesBefore))
         expenseNotifier.notifyChanges(changes = expenseChanges.since(snapshot = shownBefore))
 
-        if (contacts is util.Result.Error) {
-            Log.w(TAG, "doWork: could not sync the contacts: ${contacts.error}")
+        if (contacts.failure != null) {
+            Log.w(TAG, "doWork: could not sync the contacts: ${contacts.failure}")
+
+            return retryOrGiveUp(standInsBefore = standInsBefore)
+        }
+
+        if (groups.failure != null) {
+            Log.w(TAG, "doWork: could not sync the groups: ${groups.failure}")
 
             return retryOrGiveUp(standInsBefore = standInsBefore)
         }

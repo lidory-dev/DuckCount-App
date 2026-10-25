@@ -8,7 +8,9 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 class GroupListViewModel(
     groupListCallBacks: GroupListCallBacks,
@@ -19,6 +21,13 @@ class GroupListViewModel(
             GroupListState.Content(
                 groups = groups,
             )
+        }
+        .onStart {
+            groupListCallBacks.groupsSeen()
+
+            // Launched rather than awaited: `onStart` runs in the collector's context, so
+            // suspending here would hold the first emission back for the whole sync.
+            viewModelScope.launch { groupListCallBacks.refreshGroups() }
         }
         .stateIn(
             scope = viewModelScope,

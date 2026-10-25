@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.groupList.R
@@ -23,7 +24,9 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 
 @Composable
 fun GroupMemberHeader(
-    isMemberListEmpty: Boolean,
+    numberOfMembers: Int,
+    maxMembers: Int,
+    enabled: Boolean,
     onModifyMemberList: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -34,9 +37,20 @@ fun GroupMemberHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = stringResource(R.string.members))
+        // Takes what the button leaves, wrapping rather than squeezing it, as a longer language or
+        // a larger font would.
+        Text(
+            modifier = Modifier.weight(1f),
+            text = pluralStringResource(
+                R.plurals.members_out_of_limit,
+                numberOfMembers,
+                numberOfMembers,
+                maxMembers,
+            ),
+        )
 
         TextButton(
+            enabled = enabled,
             onClick = {
                 onModifyMemberList()
                 focusManager.clearFocus()
@@ -46,10 +60,13 @@ fun GroupMemberHeader(
                 (LocalTextStyle.current.fontSize * 1.2f).toDp()
             }
 
+            // The user alone, who is in every group of theirs: nobody added yet.
+            val isUserAlone = numberOfMembers == 1
+
             val iconRes =
-                if (isMemberListEmpty) androidUiR.drawable.ic_add else androidUiR.drawable.ic_edit
+                if (isUserAlone) androidUiR.drawable.ic_add else androidUiR.drawable.ic_edit
             val labelRes =
-                if (isMemberListEmpty) androidUiR.string.add else androidUiR.string.modify
+                if (isUserAlone) androidUiR.string.add else androidUiR.string.modify
 
             Icon(
                 painter = painterResource(iconRes),

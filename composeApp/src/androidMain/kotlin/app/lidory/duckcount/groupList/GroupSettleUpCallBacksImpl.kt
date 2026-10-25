@@ -40,10 +40,9 @@ class GroupSettleUpCallBacksImpl(
         ).map { transaction ->
             TransactionWithFullName(
                 debtorUuid = transaction.debtorUuid,
-                debtorFullName = userRepository.getFullName(transaction.debtorUuid).first() ?: transaction.debtorUuid,
+                debtorFullName = userRepository.getFullName(transaction.debtorUuid).first(),
                 creditorUuid = transaction.creditorUuid,
-                creditorFullName = userRepository.getFullName(transaction.creditorUuid).first()
-                    ?: transaction.creditorUuid,
+                creditorFullName = userRepository.getFullName(transaction.creditorUuid).first(),
                 amount = transaction.amount,
             )
         }
@@ -58,8 +57,7 @@ class GroupSettleUpCallBacksImpl(
                         groupUuid = groupMember.groupUuid,
                         isAdmin = groupMember.isAdmin,
                     ),
-                    // TODO: remove the check of isAdmin when the admin user is correctly inserted (see CreateGroupViewModel)
-                    fullName = userRepository.getFullName(groupMember.userUuid).first() ?: groupMember.userUuid,
+                    fullName = userRepository.getFullName(groupMember.userUuid).first(),
                 )
             }
         }

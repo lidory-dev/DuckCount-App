@@ -36,7 +36,7 @@ class GroupSettingsViewModel(
 
                         GroupMemberWithFullName(
                             member = member,
-                            fullName = getUserFullName(member.userUuid).first() ?: member.userUuid,
+                            fullName = getUserFullName(member.userUuid).first(),
                         )
                     },
                 )

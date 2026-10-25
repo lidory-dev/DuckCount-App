@@ -22,10 +22,11 @@ import org.koin.androidx.compose.koinViewModel
 
 /**
  * [openContactRequests] comes from a notification about a request waiting to be
- * answered, and is what takes the user straight to it.
+ * answered, and is what takes the user straight to it. [openGroups] comes from one about a
+ * group the user was added to, and opens the dashboard on the group list.
  */
 @Composable
-fun App(openContactRequests: Boolean = false) {
+fun App(openContactRequests: Boolean = false, openGroups: Boolean = false) {
     AppTheme {
         val appViewModel = koinViewModel<AppViewModel>()
         val startup by appViewModel.startup.collectAsState()
@@ -78,6 +79,7 @@ fun App(openContactRequests: Boolean = false) {
                         .background(MaterialTheme.colorScheme.background),
                     backStack = backStack,
                     resumeRegistration = (state as? Startup.ResumeRegistration)?.pending,
+                    openGroups = openGroups,
                 )
             }
         }

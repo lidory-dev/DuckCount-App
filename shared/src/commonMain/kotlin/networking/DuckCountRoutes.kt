@@ -24,6 +24,9 @@ object DuckCountRoutes {
 
         /** One part of the vault: `GET` its items, `PUT` one, `DELETE` them all. */
         val VAULT_PART = "$VAULT_BASE_URL/:entry_key"
+
+        /** One item of a part: `DELETE` it. */
+        val VAULT_ITEM = "$VAULT_BASE_URL/:entry_key/:item_id"
     }
 
     object User {
@@ -87,6 +90,22 @@ object DuckCountRoutes {
 
         /** `POST` acknowledges direct messages, which deletes them. */
         val ACKNOWLEDGEMENTS = "$MESSAGE_BASE_URL/acknowledgements"
+    }
+
+    object Group {
+        private val GROUP_BASE_URL = "$baseUrl/groups"
+
+        /** `GET` lists the groups the caller is a member of, `POST` creates one. */
+        val GROUPS = GROUP_BASE_URL
+
+        /** `GET` lists the messages waiting for the caller in one group, oldest first. */
+        val MESSAGES = "$GROUP_BASE_URL/:group_uuid/messages"
+
+        /**
+         * `POST` acknowledges messages of one group, which deletes each once every member it
+         * waited for has.
+         */
+        val ACKNOWLEDGEMENTS = "$GROUP_BASE_URL/:group_uuid/messages/acknowledgements"
     }
 
     object Push {

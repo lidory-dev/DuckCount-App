@@ -24,6 +24,8 @@ interface LocalDataDao {
         deleteBeneficiaries()
         deleteGroups()
         deleteGroupMembers()
+        deletePendingGroupCreations()
+        deleteDeclinedGroups()
         deleteContactRequests()
         deleteOutgoingContactRequests()
         deleteContacts()
@@ -60,6 +62,12 @@ interface LocalDataDao {
 
     @Query("DELETE FROM GroupMemberEntity")
     suspend fun deleteGroupMembers()
+
+    @Query("DELETE FROM PendingGroupCreationEntity")
+    suspend fun deletePendingGroupCreations()
+
+    @Query("DELETE FROM DeclinedGroupEntity")
+    suspend fun deleteDeclinedGroups()
 
     @Query("DELETE FROM ContactRequestEntity")
     suspend fun deleteContactRequests()

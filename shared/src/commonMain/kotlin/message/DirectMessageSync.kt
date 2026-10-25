@@ -3,13 +3,17 @@ package message
 import channel.ChannelJoined
 import channel.DirectChannelRepository
 import channel.Reply
+import contact.ContactSyncError
+import database.data.local.dao.GroupDao
 import database.data.local.dao.IdentityConflictDao
 import database.data.remote.AcknowledgeDirectMessagesBody
 import database.data.remote.DirectMessageApi
 import database.data.remote.DirectMessageDto
+import database.data.remote.ListDirectMessagesResponse
 import database.data.remote.MAX_ACKNOWLEDGEMENT_BATCH
 import database.data.repository.ContactRepository
 import database.data.repository.ContactRequestRepository
+import group.withGroupJoinLock
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -17,6 +21,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import mls.ApplicationMessageReading
+import mls.MlsIdentityError
 import mls.MlsIdentityRepository
 import mls.isRetryable
 import mls.joinGroupFrom
@@ -24,6 +29,7 @@ import mls.readApplicationMessage
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import util.EmptyResult
+import util.NetworkError
 import util.Result
 
 /**
@@ -48,17 +54,72 @@ import util.Result
  * Nothing is read before the user's contacts are back on the device after a login, see
  * [ContactRepository.restore]: a Welcome is only acted on from somebody this device knows,
  * and one from a contact it has not restored yet would be dropped for good.
+ *
+ * Nor in one of the user's groups, see [GroupDao.hasMlsGroup], whichever the sender names: a
+ * direct message is between two users, and what one reads in a group of several members its
+ * sender is one of, see [DirectChannelRepository.noteReadIn], would have that group become
+ * the channel to them. Checked and read under [withGroupJoinLock], which the group sync holds
+ * from joining a group to saving it: the library holds the group from the join, and the
+ * database names it only once it is saved.
+ *
+ * [restoreContacts] is [ContactRepository.restore], [listMessages] and [acknowledge] are
+ * [DirectMessageApi.getDirectMessages] and [DirectMessageApi.acknowledgeDirectMessages],
+ * [client] is [MlsIdentityRepository.client], [isBlocked] is [IdentityConflictDao.isBlocked],
+ * [isGroup] is [GroupDao.hasMlsGroup], [completeAcceptanceIn] is
+ * [ContactRequestRepository.completeAcceptanceIn], [isKnownPeer], [adopt], [noteReadIn] and
+ * [claimReply] are those of [DirectChannelRepository], and [replyIn] is
+ * [DirectMessageSender.replyIn], or what a test stands in for any of them.
  */
 class DirectMessageSync internal constructor(
-    private val directMessageApi: DirectMessageApi,
-    private val directChannelRepository: DirectChannelRepository,
-    private val contactRepository: ContactRepository,
-    private val contactRequestRepository: ContactRequestRepository,
-    private val directMessageSender: DirectMessageSender,
-    private val mlsIdentityRepository: MlsIdentityRepository,
-    private val identityConflictDao: IdentityConflictDao,
+    private val restoreContacts: suspend () -> EmptyResult<ContactSyncError>,
+    private val listMessages: suspend () -> Result<ListDirectMessagesResponse, NetworkError>,
+    private val acknowledge: suspend (body: AcknowledgeDirectMessagesBody) -> EmptyResult<NetworkError>,
+    private val client: suspend () -> Result<MlsClient, MlsIdentityError>,
+    private val isBlocked: suspend (peerUuid: String) -> Boolean,
+    private val isGroup: suspend (mlsGroupId: ByteArray) -> Boolean,
+    private val completeAcceptanceIn: suspend (
+        client: MlsClient,
+        senderUserUuid: String,
+        mlsGroupId: ByteArray,
+    ) -> EmptyResult<ContactSyncError>,
+    private val isKnownPeer: suspend (peerUuid: String) -> Boolean,
+    private val adopt: suspend (client: MlsClient, peerUuid: String, mlsGroupId: ByteArray) -> Unit,
+    private val noteReadIn: suspend (client: MlsClient, peerUuid: String, mlsGroupId: ByteArray) -> Unit,
+    private val claimReply: suspend (peerUuid: String, reply: Reply) -> Boolean,
+    private val replyIn: suspend (recipientUserUuid: String, mlsGroupId: ByteArray, payload: ByteArray) -> Unit,
     private val handlers: List<DirectMessageHandler>,
 ) {
+    internal constructor(
+        directMessageApi: DirectMessageApi,
+        directChannelRepository: DirectChannelRepository,
+        contactRepository: ContactRepository,
+        contactRequestRepository: ContactRequestRepository,
+        directMessageSender: DirectMessageSender,
+        mlsIdentityRepository: MlsIdentityRepository,
+        identityConflictDao: IdentityConflictDao,
+        groupDao: GroupDao,
+        handlers: List<DirectMessageHandler>,
+    ) : this(
+        restoreContacts = contactRepository::restore,
+        listMessages = directMessageApi::getDirectMessages,
+        acknowledge = directMessageApi::acknowledgeDirectMessages,
+        client = mlsIdentityRepository::client,
+        isBlocked = identityConflictDao::isBlocked,
+        isGroup = groupDao::hasMlsGroup,
+        completeAcceptanceIn = contactRequestRepository::completeAcceptanceIn,
+        isKnownPeer = directChannelRepository::isKnownPeer,
+        adopt = directChannelRepository::adopt,
+        noteReadIn = directChannelRepository::noteReadIn,
+        claimReply = directChannelRepository::claimReply,
+        replyIn = { recipientUserUuid, mlsGroupId, payload ->
+            directMessageSender.replyIn(
+                recipientUserUuid = recipientUserUuid,
+                mlsGroupId = mlsGroupId,
+                payload = payload,
+            )
+        },
+        handlers = handlers,
+    )
 
     /**
      * Serialises [sync]: two passes interleaved could act on one sender's messages out of
@@ -77,17 +138,17 @@ class DirectMessageSync internal constructor(
      * Only looks: reading them is [sync]'s.
      */
     suspend fun hasNothingWaiting(): Boolean = mutex.withLock {
-        val listed = directMessageApi.getDirectMessages()
+        val listed = listMessages()
 
         listed is Result.Success && listed.data.messages.isEmpty()
     }
 
     private suspend fun syncLocked(): EmptyResult<DirectMessageSyncError> {
-        val restored = contactRepository.restore()
+        val restored = restoreContacts()
 
         if (restored is Result.Error) return Result.Error(DirectMessageSyncError.Contacts(restored.error))
 
-        val messages = when (val list = directMessageApi.getDirectMessages()) {
+        val messages = when (val list = listMessages()) {
             is Result.Success -> list.data.messages
             is Result.Error -> return Result.Error(DirectMessageSyncError.Network(list.error))
         }
@@ -95,7 +156,7 @@ class DirectMessageSync internal constructor(
         // Most calls find nothing, and opening the MLS client is not free.
         if (messages.isEmpty()) return Result.Success(Unit)
 
-        val client = when (val opened = mlsIdentityRepository.client()) {
+        val client = when (val opened = client()) {
             is Result.Success -> opened.data
             is Result.Error -> return Result.Error(DirectMessageSyncError.Identity(opened.error))
         }
@@ -149,12 +210,8 @@ class DirectMessageSync internal constructor(
         // answer dropped here would not come back with the next pass.
         withContext(NonCancellable) {
             joinedGroups.forEach { (peerUuid, mlsGroupId) ->
-                if (directChannelRepository.claimReply(peerUuid = peerUuid, reply = Reply.CHANNEL_JOINED)) {
-                    directMessageSender.replyIn(
-                        recipientUserUuid = peerUuid,
-                        mlsGroupId = mlsGroupId,
-                        payload = ChannelJoined.serialize(),
-                    )
+                if (claimReply(peerUuid, Reply.CHANNEL_JOINED)) {
+                    replyIn(peerUuid, mlsGroupId, ChannelJoined.serialize())
                 }
             }
         }
@@ -163,9 +220,7 @@ class DirectMessageSync internal constructor(
         // time. Reading one again fails, its key is gone, so it is acknowledged then, and
         // what it said is already stored.
         settled.chunked(MAX_ACKNOWLEDGEMENT_BATCH).forEach { batch ->
-            val acknowledgement = directMessageApi.acknowledgeDirectMessages(
-                body = AcknowledgeDirectMessagesBody(messageUuids = batch),
-            )
+            val acknowledgement = acknowledge(AcknowledgeDirectMessagesBody(messageUuids = batch))
 
             if (acknowledgement is Result.Error) {
                 return Result.Error(DirectMessageSyncError.Network(acknowledgement.error))
@@ -191,7 +246,7 @@ class DirectMessageSync internal constructor(
     ): Delivery {
         // The server's word for the sender is enough: nothing is acted on unless the one the
         // message itself names is the same.
-        if (identityConflictDao.isBlocked(peerUuid = message.senderUserUuid)) {
+        if (isBlocked(message.senderUserUuid)) {
             return Delivery.Settled
         }
 
@@ -200,23 +255,28 @@ class DirectMessageSync internal constructor(
 
         // In the group of a request the user accepted, an acceptance whose answer never came
         // back is completed first, once the server says it took the request, which pins the
-        // sender: the message is then read as theirs.
-        val completion = contactRequestRepository.completeAcceptanceIn(
-            client = client,
-            senderUserUuid = message.senderUserUuid,
-            mlsGroupId = envelope.mlsGroupId,
-        )
+        // sender: the message is then read as theirs. It finds none in one of the user's groups,
+        // whose id no request can have.
+        val completion = completeAcceptanceIn(client, message.senderUserUuid, envelope.mlsGroupId)
 
         if (completion is Result.Error) {
             return Delivery.Retry(error = DirectMessageSyncError.Contacts(error = completion.error))
         }
 
-        var mlsGroupId = envelope.mlsGroupId
+        // Checked and read under the one lock: a group being joined is held by the library before
+        // the database names it, see [withGroupJoinLock].
+        var reading = withGroupJoinLock {
+            // Left unread, whatever it says: read, it would be offered as a direct message and
+            // make the group the channel to its sender, see [DirectMessageSync]. A group's members
+            // talk there by other means, which this device does not read yet.
+            if (isGroup(envelope.mlsGroupId)) {
+                null
+            } else {
+                client.readApplicationMessage(mlsGroupId = envelope.mlsGroupId, message = envelope.message)
+            }
+        } ?: return Delivery.Settled
 
-        var reading = client.readApplicationMessage(
-            mlsGroupId = mlsGroupId,
-            message = envelope.message,
-        )
+        var mlsGroupId = envelope.mlsGroupId
 
         if (reading is ApplicationMessageReading.Unreadable && envelope.welcome != null) {
             val joined = try {
@@ -262,11 +322,7 @@ class DirectMessageSync internal constructor(
                 // Pinned is still not a contact: whoever the user sent a request to is pinned
                 // before they answer it. So the channel and each handler go by what the sender
                 // is to the user, see [DirectChannelRepository.noteReadIn].
-                directChannelRepository.noteReadIn(
-                    client = client,
-                    peerUuid = reading.senderUserUuid,
-                    mlsGroupId = mlsGroupId,
-                )
+                noteReadIn(client, reading.senderUserUuid, mlsGroupId)
 
                 offer(reading = reading, mlsGroupId = mlsGroupId)
 
@@ -297,7 +353,7 @@ class DirectMessageSync internal constructor(
         welcome: ByteArray,
         joinedGroups: MutableMap<String, ByteArray>,
     ): ByteArray? {
-        if (!directChannelRepository.isKnownPeer(peerUuid = message.senderUserUuid)) return null
+        if (!isKnownPeer(message.senderUserUuid)) return null
 
         val joined = client.joinGroupFrom(
             welcome = welcome,
@@ -305,7 +361,7 @@ class DirectMessageSync internal constructor(
             pinPeer = true,
         )
 
-        directChannelRepository.adopt(client = client, peerUuid = message.senderUserUuid, mlsGroupId = joined)
+        adopt(client, message.senderUserUuid, joined)
 
         // Told once the pass is over, in the newest group joined: messages come oldest first,
         // and a peer who rebuilt while this device was away holds the last one.

@@ -25,6 +25,9 @@ kotlin {
             implementation(libs.compose.components.resources)
             implementation(libs.androidx.activity.compose)
         }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
     }
 }
 

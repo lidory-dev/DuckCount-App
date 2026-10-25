@@ -780,6 +780,8 @@ private object NoLocalData : LocalDataDao {
     override suspend fun deleteBeneficiaries() = error("Not used here")
     override suspend fun deleteGroups() = error("Not used here")
     override suspend fun deleteGroupMembers() = error("Not used here")
+    override suspend fun deletePendingGroupCreations() = error("Not used here")
+    override suspend fun deleteDeclinedGroups() = error("Not used here")
     override suspend fun deleteContactRequests() = error("Not used here")
     override suspend fun deleteOutgoingContactRequests() = error("Not used here")
     override suspend fun deleteContacts() = error("Not used here")
