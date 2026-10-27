@@ -153,12 +153,13 @@ class GroupSyncTest {
     private val groupSync = GroupSync(
         userUuid = { BOB },
         resendPending = sender::resendPending,
+        resendMembershipChanges = { Result.Success(Unit) },
         backUpPending = { Result.Success(Unit) },
         restoreContacts = { Result.Success(Unit) },
         listGroups = {
             if (isServerReachable) Result.Success(listed.toList()) else Result.Error(NetworkError.NO_INTERNET)
         },
-        heldGroups = { groups.keys.toList() },
+        storedGroups = { groups.values.toList() },
         declinedGroups = { declined.toList() },
         vaultKeys = { Result.Success(vault.toMap()) },
         listMessages = { groupUuid ->
@@ -185,6 +186,10 @@ class GroupSyncTest {
             groups[group.uuid] = group
             members[group.uuid] = groupMembers
         },
+        memberUuidsOf = { groupUuid -> members[groupUuid].orEmpty().map { it.userUuid } },
+        replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
+        updateKey = { _, _ -> error("No group here is handed a new key.") },
+        markLeft = { error("Nobody is removed from a group here.") },
         recordDeclined = { groupUuid -> declined += groupUuid },
         backUp = { groupUuid, groupKey ->
             backedUp[groupUuid] = groupKey
@@ -232,16 +237,37 @@ class GroupSyncTest {
         assertTrue(declined.isEmpty())
     }
 
+    /**
+     * The owner the server lists is the creator until their account is deleted, which hands the
+     * group to another member, whose Commits no member's device would take.
+     */
     @Test
-    fun `a group joined is neither asked about nor told about again`() = runBlocking<Unit> {
+    fun `whoever wrote the Welcome is recorded as the creator and not the owner the server lists`() =
+        runBlocking<Unit> {
+            invite(creator = alice)
+
+            listed[0] = listed[0].copy(ownerUuid = CAROL)
+
+            groupSync.sync(contactsTakenIn = true)
+
+            assertEquals(ALICE, groups.getValue(GROUP).ownerUuid)
+            assertEquals(listOf(ALICE), members.getValue(GROUP).filter { it.isAdmin }.map { it.userUuid })
+        }
+
+    /** Asked about only for what waits there for the group's members, see [GroupSyncMembershipTest]. */
+    @Test
+    fun `a group joined is never joined or told about again`() = runBlocking<Unit> {
         invite(creator = alice)
         groupSync.sync(contactsTakenIn = true)
         fetched.clear()
 
+        val before = mlsState()
         val pass = groupSync.sync(contactsTakenIn = true)
 
+        assertNull(pass.failure)
         assertTrue(pass.joined.isEmpty())
-        assertTrue(fetched.isEmpty())
+        assertEquals(listOf(GROUP), fetched)
+        assertEquals(before, mlsState())
     }
 
     @Test
@@ -883,6 +909,7 @@ class GroupSyncTest {
             mlsGroupId = creation.mlsGroupId,
             groupKey = groupKey,
             isBackedUp = true,
+            isLeft = false,
         )
 
         vault[GROUP] = groupKey

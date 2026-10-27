@@ -44,6 +44,7 @@ import database.data.local.entity.OutgoingContactRequestEntity
 import database.data.local.entity.OwedExpenseKeyEntity
 import database.data.local.entity.PendingExpenseKeyEntity
 import database.data.local.entity.PendingGroupCreationEntity
+import database.data.local.entity.PendingMembershipChangeEntity
 import database.data.local.entity.PendingProfileKeyEntity
 import database.data.local.entity.ProfileKeyRequestBudgetEntity
 import database.data.local.entity.UnverifiedExpenseKeyEntity
@@ -64,6 +65,7 @@ import org.koin.mp.KoinPlatform.getKoin
         GroupEntity::class,
         GroupMemberEntity::class,
         PendingGroupCreationEntity::class,
+        PendingMembershipChangeEntity::class,
         DeclinedGroupEntity::class,
         ContactRequestEntity::class,
         OutgoingContactRequestEntity::class,

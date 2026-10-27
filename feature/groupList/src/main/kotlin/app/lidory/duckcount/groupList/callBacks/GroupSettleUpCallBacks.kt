@@ -19,6 +19,9 @@ interface GroupSettleUpCallBacks {
 
     fun getAuthenticatedUserUuid(): String
 
+    /** Emits whether the creator removed the user from the group [groupUuid], which leaves it read-only. */
+    fun isGroupLeft(groupUuid: String): Flow<Boolean>
+
     suspend fun getCurrencySymbol(groupUuid: String): String
 
     suspend fun validateSettlement(creditorUuid: String, debtorUuid: String, amount: String, groupUuid: String)

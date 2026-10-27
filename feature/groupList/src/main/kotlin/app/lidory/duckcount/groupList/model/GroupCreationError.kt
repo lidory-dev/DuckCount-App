@@ -28,7 +28,10 @@ sealed interface GroupCreationError {
     data class Members(val refusal: MemberRefusal, val fullNames: List<String>) : GroupCreationError
 }
 
-/** What kept a creation from going through that names nobody. */
+/**
+ * What kept a creation from going through that names nobody, or a change to a group's members,
+ * told in the same words, see [MembershipChangeError.Failure].
+ */
 enum class GroupCreationFailure {
     /** No connectivity. */
     NO_INTERNET,

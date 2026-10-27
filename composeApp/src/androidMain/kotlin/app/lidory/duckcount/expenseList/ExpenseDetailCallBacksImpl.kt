@@ -5,6 +5,7 @@ import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import app.lidory.duckcount.networking.NetworkConnectivity
 import database.data.repository.ExpenseRepository
+import database.data.repository.GroupRepository
 import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -14,6 +15,7 @@ import util.Result
 class ExpenseDetailCallBacksImpl(
     private val expenseRepository: ExpenseRepository,
     private val userRepository: UserRepository,
+    private val groupRepository: GroupRepository,
     private val networkConnectivity: NetworkConnectivity,
 ) : ExpenseDetailCallBacks {
 
@@ -23,6 +25,10 @@ class ExpenseDetailCallBacksImpl(
 
     override fun getUserFullName(userUuid: String): Flow<String?> {
         return userRepository.getFullName(userUuid)
+    }
+
+    override fun isGroupLeft(groupUuid: String): Flow<Boolean> {
+        return groupRepository.isLeft(uuid = groupUuid)
     }
 
     override suspend fun deleteExpense(expenseUuid: String): ExpenseWriteError? {

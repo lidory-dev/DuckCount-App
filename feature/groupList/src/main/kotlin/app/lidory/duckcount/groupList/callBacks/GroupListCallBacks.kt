@@ -64,7 +64,12 @@ interface GroupListCallBacks {
 
     fun getAuthenticatedUserUuid(): String?
 
-    suspend fun updateGroup(groupWithMembers: GroupWithMembers)
+    /**
+     * Takes the [title] and [description] the user gave the group [uuid], on this device only. Its
+     * members are changed from its settings, by its creator alone, see
+     * [GroupSettingsCallBacks.addMembers].
+     */
+    suspend fun updateGroup(uuid: String, title: String, description: String)
 
     /**
      * Brings the groups up to date: joins the ones contacts added the user to, and sends again the

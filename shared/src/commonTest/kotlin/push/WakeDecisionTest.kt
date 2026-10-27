@@ -59,10 +59,22 @@ class WakeDecisionTest {
             PushSignal.Kind.ONE_TIME_EXPENSE,
             PushSignal.Kind.ONE_TIME_EXPENSE_CHANGED,
             PushSignal.Kind.GROUP_WELCOME,
+            PushSignal.Kind.GROUP_CHANGED,
             PushSignal.Kind.UNKNOWN,
         ).forEach { kind ->
             assertFalse(signal(kind, from = ALICE).mayWake(wakeList), "$kind")
         }
+    }
+
+    /**
+     * Sent by the server for the group's owner, whom a removed member may have no contact with
+     * by now: their removal is read at the next sync all the same.
+     */
+    @Test
+    fun `a group change wakes the user from a contact alone`() {
+        assertTrue(signal(PushSignal.Kind.GROUP_CHANGED, from = BOB).mayWake(wakeList))
+        assertFalse(signal(PushSignal.Kind.GROUP_CHANGED, from = MALLORY).mayWake(wakeList))
+        assertFalse(signal(PushSignal.Kind.GROUP_CHANGED, from = null).mayWake(wakeList))
     }
 
     /** Neither has a request from the user to answer, Bob being a contact already. */

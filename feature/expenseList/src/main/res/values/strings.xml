@@ -60,6 +60,7 @@
         <item quantity="one">A beneficiary deleted their account</item>
         <item quantity="other">%1$d beneficiaries deleted their accounts</item>
     </plurals>
+    <string name="write_error_group_left">You’re no longer a member of this group</string>
 
     <!-- ErrorCard -->
     <string name="no_beneficiaries">An expense must have at least one beneficiary</string>

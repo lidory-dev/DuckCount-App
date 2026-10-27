@@ -25,7 +25,6 @@ import group.GroupSync
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import util.Result
-import database.domain.GroupWithMembers as DBGroupWithMembers
 
 private const val TAG = "GroupListCallBacksImpl"
 
@@ -137,20 +136,8 @@ class GroupListCallBacksImpl(
         return authenticationUtils.getAuthenticatedUserUuid()
     }
 
-    override suspend fun updateGroup(groupWithMembers: GroupWithMembers) {
-        groupRepository.updateWithMembers(
-            groupWithMembers = DBGroupWithMembers(
-                uuid = groupWithMembers.uuid,
-                title = groupWithMembers.title,
-                description = groupWithMembers.description,
-                currency = groupWithMembers.currency.toDb(),
-                groupMembers = groupWithMembers.members.map { member ->
-                    member.copy(
-                        groupUuid = groupWithMembers.uuid,
-                    ).toDb()
-                },
-            ),
-        )
+    override suspend fun updateGroup(uuid: String, title: String, description: String) {
+        groupRepository.updateTitleAndDescription(uuid = uuid, title = title, description = description)
     }
 
     override suspend fun refreshGroups() {
@@ -177,5 +164,5 @@ class GroupListCallBacksImpl(
         }
     }
 
-    override fun groupsSeen() = groupNotifier.clearJoinedGroups()
+    override fun groupsSeen() = groupNotifier.clearGroups()
 }

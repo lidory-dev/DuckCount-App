@@ -26,8 +26,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.component.GroupActionDropDownMenu
 import app.lidory.duckcount.groupList.component.GroupPager
+import app.lidory.duckcount.groupList.component.LeftGroupNotice
 import app.lidory.duckcount.groupList.tab.BalanceTab
 import app.lidory.duckcount.groupList.tab.ExpenseTab
 import app.lidory.duckcount.groupList.tab.SettleUpTab
@@ -107,7 +109,8 @@ fun GroupDetailScreen(
         },
         floatingActionButton = {
             AnimatedVisibility(
-                visible = pagerState.currentPage == 0,
+                // No expense added to a group the user was removed from, which stays read-only.
+                visible = pagerState.currentPage == 0 && state.groupWithMembers?.isLeft == false,
                 enter = fadeIn() + scaleIn(),
                 exit = fadeOut() + scaleOut(),
             ) {
@@ -126,6 +129,10 @@ fun GroupDetailScreen(
         Column(
             modifier = modifier.padding(innerPadding),
         ) {
+            if (state.groupWithMembers?.isLeft == true) {
+                LeftGroupNotice(modifier = Modifier.padding(horizontal = Padding.medium, vertical = Padding.small))
+            }
+
             GroupPager(
                 pagerState = pagerState,
                 tabs = tabs,

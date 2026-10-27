@@ -36,8 +36,78 @@ data class CreateGroupBody(
 )
 
 /**
- * Body of the `410` refusing a group creation: every invitee with no account, whether they
- * deleted it or it never existed, sorted.
+ * Body of `POST /groups/{group_uuid}/members`, which the creator alone may send.
+ *
+ * The change is named by [nonce] and the creator's UUID, as a creation is, and recorded with the
+ * group, so that the same body sent again answers `409`, see
+ * [database.data.local.entity.PendingMembershipChangeEntity]. A `410` names every new member with
+ * no account, in a [DeletedInviteesResponse].
+ */
+@Serializable
+data class AddGroupMembersBody(
+    /** 16 random bytes, Base64 encoded, drawn for this change alone. */
+    val nonce: String,
+
+    /** The MLS Commit adding them, Base64 encoded, for every member already in the group. */
+    @SerialName("commit_message")
+    val commitMessage: String,
+
+    /** The one MLS Welcome every new member joins from, Base64 encoded, carrying the group's key. */
+    @SerialName("welcome_message")
+    val welcomeMessage: String,
+
+    @SerialName("new_member_uuids")
+    val newMemberUuids: List<String>,
+)
+
+/**
+ * Body of `DELETE /groups/{group_uuid}/members`, which the creator alone may send, named by its
+ * [nonce] as an addition is, see [AddGroupMembersBody].
+ */
+@Serializable
+data class RemoveGroupMembersBody(
+    /** 16 random bytes, Base64 encoded, drawn for this change alone. */
+    val nonce: String,
+
+    /**
+     * The MLS Commit removing them, Base64 encoded, for every member, those it removes included,
+     * which is how their devices find out.
+     */
+    @SerialName("commit_message")
+    val commitMessage: String,
+
+    @SerialName("removed_member_uuids")
+    val removedMemberUuids: List<String>,
+)
+
+/**
+ * Body of `PUT /groups/{group_uuid}/key`, which the creator sends once a removal is applied,
+ * named by its [nonce] as an addition is, see [AddGroupMembersBody]: the new key for the members
+ * who remain, and the group's fields sealed under it in place of those a removed member can open.
+ */
+@Serializable
+data class RotateGroupKeyBody(
+    /** 16 random bytes, Base64 encoded, drawn for this change alone. */
+    val nonce: String,
+
+    /**
+     * The MLS application message handing the new key over, Base64 encoded, see [groupKeyMessageOf],
+     * sent in the epoch the removal took the group to, which the members it removed are not in.
+     */
+    @SerialName("key_message")
+    val keyMessage: String,
+
+    /** The group's fields as they are, sealed under the new key, see [GroupFields.seal]. */
+    val title: EncryptedFieldDto,
+
+    val description: EncryptedFieldDto,
+
+    val currency: EncryptedFieldDto,
+)
+
+/**
+ * Body of the `410` refusing a group creation, or an addition to a group: every invitee with no
+ * account, whether they deleted it or it never existed, sorted.
  */
 @Serializable
 data class DeletedInviteesResponse(

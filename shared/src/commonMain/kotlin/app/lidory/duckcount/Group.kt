@@ -21,7 +21,10 @@ fun createGroup(
             symbol = currency.symbol,
             hasSubUnit = currency.hasSubunits,
         ),
-        usersUuid = members.map { it.userUuid },
+        // Everybody the expenses name as well, whom the library refuses any expense naming
+        // somebody else for: a member the creator removed is in the group no more, but the
+        // expenses naming them stay, and so does what they owe or are owed.
+        usersUuid = (members.map { it.userUuid } + expenses.flatMap { it.userUuids() }).distinct(),
         expenses = expenses.map { expense ->
             uniffiExpense(
                 creditorUuid = expense.creditorUuid,
@@ -41,6 +44,9 @@ fun createGroup(
         },
     )
 }
+
+/** Everybody this expense names: who paid it, and who it was paid for. */
+private fun ExpenseWithBeneficiaries.userUuids() = listOf(creditorUuid) + beneficiaries.map { it.userUuid }
 
 fun calculateNetDebtsPerUser(
     currency: Currency,

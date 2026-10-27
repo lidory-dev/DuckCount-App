@@ -2,9 +2,12 @@ package group
 
 import io.ktor.client.call.body
 import io.ktor.client.plugins.timeout
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.Headers
 import io.ktor.http.HttpStatusCode
@@ -27,14 +30,15 @@ const val MAX_GROUP_ACKNOWLEDGEMENT_BATCH = 100
  * gets, see [DuckCountClient]: the Welcome carries the group's whole ratchet tree, some 400 KB at
  * a hundred members, which a slow connection takes far longer than that to move. The creator
  * uploads it, see [GroupApi.createGroup], a creation that runs out of time being sent again all
- * the same, see [GroupCreationAnswer.Failed], and every invitee downloads that same Welcome, see
+ * the same, see [GroupCreationAnswer.Failed], and so does an addition to a group, see
+ * [GroupApi.addMembers], and every invitee downloads that same Welcome, see
  * [GroupApi.getGroupMessages].
  */
 private const val WELCOME_TIMEOUT_MILLIS = 60_000L
 
 /**
- * Remote data source for the caller's groups: creating one, listing them, and the messages
- * waiting in each, the Welcome that lets an invitee in among them.
+ * Remote data source for the caller's groups: creating one, listing them, changing the members of
+ * one, and the messages waiting in each, the Welcome that lets an invitee in among them.
  *
  * Every field of a group is sealed on the creator's device under a key the server never holds,
  * see [GroupFields.seal], and every message is MLS, so the server learns who is in which group
@@ -91,6 +95,61 @@ class GroupApi(
                 timeout { requestTimeoutMillis = WELCOME_TIMEOUT_MILLIS }
             }
         }
+
+    /**
+     * Adds the members [body] names to the group [groupUuid], which the caller created, see
+     * [GroupMembershipAnswer] for what the server can answer. Given as long as a creation, for the
+     * Welcome it carries.
+     */
+    suspend fun addMembers(groupUuid: String, body: AddGroupMembersBody): GroupMembershipAnswer =
+        changeMembers {
+            client.httpClient.post(urlString = DuckCountRoutes.Group.MEMBERS.replace(":group_uuid", groupUuid)) {
+                timeout { requestTimeoutMillis = WELCOME_TIMEOUT_MILLIS }
+                setBody(body)
+                contentType(ContentType.Application.Json)
+            }
+        }
+
+    /**
+     * Removes the members [body] names from the group [groupUuid], which the caller created, see
+     * [GroupMembershipAnswer].
+     */
+    suspend fun removeMembers(groupUuid: String, body: RemoveGroupMembersBody): GroupMembershipAnswer =
+        changeMembers {
+            client.httpClient.delete(urlString = DuckCountRoutes.Group.MEMBERS.replace(":group_uuid", groupUuid)) {
+                setBody(body)
+                contentType(ContentType.Application.Json)
+            }
+        }
+
+    /**
+     * Hands the members of the group [groupUuid], which the caller created, the key [body] carries,
+     * and replaces the group's fields with those sealed under it, see [GroupMembershipAnswer].
+     */
+    suspend fun rotateKey(groupUuid: String, body: RotateGroupKeyBody): GroupMembershipAnswer =
+        changeMembers {
+            client.httpClient.put(urlString = DuckCountRoutes.Group.KEY.replace(":group_uuid", groupUuid)) {
+                setBody(body)
+                contentType(ContentType.Application.Json)
+            }
+        }
+
+    /** What the server answered [request], one of the changes [GroupMembershipAnswer] is about. */
+    private suspend fun changeMembers(request: suspend () -> HttpResponse): GroupMembershipAnswer {
+        // Read off the response as it comes back, as for a creation.
+        var refusal: GroupMembershipAnswer? = null
+
+        val sent = client.execute<Unit> {
+            request().also { response ->
+                refusal = membershipRefusalOf(status = response.status, headers = response.headers) { response.body() }
+            }
+        }
+
+        return when (sent) {
+            is Result.Success -> GroupMembershipAnswer.Made
+            is Result.Error -> refusal ?: membershipAnswerOf(error = sent.error)
+        }
+    }
 
     /**
      * Acknowledges messages the caller is done with in the group [groupUuid], in as many requests
@@ -203,4 +262,100 @@ internal fun creationAnswerOf(error: NetworkError): GroupCreationAnswer =
         -> GroupCreationAnswer.Refused(error = error)
 
         else -> GroupCreationAnswer.Failed(error = error)
+    }
+
+/**
+ * What the server answered a change to the members of a group, `POST` or `DELETE
+ * /groups/{group_uuid}/members`, or the key rotation after a removal, `PUT
+ * /groups/{group_uuid}/key`.
+ *
+ * The server writes nothing unless it takes the whole change, so every refusal is final for that
+ * request, and only [Failed] leaves open whether the change was stored.
+ */
+sealed interface GroupMembershipAnswer {
+
+    /** The empty `200`: the server took the change, and delivers what it carries. */
+    data object Made : GroupMembershipAnswer
+
+    /**
+     * The caller already made a change to this group with this nonce: an earlier send of this very
+     * change, whose answer never came back, since every change gets a nonce of its own. As good as
+     * [Made].
+     *
+     * Checked once the caller is known to be the group's owner, and ahead of [DeletedMembers],
+     * [RateLimited] and the refusals of what the change names, so that a resend of a change the
+     * server stored hears so whatever became of its members or the limit since.
+     */
+    data object AlreadyMade : GroupMembershipAnswer
+
+    /**
+     * The `410` of an addition naming every new member with no account, whether they deleted it
+     * or it never existed: none of them could ever join, so nothing was written.
+     */
+    data class DeletedMembers(val userUuids: List<String>) : GroupMembershipAnswer
+
+    /**
+     * The `429` of the server's limit on the changes one user makes to groups, the three kinds
+     * together, which lets one through again in [retryAfterSeconds], the `Retry-After` it carries.
+     * Nothing was written.
+     */
+    data class RateLimited(val retryAfterSeconds: Long) : GroupMembershipAnswer
+
+    /**
+     * The server refused the change itself, whose body it could not take: nothing was written, and
+     * the same request would be refused again.
+     */
+    data class Refused(val error: NetworkError) : GroupMembershipAnswer
+
+    /**
+     * No answer that says what became of the change: the request may never have left, or the
+     * change may have been stored and the answer lost on the way back, the proxy's `404` while the
+     * API is being redeployed and a `401` that a refresh may still turn around included. Only
+     * sending it again can tell.
+     */
+    data class Failed(val error: NetworkError) : GroupMembershipAnswer
+}
+
+/**
+ * What a change to a group's members that answered with [status] and [headers] comes to, for the
+ * answers read off the response itself, or null for the others, see [membershipAnswerOf]: the
+ * `410`, naming whom its body, which [deleted] reads, says has no account, and the `429`, with its
+ * `Retry-After`.
+ */
+internal suspend fun membershipRefusalOf(
+    status: HttpStatusCode,
+    headers: Headers,
+    deleted: suspend () -> DeletedInviteesResponse,
+): GroupMembershipAnswer? =
+    when (status) {
+        HttpStatusCode.Gone -> GroupMembershipAnswer.DeletedMembers(userUuids = deleted().deletedUserUuids)
+
+        HttpStatusCode.TooManyRequests -> GroupMembershipAnswer.RateLimited(
+            retryAfterSeconds = headers.retryAfterSeconds(),
+        )
+
+        else -> null
+    }
+
+/**
+ * What a change to a group's members that failed with [error] answered, for the answers whose
+ * response carries nothing more, see [membershipRefusalOf].
+ *
+ * A `400`, `413` or `422` is the server refusing the body, which it does before writing anything.
+ * A `404` is no refusal, as for a creation: the server answers one only for a group it no longer
+ * holds, which the app never deletes, or a caller who is no member of it, which its creator always
+ * is, while the proxy in front of it answers one to every request while it is being redeployed.
+ * Taken for a refusal, the Commit of a change the server stored, its answer lost, would be
+ * discarded on this device alone, leaving it in an epoch every member left.
+ */
+internal fun membershipAnswerOf(error: NetworkError): GroupMembershipAnswer =
+    when (error) {
+        NetworkError.CONFLICT -> GroupMembershipAnswer.AlreadyMade
+
+        NetworkError.BAD_REQUEST,
+        NetworkError.PAYLOAD_TOO_LARGE,
+        NetworkError.UNPROCESSABLE_ENTITY,
+        -> GroupMembershipAnswer.Refused(error = error)
+
+        else -> GroupMembershipAnswer.Failed(error = error)
     }

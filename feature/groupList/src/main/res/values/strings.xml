@@ -7,7 +7,6 @@
     <string name="expenses">Expenses</string>
     <string name="balance">Balance</string>
     <string name="edit_group">Edit group</string>
-    <string name="group_size">%1$d members</string>
     <string name="remove_from_the_group">Remove from the group</string>
     <string name="group_settings">Group settings</string>
     <string name="settle_up">Settle up</string>
@@ -18,7 +17,10 @@
     <string name="owes_you">%1$s owes you %2$s</string>
     <string name="you_are_all_settled_up">You’re all settled up</string>
     <string name="everything_is_balanced">Everything is balanced</string>
+    <string name="former_group_member">%1$s (former member)</string>
     <string name="currency">Currency</string>
+    <string name="left_group_marker">No longer a member</string>
+    <string name="left_group_notice">You’re no longer a member of this group</string>
 
     <!-- CreateOrEditGroupScreen -->
     <plurals name="members_out_of_limit">
@@ -47,9 +49,35 @@
         <item quantity="other">%1$s deleted their accounts</item>
     </plurals>
 
+    <!-- GroupSettingsScreen -->
+    <plurals name="group_size">
+        <item quantity="one">%1$d member</item>
+        <item quantity="other">%1$d members</item>
+    </plurals>
+    <string name="add_members">Add members</string>
+    <string name="group_members_change_waiting">Members can be changed once the group’s last change reaches the server</string>
+    <string name="group_members_change_pending">The change will be sent as soon as the server can take it</string>
+    <string name="remove_member_confirmation">Remove %1$s from “%2$s”?</string>
+    <plurals name="group_members_error_not_contacts">
+        <item quantity="one">%1$s can’t be added to a group yet</item>
+        <item quantity="other">%1$s can’t be added to a group yet</item>
+    </plurals>
+    <plurals name="group_members_error_identity_changed">
+        <item quantity="one">Your safety number with %1$s has changed, so nobody was added</item>
+        <item quantity="other">Your safety numbers with %1$s have changed, so nobody was added</item>
+    </plurals>
+    <plurals name="group_members_error_unreachable">
+        <item quantity="one">%1$s can’t be added right now, please try again later</item>
+        <item quantity="other">%1$s can’t be added right now, please try again later</item>
+    </plurals>
+    <plurals name="group_members_error_deleted">
+        <item quantity="one">%1$s deleted their account</item>
+        <item quantity="other">%1$s deleted their accounts</item>
+    </plurals>
+
     <!-- GroupMemberFullScreenDialog -->
-    <plurals name="selected_members_out_of_limit">
-        <item quantity="one">%1$d/%2$d selected</item>
-        <item quantity="other">%1$d/%2$d selected</item>
+    <plurals name="group_members_out_of_limit">
+        <item quantity="one">%1$d/%2$d member</item>
+        <item quantity="other">%1$d/%2$d members</item>
     </plurals>
 </resources>

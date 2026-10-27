@@ -7,6 +7,8 @@ import app.lidory.duckcount.groupList.model.GroupCreationFailure
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.MemberRefusal
+import app.lidory.duckcount.groupList.model.MembershipChangeError
+import app.lidory.duckcount.groupList.model.MembershipChangeResult
 import app.lidory.duckcount.groupList.model.User
 import contact.ContactSyncError
 import mls.MlsIdentityError
@@ -18,29 +20,15 @@ import database.domain.GroupMember as GroupMemberDb
 import database.domain.GroupWithMembers as GroupWithMembersDb
 import database.domain.User as UserDb
 import group.GroupCreationError as SharedGroupCreationError
+import group.GroupMembershipError as SharedGroupMembershipError
+import group.MembershipChangeOutcome as SharedMembershipChangeOutcome
 
 fun GroupDb.toGroupListModel(): Group = Group(
     uuid = uuid,
     description = description,
     title = title,
     currency = currency.toGroupListModel(),
-)
-
-fun Group.toDb(): GroupDb = GroupDb(
-    uuid = uuid,
-    description = description,
-    title = title,
-    currency = currency.toDb(),
-)
-
-fun GroupWithMembers.toDb(): GroupWithMembersDb = GroupWithMembersDb(
-    uuid = uuid,
-    description = description,
-    title = title,
-    currency = currency.toDb(),
-    groupMembers = members.map {
-        it.toDb()
-    },
+    isLeft = isLeft,
 )
 
 fun GroupWithMembersDb.toGroupListModel(): GroupWithMembers = GroupWithMembers(
@@ -51,6 +39,9 @@ fun GroupWithMembersDb.toGroupListModel(): GroupWithMembers = GroupWithMembers(
     members = groupMembers.map {
         it.toGroupListModel()
     },
+    isLeft = isLeft,
+    hasPendingChange = hasPendingChange,
+    canChangeMembers = canChangeMembers,
 )
 
 fun Currency.toDb(): CurrencyDb = CurrencyDb(
@@ -110,13 +101,7 @@ suspend fun SharedGroupCreationError.toGroupCreationError(
 ): GroupCreationError {
     suspend fun members(refusal: MemberRefusal, userUuids: Set<String>) = GroupCreationError.Members(
         refusal = refusal,
-        fullNames = userUuids
-            .sortedBy { memberUuids.indexOf(it) }
-            .map { userUuid ->
-                // Every one of them picked from the contacts listed with their name, see
-                // getInvitableUsersFiltered, whose row only goes with the session.
-                checkNotNull(fullNameOf(userUuid)) { "No name for the member $userUuid" }
-            },
+        fullNames = namesOf(userUuids = userUuids, memberUuids = memberUuids, fullNameOf = fullNameOf),
     )
 
     return when (this) {
@@ -141,6 +126,83 @@ suspend fun SharedGroupCreationError.toGroupCreationError(
             -> GroupCreationError.Failure(GroupCreationFailure.UNKNOWN)
     }
 }
+
+/**
+ * What came of a change to a group's members that did not fail: made, or sent again until the
+ * server takes it.
+ */
+fun SharedMembershipChangeOutcome.toMembershipChangeResult(): MembershipChangeResult = when (this) {
+    SharedMembershipChangeOutcome.MADE -> MembershipChangeResult.Made
+    SharedMembershipChangeOutcome.PENDING -> MembershipChangeResult.Pending
+}
+
+/**
+ * Maps a failed change to a group's members to the reason the screen surfaces, as for a creation,
+ * see [toGroupCreationError]: who it was about, by the names [fullNameOf] reads for them, in the
+ * order of [memberUuids], the order they were picked in, or else what kept it from going through.
+ *
+ * What went wrong with the user's own storage or the library is folded into
+ * [GroupCreationFailure.UNKNOWN], as is nobody being signed in, as for a creation. So is what the
+ * group's settings offer no change for: a group the user did not create, was removed from, or
+ * that this device does not hold, see [GroupWithMembersDb.canChangeMembers], one with a change
+ * waiting on the server, see [GroupWithMembersDb.hasPendingChange], and more members than the
+ * picker lets the user pick.
+ */
+suspend fun SharedGroupMembershipError.toMembershipChangeError(
+    isOnline: Boolean,
+    memberUuids: List<String>,
+    fullNameOf: suspend (userUuid: String) -> String?,
+): MembershipChangeError {
+    suspend fun members(refusal: MemberRefusal, userUuids: Set<String>) = MembershipChangeError.Members(
+        refusal = refusal,
+        fullNames = namesOf(userUuids = userUuids, memberUuids = memberUuids, fullNameOf = fullNameOf),
+    )
+
+    return when (this) {
+        is SharedGroupMembershipError.NotContacts -> members(refusal = MemberRefusal.NOT_CONTACTS, userUuids = userUuids)
+
+        is SharedGroupMembershipError.IdentityChanged ->
+            members(refusal = MemberRefusal.IDENTITY_CHANGED, userUuids = userUuids)
+
+        is SharedGroupMembershipError.Unreachable -> members(refusal = MemberRefusal.UNREACHABLE, userUuids = userUuids)
+
+        is SharedGroupMembershipError.Deleted -> members(refusal = MemberRefusal.DELETED, userUuids = userUuids)
+
+        is SharedGroupMembershipError.Network ->
+            MembershipChangeError.Failure(error.toGroupCreationFailure(isOnline = isOnline))
+
+        is SharedGroupMembershipError.Contacts ->
+            MembershipChangeError.Failure(error.toGroupCreationFailure(isOnline = isOnline))
+
+        is SharedGroupMembershipError.Identity ->
+            MembershipChangeError.Failure(error.toGroupCreationFailure(isOnline = isOnline))
+
+        SharedGroupMembershipError.NoSession,
+        SharedGroupMembershipError.NotCreator,
+        SharedGroupMembershipError.NotHeld,
+        SharedGroupMembershipError.ChangePending,
+        SharedGroupMembershipError.TooManyMembers,
+        SharedGroupMembershipError.Storage,
+        SharedGroupMembershipError.Crypto,
+            -> MembershipChangeError.Failure(GroupCreationFailure.UNKNOWN)
+    }
+}
+
+/**
+ * The names [fullNameOf] reads for [userUuids], in the order of [memberUuids], the order the
+ * screen lists or picked them in: the shared errors name them in no particular order.
+ */
+private suspend fun namesOf(
+    userUuids: Set<String>,
+    memberUuids: List<String>,
+    fullNameOf: suspend (userUuid: String) -> String?,
+): List<String> = userUuids
+    .sortedBy { memberUuids.indexOf(it) }
+    .map { userUuid ->
+        // Every one of them picked from the contacts listed with their name, see
+        // getInvitableUsersFiltered, whose row only goes with the session.
+        checkNotNull(fullNameOf(userUuid)) { "No name for the member $userUuid" }
+    }
 
 /** Restoring the contacts fails on the vault or on the MLS client, reported as above. */
 private fun ContactSyncError.toGroupCreationFailure(isOnline: Boolean): GroupCreationFailure = when (this) {
@@ -178,8 +240,9 @@ private fun VaultError.toGroupCreationFailure(isOnline: Boolean): GroupCreationF
 
 /**
  * The network failures of asking for the invitees' key packages, or the vault, along the way, or
- * of the server refusing the group, which the form never sends it as it would. An answer that never
- * came is no failure at all: the group is sent again until one does, see `group.GroupCreator`.
+ * of the server refusing the group, or the change to its members, which the app never sends it as
+ * it would. An answer that never came is no failure at all: the group, or the change, is sent again
+ * until one does, see `group.GroupCreator` and `group.GroupMembershipChanger`.
  */
 private fun NetworkError.toGroupCreationFailure(isOnline: Boolean): GroupCreationFailure = when (this) {
     NetworkError.NO_INTERNET -> GroupCreationFailure.NO_INTERNET

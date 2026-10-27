@@ -71,6 +71,7 @@ fun GroupListScreen(
                         GroupCard(
                             title = group.title,
                             description = group.description,
+                            isLeft = group.isLeft,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable(

@@ -106,6 +106,12 @@ object DuckCountRoutes {
          * waited for has.
          */
         val ACKNOWLEDGEMENTS = "$GROUP_BASE_URL/:group_uuid/messages/acknowledgements"
+
+        /** `POST` adds members to one group, `DELETE` removes some, its creator alone. */
+        val MEMBERS = "$GROUP_BASE_URL/:group_uuid/members"
+
+        /** `PUT` rotates the key of one group after a removal, its creator alone. */
+        val KEY = "$GROUP_BASE_URL/:group_uuid/key"
     }
 
     object Push {

@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -13,10 +14,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,10 +30,20 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.groupList.component.GroupMemberFullScreenDialog
+import app.lidory.duckcount.groupList.component.LeftGroupNotice
 import app.lidory.duckcount.groupList.component.groupMembersDetail.GroupMemberBottomSheet
+import app.lidory.duckcount.groupList.component.groupMembersDetail.GroupMemberRemovalDialog
 import app.lidory.duckcount.groupList.component.groupMembersDetail.groupMemberDetail
+import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
+import app.lidory.duckcount.groupList.model.MembershipChangeError
+import app.lidory.duckcount.groupList.model.MembershipChangeResult
+import app.lidory.duckcount.groupList.model.message
 import app.lidory.duckcount.groupList.viewmodel.GroupSettingsViewModel
+import app.lidory.duckcount.groupList.viewmodel.MemberActions
+import app.lidory.duckcount.groupList.viewmodel.memberActions
 import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
 
@@ -45,9 +58,77 @@ fun GroupSettingsScreen(
     animatedVisibilityScope: AnimatedVisibilityScope,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val userListState by viewModel.usersState.collectAsStateWithLifecycle()
+    val selectedUuids by viewModel.selectedUuids.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val isChanging by viewModel.isChanging.collectAsStateWithLifecycle()
+
     val bottomSheetState = rememberModalBottomSheetState()
-    var showBottomSheet by remember { mutableStateOf(false) }
-    var bottomSheetUserUuid by remember { mutableStateOf("") }
+    var bottomSheetMember by remember { mutableStateOf<GroupMemberWithFullName?>(null) }
+
+    val group = state.groupWithMembers
+    val actions = group?.memberActions() ?: MemberActions.NONE
+
+    // The screen's snackbars, and the picker's, which covers the screen while open.
+    val snackbarHostState = remember { SnackbarHostState() }
+    val pickerSnackbarHostState = remember { SnackbarHostState() }
+    var pendingNotice by remember { mutableStateOf<MembershipChangeResult?>(null) }
+    var pendingAdditionError by remember { mutableStateOf<MembershipChangeError?>(null) }
+
+    // Tell what came of a change once answered, and who it was about.
+    LaunchedEffect(Unit) {
+        viewModel.notices.collect { pendingNotice = it }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.additionErrors.collect { pendingAdditionError = it }
+    }
+
+    pendingNotice?.let { notice ->
+        val message = notice.message()
+
+        LaunchedEffect(notice) {
+            message?.let { snackbarHostState.showSnackbar(it) }
+            pendingNotice = null
+        }
+    }
+
+    pendingAdditionError?.let { error ->
+        val message = error.message()
+
+        LaunchedEffect(error) {
+            pickerSnackbarHostState.showSnackbar(message)
+            pendingAdditionError = null
+        }
+    }
+
+    // What the picker told goes with it once it closes, rather than showing again the next time it
+    // opens: its snackbars are gone from the screen with it, and nothing would time them out.
+    val isMemberDialogShown = viewModel.isMemberDialogShown
+
+    LaunchedEffect(isMemberDialogShown) {
+        if (!isMemberDialogShown) pickerSnackbarHostState.currentSnackbarData?.dismiss()
+    }
+
+    GroupMemberFullScreenDialog(
+        isDialogShown = isMemberDialogShown,
+        onSelectUsers = { viewModel.addMembers() },
+        onDismissRequest = { viewModel.hideMemberDialog() },
+        userList = userListState.users,
+        searchQuery = searchQuery,
+        // Cleared with the selection once the picker closes, and only then: not while the members
+        // picked are being added, see GroupSettingsViewModel.hideMemberDialog.
+        clearSearchQuery = {},
+        onSearchQueryChange = { viewModel.updateSearchQuery(it) },
+        toggleSelectedUser = { viewModel.toggleSelectedUser(it.uuid) },
+        selectedUuids = selectedUuids,
+        maxMembers = viewModel.maxMembers,
+        currentMemberCount = state.membersWithFullName.size,
+        // Members are added one at least.
+        isConfirmEnabled = selectedUuids.isNotEmpty(),
+        isConfirming = isChanging,
+        snackbarHostState = pickerSnackbarHostState,
+    )
 
     Scaffold(
         topBar = {
@@ -64,82 +145,98 @@ fun GroupSettingsScreen(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = navigateToEditGroup,
-                    ) {
-                        Icon(
-                            painter = painterResource(androidUiR.drawable.ic_edit),
-                            contentDescription = stringResource(androidUiR.string.edit),
-                        )
+                    // Read-only once the user was removed from the group.
+                    if (group?.isLeft == false) {
+                        IconButton(
+                            onClick = navigateToEditGroup,
+                        ) {
+                            Icon(
+                                painter = painterResource(androidUiR.drawable.ic_edit),
+                                contentDescription = stringResource(androidUiR.string.edit),
+                            )
+                        }
                     }
                 },
             )
         },
     ) { innerPadding ->
-        LazyColumn(
-            modifier = modifier
+        Column(
+            modifier = Modifier
                 .padding(innerPadding)
-                .padding(horizontal = Padding.medium),
+                .fillMaxSize(),
         ) {
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(Padding.extraLarge),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    with(sharedTransitionScope) {
-                        Text(
-                            modifier = Modifier.sharedBounds(
-                                sharedContentState = rememberSharedContentState(key = "group_title_${state.groupWithMembers?.uuid}"),
-                                animatedVisibilityScope = animatedVisibilityScope,
-                            ),
-                            text = state.groupWithMembers?.title ?: "",
-                            style = MaterialTheme.typography.headlineLarge,
-                        )
+            LazyColumn(
+                modifier = modifier
+                    .weight(1f)
+                    .padding(horizontal = Padding.medium),
+            ) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Padding.extraLarge),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        with(sharedTransitionScope) {
+                            Text(
+                                modifier = Modifier.sharedBounds(
+                                    sharedContentState = rememberSharedContentState(key = "group_title_${group?.uuid}"),
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                ),
+                                text = group?.title ?: "",
+                                style = MaterialTheme.typography.headlineLarge,
+                            )
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                        Text(
-                            modifier = Modifier.sharedBounds(
-                                sharedContentState = rememberSharedContentState(key = "group_description_${state.groupWithMembers?.uuid}"),
-                                animatedVisibilityScope = animatedVisibilityScope,
-                            ),
-                            text = state.groupWithMembers?.description ?: "",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-            }
-
-            groupMemberDetail(
-                members = state.membersWithFullName,
-                authenticatedUserUuid = viewModel.getAuthenticatedUserUuid(),
-                openBottomSheet = { userUuid ->
-                    // TODO: Remove this admin check when the BottomSheet will have more than just
-                    //       an option to remove the user from the group.
-                    state.membersWithFullName.find { it.member.userUuid == userUuid }?.let {
-                        if (!it.member.isAdmin) {
-                            showBottomSheet = true
-                            bottomSheetUserUuid = userUuid
+                            Text(
+                                modifier = Modifier.sharedBounds(
+                                    sharedContentState = rememberSharedContentState(key = "group_description_${group?.uuid}"),
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                ),
+                                text = group?.description ?: "",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
                         }
                     }
+                }
+
+                if (group?.isLeft == true) {
+                    item {
+                        LeftGroupNotice(modifier = Modifier.padding(bottom = Padding.extraLarge))
+                    }
+                }
+
+                groupMemberDetail(
+                    members = state.membersWithFullName,
+                    authenticatedUserUuid = viewModel.getAuthenticatedUserUuid(),
+                    actions = actions,
+                    onAddMembers = { viewModel.showMemberDialog() },
+                    openBottomSheet = { member -> bottomSheetMember = member },
+                )
+            }
+
+            DuckCountSnackbarHost(hostState = snackbarHostState)
+        }
+
+        bottomSheetMember?.let { member ->
+            GroupMemberBottomSheet(
+                removeUserFromGroup = {
+                    bottomSheetMember = null
+                    viewModel.askToRemove(member)
                 },
+                bottomSheetState = bottomSheetState,
+                onDismissRequest = { bottomSheetMember = null },
             )
         }
 
-        if (showBottomSheet) {
-            GroupMemberBottomSheet(
-                userUuid = bottomSheetUserUuid,
-                removeUserFromGroup = { userUuid ->
-                    showBottomSheet = false
-                    viewModel.removeGroupMember(userUuid)
-                },
-                bottomSheetState = bottomSheetState,
-                onDismissRequest = {
-                    showBottomSheet = false
-                    bottomSheetUserUuid = ""
-                },
+        viewModel.memberToRemove?.let { member ->
+            GroupMemberRemovalDialog(
+                memberName = member.fullName ?: stringResource(R.string.unknown_member),
+                groupTitle = group?.title ?: "",
+                isRemoving = isChanging,
+                onDismiss = { viewModel.cancelRemoval() },
+                onConfirm = { viewModel.removeMember(member) },
             )
         }
     }

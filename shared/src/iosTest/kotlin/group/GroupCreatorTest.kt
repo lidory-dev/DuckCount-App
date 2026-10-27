@@ -588,6 +588,7 @@ class GroupCreatorTest {
         mlsGroupId = mlsGroupId,
         groupKey = groupKey,
         isBackedUp = true,
+        isLeft = isLeft,
     )
 
     private fun assertNothingCreated() {

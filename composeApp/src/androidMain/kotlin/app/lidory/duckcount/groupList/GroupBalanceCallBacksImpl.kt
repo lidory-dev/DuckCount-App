@@ -43,6 +43,10 @@ class GroupBalanceCallBacksImpl(
         return groupRepository.get(groupUuid).first().currency.symbol
     }
 
+    override suspend fun getFullName(userUuid: String): String? {
+        return userRepository.getFullName(userUuid).first()
+    }
+
     override fun getAllMembers(groupUuid: String): Flow<List<GroupMemberWithFullName>> {
         return groupMemberRepository.getMembersFromGroup(groupUuid = groupUuid).map { groupMembers ->
             groupMembers.map { groupMember ->

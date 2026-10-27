@@ -72,6 +72,10 @@ class GroupSettleUpCallBacksImpl(
         return authenticationUtils.getAuthenticatedUserUuid() ?: ""
     }
 
+    override fun isGroupLeft(groupUuid: String): Flow<Boolean> {
+        return groupRepository.isLeft(uuid = groupUuid)
+    }
+
     override suspend fun getCurrencySymbol(groupUuid: String): String {
         return getCurrency(groupUuid).symbol
     }

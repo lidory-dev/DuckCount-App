@@ -10,7 +10,6 @@ import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.GroupCreationError
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
-import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.User
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -58,16 +57,18 @@ class CreateGroupViewModel(
     /** The most members the group may have, the user included: see [GroupListCallBacks.maxMembers]. */
     val maxMembers: Int = groupListCallBacks.maxMembers
 
-    // True once the group is created. The screen must wait for this before navigating: navigating
-    // away clears this ViewModel and cancels viewModelScope, which would otherwise cut the creation
-    // short. A state rather than an event: the creation can complete while the app is in the
-    // background, where the screen cannot navigate, and the screen then closes once the user is back.
-    private val _isCreated = MutableStateFlow(false)
-    val isCreated: StateFlow<Boolean> = _isCreated.asStateFlow()
+    // True once the group is created, or what the user edited of it saved. The screen must wait for
+    // this before navigating: navigating away clears this ViewModel and cancels viewModelScope,
+    // which would otherwise cut the creation, or the saving, short. A state rather than an event:
+    // the creation can complete while the app is in the background, where the screen cannot
+    // navigate, and the screen then closes once the user is back.
+    private val _isSaved = MutableStateFlow(false)
+    val isSaved: StateFlow<Boolean> = _isSaved.asStateFlow()
 
     // True once the group being edited is gone, deleted under the screen by a creation the server
-    // refused, see GroupListCallBacks.getGroupWithMembers. The screen closes then, as once a group
-    // is created: there is nothing left to edit.
+    // refused, see GroupListCallBacks.getGroupWithMembers, or the user was removed from it, which
+    // leaves it read-only. The screen closes then, as once a group is created: there is nothing
+    // left to edit.
     private val _isGone = MutableStateFlow(false)
     val isGone: StateFlow<Boolean> = _isGone.asStateFlow()
 
@@ -120,13 +121,12 @@ class CreateGroupViewModel(
                     return@launch
                 }
 
-                _selectedUuids.value = group.members.mapTo(LinkedHashSet()) { it.userUuid } - authenticatedUserUuid
-
                 CreateGroupState.Content(
                     title = group.title,
                     description = group.description,
                     currency = group.currency,
-                    members = withFullNames(group.members),
+                    // Changed from the group's settings, by its creator alone, never here.
+                    members = emptyList(),
                     authenticatedUserUuid = authenticatedUserUuid,
                 )
             } ?: run {
@@ -150,9 +150,9 @@ class CreateGroupViewModel(
             }
 
             // Read once, for the form to keep what the user typed, and watched from then on for the
-            // group going, see isGone.
+            // group going, or the user being removed from it, see isGone.
             if (groupUuid != null) {
-                groupListCallBacks.getGroupWithMembers(groupUuid).first { it == null }
+                groupListCallBacks.getGroupWithMembers(groupUuid).first { it == null || it.isLeft }
 
                 _isGone.value = true
             }
@@ -242,7 +242,7 @@ class CreateGroupViewModel(
     fun createGroup() = viewModelScope.launch {
         // Not once created either: each attempt is a group of its own, so a second one would
         // create the same group twice.
-        if (_isCreating.value || _isCreated.value) return@launch
+        if (_isCreating.value || _isSaved.value) return@launch
 
         val content = content ?: return@launch
 
@@ -256,27 +256,24 @@ class CreateGroupViewModel(
                 currency = content.currency,
             )
 
-            if (error == null) _isCreated.value = true else _showError.send(error)
+            if (error == null) _isSaved.value = true else _showError.send(error)
         } finally {
             _isCreating.value = false
         }
     }
 
+    /** Saves the title and the description the user gave the group being edited, see [isSaved]. */
     fun updateGroup() = viewModelScope.launch {
         val content = content ?: return@launch
 
         groupUuid?.let {
             groupListCallBacks.updateGroup(
-                GroupWithMembers(
-                    uuid = groupUuid,
-                    title = content.title,
-                    description = content.description,
-                    members = content.members.map {
-                        it.member.copy(groupUuid = groupUuid)
-                    },
-                    currency = content.currency,
-                ),
+                uuid = groupUuid,
+                title = content.title,
+                description = content.description,
             )
+
+            _isSaved.value = true
         }
     }
 
@@ -294,6 +291,8 @@ sealed interface CreateGroupState {
         val title: String,
         val description: String,
         val currency: Currency,
+
+        /** Who the group to create is made of, the user first: nobody for a group being edited. */
         val members: List<GroupMemberWithFullName>,
         val authenticatedUserUuid: String,
     ) : CreateGroupState
@@ -304,40 +303,48 @@ data class UserListState(
 )
 
 /**
- * Whether [this] holds a group to confirm: the user and somebody else in it, and a title and a
- * description within [maxTitleLength] and [maxDescriptionLength].
+ * Whether [this] holds a group to confirm: a title and a description within [maxTitleLength] and
+ * [maxDescriptionLength], and for a group to create, [isNewGroup], the user and somebody else in
+ * it. A group being edited keeps its members, which its settings change, see [members].
  */
-fun CreateGroupState.Content.canConfirm(maxTitleLength: Int, maxDescriptionLength: Int): Boolean =
-    members.size >= 2 &&
+fun CreateGroupState.Content.canConfirm(
+    maxTitleLength: Int,
+    maxDescriptionLength: Int,
+    isNewGroup: Boolean,
+): Boolean =
+    (!isNewGroup || members.size >= 2) &&
         title.length in (1..maxTitleLength) &&
         description.length in (0..maxDescriptionLength)
 
 /**
- * How many members the group has with [selectedUuids] picked besides the user, who is in every
- * group they create, so counts against the limit as much as anybody picked.
+ * How many members the group has with [selectedUuids] picked besides the [currentMemberCount] it
+ * has already: the user alone for a group they create, who is in every group of theirs, so counts
+ * against the limit as much as anybody picked.
  */
-fun memberCount(selectedUuids: Set<String>): Int = selectedUuids.size + 1
+fun memberCount(selectedUuids: Set<String>, currentMemberCount: Int = 1): Int =
+    selectedUuids.size + currentMemberCount
 
 /**
  * Whether [uuid] can be picked, or unpicked: always once picked, so that the selection can still
  * shrink once full, and otherwise while [selectedUuids] leaves room for one more within
- * [maxMembers], the user included, see [memberCount].
+ * [maxMembers], the [currentMemberCount] members included, see [memberCount].
  */
-fun isSelectable(uuid: String, selectedUuids: Set<String>, maxMembers: Int): Boolean =
-    uuid in selectedUuids || memberCount(selectedUuids) < maxMembers
+fun isSelectable(uuid: String, selectedUuids: Set<String>, maxMembers: Int, currentMemberCount: Int = 1): Boolean =
+    uuid in selectedUuids || memberCount(selectedUuids, currentMemberCount) < maxMembers
 
 /**
  * [selected] with [uuid] taken out, or added when that keeps the group within [maxMembers], the
- * user included: past the limit, picking one more does nothing, and the picker shows that card
- * disabled, see [isSelectable].
+ * [currentMemberCount] members included: past the limit, picking one more does nothing, and the
+ * picker shows that card disabled, see [isSelectable].
  */
 fun toggledSelection(
     selected: Set<String>,
     uuid: String,
     maxMembers: Int,
+    currentMemberCount: Int = 1,
 ): Set<String> = when {
     uuid in selected -> selected - uuid
-    memberCount(selected) < maxMembers -> selected + uuid
+    memberCount(selected, currentMemberCount) < maxMembers -> selected + uuid
     else -> selected
 }
 

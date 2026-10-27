@@ -24,6 +24,12 @@ sealed interface ExpenseSaveError {
      * to have deleted their account, who could then not be unticked there.
      */
     data class BeneficiariesDeleted(val beneficiaries: List<DeletedBeneficiary>) : ExpenseSaveError
+
+    /**
+     * The expense is one of a group the user was removed from, which stays read-only: the form can
+     * still be open as a sync reads the removal.
+     */
+    data object GroupLeft : ExpenseSaveError
 }
 
 /** Somebody who deleted their account, by the name this device shows for them, [fullName], if any. */
@@ -41,6 +47,8 @@ fun ExpenseSaveError.BeneficiariesDeleted.fullNames(): List<String>? =
 @Composable
 fun ExpenseSaveError.message(): String = when (this) {
     is ExpenseSaveError.Write -> stringResource(error.messageRes())
+
+    ExpenseSaveError.GroupLeft -> stringResource(R.string.write_error_group_left)
 
     is ExpenseSaveError.BeneficiariesDeleted -> {
         val names = fullNames()

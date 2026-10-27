@@ -21,6 +21,7 @@ import database.domain.currencyDisplayName
 import expense.OneTimeExpenseWriteError
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import util.Result
 
@@ -59,7 +60,13 @@ class CreateExpenseCallBacksImpl(
         // Group expense: local-only write. Returning early is essential, the one-time
         // branch below must not also run (it would POST the expense to the server and
         // insert a second local copy).
-        if (expenseWithBeneficiaries.groupUuid != null) {
+        val groupUuid = expenseWithBeneficiaries.groupUuid
+
+        if (groupUuid != null) {
+            // Read-only once the user is removed from the group, which a sync can read with the
+            // form open.
+            if (groupRepository.isLeft(uuid = groupUuid).first()) return ExpenseSaveError.GroupLeft
+
             expenseRepository.insertWithBeneficiaries(expenseWithBeneficiaries.toDb())
             return null
         }
@@ -86,7 +93,13 @@ class CreateExpenseCallBacksImpl(
     override suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseSaveError? {
         // Group expense: local-only write. Returning early is essential, the one-time
         // branch below must not also run (it would PUT the expense to the server).
-        if (expenseWithBeneficiaries.groupUuid != null) {
+        val groupUuid = expenseWithBeneficiaries.groupUuid
+
+        if (groupUuid != null) {
+            // Read-only once the user is removed from the group, which a sync can read with the
+            // form open.
+            if (groupRepository.isLeft(uuid = groupUuid).first()) return ExpenseSaveError.GroupLeft
+
             expenseRepository.updateWithBeneficiaries(expenseWithBeneficiaries.toDb())
             return null
         }

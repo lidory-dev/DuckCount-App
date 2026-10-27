@@ -10,7 +10,7 @@ import org.junit.Test
 
 /**
  * What the group form lists once members are picked, see [keptMembers], and when it can be
- * confirmed, see [canConfirm].
+ * confirmed, see [canConfirm], for a group to create or one being edited.
  */
 class CreateGroupFormTest {
 
@@ -50,19 +50,42 @@ class CreateGroupFormTest {
 
     @Test
     fun `the user alone cannot confirm a group`() {
-        assertFalse(form(members = listOf(self)).canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000))
+        assertFalse(
+            form(members = listOf(self))
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000, isNewGroup = true),
+        )
     }
 
     @Test
     fun `the user and somebody else with a title can confirm a group`() {
-        assertTrue(form(members = listOf(self, alice)).canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000))
+        assertTrue(
+            form(members = listOf(self, alice))
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000, isNewGroup = true),
+        )
+    }
+
+    /** Its members are changed from its settings, so the form lists none of them. */
+    @Test
+    fun `a group being edited can be confirmed with no members listed`() {
+        assertTrue(
+            form(members = emptyList())
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000, isNewGroup = false),
+        )
+    }
+
+    @Test
+    fun `a group being edited with no title cannot be confirmed`() {
+        assertFalse(
+            form(members = emptyList(), title = "")
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000, isNewGroup = false),
+        )
     }
 
     @Test
     fun `a group with no title cannot be confirmed`() {
         assertFalse(
             form(members = listOf(self, alice), title = "")
-                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000, isNewGroup = true),
         )
     }
 
@@ -70,7 +93,7 @@ class CreateGroupFormTest {
     fun `a title past its limit cannot be confirmed`() {
         assertFalse(
             form(members = listOf(self, alice), title = "a".repeat(51))
-                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000, isNewGroup = true),
         )
     }
 
@@ -78,7 +101,7 @@ class CreateGroupFormTest {
     fun `a description past its limit cannot be confirmed`() {
         assertFalse(
             form(members = listOf(self, alice), description = "a".repeat(2001))
-                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000, isNewGroup = true),
         )
     }
 

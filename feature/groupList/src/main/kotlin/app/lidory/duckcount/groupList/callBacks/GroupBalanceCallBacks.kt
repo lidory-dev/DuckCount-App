@@ -17,4 +17,7 @@ interface GroupBalanceCallBacks {
     fun getAllMembers(groupUuid: String): Flow<List<GroupMemberWithFullName>>
 
     suspend fun getCurrencySymbol(groupUuid: String): String
+
+    /** The name of [userUuid], or null for somebody this device has no name for. */
+    suspend fun getFullName(userUuid: String): String?
 }

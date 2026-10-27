@@ -24,7 +24,7 @@ data class PushSignal(
 
     /**
      * The user whose action sent it: the sender of the message, whoever asked to become a
-     * contact or accepted, the creditor who changed an expense, the creator of a group. Null
+     * contact or accepted, the creditor who changed an expense, the owner of a group. Null
      * when the payload names nobody this build can read, which is taken as nobody at all.
      */
     val from: String?,
@@ -83,6 +83,18 @@ data class PushSignal(
         GROUP_WELCOME,
 
         /**
+         * The creator of a group the user is in, or was in until now, changed it: added members
+         * or removed some, the user perhaps, or handed its members a new key, see
+         * `group.GroupSync`.
+         *
+         * Silent: which group, and whether the change concerns the user at all, the device learns
+         * only from its sync, which tells them once it has read that they were removed. Taken only
+         * from a contact, like a message, the group's creator being one: a group is joined from
+         * nobody else.
+         */
+        GROUP_CHANGED,
+
+        /**
          * Something this build does not know about, including a payload it could not
          * read at all.
          *
@@ -127,6 +139,7 @@ data class PushSignal(
                 "one_time_expense" -> Kind.ONE_TIME_EXPENSE
                 "one_time_expense_changed" -> Kind.ONE_TIME_EXPENSE_CHANGED
                 "group_welcome" -> Kind.GROUP_WELCOME
+                "group_changed" -> Kind.GROUP_CHANGED
                 else -> Kind.UNKNOWN
             }
 

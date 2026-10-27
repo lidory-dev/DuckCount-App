@@ -30,7 +30,8 @@ private const val TAG = "PushSyncWorker"
  *
  * Only a contact's expenses are told about, arriving or changing: a former contact's still
  * come in and change in the app, without a word, see [ExpenseArrivals] and [ExpenseChanges].
- * Only a contact's groups are joined, and each one is told about, see [GroupSync].
+ * Only a contact's groups are joined, and each one is told about, see [GroupSync], as is each
+ * one the user is removed from.
  *
  * Also run with no signal at all, once the server's limit on messages lets through again what
  * a sync left unsent, see [PushWork.enqueueResend]: the passes that send are part of a sync.
@@ -123,6 +124,7 @@ class PushSyncWorker(
         contactNotifier.forget(userUuids = contactArrivals.departures(snapshot = contactsBefore))
 
         groupNotifier.notify(arrivals = groups.joined)
+        groupNotifier.notifyRemovals(removals = groups.removed)
 
         expenseNotifier.notify(arrivals = expenseArrivals.since(snapshot = expensesBefore))
         expenseNotifier.notifyChanges(changes = expenseChanges.since(snapshot = shownBefore))

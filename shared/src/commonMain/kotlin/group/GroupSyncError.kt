@@ -27,8 +27,19 @@ sealed interface GroupSyncError : Error {
     /** The vault could not be read, or would not take a group's key. */
     data class Vault(val error: VaultError) : GroupSyncError
 
-    /** The user's own storage failed, so the same Welcome can be tried again later. */
+    /** The user's own storage failed, so the same Welcome, or message, can be tried again later. */
     data object Storage : GroupSyncError
+
+    /**
+     * A Commit from the creator of a group seats a member under an identity other than the one
+     * this device pinned for them, see [uniffi.lib_duckcount.MlsException.IdentityKeyMismatch]. It
+     * is left waiting, and the group can go no further than the epoch before it, every later
+     * message waiting behind it, until which identity is theirs is settled.
+     *
+     * Names nobody, as this is logged: who is in which of the user's groups is nobody else's
+     * business.
+     */
+    data object IdentityChanged : GroupSyncError
 
     /** The server could not be reached, or refused the call. */
     data class Network(val error: NetworkError) : GroupSyncError

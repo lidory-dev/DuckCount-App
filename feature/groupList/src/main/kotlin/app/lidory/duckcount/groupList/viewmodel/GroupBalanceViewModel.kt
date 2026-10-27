@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.groupList.callBacks.GroupBalanceCallBacks
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
+import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithBalance
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import kotlinx.coroutines.flow.Flow
@@ -29,6 +30,21 @@ class GroupBalanceViewModel(
                     groupExpenses = groupExpenses,
                 )
 
+            val memberUuids = groupMembersWithFullName.mapTo(HashSet()) { it.member.userUuid }
+
+            // Whoever the creator removed, still named by the expenses, which keep what they owe
+            // or are owed.
+            val formerMembers = debts.filterKeys { it !in memberUuids }.map { (userUuid, balance) ->
+                GroupMemberWithBalance(
+                    member = GroupMemberWithFullName(
+                        member = GroupMember(userUuid = userUuid, groupUuid = groupUuid, isAdmin = false),
+                        fullName = groupBalanceCallBacks.getFullName(userUuid),
+                    ),
+                    balance = balance,
+                    isFormerMember = true,
+                )
+            }
+
             MembersWithBalanceState.Content(
                 members = groupMembersWithFullName.map { memberWithFullName ->
                     GroupMemberWithBalance(
@@ -36,7 +52,7 @@ class GroupBalanceViewModel(
                         balance = debts[memberWithFullName.member.userUuid]
                             ?: memberWithFullName.member.userUuid, // TODO: Show that the username was not found?
                     )
-                },
+                } + formerMembers,
                 currencySymbol = groupBalanceCallBacks.getCurrencySymbol(groupUuid),
             )
         }.stateIn(

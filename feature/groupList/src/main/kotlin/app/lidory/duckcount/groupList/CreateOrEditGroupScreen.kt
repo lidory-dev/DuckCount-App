@@ -69,7 +69,7 @@ fun CreateOrEditGroupScreen(
     val selectedUuids by viewModel.selectedUuids.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isCreating by viewModel.isCreating.collectAsStateWithLifecycle()
-    val isCreated by viewModel.isCreated.collectAsStateWithLifecycle()
+    val isSaved by viewModel.isSaved.collectAsStateWithLifecycle()
     val isGone by viewModel.isGone.collectAsStateWithLifecycle()
 
     val focusManager = LocalFocusManager.current
@@ -81,12 +81,13 @@ fun CreateOrEditGroupScreen(
     // Do not allow navigating back while creating the group.
     BackHandler(enabled = isCreating) {}
 
-    // Navigate back only once the group is created (see CreateGroupViewModel.isCreated), or the
-    // group being edited is gone (see CreateGroupViewModel.isGone), and on resuming: onBack does
-    // nothing until the screen is resumed, so a creation that completes while the app is in the
-    // background closes the screen once the user is back.
-    LifecycleResumeEffect(isCreated, isGone) {
-        if (isCreated || isGone) onBack()
+    // Navigate back only once the group is created or its edits saved (see
+    // CreateGroupViewModel.isSaved), or the group being edited is gone (see
+    // CreateGroupViewModel.isGone), and on resuming: onBack does nothing until the screen is
+    // resumed, so a creation that completes while the app is in the background closes the screen
+    // once the user is back.
+    LifecycleResumeEffect(isSaved, isGone) {
+        if (isSaved || isGone) onBack()
 
         onPauseOrDispose {}
     }
@@ -106,7 +107,10 @@ fun CreateOrEditGroupScreen(
 
     GroupMemberFullScreenDialog(
         isDialogShown = viewModel.isMemberDialogShown,
-        onSelectUsers = { uuids -> viewModel.onMembersSelected(uuids) },
+        onSelectUsers = { uuids ->
+            viewModel.onMembersSelected(uuids)
+            viewModel.hideMemberDialog()
+        },
         onDismissRequest = { viewModel.hideMemberDialog() },
         userList = userListState.users,
         searchQuery = searchQuery,
@@ -158,23 +162,19 @@ fun CreateOrEditGroupScreen(
                             .padding(horizontal = Padding.medium)
                             .padding(bottom = Padding.extraLarge),
                         enabled = !isCreating
-                                && !isCreated
+                                && !isSaved
                                 && content.canConfirm(
                                     maxTitleLength = viewModel.maxTitleLength,
                                     maxDescriptionLength = viewModel.maxDescriptionLength,
+                                    isNewGroup = viewModel.groupUuid == null,
                                 ),
                         colors = ButtonDefaults.buttonColors()
                             .copy(containerColor = MaterialTheme.colorScheme.primary),
                         onClick = {
-                            if (viewModel.groupUuid != null) {
-                                viewModel.updateGroup()
-
-                                onBack()
-                            } else {
-                                // Navigation happens via viewModel.isCreated once the group is,
-                                // otherwise popping this screen cancels the creation under way.
-                                viewModel.createGroup()
-                            }
+                            // Navigation happens via viewModel.isSaved once the group is created or
+                            // its edits saved, otherwise popping this screen cancels the write under
+                            // way.
+                            if (viewModel.groupUuid != null) viewModel.updateGroup() else viewModel.createGroup()
                         },
                         isLoading = isCreating,
                     ) {
@@ -274,18 +274,22 @@ fun CreateOrEditGroupScreen(
                             )
                         }
 
-                        groupMemberList(
-                            members = state.members,
-                            maxMembers = viewModel.maxMembers,
-                            enabled = !isCreating,
-                            authenticatedUserUuid = viewModel.getAuthenticatedUserUuid(),
-                            onModifyMemberList = {
-                                viewModel.showMemberDialog()
-                            },
-                            removeMember = { member ->
-                                viewModel.removeMember(member)
-                            },
-                        )
+                        // A group's members are changed from its settings, by its creator alone, see
+                        // GroupSettingsScreen.
+                        if (viewModel.groupUuid == null) {
+                            groupMemberList(
+                                members = state.members,
+                                maxMembers = viewModel.maxMembers,
+                                enabled = !isCreating,
+                                authenticatedUserUuid = viewModel.getAuthenticatedUserUuid(),
+                                onModifyMemberList = {
+                                    viewModel.showMemberDialog()
+                                },
+                                removeMember = { member ->
+                                    viewModel.removeMember(member)
+                                },
+                            )
+                        }
                     }
                 }
             }

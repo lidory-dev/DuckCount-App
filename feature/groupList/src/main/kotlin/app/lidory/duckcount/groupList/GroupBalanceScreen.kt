@@ -63,8 +63,14 @@ fun GroupBalanceScreen(
                         items = membersWithBalanceSorted,
                         key = { it.member.member.userUuid },
                     ) { member ->
+                        val fullName = member.member.fullName ?: stringResource(R.string.unknown_member)
+
                         BalanceGraphItem(
-                            fullName = member.member.fullName ?: stringResource(R.string.unknown_member),
+                            fullName = if (member.isFormerMember) {
+                                stringResource(R.string.former_group_member, fullName)
+                            } else {
+                                fullName
+                            },
                             debt = member.balance.toBigDecimal(),
                             maxAmount = membersWithBalanceSorted.maxOf { it.balance.toBigDecimal().abs() },
                             currencySymbol = state.currencySymbol,

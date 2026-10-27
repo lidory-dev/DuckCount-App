@@ -97,28 +97,32 @@ class ExpenseDetailViewModel(
             }
         }
 
+    // A group the user was removed from stays read-only, its expenses with it, and a sync can read
+    // the removal with the screen open.
+    private val isGroupLeft: Flow<Boolean> =
+        expense
+            .map { it?.groupUuid }
+            .distinctUntilChanged()
+            .flatMapLatest { uuid ->
+                if (uuid == null) flowOf(false)
+                else expenseDetailCallBacks.isGroupLeft(uuid)
+            }
+
     val state: StateFlow<ExpenseScreenState> =
-        combine(expense, creditorName, beneficiaries) { expenseValue, creditor, beneficiaryUis ->
+        combine(expense, creditorName, beneficiaries, isGroupLeft) { expenseValue, creditor, beneficiaryUis, isLeft ->
             if (expenseValue == null) {
                 ExpenseScreenState.Loading
             } else {
+                val actions = expenseValue.actions(selfUuid = authenticatedUserUuid, isGroupLeft = isLeft)
+
                 ExpenseScreenState.Content(
                     expenseWithBeneficiaries = expenseValue,
                     creditorFullName = creditor,
                     beneficiaries = beneficiaryUis,
-                    canEdit = (!expenseValue.isSettlement && expenseValue.groupUuid != null)
-                            || (!expenseValue.isSettlement && expenseValue.creditorUuid == authenticatedUserUuid),
-                    // A settlement may only be deleted by its beneficiary (the money's recipient).
-                    // A one-time expense may only be deleted by its creditor.
-                    // A group expense may be deleted by any member of the group.
-                    canDelete = (expenseValue.isSettlement && expenseValue.beneficiaries.any { it.userUuid == authenticatedUserUuid })
-                            || (expenseValue.groupUuid == null && expenseValue.creditorUuid == authenticatedUserUuid)
-                            || expenseValue.groupUuid != null,
-                    // Only a one-time expense can be marked as paid back, and only by its
-                    // creditor, the one paid back: they sign it, and the server takes the
-                    // mark from nobody else.
-                    canSettle = expenseValue.groupUuid == null
-                            && expenseValue.creditorUuid == authenticatedUserUuid,
+                    canEdit = actions.canEdit,
+                    canDelete = actions.canDelete,
+                    canRestore = actions.canRestore,
+                    canSettle = actions.canSettle,
                 )
             }
         }.stateIn(
@@ -176,6 +180,43 @@ sealed interface ExpenseScreenState {
         val beneficiaries: List<BeneficiaryUi>,
         val canEdit: Boolean,
         val canDelete: Boolean,
+
+        /** Whether the expense, once deleted, can be restored: not in a group the user was removed from. */
+        val canRestore: Boolean,
         val canSettle: Boolean,
     ) : ExpenseScreenState
 }
+
+/** What the user may do with an expense on its detail screen, see [actions]. */
+data class ExpenseActions(
+    val canEdit: Boolean,
+    val canDelete: Boolean,
+
+    /** Whether the expense, once deleted, can be restored. */
+    val canRestore: Boolean,
+    val canSettle: Boolean,
+)
+
+/**
+ * What the user, [selfUuid], may do with this expense: nothing that changes it in a group they were
+ * removed from, [isGroupLeft], which stays read-only, its expenses with it.
+ */
+fun ExpenseWithBeneficiaries.actions(selfUuid: String?, isGroupLeft: Boolean) = ExpenseActions(
+    canEdit = !isGroupLeft && (
+        (!isSettlement && groupUuid != null)
+            || (!isSettlement && creditorUuid == selfUuid)
+    ),
+    // A settlement may only be deleted by its beneficiary (the money's recipient).
+    // A one-time expense may only be deleted by its creditor.
+    // A group expense may be deleted by any member of the group, while they are one.
+    canDelete = !isGroupLeft && (
+        (isSettlement && beneficiaries.any { it.userUuid == selfUuid })
+            || (groupUuid == null && creditorUuid == selfUuid)
+            || groupUuid != null
+    ),
+    canRestore = !isGroupLeft,
+    // Only a one-time expense can be marked as paid back, and only by its
+    // creditor, the one paid back: they sign it, and the server takes the
+    // mark from nobody else.
+    canSettle = groupUuid == null && creditorUuid == selfUuid,
+)

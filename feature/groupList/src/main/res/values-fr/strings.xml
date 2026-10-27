@@ -7,7 +7,6 @@
     <string name="expenses">Dépenses</string>
     <string name="balance">Solde</string>
     <string name="edit_group">Modifier le groupe</string>
-    <string name="group_size">%1$d membres</string>
     <string name="remove_from_the_group">Retirer du groupe</string>
     <string name="group_settings">Paramètres du groupe</string>
     <string name="settle_up">Rembourser</string>
@@ -18,7 +17,10 @@
     <string name="owes_you">%1$s vous doit %2$s</string>
     <string name="you_are_all_settled_up">Tout est remboursé</string>
     <string name="everything_is_balanced">Les comptes sont équilibrés</string>
+    <string name="former_group_member">%1$s (ex-membre)</string>
     <string name="currency">Devise</string>
+    <string name="left_group_marker">Vous n’en faites plus partie</string>
+    <string name="left_group_notice">Vous ne faites plus partie de ce groupe</string>
 
     <!-- CreateOrEditGroupScreen -->
     <plurals name="members_out_of_limit">
@@ -47,9 +49,35 @@
         <item quantity="other">%1$s ont supprimé leur compte</item>
     </plurals>
 
+    <!-- GroupSettingsScreen -->
+    <plurals name="group_size">
+        <item quantity="one">%1$d membre</item>
+        <item quantity="other">%1$d membres</item>
+    </plurals>
+    <string name="add_members">Ajouter des membres</string>
+    <string name="group_members_change_waiting">Les membres pourront être modifiés dès que la dernière modification du groupe sera parvenue au serveur</string>
+    <string name="group_members_change_pending">La modification sera envoyée dès que le serveur pourra la recevoir</string>
+    <string name="remove_member_confirmation">Retirer %1$s du groupe «\u00A0%2$s\u00A0»\u00A0?</string>
+    <plurals name="group_members_error_not_contacts">
+        <item quantity="one" tools:ignore="ImpliedQuantity">Impossible d’ajouter %1$s à un groupe pour le moment</item>
+        <item quantity="other">Impossible d’ajouter %1$s à un groupe pour le moment</item>
+    </plurals>
+    <plurals name="group_members_error_identity_changed">
+        <item quantity="one" tools:ignore="ImpliedQuantity">Votre numéro de sécurité avec %1$s a changé, aucun membre n’a été ajouté</item>
+        <item quantity="other">Vos numéros de sécurité avec %1$s ont changé, aucun membre n’a été ajouté</item>
+    </plurals>
+    <plurals name="group_members_error_unreachable">
+        <item quantity="one" tools:ignore="ImpliedQuantity">Impossible d’ajouter %1$s pour le moment, réessayez plus tard</item>
+        <item quantity="other">Impossible d’ajouter %1$s pour le moment, réessayez plus tard</item>
+    </plurals>
+    <plurals name="group_members_error_deleted">
+        <item quantity="one" tools:ignore="ImpliedQuantity">%1$s a supprimé son compte</item>
+        <item quantity="other">%1$s ont supprimé leur compte</item>
+    </plurals>
+
     <!-- GroupMemberFullScreenDialog -->
-    <plurals name="selected_members_out_of_limit">
-        <item quantity="one">%1$d/%2$d sélectionné</item>
-        <item quantity="other">%1$d/%2$d sélectionnés</item>
+    <plurals name="group_members_out_of_limit">
+        <item quantity="one">%1$d/%2$d membre</item>
+        <item quantity="other">%1$d/%2$d membres</item>
     </plurals>
 </resources>

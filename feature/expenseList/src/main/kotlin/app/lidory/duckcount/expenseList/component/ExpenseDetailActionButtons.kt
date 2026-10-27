@@ -29,6 +29,7 @@ fun ExpenseDetailActionButtons(
     isOneTimeExpense: Boolean,
     canEdit: Boolean,
     canDelete: Boolean,
+    canRestore: Boolean,
     restore: () -> Unit,
     edit: () -> Unit,
     delete: () -> Unit,
@@ -84,14 +85,16 @@ fun ExpenseDetailActionButtons(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (isDeleted) {
-            IconButton(
-                enabled = enabled,
-                onClick = restore,
-            ) {
-                Icon(
-                    painter = painterResource(androidUiR.drawable.ic_restore_from_trash),
-                    contentDescription = stringResource(R.string.restore),
-                )
+            if (canRestore) {
+                IconButton(
+                    enabled = enabled,
+                    onClick = restore,
+                ) {
+                    Icon(
+                        painter = painterResource(androidUiR.drawable.ic_restore_from_trash),
+                        contentDescription = stringResource(R.string.restore),
+                    )
+                }
             }
         } else {
             if (canEdit) {

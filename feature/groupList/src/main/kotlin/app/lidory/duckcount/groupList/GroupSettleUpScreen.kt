@@ -56,12 +56,16 @@ fun GroupSettleUpScreen(
                                 modifier = Modifier.padding(Padding.medium),
                                 debtorFullName = transaction.debtorFullName ?: stringResource(R.string.unknown_member),
                                 amount = transaction.amount,
-                                onValidateSettlement = {
-                                    viewModel.validateSettlement(
-                                        transaction.creditorUuid,
-                                        transaction.debtorUuid,
-                                        transaction.amount,
-                                    )
+                                onValidateSettlement = if (state.canSettle) {
+                                    {
+                                        viewModel.validateSettlement(
+                                            transaction.creditorUuid,
+                                            transaction.debtorUuid,
+                                            transaction.amount,
+                                        )
+                                    }
+                                } else {
+                                    null
                                 },
                             )
                         } else {

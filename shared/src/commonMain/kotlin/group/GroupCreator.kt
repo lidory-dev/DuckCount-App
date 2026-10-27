@@ -12,11 +12,6 @@ import database.data.local.entity.PendingGroupCreationEntity
 import database.data.repository.ContactRepository
 import database.domain.Currency
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import mls.ConsumeKeyPackageDto
 import mls.KeyPackageApi
@@ -25,7 +20,6 @@ import mls.MlsIdentityRepository
 import mls.createGroupOf
 import mls.deleteGroupQuietly
 import mls.isRetryable
-import mls.pinnedSignatureKeyFor
 import uniffi.lib_duckcount.InviteeKeyPackage
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
@@ -35,12 +29,6 @@ import util.EmptyResult
 import util.NetworkError
 import util.Result
 import kotlin.io.encoding.Base64
-
-/**
- * How many invitees' key packages are asked for at once: enough that a hundred members do not
- * take a hundred round trips, few enough not to open a hundred connections.
- */
-private const val KEY_PACKAGE_FETCHES_AT_ONCE = 8
 
 /**
  * Creates a group of the user's contacts, and sends it to the server, which hands its one Welcome
@@ -173,9 +161,15 @@ class GroupCreator internal constructor(
         val sealedFields = fields.seal(groupKey = groupKey, groupUuid = groupUuid)
             ?: return Result.Error(GroupCreationError.Crypto)
 
-        val keyPackages = when (val fetched = fetchKeyPackages(inviteeUuids = inviteeUuids)) {
-            is Result.Success -> fetched.data
-            is Result.Error -> return fetched
+        val keyPackages = when (
+            val fetched = fetchKeyPackages(inviteeUuids = inviteeUuids, consumeKeyPackage = consumeKeyPackage)
+        ) {
+            is KeyPackageFetch.Fetched -> fetched.keyPackages
+
+            is KeyPackageFetch.Unreachable ->
+                return Result.Error(GroupCreationError.Unreachable(userUuids = fetched.userUuids))
+
+            is KeyPackageFetch.Failed -> return Result.Error(GroupCreationError.Network(fetched.error))
         }
 
         val pendingCreation = when (
@@ -219,79 +213,18 @@ class GroupCreator internal constructor(
     }
 
     /**
-     * Why [inviteeUuids] cannot all be invited, or null when they can: each of them has to be a
-     * contact, unblocked, with an identity this device pinned, as for a channel to them, see
-     * [channel.DirectChannelRepository.ensureChannel].
+     * Why [inviteeUuids] cannot all be invited, or null when they can, see [inviteeRefusalOf]: each
+     * of them has to be a contact, unblocked, with an identity this device pinned.
      */
-    private suspend fun refusalOf(client: MlsClient, inviteeUuids: Set<String>): GroupCreationError? {
-        val notContacts = inviteeUuids - contacts().toSet()
-
-        if (notContacts.isNotEmpty()) return GroupCreationError.NotContacts(userUuids = notContacts)
-
-        // A key package matching the identity this device pinned for them would go through,
-        // when it is the one the vault disagrees with. See IdentityConflictEntity.
-        val blocked = inviteeUuids.intersect(blocked().toSet())
-
-        if (blocked.isNotEmpty()) return GroupCreationError.IdentityChanged(userUuids = blocked)
-
-        val notPinned = try {
-            inviteeUuids.filterTo(HashSet()) { client.pinnedSignatureKeyFor(peerUuid = it) == null }
-        } catch (_: MlsException) {
-            return GroupCreationError.Storage
+    private suspend fun refusalOf(client: MlsClient, inviteeUuids: Set<String>): GroupCreationError? =
+        when (
+            val refusal = client.inviteeRefusalOf(inviteeUuids = inviteeUuids, contacts = contacts, blocked = blocked)
+        ) {
+            is InviteeRefusal.NotContacts -> GroupCreationError.NotContacts(userUuids = refusal.userUuids)
+            is InviteeRefusal.IdentityChanged -> GroupCreationError.IdentityChanged(userUuids = refusal.userUuids)
+            InviteeRefusal.Storage -> GroupCreationError.Storage
+            null -> null
         }
-
-        return if (notPinned.isEmpty()) null else GroupCreationError.NotContacts(userUuids = notPinned)
-    }
-
-    /**
-     * One key package for each of [inviteeUuids], a few at a time, or why not all of them could be
-     * had: everybody who has none, see [GroupCreationError.Unreachable], unless the server could
-     * not be asked for some, which may go through next time.
-     *
-     * Each one handed out is spent, so those of a creation that fails go to waste. A user publishes
-     * a pool of them, and the last-resort one is never spent.
-     */
-    private suspend fun fetchKeyPackages(
-        inviteeUuids: Set<String>,
-    ): Result<List<InviteeKeyPackage>, GroupCreationError> {
-        val permits = Semaphore(permits = KEY_PACKAGE_FETCHES_AT_ONCE)
-
-        val fetched = coroutineScope {
-            inviteeUuids.map { userUuid ->
-                async { userUuid to permits.withPermit { consumeKeyPackage(userUuid) } }
-            }.awaitAll()
-        }
-
-        val keyPackages = mutableListOf<InviteeKeyPackage>()
-        val unreachable = mutableSetOf<String>()
-
-        fetched.forEach { (userUuid, consumed) ->
-            when (consumed) {
-                is Result.Success -> {
-                    // The server stores key packages without reading them, so this is whatever the
-                    // invitee's client published.
-                    val keyPackage = runCatching { Base64.Default.decode(consumed.data.keyPackage) }.getOrNull()
-
-                    if (keyPackage == null) {
-                        unreachable += userUuid
-                    } else {
-                        keyPackages += InviteeKeyPackage(userUuid = userUuid, keyPackage = keyPackage)
-                    }
-                }
-
-                is Result.Error -> when (consumed.error) {
-                    // They published none, or their account is gone, as for a channel.
-                    NetworkError.NOT_FOUND -> unreachable += userUuid
-
-                    else -> return Result.Error(GroupCreationError.Network(consumed.error))
-                }
-            }
-        }
-
-        if (unreachable.isNotEmpty()) return Result.Error(GroupCreationError.Unreachable(userUuids = unreachable))
-
-        return Result.Success(keyPackages)
-    }
 
     /**
      * Builds the MLS group of the user, [selfUuid], and the owners of [keyPackages], under the id
@@ -357,6 +290,7 @@ class GroupCreator internal constructor(
             mlsGroupId = creation.mlsGroupId,
             groupKey = groupKey,
             isBackedUp = false,
+            isLeft = false,
         )
 
         val members = listOf(GroupMemberEntity(userUuid = selfUuid, groupUuid = groupUuid, isAdmin = true)) +

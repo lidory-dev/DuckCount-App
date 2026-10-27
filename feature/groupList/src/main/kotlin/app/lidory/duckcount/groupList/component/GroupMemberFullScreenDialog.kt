@@ -18,6 +18,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -28,7 +29,8 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedButton
+import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
+import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
 import app.lidory.duckcount.android.ui.composable.checkbox.UserSelectableCard
 import app.lidory.duckcount.android.ui.composable.fullscreendialog.FullScreenDialog
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
@@ -42,6 +44,12 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 /**
  * Picks the members of a group besides the user, from their contacts: [selectedUuids] never holds
  * the user, who is in the group whatever is picked, and counts against [maxMembers] all the same.
+ * For a group that exists, it picks the members to add to it among [userList], those who are not
+ * in it yet, the [currentMemberCount] it has counting against [maxMembers] just as well.
+ *
+ * Confirming hands the selection to [onSelectUsers], which closes the picker once done with it:
+ * adding members to a group keeps it open while [isConfirming], and tells over it, in
+ * [snackbarHostState], why they could not be, for the user to pick differently.
  *
  * No "Select all", as for a one-time expense: the user can have more contacts than a group holds,
  * which selecting them all would go past.
@@ -60,6 +68,10 @@ fun GroupMemberFullScreenDialog(
     toggleSelectedUser: (User) -> Unit,
     selectedUuids: Set<String>,
     maxMembers: Int,
+    currentMemberCount: Int = 1,
+    isConfirmEnabled: Boolean = true,
+    isConfirming: Boolean = false,
+    snackbarHostState: SnackbarHostState? = null,
 ) {
     val focusManager = LocalFocusManager.current
 
@@ -86,6 +98,7 @@ fun GroupMemberFullScreenDialog(
                     },
                     navigationIcon = {
                         IconButton(
+                            enabled = !isConfirming,
                             onClick = {
                                 onDismissRequest()
                             },
@@ -99,23 +112,27 @@ fun GroupMemberFullScreenDialog(
                 )
             },
             bottomBar = {
-                DuckCountElevatedButton(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = Padding.medium)
-                        .padding(bottom = Padding.extraLarge),
-                    onClick = {
-                        onSelectUsers(selectedUuids)
-                        onDismissRequest()
-                    },
-                    colors = ButtonDefaults.buttonColors()
-                        .copy(containerColor = MaterialTheme.colorScheme.primary),
-                ) {
-                    Text(
-                        modifier = Modifier.padding(Padding.small),
-                        text = stringResource(androidUiR.string.confirm),
-                    )
+                // The snackbars above the button, as on the group form, see CreateOrEditGroupScreen.
+                Column {
+                    snackbarHostState?.let { DuckCountSnackbarHost(hostState = it) }
+
+                    DuckCountElevatedLoadingButton(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = Padding.medium)
+                            .padding(bottom = Padding.extraLarge),
+                        enabled = isConfirmEnabled && !isConfirming,
+                        onClick = { onSelectUsers(selectedUuids) },
+                        colors = ButtonDefaults.buttonColors()
+                            .copy(containerColor = MaterialTheme.colorScheme.primary),
+                        isLoading = isConfirming,
+                    ) {
+                        Text(
+                            modifier = Modifier.padding(Padding.small),
+                            text = stringResource(androidUiR.string.confirm),
+                        )
+                    }
                 }
             },
         ) { innerPadding ->
@@ -138,13 +155,14 @@ fun GroupMemberFullScreenDialog(
 
                 // Above the list rather than in it, so that it stays in view while scrolling, and
                 // shown while searching too, since the cards not selected are disabled once the
-                // limit is reached.
-                val count = memberCount(selectedUuids = selectedUuids)
+                // limit is reached. Told as the members the group would have rather than as who is
+                // picked: those it has count, so a group of ten with nobody picked is at ten already.
+                val count = memberCount(selectedUuids = selectedUuids, currentMemberCount = currentMemberCount)
 
                 Text(
                     modifier = Modifier.align(Alignment.End),
                     text = pluralStringResource(
-                        R.plurals.selected_members_out_of_limit,
+                        R.plurals.group_members_out_of_limit,
                         count,
                         count,
                         maxMembers,
@@ -186,10 +204,11 @@ fun GroupMemberFullScreenDialog(
                                 toggleSelectedUser = { toggleSelectedUser(user) },
                                 fullName = user.fullName,
                                 isChecked = selectedUuids.contains(user.uuid),
-                                enabled = isSelectable(
+                                enabled = !isConfirming && isSelectable(
                                     uuid = user.uuid,
                                     selectedUuids = selectedUuids,
                                     maxMembers = maxMembers,
+                                    currentMemberCount = currentMemberCount,
                                 ),
                             )
                         }

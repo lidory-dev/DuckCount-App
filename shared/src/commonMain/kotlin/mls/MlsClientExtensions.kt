@@ -5,11 +5,13 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import uniffi.lib_duckcount.AddMembersOutput
 import uniffi.lib_duckcount.GroupCreation
 import uniffi.lib_duckcount.InviteeKeyPackage
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.MlsGroup
+import uniffi.lib_duckcount.ProcessedMessage
 import uniffi.lib_duckcount.WelcomeInspection
 import kotlin.io.encoding.Base64
 
@@ -51,9 +53,10 @@ internal sealed interface ApplicationMessageReading {
  * the group. Every group a message is read in is shared with one peer and never changes,
  * and which group that is, its sender names: the roster [joinGroupFrom] checked would
  * otherwise be theirs to change. The user's groups of several members are the exception
- * this device holds, which nothing reads in yet, and which a direct message naming one is
- * never read in: the direct-message sync checks and reads under [group.withGroupJoinLock],
- * which a group is joined and saved as one of them under, see [message.DirectMessageSync].
+ * this device holds, whose creator changes them, which the group sync reads in instead, see
+ * [processGroupMessageIn], and which a direct message naming one is never read in: the
+ * direct-message sync checks and reads under [group.withGroupJoinLock], which a group is
+ * joined and saved as one of them under, see [message.DirectMessageSync].
  */
 internal suspend fun MlsClient.readApplicationMessage(
     mlsGroupId: ByteArray,
@@ -91,20 +94,139 @@ internal suspend fun MlsClient.encryptApplicationMessage(
     group.encryptApplicationMessage(payload = payload)
 }
 
+/** What a message waiting in a group of several members came to, see [processGroupMessageIn]. */
+internal class ProcessedGroupMessage(
+    val processed: ProcessedMessage,
+
+    /**
+     * Every member the group holds once the message is processed, the user included, as their
+     * credentials name them, when it was a Commit the user is still in the group after; null for
+     * anything else.
+     */
+    val memberUuidsAfterCommit: List<String>?,
+)
+
+/**
+ * Processes [message], one waiting for the user in the group of several members [mlsGroupId],
+ * taking a Commit from [creatorUuid] alone and a Proposal from nobody, see
+ * [MlsGroup.processIncomingMessage]: only the creator of a group the server holds changes its
+ * members, see [group.GroupMembershipChanger]. Anything else changing the group is refused with
+ * [MlsException.UnauthorizedChange], and stores nothing.
+ *
+ * Messages are processed in the order the server lists them, as a Commit read out of order is
+ * refused, and leaves the group behind.
+ *
+ * Throws [MlsException] like every other operation on a group.
+ */
+internal suspend fun MlsClient.processGroupMessageIn(
+    mlsGroupId: ByteArray,
+    message: ByteArray,
+    creatorUuid: String,
+): ProcessedGroupMessage = withGroup(mlsGroupId = mlsGroupId) { group ->
+    val processed = group.processIncomingMessage(message = message, allowedCommitter = creatorUuid)
+
+    // Read from the same copy, the tree the Commit left, before anything else can reach it.
+    val memberUuids = if (processed is ProcessedMessage.Commit && !processed.removedSelf) {
+        group.members().map { it.userUuid }
+    } else {
+        null
+    }
+
+    ProcessedGroupMessage(processed = processed, memberUuidsAfterCommit = memberUuids)
+}
+
+/** Who is in a group, as far as changing its members goes, see [rosterOf]. */
+internal class GroupRoster(
+    /** Every member, the user included, as their credentials name them. */
+    val memberUuids: List<String>,
+
+    /** The epoch the group is in. */
+    val epoch: Long,
+
+    /** Whether a Commit of the user's is pending in it: built, and neither applied nor discarded. */
+    val hasPendingCommit: Boolean,
+)
+
+/**
+ * Who is in the group [mlsGroupId], by its tree rather than by anything the server said, see
+ * [GroupRoster].
+ */
+internal suspend fun MlsClient.rosterOf(mlsGroupId: ByteArray): GroupRoster =
+    withGroup(mlsGroupId = mlsGroupId) { group ->
+        GroupRoster(
+            memberUuids = group.members().map { it.userUuid },
+            epoch = group.epoch().toLong(),
+            hasPendingCommit = group.hasPendingCommit(),
+        )
+    }
+
+/**
+ * Builds the Commit adding the owners of [invitees] to the group [mlsGroupId], and the one Welcome
+ * that lets them all in, carrying [welcomePayload] to each of them, see [MlsGroup.addMembers]. The
+ * Commit stays pending until [applyPendingCommitIn] or [discardPendingCommitIn].
+ */
+internal suspend fun MlsClient.addMembersTo(
+    mlsGroupId: ByteArray,
+    invitees: List<InviteeKeyPackage>,
+    welcomePayload: ByteArray,
+): AddMembersOutput = withGroup(mlsGroupId = mlsGroupId) { group ->
+    group.addMembers(invitees = invitees, welcomePayload = welcomePayload)
+}
+
+/**
+ * Builds the Commit removing [userUuids] from the group [mlsGroupId], see
+ * [MlsGroup.removeMembers]. It stays pending until [applyPendingCommitIn] or
+ * [discardPendingCommitIn].
+ */
+internal suspend fun MlsClient.removeMembersFrom(mlsGroupId: ByteArray, userUuids: List<String>): ByteArray =
+    withGroup(mlsGroupId = mlsGroupId) { group -> group.removeMembers(userUuids = userUuids) }
+
+/**
+ * Applies the Commit of the user's pending in the group [mlsGroupId], once the server took it, and
+ * returns every member the group holds then, the user included.
+ */
+internal suspend fun MlsClient.applyPendingCommitIn(mlsGroupId: ByteArray): List<String> =
+    withGroup(mlsGroupId = mlsGroupId) { group ->
+        group.applyPendingCommit()
+
+        group.members().map { it.userUuid }
+    }
+
+/**
+ * Discards the Commit of the user's pending in the group [mlsGroupId]: the server refused it, or it
+ * was never sent. The group stays in the epoch it is in.
+ */
+internal suspend fun MlsClient.discardPendingCommitIn(mlsGroupId: ByteArray) =
+    withGroup(mlsGroupId = mlsGroupId) { group -> group.clearPendingCommit() }
+
 /**
  * Deletes a group this device has no further use for.
  *
  * A failure is not reported: whatever made the group useless has already happened, and a
- * group left behind holds nothing a peer can still reach.
+ * group left behind holds nothing a peer can still reach. Only one the user was removed from
+ * is in the way of anything, the Welcome adding them back, and is deleted again before that is
+ * read, see [deleteGroupOf].
  */
 internal suspend fun MlsClient.deleteGroupQuietly(mlsGroupId: ByteArray) {
+    try {
+        deleteGroupOf(mlsGroupId = mlsGroupId)
+    } catch (_: MlsException) {
+        // See above.
+    }
+}
+
+/**
+ * Deletes the group [mlsGroupId], one already deleted staying as it is, see
+ * [MlsClient.deleteGroup].
+ *
+ * Throws [MlsException] when the user's storage fails, which leaves the group held: what a group
+ * the user was removed from is deleted with before they are let back in, the state still held
+ * refusing every Welcome to it, see [MlsClient.inspectWelcome].
+ */
+internal suspend fun MlsClient.deleteGroupOf(mlsGroupId: ByteArray) {
     withGroupLock(mlsGroupId = mlsGroupId) {
         withContext(Dispatchers.IO) {
-            try {
-                deleteGroup(mlsGroupId = mlsGroupId)
-            } catch (_: MlsException) {
-                // See above.
-            }
+            deleteGroup(mlsGroupId = mlsGroupId)
         }
     }
 }

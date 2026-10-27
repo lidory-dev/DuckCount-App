@@ -13,11 +13,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import app.lidory.duckcount.groupList.R
 
+/** What the user can do about a member of the group they created: remove them, once confirmed. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GroupMemberBottomSheet(
-    userUuid: String,
-    removeUserFromGroup: (String) -> Unit,
+    removeUserFromGroup: () -> Unit,
     bottomSheetState: SheetState,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
@@ -33,9 +33,7 @@ fun GroupMemberBottomSheet(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             TextButton(
-                onClick = {
-                    removeUserFromGroup(userUuid)
-                },
+                onClick = removeUserFromGroup,
             ) {
                 Text(text = stringResource(R.string.remove_from_the_group))
             }

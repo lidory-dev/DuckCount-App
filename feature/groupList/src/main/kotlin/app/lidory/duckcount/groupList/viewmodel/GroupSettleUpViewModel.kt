@@ -23,7 +23,11 @@ class GroupSettleUpViewModel(
         groupSettleUpCallBacks.getAllGroupActiveExpenses(groupUuid)
 
     val state: StateFlow<GroupSettleUpState> =
-        combine(groupMembers, groupExpenses) { groupMembersWithFullNames, groupExpenses ->
+        combine(
+            groupMembers,
+            groupExpenses,
+            groupSettleUpCallBacks.isGroupLeft(groupUuid),
+        ) { groupMembersWithFullNames, groupExpenses, isLeft ->
             val transactions = groupSettleUpCallBacks.getGroupTransactions(
                 groupUuid = groupUuid,
                 groupMembers = groupMembersWithFullNames.map { memberWithFullName -> memberWithFullName.member },
@@ -33,6 +37,8 @@ class GroupSettleUpViewModel(
             GroupSettleUpState.Content(
                 transactions = transactions,
                 authenticatedUserUuid = groupSettleUpCallBacks.getAuthenticatedUserUuid(),
+                // A settlement is an expense, which a group the user was removed from takes no more of.
+                canSettle = !isLeft,
             )
         }.stateIn(
             scope = viewModelScope,
@@ -58,5 +64,6 @@ sealed interface GroupSettleUpState {
     data class Content(
         val transactions: List<TransactionWithFullName>,
         val authenticatedUserUuid: String,
+        val canSettle: Boolean,
     ) : GroupSettleUpState
 }

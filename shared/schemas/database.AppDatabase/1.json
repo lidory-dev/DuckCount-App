@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "d82cf52378bc1d091b38c6ad7b6ef343",
+    "identityHash": "fc0b92f340bed27b2f25fa461d67660f",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -191,7 +191,7 @@
       },
       {
         "tableName": "GroupEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `currency` TEXT NOT NULL, `ownerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `groupKey` BLOB NOT NULL, `isBackedUp` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `currency` TEXT NOT NULL, `ownerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `groupKey` BLOB NOT NULL, `isBackedUp` INTEGER NOT NULL, `isLeft` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
         "fields": [
           {
             "fieldPath": "uuid",
@@ -237,6 +237,12 @@
           {
             "fieldPath": "isBackedUp",
             "columnName": "isBackedUp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLeft",
+            "columnName": "isLeft",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -294,6 +300,46 @@
             "columnName": "body",
             "affinity": "TEXT",
             "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "groupUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "PendingMembershipChangeEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `kind` TEXT NOT NULL, `body` TEXT NOT NULL, `commitEpoch` INTEGER, `groupKey` BLOB, PRIMARY KEY(`groupUuid`))",
+        "fields": [
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "body",
+            "columnName": "body",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "commitEpoch",
+            "columnName": "commitEpoch",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "groupKey",
+            "columnName": "groupKey",
+            "affinity": "BLOB"
           }
         ],
         "primaryKey": {
@@ -882,7 +928,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd82cf52378bc1d091b38c6ad7b6ef343')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fc0b92f340bed27b2f25fa461d67660f')"
     ]
   }
 }

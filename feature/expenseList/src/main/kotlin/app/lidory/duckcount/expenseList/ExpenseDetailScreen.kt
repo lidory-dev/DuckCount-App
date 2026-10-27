@@ -138,6 +138,7 @@ fun ExpenseDetailScreen(
                             isOneTimeExpense = content.expenseWithBeneficiaries.groupUuid == null,
                             canEdit = content.canEdit,
                             canDelete = content.canDelete,
+                            canRestore = content.canRestore,
                             restore = viewModel::restoreExpense,
                             delete = viewModel::deleteExpense,
                             edit = dropUnlessResumed { navigateToEditExpense() },
