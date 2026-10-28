@@ -55,7 +55,7 @@ import util.Result
  * [ContactRepository.restore]: a Welcome is only acted on from somebody this device knows,
  * and one from a contact it has not restored yet would be dropped for good.
  *
- * Nor in one of the user's groups, those they were removed from included, see
+ * Nor in one of the user's groups, those they are no longer in included, removed or left, see
  * [GroupDao.hasMlsGroup], whichever the sender names: a direct message is between two users,
  * and what one reads in a group of several members its sender is one of, see
  * [DirectChannelRepository.noteReadIn], would have that group become the channel to them.
@@ -267,7 +267,7 @@ class DirectMessageSync internal constructor(
         // Checked and read under the one lock: a group being joined is held by the library before
         // the database names it, see [withGroupJoinLock].
         var reading = withGroupJoinLock {
-            // Left unread, whatever it says, in a group the user was removed from too: read, it
+            // Left unread, whatever it says, in a group the user is no longer in too: read, it
             // would be offered as a direct message and make the group the channel to its sender,
             // see [DirectMessageSync]. A group's members talk there by other means, which the group
             // sync reads, see [group.GroupSync].

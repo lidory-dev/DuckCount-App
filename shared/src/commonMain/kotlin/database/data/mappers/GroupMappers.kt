@@ -36,5 +36,12 @@ fun GroupWithMembersEntity.toGroupWithMembers(
         // A creator is never removed from their own group, so is never left in it either.
         canChangeMembers = isCreator && group.mlsGroupId != null,
         canVouchForMembers = !group.isLeft && group.mlsGroupId != null && !isCreatorBlocked,
+        // The creator as this device recorded them, not the server's owner, which a deletion of
+        // the creator's account hands to another member: that member is offered the leave, which
+        // the server refuses its owner. It reads as no answer, and the sync booked for it leaves
+        // the leave owed without sending it again, see group.GroupSync.leaveDeclined. The group
+        // shows as left on their device, a group nobody can change again anyway, see
+        // group.GroupLeaver.
+        canLeave = !group.isLeft && !isCreator,
     )
 }

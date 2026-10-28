@@ -133,8 +133,9 @@ class ContactRequestSender internal constructor(
         // [sendTo] refuses them too, but only once one of their key packages is spent.
         if (isBlocked(userUuid)) return Result.Error(SendContactRequestError.IdentityChanged)
 
-        // A group the user was removed from has had its MLS state deleted, and one brought back
-        // after a log-out never had any here: nothing is left to vouch for anybody in it.
+        // A group the user is no longer in, removed or left, has had its MLS state deleted, and
+        // one brought back after a log-out never had any here: nothing is left to vouch for
+        // anybody in it.
         val held = group(groupUuid)?.takeUnless { it.isLeft } ?: return Result.Error(SendContactRequestError.NotInGroup)
         val mlsGroupId = held.mlsGroupId ?: return Result.Error(SendContactRequestError.NotInGroup)
 

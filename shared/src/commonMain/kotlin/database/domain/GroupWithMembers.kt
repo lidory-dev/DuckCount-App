@@ -7,7 +7,10 @@ data class GroupWithMembers(
     val currency: Currency,
     val groupMembers: List<GroupMember>,
 
-    /** Whether the creator removed the user from the group, which stays, read-only. */
+    /**
+     * Whether the user is no longer a member of the group, removed by its creator or left, which
+     * stays, read-only.
+     */
     val isLeft: Boolean,
 
     /**
@@ -26,9 +29,15 @@ data class GroupWithMembers(
     /**
      * Whether this device can tell who the group's members are on the group's word, which a
      * contact request to one of them is checked against, see `contact.ContactRequestSender`: the
-     * user was not removed from it, this device holds its MLS state, which a log-out takes, and
-     * its creator, whose word its tree is, is not blocked, see
+     * user is still in it, this device holds its MLS state, which a log-out takes, and its
+     * creator, whose word its tree is, is not blocked, see
      * [IdentityConflictEntity][database.data.local.entity.IdentityConflictEntity].
      */
     val canVouchForMembers: Boolean,
+
+    /**
+     * Whether the user may leave the group, see `group.GroupLeaver`: they are still in it, and did
+     * not create it, its creator never leaving, as nobody else could change its members.
+     */
+    val canLeave: Boolean,
 )

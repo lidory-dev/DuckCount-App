@@ -41,8 +41,9 @@ class GroupRepository(
     }
 
     /**
-     * Emits whether the creator removed the user from the group [uuid], which stays read-only, see
-     * [database.data.local.entity.GroupEntity.isLeft], and false while there is no such group.
+     * Emits whether the user is no longer a member of the group [uuid], removed or left, which
+     * stays read-only, see [database.data.local.entity.GroupEntity.isLeft], and false while there
+     * is no such group.
      */
     fun isLeft(uuid: String): Flow<Boolean> {
         return groupDao.getAsFlow(uuid).map { it?.isLeft == true }

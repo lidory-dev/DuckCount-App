@@ -9,6 +9,7 @@ import app.lidory.duckcount.groupList.callBacks.GroupSettingsCallBacks
 import app.lidory.duckcount.groupList.model.ContactRequestError
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import app.lidory.duckcount.groupList.model.GroupWithMembers
+import app.lidory.duckcount.groupList.model.LeaveResult
 import app.lidory.duckcount.groupList.model.MemberRelation
 import app.lidory.duckcount.groupList.model.MembershipChangeError
 import app.lidory.duckcount.groupList.model.MembershipChangeResult
@@ -56,9 +57,10 @@ class GroupSettingsViewModel(
     /** The most members the group may have, see [GroupSettingsCallBacks.maxMembers]. */
     val maxMembers: Int = groupSettingsCallBacks.maxMembers
 
-    // True while a change to the members is on its way to the server, so that the button that made
-    // it can show an in-place spinner, and neither the picker nor the confirmation it was made from
-    // be closed until it is answered, which the user is told of there.
+    // True while a change to the members is on its way to the server, or the user's leave is being
+    // recorded and sent, so that the button that made it can show an in-place spinner, and neither
+    // the picker nor the confirmation it was made from be closed until it is answered, which the
+    // user is told of there.
     private val _isChanging = MutableStateFlow(false)
     val isChanging: StateFlow<Boolean> = _isChanging.asStateFlow()
 
@@ -68,7 +70,7 @@ class GroupSettingsViewModel(
     val additionErrors: Flow<MembershipChangeError> = _additionErrors.receiveAsFlow()
 
     // What came of a change once the picker, or the confirmation, closed on its answer, see
-    // MembershipChangeResult.message.
+    // MembershipChangeResult.message, and why a leave did not go through once its confirmation did.
     private val _notices = Channel<MembershipChangeResult>(Channel.BUFFERED)
     val notices: Flow<MembershipChangeResult> = _notices.receiveAsFlow()
 
@@ -121,6 +123,11 @@ class GroupSettingsViewModel(
 
     // Who the user is asked to confirm removing, and then removing, until the removal is answered.
     var memberToRemove by mutableStateOf<GroupMemberWithFullName?>(null)
+        private set
+
+    // Whether the user is asked to confirm leaving the group, and then leaving it, until the leave
+    // is answered.
+    var isLeaveAsked by mutableStateOf(false)
         private set
 
     // The member whose sheet is open, as tapped, see openMember, until it closes, see closeMember.
@@ -311,6 +318,45 @@ class GroupSettingsViewModel(
             _isChanging.value = false
         }
     }
+
+    /** Asks the user to confirm leaving the group, see [leave]. */
+    fun askToLeave() {
+        isLeaveAsked = true
+    }
+
+    /**
+     * Drops the leave the user was asked to confirm, unless it is under way: what comes of it is
+     * told once answered.
+     */
+    fun cancelLeave() {
+        if (_isChanging.value) return
+
+        isLeaveAsked = false
+    }
+
+    /**
+     * Takes the user out of the group, see [GroupSettingsCallBacks.leaveGroup], and closes the
+     * confirmation once answered, telling why not if it did not go through. Nothing more once it
+     * did: the group, read again, is left, and the screen shows it read-only from then on, see
+     * [GroupWithMembers.isLeft].
+     */
+    fun leave() = viewModelScope.launch {
+        if (_isChanging.value) return@launch
+
+        _isChanging.value = true
+
+        try {
+            val result = groupSettingsCallBacks.leaveGroup(groupUuid = groupUuid)
+
+            isLeaveAsked = false
+
+            if (result is LeaveResult.Failed) {
+                _notices.send(MembershipChangeResult.Failed(MembershipChangeError.Failure(result.failure)))
+            }
+        } finally {
+            _isChanging.value = false
+        }
+    }
 }
 
 data class GroupSettingsState(
@@ -380,13 +426,21 @@ enum class MemberActions {
 
 /**
  * What the user can do about the members of [this], see [MemberActions]: nothing in a group they
- * were removed from either, which they did not create, see [GroupWithMembers.canChangeMembers].
+ * are no longer in either, which they did not create, its creator never being removed from it nor
+ * leaving it, see [GroupWithMembers.canChangeMembers].
  */
 fun GroupWithMembers.memberActions(): MemberActions = when {
     !canChangeMembers -> MemberActions.NONE
     hasPendingChange -> MemberActions.WAITING
     else -> MemberActions.AVAILABLE
 }
+
+/**
+ * Whether the settings of [this] offer the user to leave it, see [GroupWithMembers.canLeave]: a
+ * group they are still in and did not create, which is never one they may change the members of,
+ * see [memberActions]. Its creator never leaves, as nobody else could change its members.
+ */
+fun GroupWithMembers.isLeavable(): Boolean = canLeave
 
 /**
  * Whether the member [userUuid] can be removed by the user [selfUuid], given the [actions] they
@@ -435,7 +489,7 @@ enum class MemberSheetAction {
  * their relation calls for first, then their removal.
  *
  * No request is sent to them from a group that does not vouch for them, see
- * [GroupWithMembers.canVouchForMembers]: one the user was removed from, brought back after a
+ * [GroupWithMembers.canVouchForMembers]: one the user is no longer in, brought back after a
  * log-out, or whose creator is blocked. Nothing else on this device vouches for who they are, and
  * the request would be refused each time. Their sheet then shows who they are alone, unless they
  * are a contact, or a request either way waits.

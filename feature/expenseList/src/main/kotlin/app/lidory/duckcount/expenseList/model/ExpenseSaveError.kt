@@ -26,8 +26,8 @@ sealed interface ExpenseSaveError {
     data class BeneficiariesDeleted(val beneficiaries: List<DeletedBeneficiary>) : ExpenseSaveError
 
     /**
-     * The expense is one of a group the user was removed from, which stays read-only: the form can
-     * still be open as a sync reads the removal.
+     * The expense is one of a group the user is no longer a member of, removed or left, which stays
+     * read-only: the form can still be open as a sync reads the removal.
      */
     data object GroupLeft : ExpenseSaveError
 }

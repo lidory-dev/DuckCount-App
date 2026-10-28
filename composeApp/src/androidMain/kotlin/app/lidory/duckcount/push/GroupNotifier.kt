@@ -41,7 +41,8 @@ private const val UNNAMED_GROUP_REMOVAL_REQUEST_CODE = 8
  * group sync read and decrypted for itself: who wrote the Welcome, or the Commit removing the
  * user, and the title the group opened to, see [group.GroupSync]. Only a contact can add the user,
  * the sync declining anybody else's group without a word, and only the creator of a group removes
- * anybody from it.
+ * anybody from it. A group the user left is never one the sync reports them removed from, see
+ * [group.GroupLeaver]: they know already.
  *
  * Nothing goes up while the device is locked. Being added to a group, or removed from one, asks
  * nothing of the user, and the signal alone could not say which group, or whose: the sync that

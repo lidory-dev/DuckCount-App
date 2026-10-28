@@ -63,8 +63,8 @@ class CreateExpenseCallBacksImpl(
         val groupUuid = expenseWithBeneficiaries.groupUuid
 
         if (groupUuid != null) {
-            // Read-only once the user is removed from the group, which a sync can read with the
-            // form open.
+            // Read-only once the user is no longer a member of the group, removed or left, which
+            // a sync can read with the form open.
             if (groupRepository.isLeft(uuid = groupUuid).first()) return ExpenseSaveError.GroupLeft
 
             expenseRepository.insertWithBeneficiaries(expenseWithBeneficiaries.toDb())
@@ -96,8 +96,8 @@ class CreateExpenseCallBacksImpl(
         val groupUuid = expenseWithBeneficiaries.groupUuid
 
         if (groupUuid != null) {
-            // Read-only once the user is removed from the group, which a sync can read with the
-            // form open.
+            // Read-only once the user is no longer a member of the group, removed or left, which
+            // a sync can read with the form open.
             if (groupRepository.isLeft(uuid = groupUuid).first()) return ExpenseSaveError.GroupLeft
 
             expenseRepository.updateWithBeneficiaries(expenseWithBeneficiaries.toDb())

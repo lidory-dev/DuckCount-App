@@ -141,7 +141,8 @@ class GroupApi(
      * answer: it no longer lists the group to them, nor them to its members, and drops whatever
      * waits for them there, the Welcome among it, which they would otherwise never acknowledge.
      * Any member may leave but its owner, whom the server refuses. Their leaf stays in the group's
-     * tree until its creator's device removes it, see [GroupSync].
+     * tree until its creator's device removes it, see [GroupSync], which the server wakes for it as
+     * it takes a current member's leave, see [push.PushSignal.Kind.GROUP_MEMBER_LEFT].
      */
     suspend fun leave(groupUuid: String): GroupLeaveAnswer =
         leaveAnswerOf(
@@ -479,7 +480,13 @@ sealed interface GroupLeaveAnswer {
     /**
      * The `404`: the server holds no such group, or the caller was never a member of it, so there
      * is nothing to leave. Or the proxy in front of the server answering while it is being
-     * redeployed, which leaves the group listed, and the sync declines it again, see [GroupSync].
+     * redeployed, which leaves the caller a member: nothing in the answer tells the two apart, as
+     * for a change to a group's members, see [membershipAnswerOf]. The server never answers it for
+     * a group it lists to the caller, a current member, whose leave it takes, or refuses with a
+     * `403` if they are its owner. So the sync keeps the leave owed, and sends it again, while the
+     * server lists the group, and forgets it once the server no longer does, see
+     * [GroupSync.leaveDeclined]. [GroupLeaver], with no listing to go by, keeps it owed for the
+     * sync.
      */
     data object NotMember : GroupLeaveAnswer
 
@@ -487,7 +494,8 @@ sealed interface GroupLeaveAnswer {
      * Any other answer: the request may never have left, or the leave may have been taken and the
      * answer lost on the way back, a `401` that a refresh may still turn around included. Only
      * sending it again can tell. The `403` refusing the group's owner is one, the client reading it
-     * as no answer it knows: the sync never asks for that, see [GroupSync].
+     * as no answer it knows: the sync never asks for that, see [GroupSync], and the user asks for it
+     * only in a group handed to them as its creator deleted their account, see [GroupLeaver].
      */
     data class Failed(val error: NetworkError) : GroupLeaveAnswer
 }

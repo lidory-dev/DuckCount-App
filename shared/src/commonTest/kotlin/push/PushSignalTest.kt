@@ -69,6 +69,15 @@ class PushSignalTest {
         )
     }
 
+    /** Sent to the group's owner alone, from the member who left. */
+    @Test
+    fun `parses a group member left signal`() {
+        assertEquals(
+            PushSignal(kind = PushSignal.Kind.GROUP_MEMBER_LEFT, from = ALICE),
+            PushSignal.parse("""{"type":"group_member_left","from":"$ALICE"}""".encodeToByteArray()),
+        )
+    }
+
     @Test
     fun `reads a signal a newer server added as unknown`() {
         assertEquals(

@@ -46,9 +46,9 @@ sealed interface SendContactRequestError : Error {
 
     /**
      * The group a request to one of its members is sent from cannot vouch for them on this
-     * device: the group is not one of the user's, the user was removed from it, its MLS state is
-     * not on this device, a log-out having taken it, or its tree, as this device last read it,
-     * has nobody under their UUID. Or its creator is blocked, see
+     * device: the group is not one of the user's, the user is no longer in it, removed or left,
+     * its MLS state is not on this device, a log-out having taken it, or its tree, as this device
+     * last read it, has nobody under their UUID. Or its creator is blocked, see
      * [database.data.local.entity.IdentityConflictEntity]: the tree is their word, and the
      * identity this device pinned for them may be an impostor's. Only that tree can vouch for
      * who they are, see [ContactRequestSender].

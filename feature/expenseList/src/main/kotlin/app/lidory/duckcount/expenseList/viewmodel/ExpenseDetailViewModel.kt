@@ -97,8 +97,8 @@ class ExpenseDetailViewModel(
             }
         }
 
-    // A group the user was removed from stays read-only, its expenses with it, and a sync can read
-    // the removal with the screen open.
+    // A group the user is no longer a member of, removed or left, stays read-only, its expenses
+    // with it, and a sync can read the removal with the screen open.
     private val isGroupLeft: Flow<Boolean> =
         expense
             .map { it?.groupUuid }
@@ -181,7 +181,7 @@ sealed interface ExpenseScreenState {
         val canEdit: Boolean,
         val canDelete: Boolean,
 
-        /** Whether the expense, once deleted, can be restored: not in a group the user was removed from. */
+        /** Whether the expense, once deleted, can be restored: not in a group the user is no longer in. */
         val canRestore: Boolean,
         val canSettle: Boolean,
     ) : ExpenseScreenState
@@ -198,8 +198,9 @@ data class ExpenseActions(
 )
 
 /**
- * What the user, [selfUuid], may do with this expense: nothing that changes it in a group they were
- * removed from, [isGroupLeft], which stays read-only, its expenses with it.
+ * What the user, [selfUuid], may do with this expense: nothing that changes it in a group they are
+ * no longer a member of, removed or left, [isGroupLeft], which stays read-only, its expenses with
+ * it.
  */
 fun ExpenseWithBeneficiaries.actions(selfUuid: String?, isGroupLeft: Boolean) = ExpenseActions(
     canEdit = !isGroupLeft && (

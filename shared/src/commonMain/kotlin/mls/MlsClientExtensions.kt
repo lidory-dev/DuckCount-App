@@ -203,9 +203,9 @@ internal suspend fun MlsClient.discardPendingCommitIn(mlsGroupId: ByteArray) =
  * Deletes a group this device has no further use for.
  *
  * A failure is not reported: whatever made the group useless has already happened, and a
- * group left behind holds nothing a peer can still reach. Only one the user was removed from
- * is in the way of anything, the Welcome adding them back, and is deleted again before that is
- * read, see [deleteGroupOf].
+ * group left behind holds nothing a peer can still reach. Only one the user was removed from, or
+ * left, is in the way of anything, the Welcome adding them back, and is deleted again before that
+ * is read, see [deleteGroupOf].
  */
 internal suspend fun MlsClient.deleteGroupQuietly(mlsGroupId: ByteArray) {
     try {
@@ -220,8 +220,8 @@ internal suspend fun MlsClient.deleteGroupQuietly(mlsGroupId: ByteArray) {
  * [MlsClient.deleteGroup].
  *
  * Throws [MlsException] when the user's storage fails, which leaves the group held: what a group
- * the user was removed from is deleted with before they are let back in, the state still held
- * refusing every Welcome to it, see [MlsClient.inspectWelcome].
+ * the user was removed from, or left, is deleted with before they are let back in, the state
+ * still held refusing every Welcome to it, see [MlsClient.inspectWelcome].
  */
 internal suspend fun MlsClient.deleteGroupOf(mlsGroupId: ByteArray) {
     withGroupLock(mlsGroupId = mlsGroupId) {

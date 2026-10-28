@@ -14,8 +14,8 @@ private const val BOB = "22222222-2222-2222-2222-222222222222"
 private const val GROUP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 
 /**
- * What a group tells the screens of whether its members can be changed, and by whom, and of
- * whether it vouches for who they are.
+ * What a group tells the screens of whether its members can be changed, and by whom, of whether
+ * it vouches for who they are, and of whether the user may leave it.
  */
 class GroupMappingTest {
 
@@ -90,6 +90,28 @@ class GroupMappingTest {
         val group = groupOf(ownerUuid = ALICE).seenBy(selfUuid = BOB, isCreatorBlocked = true)
 
         assertFalse(group.canVouchForMembers)
+    }
+
+    @Test
+    fun `a member who did not create the group may leave it`() {
+        assertTrue(groupOf(ownerUuid = ALICE).seenBy(selfUuid = BOB).canLeave)
+    }
+
+    /** Nobody else could change its members. */
+    @Test
+    fun `the creator may not leave their own group`() {
+        assertFalse(groupOf(ownerUuid = ALICE).seenBy(selfUuid = ALICE).canLeave)
+    }
+
+    @Test
+    fun `a group the user is no longer in cannot be left again`() {
+        assertFalse(groupOf(ownerUuid = ALICE, isLeft = true).seenBy(selfUuid = BOB).canLeave)
+    }
+
+    /** The server still has the user a member, and their leave is what takes them out. */
+    @Test
+    fun `a member's group brought back after a log-out may be left`() {
+        assertTrue(groupOf(ownerUuid = ALICE, mlsGroupId = null).seenBy(selfUuid = BOB).canLeave)
     }
 
     @Test

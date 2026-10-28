@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,7 +31,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
+import app.lidory.duckcount.android.ui.composable.button.DuckCountOutlinedButton
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.groupList.component.GroupLeaveDialog
 import app.lidory.duckcount.groupList.component.GroupMemberFullScreenDialog
 import app.lidory.duckcount.groupList.component.LeftGroupNotice
 import app.lidory.duckcount.groupList.component.groupMembersDetail.GroupMemberBottomSheet
@@ -41,6 +44,7 @@ import app.lidory.duckcount.groupList.model.MembershipChangeResult
 import app.lidory.duckcount.groupList.model.message
 import app.lidory.duckcount.groupList.viewmodel.GroupSettingsViewModel
 import app.lidory.duckcount.groupList.viewmodel.MemberActions
+import app.lidory.duckcount.groupList.viewmodel.isLeavable
 import app.lidory.duckcount.groupList.viewmodel.memberActions
 import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
@@ -143,7 +147,7 @@ fun GroupSettingsScreen(
                     }
                 },
                 actions = {
-                    // Read-only once the user was removed from the group.
+                    // Read-only once the user is no longer in the group, removed or left.
                     if (group?.isLeft == false) {
                         IconButton(
                             onClick = navigateToEditGroup,
@@ -212,6 +216,27 @@ fun GroupSettingsScreen(
                     onAddMembers = { viewModel.showMemberDialog() },
                     openBottomSheet = { member -> viewModel.openMember(member) },
                 )
+
+                // Last, as the sheet's removal is: what the user does about the group as a whole,
+                // and the one way out of it, outlined in the error colour. Gone once they are out,
+                // the group then read-only, with the notice above saying so.
+                if (group?.isLeavable() == true) {
+                    item {
+                        DuckCountOutlinedButton(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = Padding.extraLarge),
+                            onClick = { viewModel.askToLeave() },
+                            enabled = !isChanging,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error,
+                            ),
+                            border = ButtonDefaults.outlinedButtonBorder(enabled = !isChanging),
+                        ) {
+                            Text(text = stringResource(R.string.leave_the_group))
+                        }
+                    }
+                }
             }
 
             DuckCountSnackbarHost(hostState = snackbarHostState)
@@ -244,6 +269,16 @@ fun GroupSettingsScreen(
                 isRemoving = isChanging,
                 onDismiss = { viewModel.cancelRemoval() },
                 onConfirm = { viewModel.removeMember(member) },
+            )
+        }
+
+        // Stays on the screen once left: the group, read again, shows read-only, see LeftGroupNotice.
+        if (viewModel.isLeaveAsked) {
+            GroupLeaveDialog(
+                groupTitle = group?.title ?: "",
+                isLeaving = isChanging,
+                onDismiss = { viewModel.cancelLeave() },
+                onConfirm = { viewModel.leave() },
             )
         }
     }

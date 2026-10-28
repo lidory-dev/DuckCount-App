@@ -910,29 +910,40 @@ class GroupSyncTest {
     }
 
     /**
-     * The server forgot the group or never had the user in it, or the proxy answered for it while
-     * it is redeployed: the group it still lists is declined and left again.
+     * Only the proxy answers 404 for a group the server lists, as the server is redeployed: the
+     * leave is kept and sent again, the group not decided on again. Once the server lists the
+     * group no more, it forgot it or never had the user in it, and the leave is forgotten.
      */
     @Test
-    fun `a leave answered 404 is forgotten and a group still listed is declined and left again`() =
+    fun `a leave answered 404 is kept and sent again while the group is listed and forgotten once it is not`() =
         runBlocking<Unit> {
             invite(creator = mallory)
             leaveAnswer = GroupLeaveAnswer.NotMember
 
-            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+            assertEquals(GroupSyncError.Network(NetworkError.NOT_FOUND), groupSync.sync(contactsTakenIn = true).failure)
 
             assertEquals(listOf(GROUP), left)
-            assertTrue(declined.isEmpty())
+            assertEquals(setOf(GROUP), declined)
+            assertEquals(listOf(60L), resends.seconds)
+            assertNull(acknowledged[GROUP])
 
             fetched.clear()
-            leaveAnswer = GroupLeaveAnswer.Left
+
+            assertEquals(GroupSyncError.Network(NetworkError.NOT_FOUND), groupSync.sync(contactsTakenIn = true).failure)
+
+            assertTrue(fetched.isEmpty())
+            assertEquals(listOf(GROUP, GROUP), left)
+            assertEquals(setOf(GROUP), declined)
+            assertEquals(listOf(60L, 60L), resends.seconds)
+
+            listed.clear()
 
             assertNull(groupSync.sync(contactsTakenIn = true).failure)
 
-            assertEquals(listOf(GROUP), fetched)
-            assertEquals(listOf(GROUP, GROUP), left)
+            assertTrue(fetched.isEmpty())
+            assertEquals(listOf(GROUP, GROUP, GROUP), left)
             assertTrue(declined.isEmpty())
-            assertTrue(listed.isEmpty())
+            assertEquals(listOf(60L, 60L), resends.seconds)
         }
 
     /**

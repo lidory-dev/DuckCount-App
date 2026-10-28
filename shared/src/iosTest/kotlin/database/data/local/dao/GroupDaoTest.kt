@@ -1,5 +1,7 @@
 package database.data.local.dao
 
+import androidx.room.execSQL
+import androidx.room.useWriterConnection
 import database.data.local.entity.GroupEntity
 import database.data.local.entity.IdentityConflictEntity
 import database.data.local.entity.MembershipChangeKind
@@ -10,6 +12,9 @@ import database.withInMemoryDatabase
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFails
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 private const val ALICE = "11111111-1111-1111-1111-111111111111"
@@ -25,7 +30,8 @@ private const val OLDER_HASH = "older"
 /**
  * Which groups the key to the user's own profile is posted into, see
  * [GroupDao.getOwedProfileKey], run on the database itself: `group.GroupProfileKeyDelivery`
- * takes its word for it.
+ * takes its word for it. And how a group the user leaves is recorded, see
+ * [GroupDao.markLeftAndOweLeave], which `group.GroupLeaver` takes for done once it returns.
  */
 class GroupDaoTest {
 
@@ -100,6 +106,41 @@ class GroupDaoTest {
                 assertEquals(setOf(OTHER_GROUP), database.groupDao.owed())
             }
         }
+
+    @Test
+    fun `a group the user leaves is marked left with its leave owed`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.groupDao.insert(groupOf(GROUP))
+            database.groupDao.insert(groupOf(OTHER_GROUP))
+
+            database.groupDao.markLeftAndOweLeave(groupUuid = GROUP)
+
+            assertTrue(assertNotNull(database.groupDao.get(uuid = GROUP)).isLeft)
+            assertFalse(assertNotNull(database.groupDao.get(uuid = OTHER_GROUP)).isLeft)
+            assertEquals(listOf(GROUP), database.groupDao.getDeclinedUuids())
+        }
+    }
+
+    /**
+     * A trigger stands in for the database failing as the leave is recorded owed: a group left
+     * with no leave owed would keep the user a member on the server for good.
+     */
+    @Test
+    fun `a group whose leave cannot be recorded owed is not marked left either`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.groupDao.insert(groupOf(GROUP))
+            database.useWriterConnection { connection ->
+                connection.execSQL(
+                    "CREATE TRIGGER failing BEFORE INSERT ON DeclinedGroupEntity BEGIN SELECT RAISE(ABORT, 'failing'); END",
+                )
+            }
+
+            assertFails { database.groupDao.markLeftAndOweLeave(groupUuid = GROUP) }
+
+            assertFalse(assertNotNull(database.groupDao.get(uuid = GROUP)).isLeft)
+            assertTrue(database.groupDao.getDeclinedUuids().isEmpty())
+        }
+    }
 }
 
 /** The UUIDs of the groups owed the key whose partial hash is [CURRENT_HASH]. */

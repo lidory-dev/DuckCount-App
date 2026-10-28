@@ -20,7 +20,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.R
 
-/** The group [groupUuid], marked when [isLeft], the user having been removed from it. */
+/** The group [groupUuid], marked when [isLeft], the user no longer being in it, removed or left. */
 @Composable
 fun GroupCard(
     title: String,

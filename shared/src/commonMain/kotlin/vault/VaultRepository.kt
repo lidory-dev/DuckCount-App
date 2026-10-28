@@ -374,7 +374,9 @@ class VaultRepository(
 
     /**
      * Drops the key of the group [groupUuid] from the vault: one whose creation the server
-     * refused, which no group on the server will ever be listed under.
+     * refused, which no group on the server will ever be listed under, or one the user left, which
+     * a log-out before the server hears the leave would otherwise bring back as current, see
+     * `group.GroupLeaver`.
      */
     suspend fun deleteGroupKey(groupUuid: String): EmptyResult<VaultError> =
         when (

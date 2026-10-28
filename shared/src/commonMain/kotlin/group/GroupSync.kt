@@ -42,12 +42,12 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 /**
- * How soon a leave the server was not heard to take is sent again, see [GroupSync.leaveDeclined]:
- * as soon as a change to a group's members is, see [GroupMembershipSender]. Nothing else may bring
- * the sync back for it soon: a group is mostly declined for a creator who is no contact of the
- * user's, whose pushes their phone refuses, see [push.PushSignal].
+ * How soon a leave the server was not heard to take is sent again, see [GroupSync.leaveDeclined]
+ * and [GroupLeaver]: as soon as a change to a group's members is, see [GroupMembershipSender].
+ * Nothing else may bring the sync back for it soon: a group is mostly declined for a creator who
+ * is no contact of the user's, whose pushes their phone refuses, see [push.PushSignal].
  */
-private const val UNANSWERED_LEAVE_RESEND_SECONDS = 60L
+internal const val UNANSWERED_LEAVE_RESEND_SECONDS = 60L
 
 /** A group the user was added to, or added back to, and joined in a [GroupSync] pass, for them to be told about. */
 data class GroupArrival(
@@ -112,8 +112,8 @@ class GroupSyncPass(
  *    read, see [drain], whether or not the server still lists the group: the server lists a group
  *    to its current members alone, and the Commit removing the user is how this device learns it.
  * 4. Every group the user created that the server lists has whoever it no longer lists of its
- *    members removed from it, see [dropDeparted]: those who left it, as a device declining it
- *    does, and accounts deleted since.
+ *    members removed from it, see [dropDeparted]: those who left it, on purpose, see
+ *    [GroupLeaver], or as a device declining it does, and accounts deleted since.
  * 5. Every group brought back after a log-out that the server lists takes the members it lists of
  *    it, see [refresh], and every one it no longer lists is one the user was removed from, see
  *    [leaveUnlisted]: there is no MLS state to read the Commits doing so with.
@@ -124,13 +124,13 @@ class GroupSyncPass(
  *    no longer opens, its creator having rotated the key since, is neither brought back nor
  *    declined: it is joined only from the Welcome of the owner the server lists adding the user
  *    back, see [restore] and [rejoin], what waits there until then acknowledged unread, and every
- *    sync tries it again. Every group the user was removed from that the server lists again is
- *    taken in as well, joined again from the Welcome of its creator adding them back, see
- *    [rejoin], what waits before it acknowledged with it, and so is every group brought back after
- *    a log-out, which only that gives MLS state again, what waits there with no such Welcome
- *    acknowledged unread.
- * 7. Every group this device declined is left on the server, those this pass declined included,
- *    see [leaveDeclined].
+ *    sync tries it again. Every group the user was removed from, or left once its leave is no
+ *    longer owed, that the server lists again is taken in as well, joined again from the Welcome
+ *    of its creator adding them back, see [rejoin], what waits before it acknowledged with it, and
+ *    so is every group brought back after a log-out, which only that gives MLS state again, what
+ *    waits there with no such Welcome acknowledged unread.
+ * 7. Every leave owed is sent, see [leaveDeclined]: that of every group this device declined,
+ *    those this pass declined included, and of every group the user left, see [GroupLeaver].
  * 8. Once every group is caught up, the key to the user's own profile is posted into each owed
  *    it: each they joined, or whose creator seated somebody, since they last posted it there, see
  *    [takeProfileKeys], and each once their key rotates, see [GroupProfileKeyDelivery].
@@ -341,9 +341,9 @@ class GroupSync internal constructor(
      * in. One could need the secret of one of the user's key packages, see
      * [mls.KeyPackageRepository]. False when the server could not be asked.
      *
-     * Only the groups this device neither holds nor declined, those the user was removed from,
-     * which the server lists again once their creator added the user back, the Welcome doing so
-     * waiting there, and those brought back after a log-out, which the creator removing the user
+     * Only the groups this device neither holds nor declined, those the user was removed from or
+     * left, which the server lists again once their creator added the user back, the Welcome doing
+     * so waiting there, and those brought back after a log-out, which the creator removing the user
      * and adding them back lets in again the same way: what waits in the others was taken in
      * already, the Welcome joined or declined, see [join], and what came after it needs no key
      * package to be read.
@@ -830,10 +830,12 @@ class GroupSync internal constructor(
      * and returns the first failure: a group that fails is left for the next sync, which finds the
      * same members gone, and removes them then.
      *
-     * Those are members who left the group, see [GroupApi.leave], as a device declining it does,
-     * and accounts deleted since, which take nobody off a tree. Left there, a leaf keeps one of the
-     * seats a group has, is seated by the Welcome of whoever joins next, and every Commit goes on
-     * sealing the group's secrets to it, which whoever holds its keys could read.
+     * Those are members who left the group, see [GroupApi.leave], on purpose, see [GroupLeaver],
+     * or as a device declining it does, and accounts deleted since, which take nobody off a tree.
+     * Left there, a leaf keeps one of the seats a group has, is seated by the Welcome of whoever
+     * joins next, and every Commit goes on sealing the group's secrets to it, which whoever holds
+     * its keys could read. A current member leaving wakes the creator's device for it, see
+     * [push.PushSignal.Kind.GROUP_MEMBER_LEFT], so that their leaf goes as soon as they do.
      *
      * Not a group whose creator, as its Welcome named them, is anybody else, whoever the server
      * lists as its owner, see [GroupEntity.ownerUuid], nor one this device holds no MLS state of,
@@ -931,9 +933,11 @@ class GroupSync internal constructor(
      * [removed].
      *
      * The server lists a group to its current members and its owner alone, so one it no longer
-     * lists is one whose creator removed the user, see [GroupEntity.isLeft]. A group this device
-     * holds the MLS state of is told so by the Commit doing so, see [drain], which nothing here can
-     * read: a group brought back holds none, see [restore], and so cannot read anything sent in it.
+     * lists is one whose creator removed the user, see [GroupEntity.isLeft]: one the user left is
+     * marked left as they leave it, see [GroupLeaver], and so is never taken for that. A group this
+     * device holds the MLS state of is told so by the Commit doing so, see [drain], which nothing
+     * here can read: a group brought back holds none, see [restore], and so cannot read anything
+     * sent in it.
      *
      * What waits there is left unacknowledged: [listed] was read as the pass began, so the Welcome
      * of the creator adding the user back may wait behind the removal already, and the next sync
@@ -964,10 +968,11 @@ class GroupSync internal constructor(
 
     /**
      * Takes in every group the server lists, [listed], that this device neither holds, see
-     * [stored], nor declined, every one it holds that the user was removed from, and every one
-     * brought back after a log-out, see [GroupSync], noting in [joined] those it joined, and in
-     * [behind] those whose catch-up stopped short, see [enter], and returns the first failure: a
-     * group that fails is left for the next sync, and the next group is taken in all the same.
+     * [stored], nor declined, every one it holds that the user was removed from, or left once its
+     * leave is no longer owed, and every one brought back after a log-out, see [GroupSync], noting
+     * in [joined] those it joined, and in [behind] those whose catch-up stopped short, see [enter],
+     * and returns the first failure: a group that fails is left for the next sync, and the next
+     * group is taken in all the same.
      */
     private suspend fun takeIn(
         listed: List<GroupDto>,
@@ -1212,9 +1217,10 @@ class GroupSync internal constructor(
 
     /**
      * Joins [group] again once its creator, [creatorUuid], added the user back, and notes it in
-     * [joined]; or leaves it as it is, see [passOver]. One this device records the user as removed
-     * from, whose MLS group was [heldMlsGroupId], or one it holds no MLS state for, brought back
-     * after a log-out, see [restore], which being added back is the only way to MLS state again.
+     * [joined]; or leaves it as it is, see [passOver]. One this device records the user as no
+     * longer in, removed or left, whose MLS group was [heldMlsGroupId], or one it holds no MLS
+     * state for, brought back after a log-out, see [restore], which being added back is the only
+     * way to MLS state again.
      *
      * The way back in is the last Welcome waiting that [creatorUuid] wrote, see [latestWelcome]:
      * whoever this device recorded as the group's creator, see [GroupEntity.ownerUuid], or the
@@ -1225,9 +1231,10 @@ class GroupSync internal constructor(
      * What comes after it is caught up with, and the row brought back, with what the Welcome hands
      * over, see [enter].
      *
-     * The MLS state of [heldMlsGroupId] is deleted again first, should the removal's deletion not
-     * have gone through, see [drain]: held, it would refuse every Welcome to the group, its
-     * creator's adding the user back included, see [MlsClient.inspectWelcome].
+     * The MLS state of [heldMlsGroupId] is deleted again first, should the deletion as the user
+     * was removed, see [drain], or left, see [GroupLeaver], not have gone through: held, it would
+     * refuse every Welcome to the group, its creator's adding the user back included, see
+     * [MlsClient.inspectWelcome].
      *
      * Not cancellable, which the caller sees to, as for [join].
      */
@@ -1551,10 +1558,11 @@ class GroupSync internal constructor(
     }
 
     /**
-     * Refuses the way back into the group [groupUuid] the user was removed from, or brought back
-     * after a log-out, every message waiting there, [messages], acknowledged, and leaves the group
-     * on this device as it is, if at all, see [restore]. Not declined, see [decline], which would
-     * leave the group, and refuse the Welcome of its creator adding the user back some later day.
+     * Refuses the way back into the group [groupUuid] the user was removed from or left, or
+     * brought back after a log-out, every message waiting there, [messages], acknowledged, and
+     * leaves the group on this device as it is, if at all, see [restore]. Not declined, see
+     * [decline], which would leave the group, and refuse the Welcome of its creator adding the user
+     * back some later day.
      */
     private suspend fun passOver(groupUuid: String, messages: List<GroupMessageDto>): GroupSyncError? {
         acknowledge(groupUuid, messages.map { it.uuid }).onError { return GroupSyncError.Network(it) }
@@ -1563,26 +1571,36 @@ class GroupSync internal constructor(
     }
 
     /**
-     * Leaves on the server every group this device declined, see [DeclinedGroupEntity], forgetting
-     * it was declined once the server took the leave, or said the user was never in the group, and
-     * returns what kept a leave from going through: the first one the server did not answer stops
-     * them all, the next faring no better, and books them all again, see
-     * [UNANSWERED_LEAVE_RESEND_SECONDS].
+     * Sends every leave owed, see [DeclinedGroupEntity]: that of every group this device declined,
+     * and of every group the user left, see [GroupLeaver]. Each is forgotten once the server took
+     * it, or said the user was never in a group it no longer lists, and what kept a leave from
+     * going through is returned: the first one the server did not answer stops them all, the next
+     * faring no better, and books them all again, see [UNANSWERED_LEAVE_RESEND_SECONDS].
+     *
+     * A `404` for a group in [listed] is no answer either. The server lists a group to its current
+     * members alone, and takes the leave of every one of them but its owner, whom it refuses with a
+     * `403`, so that `404` can only be the proxy in front of it answering as it is redeployed, the
+     * user still a member, see [GroupLeaveAnswer.NotMember]. Forgotten, the leave of a group the
+     * user left would never be sent again, the group being taken in again rather than left once
+     * no leave is owed for it, see [takeIn], and the server would keep them a member, its owner
+     * never woken to remove them. The proxy answers so only until the redeploy is done, so the
+     * leave is not sent again for good.
      *
      * Not a group the server lists the user as the owner of, of those in [listed]: it refuses its
      * owner, who would leave the group with nobody able to change it, and the client cannot tell
      * that refusal from no answer. That is a group the user created, declined after a log-out
      * because its key was never backed up, or one handed to them as its owner deleted their
-     * account: past saving either way, only its creator's device changing a group. It stays
-     * declined, neither asked about nor left.
+     * account, which they may have declined or left: past saving either way, only its creator's
+     * device changing a group. Its leave stays owed, neither asked about nor sent.
      *
-     * Forgotten, a group is decided on afresh should the server list it again: its creator added
-     * the user back, whose new Welcome is the first thing waiting then, the leave having dropped
-     * everything before it, or the proxy answered the `404` for the server, see
-     * [GroupLeaveAnswer.NotMember], and the group is declined and left again. A leave the server
-     * took whose answer was lost is sent again, and leaves again a group whose creator added the
-     * user back in between: that takes their creator syncing and adding them back before the leave
-     * goes out again, which is accepted.
+     * Forgotten, a group this device declined is decided on afresh should the server list it
+     * again: its creator added the user back, whose new Welcome is the first thing waiting then,
+     * the leave having dropped everything before it. One the user left, which this device still
+     * holds, is joined again from its creator's Welcome adding them back, as after a removal, see
+     * [rejoin], and its leave is never sent again. A leave the server took whose answer was lost is
+     * sent again, and leaves again a group whose creator added the user back in between: that
+     * takes their creator syncing and adding them back before the leave goes out again, which is
+     * accepted.
      *
      * Nothing is forgotten before the server answered, so a device locking as this runs, see
      * [GroupSyncError.DeviceLocked], leaves every group not left yet owed for the next pass.
@@ -1593,15 +1611,21 @@ class GroupSync internal constructor(
         for (groupUuid in declinedGroups()) {
             if (owners[groupUuid] == selfUuid) continue
 
-            when (val answer = leave(groupUuid)) {
-                GroupLeaveAnswer.Left, GroupLeaveAnswer.NotMember -> forgetDeclined(groupUuid)
-
-                is GroupLeaveAnswer.Failed -> {
-                    resendScheduler.resendAfter(seconds = UNANSWERED_LEAVE_RESEND_SECONDS)
-
-                    return GroupSyncError.Network(answer.error)
-                }
+            // What kept the leave from going through, if anything: a 404 for a group listed is
+            // the proxy's, see above.
+            val unanswered = when (val answer = leave(groupUuid)) {
+                GroupLeaveAnswer.Left -> null
+                GroupLeaveAnswer.NotMember -> NetworkError.NOT_FOUND.takeIf { groupUuid in owners }
+                is GroupLeaveAnswer.Failed -> answer.error
             }
+
+            if (unanswered != null) {
+                resendScheduler.resendAfter(seconds = UNANSWERED_LEAVE_RESEND_SECONDS)
+
+                return GroupSyncError.Network(unanswered)
+            }
+
+            forgetDeclined(groupUuid)
         }
 
         return null

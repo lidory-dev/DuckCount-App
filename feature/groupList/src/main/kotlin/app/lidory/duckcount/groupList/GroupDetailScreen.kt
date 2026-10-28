@@ -109,7 +109,7 @@ fun GroupDetailScreen(
         },
         floatingActionButton = {
             AnimatedVisibility(
-                // No expense added to a group the user was removed from, which stays read-only.
+                // No expense added to a group the user is no longer in, which stays read-only.
                 visible = pagerState.currentPage == 0 && state.groupWithMembers?.isLeft == false,
                 enter = fadeIn() + scaleIn(),
                 exit = fadeOut() + scaleOut(),

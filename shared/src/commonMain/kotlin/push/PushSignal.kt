@@ -24,8 +24,9 @@ data class PushSignal(
 
     /**
      * The user whose action sent it: the sender of the message, whoever asked to become a
-     * contact or accepted, the creditor who changed an expense, the owner of a group. Null
-     * when the payload names nobody this build can read, which is taken as nobody at all.
+     * contact or accepted, the creditor who changed an expense, the owner of a group, the
+     * member who left one. Null when the payload names nobody this build can read, which is
+     * taken as nobody at all.
      */
     val from: String?,
 ) {
@@ -95,6 +96,21 @@ data class PushSignal(
         GROUP_CHANGED,
 
         /**
+         * A member left a group the user created, see `group.GroupLeaver`, and their leaf is to
+         * go from its MLS group, its key rotated after them, see `group.GroupSync`. Sent by the
+         * server to the group's owner alone, from the member who left, as it takes the leave of
+         * a current member, so that the creator's device removes them at once rather than at
+         * its next sync: until then, every member still sees them in the group, and they keep
+         * one of its seats.
+         *
+         * Silent: the sync that removes them tells nobody either, the creator's device being
+         * unable to tell a member who left from an invitee whose device declined the group.
+         * Taken only from a contact, like a message: every member was one of the creator's as
+         * they were added, and one who is no longer is removed at the next sync all the same.
+         */
+        GROUP_MEMBER_LEFT,
+
+        /**
          * Something this build does not know about, including a payload it could not
          * read at all.
          *
@@ -140,6 +156,7 @@ data class PushSignal(
                 "one_time_expense_changed" -> Kind.ONE_TIME_EXPENSE_CHANGED
                 "group_welcome" -> Kind.GROUP_WELCOME
                 "group_changed" -> Kind.GROUP_CHANGED
+                "group_member_left" -> Kind.GROUP_MEMBER_LEFT
                 else -> Kind.UNKNOWN
             }
 

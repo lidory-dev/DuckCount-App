@@ -32,6 +32,7 @@ class MemberNamesTest {
         hasPendingChange = false,
         canChangeMembers = false,
         canVouchForMembers = true,
+        canLeave = true,
     )
 
     @Test

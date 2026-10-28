@@ -66,8 +66,8 @@ class CreateGroupViewModel(
     val isSaved: StateFlow<Boolean> = _isSaved.asStateFlow()
 
     // True once the group being edited is gone, deleted under the screen by a creation the server
-    // refused, see GroupListCallBacks.getGroupWithMembers, or the user was removed from it, which
-    // leaves it read-only. The screen closes then, as once a group is created: there is nothing
+    // refused, see GroupListCallBacks.getGroupWithMembers, or the user is no longer in it, removed
+    // or left, which leaves it read-only. The screen closes then, as once a group is created: there is nothing
     // left to edit.
     private val _isGone = MutableStateFlow(false)
     val isGone: StateFlow<Boolean> = _isGone.asStateFlow()
@@ -150,7 +150,7 @@ class CreateGroupViewModel(
             }
 
             // Read once, for the form to keep what the user typed, and watched from then on for the
-            // group going, or the user being removed from it, see isGone.
+            // group going, or the user being out of it, see isGone.
             if (groupUuid != null) {
                 groupListCallBacks.getGroupWithMembers(groupUuid).first { it == null || it.isLeft }
 

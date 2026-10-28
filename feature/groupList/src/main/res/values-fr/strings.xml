@@ -58,6 +58,9 @@
     <string name="group_members_change_waiting">Les membres pourront être modifiés dès que la dernière modification du groupe sera parvenue au serveur</string>
     <string name="group_members_change_pending">La modification sera envoyée dès que le serveur pourra la recevoir</string>
     <string name="remove_member_confirmation">Retirer %1$s du groupe «\u00A0%2$s\u00A0»\u00A0?</string>
+    <string name="leave_the_group">Quitter le groupe</string>
+    <string name="leave_group_confirmation">Quitter le groupe «\u00A0%1$s\u00A0»\u00A0?</string>
+    <string name="leave_group_explanation">Le groupe reste sur cet appareil, en lecture seule. Seule la personne qui l’a créé peut vous y ajouter à nouveau.</string>
     <plurals name="group_members_error_not_contacts">
         <item quantity="one" tools:ignore="ImpliedQuantity">Impossible d’ajouter %1$s à un groupe pour le moment</item>
         <item quantity="other">Impossible d’ajouter %1$s à un groupe pour le moment</item>

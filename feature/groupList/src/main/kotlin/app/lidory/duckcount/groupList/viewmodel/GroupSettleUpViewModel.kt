@@ -48,7 +48,7 @@ class GroupSettleUpViewModel(
                 GroupSettleUpState.Content(
                     transactions = named,
                     authenticatedUserUuid = groupSettleUpCallBacks.getAuthenticatedUserUuid(),
-                    // A settlement is an expense, which a group the user was removed from takes no more of.
+                    // A settlement is an expense, which a group the user is no longer in takes no more of.
                     canSettle = !isLeft,
                 )
             }

@@ -4,6 +4,7 @@ import group.GroupApi
 import group.GroupCreationSender
 import group.GroupCreator
 import group.GroupKeyBackUp
+import group.GroupLeaver
 import group.GroupMembershipChanger
 import group.GroupMembershipSender
 import group.GroupProfileKeyDelivery
@@ -82,6 +83,16 @@ val groupModule = module {
             groupMembershipSender = get(),
             profileKeyVault = get(),
             memberProfileRepository = get(),
+        )
+    }
+
+    single {
+        GroupLeaver(
+            groupApi = get(),
+            groupDao = get(),
+            vaultRepository = get(),
+            mlsIdentityRepository = get(),
+            resendScheduler = get(),
         )
     }
 

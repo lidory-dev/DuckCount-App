@@ -79,8 +79,9 @@ enum class MembershipChangeOutcome {
  *    key, which the sender sees to.
  *
  * The user removes members by hand, and the group sync removes those the server no longer lists:
- * members who left the group, as a device declining it does, and accounts deleted since, see
- * [GroupSync]. Both go through the same removal, and the same key rotation after it.
+ * members who left the group, on purpose, see [GroupLeaver], or as a device declining it does, and
+ * accounts deleted since, see [GroupSync]. Both go through the same removal, and the same key
+ * rotation after it.
  *
  * Everything that can fail without leaving anything behind comes before the Commit is built. From
  * there to the answer is not cancellable: a Commit built and never saved would hold the group's
@@ -184,7 +185,8 @@ class GroupMembershipChanger internal constructor(
 
         val selfUuid = userUuid() ?: return Result.Error(GroupMembershipError.NoSession)
 
-        // Leaving is no removal, and the creator never leaves: nobody else could change the group.
+        // A member's way out is leaving, see GroupLeaver, never a removal of their own, and the
+        // creator never leaves: nobody else could change the group.
         require(selfUuid !in userUuids) { "The creator of a group is never removed from it." }
 
         return removeLocked(selfUuid = selfUuid, groupUuid = groupUuid, userUuids = userUuids)

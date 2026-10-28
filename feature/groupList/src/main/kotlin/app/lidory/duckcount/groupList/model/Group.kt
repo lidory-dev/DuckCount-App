@@ -6,7 +6,10 @@ data class Group(
     val title: String,
     val currency: Currency,
 
-    /** Whether the creator removed the user from the group, which stays, read-only. */
+    /**
+     * Whether the user is no longer a member of the group, removed by its creator or left, which
+     * stays, read-only.
+     */
     val isLeft: Boolean,
 )
 
@@ -35,9 +38,15 @@ data class GroupWithMembers(
 
     /**
      * Whether this device can tell who the members are on the group's word, which a contact
-     * request to one of them is checked against: the user was not removed from it, this device
-     * holds what the group says of them, which a log-out does not bring back, and its creator,
-     * whose word it is, is not blocked over a changed identity.
+     * request to one of them is checked against: the user is still in it, this device holds what
+     * the group says of them, which a log-out does not bring back, and its creator, whose word it
+     * is, is not blocked over a changed identity.
      */
     val canVouchForMembers: Boolean,
+
+    /**
+     * Whether the user may leave the group: they are still in it, and did not create it, its
+     * creator never leaving, as nobody else could change its members.
+     */
+    val canLeave: Boolean,
 )

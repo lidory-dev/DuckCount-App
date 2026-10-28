@@ -10,6 +10,9 @@ data class Group(
     val title: String,
     val currency: Currency,
 
-    /** Whether the creator removed the user from the group, which stays, read-only. */
+    /**
+     * Whether the user is no longer a member of the group, removed by its creator or left, which
+     * stays, read-only.
+     */
     val isLeft: Boolean,
 )

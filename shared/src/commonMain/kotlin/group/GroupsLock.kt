@@ -5,8 +5,8 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * Runs [block] as the only thing changing which groups this device holds: creating one, see
- * [GroupCreator], and the group sync, which sends the creations still pending, backs the keys up
- * and joins the groups the user was invited to.
+ * [GroupCreator], leaving one, see [GroupLeaver], and the group sync, which sends the creations
+ * still pending, backs the keys up and joins the groups the user was invited to.
  *
  * Each reads what is stored, talks to the server and writes back what it heard, and two at once
  * would each act on what the other is halfway through: a creation still waiting on its answer

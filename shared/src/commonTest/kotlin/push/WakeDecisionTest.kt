@@ -60,6 +60,7 @@ class WakeDecisionTest {
             PushSignal.Kind.ONE_TIME_EXPENSE_CHANGED,
             PushSignal.Kind.GROUP_WELCOME,
             PushSignal.Kind.GROUP_CHANGED,
+            PushSignal.Kind.GROUP_MEMBER_LEFT,
             PushSignal.Kind.UNKNOWN,
         ).forEach { kind ->
             assertFalse(signal(kind, from = ALICE).mayWake(wakeList), "$kind")
@@ -75,6 +76,17 @@ class WakeDecisionTest {
         assertTrue(signal(PushSignal.Kind.GROUP_CHANGED, from = BOB).mayWake(wakeList))
         assertFalse(signal(PushSignal.Kind.GROUP_CHANGED, from = MALLORY).mayWake(wakeList))
         assertFalse(signal(PushSignal.Kind.GROUP_CHANGED, from = null).mayWake(wakeList))
+    }
+
+    /**
+     * Sent by the server to the owner of a group for the member who left it, whom the creator may
+     * have no contact with by now: their leaf goes at the creator's next sync all the same.
+     */
+    @Test
+    fun `a member leaving a group wakes the user from a contact alone`() {
+        assertTrue(signal(PushSignal.Kind.GROUP_MEMBER_LEFT, from = BOB).mayWake(wakeList))
+        assertFalse(signal(PushSignal.Kind.GROUP_MEMBER_LEFT, from = MALLORY).mayWake(wakeList))
+        assertFalse(signal(PushSignal.Kind.GROUP_MEMBER_LEFT, from = null).mayWake(wakeList))
     }
 
     /** Neither has a request from the user to answer, Bob being a contact already. */

@@ -58,6 +58,9 @@
     <string name="group_members_change_waiting">Members can be changed once the group’s last change reaches the server</string>
     <string name="group_members_change_pending">The change will be sent as soon as the server can take it</string>
     <string name="remove_member_confirmation">Remove %1$s from “%2$s”?</string>
+    <string name="leave_the_group">Leave the group</string>
+    <string name="leave_group_confirmation">Leave “%1$s”?</string>
+    <string name="leave_group_explanation">The group stays on this device, read-only. Only the person who created it can add you back.</string>
     <plurals name="group_members_error_not_contacts">
         <item quantity="one">%1$s can’t be added to a group yet</item>
         <item quantity="other">%1$s can’t be added to a group yet</item>

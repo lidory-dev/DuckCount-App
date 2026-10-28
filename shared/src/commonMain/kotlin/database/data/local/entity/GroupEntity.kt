@@ -41,7 +41,7 @@ class GroupEntity(
      * takes every MLS group with it: its fields open with [groupKey] from the vault, but nothing
      * the members send in it can be read any more.
      *
-     * Kept once the user is removed from the group, see [isLeft], although its MLS state is gone:
+     * Kept once the user is no longer in the group, see [isLeft], although its MLS state is gone:
      * a direct message naming it is still one never to be read, see `message.DirectMessageSync`.
      */
     val mlsGroupId: ByteArray?,
@@ -58,9 +58,9 @@ class GroupEntity(
     val isBackedUp: Boolean,
 
     /**
-     * Whether the creator removed the user from the group. The group stays, read-only, with what
-     * the user had of it, and its MLS state is deleted. The creator adding them back brings it back
-     * to life.
+     * Whether the user is no longer a member of the group: its creator removed them, or they left
+     * it, see `group.GroupLeaver`. The group stays, read-only, with what the user had of it, and
+     * its MLS state is deleted. The creator adding them back brings it back to life.
      */
     val isLeft: Boolean,
 

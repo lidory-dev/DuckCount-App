@@ -7,6 +7,7 @@ import app.lidory.duckcount.groupList.model.GroupCreationError
 import app.lidory.duckcount.groupList.model.GroupCreationFailure
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
+import app.lidory.duckcount.groupList.model.LeaveResult
 import app.lidory.duckcount.groupList.model.MemberRefusal
 import app.lidory.duckcount.groupList.model.MemberRelation
 import app.lidory.duckcount.groupList.model.MembershipChangeError
@@ -17,6 +18,7 @@ import contact.ContactSyncError
 import contact.SendContactRequestError
 import mls.MlsIdentityError
 import util.NetworkError
+import util.Result
 import vault.VaultError
 import database.domain.Currency as CurrencyDb
 import database.domain.Group as GroupDb
@@ -24,6 +26,7 @@ import database.domain.GroupMember as GroupMemberDb
 import database.domain.GroupWithMembers as GroupWithMembersDb
 import database.domain.User as UserDb
 import group.GroupCreationError as SharedGroupCreationError
+import group.GroupLeaveError as SharedGroupLeaveError
 import group.GroupMembershipError as SharedGroupMembershipError
 import group.MembershipChangeOutcome as SharedMembershipChangeOutcome
 
@@ -47,6 +50,7 @@ fun GroupWithMembersDb.toGroupListModel(): GroupWithMembers = GroupWithMembers(
     hasPendingChange = hasPendingChange,
     canChangeMembers = canChangeMembers,
     canVouchForMembers = canVouchForMembers,
+    canLeave = canLeave,
 )
 
 fun Currency.toDb(): CurrencyDb = CurrencyDb(
@@ -148,7 +152,7 @@ fun SharedMembershipChangeOutcome.toMembershipChangeResult(): MembershipChangeRe
  *
  * What went wrong with the user's own storage or the library is folded into
  * [GroupCreationFailure.UNKNOWN], as is nobody being signed in, as for a creation. So is what the
- * group's settings offer no change for: a group the user did not create, was removed from, or
+ * group's settings offer no change for: a group the user did not create, is no longer in, or
  * that this device does not hold, see [GroupWithMembersDb.canChangeMembers], one with a change
  * waiting on the server, see [GroupWithMembersDb.hasPendingChange], and more members than the
  * picker lets the user pick.
@@ -190,6 +194,27 @@ suspend fun SharedGroupMembershipError.toMembershipChangeError(
         SharedGroupMembershipError.Storage,
         SharedGroupMembershipError.Crypto,
             -> MembershipChangeError.Failure(GroupCreationFailure.UNKNOWN)
+    }
+}
+
+/**
+ * What the group's settings are told of the user leaving it: left once this device recorded the
+ * leave, whatever the server did, see `group.GroupLeaver`, or else nothing written, for a reason
+ * folded into [GroupCreationFailure.UNKNOWN] whichever it was, nothing the user can act on: nobody
+ * signed in, the device locking as the leave waited for a sync, no such group on this device, the
+ * user's storage failing, or the group being one they created, which its settings never offer to
+ * leave, see [GroupWithMembersDb.canLeave].
+ */
+fun Result<Unit, SharedGroupLeaveError>.toLeaveResult(): LeaveResult = when (this) {
+    is Result.Success -> LeaveResult.Left
+
+    is Result.Error -> when (error) {
+        SharedGroupLeaveError.NoSession,
+        SharedGroupLeaveError.DeviceLocked,
+        SharedGroupLeaveError.NotHeld,
+        SharedGroupLeaveError.IsCreator,
+        SharedGroupLeaveError.Storage,
+            -> LeaveResult.Failed(GroupCreationFailure.UNKNOWN)
     }
 }
 

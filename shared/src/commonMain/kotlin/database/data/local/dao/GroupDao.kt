@@ -123,8 +123,8 @@ interface GroupDao {
 
     /**
      * The groups the user is still in whose key the vault does not hold yet, see
-     * [GroupEntity.isBackedUp]: the key of one they were removed from is of no further use, the
-     * creator adding them back handing over the one the group has then.
+     * [GroupEntity.isBackedUp]: the key of one they are no longer in, removed or left, is of no
+     * further use, the creator adding them back handing over the one the group has then.
      */
     @Query("SELECT * FROM GroupEntity WHERE isBackedUp = false AND isLeft = false")
     suspend fun getNotBackedUp(): List<GroupEntity>
@@ -147,7 +147,7 @@ interface GroupDao {
         replaceMembers(groupUuid = group.uuid, members = members)
     }
 
-    /** Every group this device holds, those the user was removed from included, see [GroupEntity.isLeft]. */
+    /** Every group this device holds, those the user is no longer in included, see [GroupEntity.isLeft]. */
     @Query("SELECT * FROM GroupEntity")
     suspend fun getAll(): List<GroupEntity>
 
@@ -155,9 +155,25 @@ interface GroupDao {
     @Query("SELECT userUuid FROM GroupMemberEntity WHERE groupUuid = :groupUuid")
     suspend fun getMemberUuids(groupUuid: String): List<String>
 
-    /** Records that the creator removed the user from the group [uuid], see [GroupEntity.isLeft]. */
+    /**
+     * Records that the user is no longer a member of the group [uuid], removed by its creator or
+     * left, see [GroupEntity.isLeft].
+     */
     @Query("UPDATE GroupEntity SET isLeft = true WHERE uuid = :uuid")
     suspend fun markLeft(uuid: String)
+
+    /**
+     * Records that the user left the group [groupUuid] and owes the server its leave, see
+     * [DeclinedGroupEntity], in one transaction, see `group.GroupLeaver`: a group marked left with
+     * no leave owed would keep the user a member on the server for good, nothing ever sending it,
+     * and a leave owed for a group still current would have a sync drain it and report a removal
+     * once the leave lands.
+     */
+    @Transaction
+    suspend fun markLeftAndOweLeave(groupUuid: String) {
+        markLeft(uuid = groupUuid)
+        insertDeclined(declined = DeclinedGroupEntity(groupUuid = groupUuid))
+    }
 
     /**
      * Records [handedProfileKeyHash] as the key to the user's profile the group [uuid] holds for
@@ -229,21 +245,25 @@ interface GroupDao {
 
     /**
      * Whether one of the user's groups talks in the MLS group [mlsGroupId], which a direct message
-     * must never be read in, see `message.DirectMessageSync`: one the user was removed from too,
-     * which keeps its id, see [GroupEntity.mlsGroupId].
+     * must never be read in, see `message.DirectMessageSync`: one the user is no longer in too,
+     * removed or left, which keeps its id, see [GroupEntity.mlsGroupId].
      */
     @Query("SELECT EXISTS (SELECT 1 FROM GroupEntity WHERE mlsGroupId = :mlsGroupId)")
     suspend fun hasMlsGroup(mlsGroupId: ByteArray): Boolean
 
-    /** Records the group [DeclinedGroupEntity.groupUuid] as declined, see [DeclinedGroupEntity]. */
+    /**
+     * Records the leave of the group [DeclinedGroupEntity.groupUuid] as owed, see
+     * [DeclinedGroupEntity]: one this device declined, or that the user left, see
+     * [markLeftAndOweLeave].
+     */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertDeclined(declined: DeclinedGroupEntity)
 
-    /** The UUID of every group this device declined, see [DeclinedGroupEntity]. */
+    /** The UUID of every group whose leave is owed, declined or left, see [DeclinedGroupEntity]. */
     @Query("SELECT groupUuid FROM DeclinedGroupEntity")
     suspend fun getDeclinedUuids(): List<String>
 
-    /** Forgets that the group [groupUuid] was declined, once the user left it, see [DeclinedGroupEntity]. */
+    /** Forgets the leave owed for the group [groupUuid], once the server took it, see [DeclinedGroupEntity]. */
     @Query("DELETE FROM DeclinedGroupEntity WHERE groupUuid = :groupUuid")
     suspend fun deleteDeclined(groupUuid: String)
 }

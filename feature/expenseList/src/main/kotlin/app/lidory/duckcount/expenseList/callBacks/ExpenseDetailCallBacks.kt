@@ -22,8 +22,8 @@ interface ExpenseDetailCallBacks {
     fun getUserFullName(userUuid: String): Flow<String?>
 
     /**
-     * Emits whether the creator removed the user from the group [groupUuid], which stays read-only,
-     * its expenses with it.
+     * Emits whether the user is no longer a member of the group [groupUuid], removed or left, which
+     * stays read-only, its expenses with it.
      */
     fun isGroupLeft(groupUuid: String): Flow<Boolean>
 

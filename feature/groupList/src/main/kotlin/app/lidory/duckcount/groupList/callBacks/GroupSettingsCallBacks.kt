@@ -2,6 +2,7 @@ package app.lidory.duckcount.groupList.callBacks
 
 import app.lidory.duckcount.groupList.model.ContactRequestError
 import app.lidory.duckcount.groupList.model.GroupWithMembers
+import app.lidory.duckcount.groupList.model.LeaveResult
 import app.lidory.duckcount.groupList.model.MemberRelation
 import app.lidory.duckcount.groupList.model.MembershipChangeResult
 import app.lidory.duckcount.groupList.model.User
@@ -41,6 +42,14 @@ interface GroupSettingsCallBacks {
      * key then changes, for what the group holds from then on to be read by its members alone.
      */
     suspend fun removeMember(groupUuid: String, userUuid: String): MembershipChangeResult
+
+    /**
+     * Takes the user out of the group [groupUuid], which they did not create, see
+     * [GroupWithMembers.canLeave]: on this device first, where the group stays, read-only, then on
+     * the server, which wakes its creator to remove them from it and change its key. Done once
+     * this device recorded it, whatever the network did: the server hears it when it can.
+     */
+    suspend fun leaveGroup(groupUuid: String): LeaveResult
 
     /** Emits where the user stands with [userUuid], a member of the group, see [MemberRelation], as it changes. */
     fun getContactRelation(userUuid: String): Flow<MemberRelation>

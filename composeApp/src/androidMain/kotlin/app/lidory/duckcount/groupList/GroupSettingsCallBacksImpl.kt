@@ -5,6 +5,7 @@ import app.lidory.duckcount.GroupLimits.MAX_MEMBERS
 import app.lidory.duckcount.groupList.callBacks.GroupSettingsCallBacks
 import app.lidory.duckcount.groupList.model.ContactRequestError
 import app.lidory.duckcount.groupList.model.GroupWithMembers
+import app.lidory.duckcount.groupList.model.LeaveResult
 import app.lidory.duckcount.groupList.model.MemberRelation
 import app.lidory.duckcount.groupList.model.MembershipChangeResult
 import app.lidory.duckcount.groupList.model.User
@@ -12,6 +13,7 @@ import app.lidory.duckcount.networking.NetworkConnectivity
 import database.data.repository.ContactRequestRepository
 import database.data.repository.GroupRepository
 import database.data.repository.UserRepository
+import group.GroupLeaver
 import group.GroupMembershipChanger
 import group.GroupMembershipError
 import group.MembershipChangeOutcome
@@ -26,6 +28,7 @@ class GroupSettingsCallBacksImpl(
     val groupRepository: GroupRepository,
     val userRepository: UserRepository,
     private val groupMembershipChanger: GroupMembershipChanger,
+    private val groupLeaver: GroupLeaver,
     private val contactRequestRepository: ContactRequestRepository,
     private val networkConnectivity: NetworkConnectivity,
 ) : GroupSettingsCallBacks {
@@ -62,6 +65,14 @@ class GroupSettingsCallBacksImpl(
     override suspend fun removeMember(groupUuid: String, userUuid: String): MembershipChangeResult =
         groupMembershipChanger.remove(groupUuid = groupUuid, userUuids = setOf(userUuid))
             .toScreenResult(memberUuids = listOf(userUuid), action = "removeMember")
+
+    override suspend fun leaveGroup(groupUuid: String): LeaveResult {
+        val left = groupLeaver.leave(groupUuid = groupUuid)
+
+        if (left is Result.Error) Log.w(TAG, "leaveGroup: could not leave the group: ${left.error}")
+
+        return left.toLeaveResult()
+    }
 
     override fun getContactRelation(userUuid: String): Flow<MemberRelation> =
         contactRequestRepository.relationTo(userUuid = userUuid).map { it.toMemberRelation() }
