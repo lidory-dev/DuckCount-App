@@ -5,6 +5,7 @@ import channel.DirectChannelRepository
 import contact.AccountDeletionNotice
 import contact.ContactMessageHandler
 import contact.ContactRemoval
+import contact.ContactRequestSender
 import contact.ContactSyncError
 import contact.ProfileKeyPull
 import contact.ProfileKeyRequest
@@ -19,6 +20,7 @@ import database.data.local.dao.NothingAwaited
 import database.data.local.dao.copy
 import database.data.local.entity.ContactEntity
 import database.data.local.entity.ContactRequestEntity
+import database.data.local.entity.ContactStanding
 import database.data.local.entity.DirectChannelEntity
 import database.data.local.entity.OpenedContactRequest
 import database.data.local.entity.OutgoingContactRequestEntity
@@ -149,7 +151,7 @@ class ContactRepositoryTest {
                 keyPackageApi = KeyPackageApi(client = client),
                 mlsIdentityRepository = mlsIdentityRepository,
             ),
-            wakeList = wakeList,
+            contactRequestSender = NoRequestSent,
         ),
         contactRepository = contacts,
         profileKeyPull = pull,
@@ -763,14 +765,37 @@ private object NoRequests : ContactRequestDao {
 
     override suspend fun getOutgoing(): List<OutgoingContactRequestEntity> = error("Not used here")
     override suspend fun getUnblockedOutgoing(): List<OutgoingContactRequestEntity> = error("Not used here")
+    override suspend fun hasStoredOutgoingTo(recipientUserUuid: String): Boolean = error("Not used here")
+    override fun getStandingAsFlow(userUuid: String): Flow<ContactStanding> = error("Not used here")
     override suspend fun insertOutgoing(request: OutgoingContactRequestEntity) = error("Not used here")
 
     override suspend fun getOutgoing(recipientUserUuid: String, mlsGroupId: ByteArray): OutgoingContactRequestEntity? =
         error("Not used here")
 
+    override suspend fun markStored(recipientUserUuid: String, mlsGroupId: ByteArray) = error("Not used here")
+    override suspend fun markStoredTo(recipientUserUuid: String) = error("Not used here")
     override suspend fun deleteOutgoing(recipientUserUuid: String, mlsGroupId: ByteArray) = error("Not used here")
     override suspend fun deleteOutgoingTo(recipientUserUuid: String) = error("Not used here")
 }
+
+/** Sends no contact request: nothing here does. */
+private val NoRequestSent = ContactRequestSender(
+    selfUuid = { error("Not used here") },
+    restoreContacts = { error("Not used here") },
+    isContact = { error("Not used here") },
+    hasStoredOutgoingTo = { error("Not used here") },
+    isBlocked = { error("Not used here") },
+    group = { error("Not used here") },
+    client = { error("Not used here") },
+    consumeKeyPackage = { error("Not used here") },
+    profileKey = { error("Not used here") },
+    insertOutgoing = { error("Not used here") },
+    markStored = { _, _ -> error("Not used here") },
+    markStoredTo = { error("Not used here") },
+    deleteOutgoing = { _, _ -> error("Not used here") },
+    rebuildWakeList = { error("Not used here") },
+    send = { error("Not used here") },
+)
 
 /** Only ever handed to the HTTP client, for a session ending, which nothing here does. */
 private object NoLocalData : LocalDataDao {

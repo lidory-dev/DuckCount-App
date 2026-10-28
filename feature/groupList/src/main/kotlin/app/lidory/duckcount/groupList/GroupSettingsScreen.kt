@@ -17,7 +17,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,7 +36,6 @@ import app.lidory.duckcount.groupList.component.LeftGroupNotice
 import app.lidory.duckcount.groupList.component.groupMembersDetail.GroupMemberBottomSheet
 import app.lidory.duckcount.groupList.component.groupMembersDetail.GroupMemberRemovalDialog
 import app.lidory.duckcount.groupList.component.groupMembersDetail.groupMemberDetail
-import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import app.lidory.duckcount.groupList.model.MembershipChangeError
 import app.lidory.duckcount.groupList.model.MembershipChangeResult
 import app.lidory.duckcount.groupList.model.message
@@ -52,6 +50,8 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 fun GroupSettingsScreen(
     onBack: () -> Unit,
     navigateToEditGroup: () -> Unit,
+    navigateToContactDetail: (userUuid: String) -> Unit,
+    navigateToContactRequests: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: GroupSettingsViewModel = koinViewModel(),
     sharedTransitionScope: SharedTransitionScope,
@@ -62,9 +62,7 @@ fun GroupSettingsScreen(
     val selectedUuids by viewModel.selectedUuids.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isChanging by viewModel.isChanging.collectAsStateWithLifecycle()
-
-    val bottomSheetState = rememberModalBottomSheetState()
-    var bottomSheetMember by remember { mutableStateOf<GroupMemberWithFullName?>(null) }
+    val memberSheet by viewModel.memberSheet.collectAsStateWithLifecycle()
 
     val group = state.groupWithMembers
     val actions = group?.memberActions() ?: MemberActions.NONE
@@ -212,21 +210,30 @@ fun GroupSettingsScreen(
                     authenticatedUserUuid = viewModel.getAuthenticatedUserUuid(),
                     actions = actions,
                     onAddMembers = { viewModel.showMemberDialog() },
-                    openBottomSheet = { member -> bottomSheetMember = member },
+                    openBottomSheet = { member -> viewModel.openMember(member) },
                 )
             }
 
             DuckCountSnackbarHost(hostState = snackbarHostState)
         }
 
-        bottomSheetMember?.let { member ->
+        memberSheet?.let { sheet ->
             GroupMemberBottomSheet(
-                removeUserFromGroup = {
-                    bottomSheetMember = null
-                    viewModel.askToRemove(member)
+                sheet = sheet,
+                onViewProfile = {
+                    viewModel.closeMember()
+                    navigateToContactDetail(sheet.member.member.userUuid)
                 },
-                bottomSheetState = bottomSheetState,
-                onDismissRequest = { bottomSheetMember = null },
+                onAnswerRequest = {
+                    viewModel.closeMember()
+                    navigateToContactRequests()
+                },
+                onSendRequest = { viewModel.sendContactRequest(sheet.member) },
+                onRemove = {
+                    viewModel.closeMember()
+                    viewModel.askToRemove(sheet.member)
+                },
+                onDismissRequest = { viewModel.closeMember() },
             )
         }
 

@@ -13,12 +13,15 @@ private const val ALICE = "11111111-1111-1111-1111-111111111111"
 private const val BOB = "22222222-2222-2222-2222-222222222222"
 private const val GROUP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 
-/** What a group tells the screens of whether its members can be changed, and by whom. */
+/**
+ * What a group tells the screens of whether its members can be changed, and by whom, and of
+ * whether it vouches for who they are.
+ */
 class GroupMappingTest {
 
     @Test
     fun `the creator holding the group may change its members`() {
-        val group = groupOf(ownerUuid = ALICE).toGroupWithMembers(selfUuid = ALICE, hasPendingChange = false)
+        val group = groupOf(ownerUuid = ALICE).seenBy(selfUuid = ALICE)
 
         assertTrue(group.canChangeMembers)
         assertFalse(group.isLeft)
@@ -29,7 +32,7 @@ class GroupMappingTest {
     /** It is still theirs to change once the change goes through. */
     @Test
     fun `a change pending is told apart from who may change the members`() {
-        val group = groupOf(ownerUuid = ALICE).toGroupWithMembers(selfUuid = ALICE, hasPendingChange = true)
+        val group = groupOf(ownerUuid = ALICE).seenBy(selfUuid = ALICE, hasPendingChange = true)
 
         assertTrue(group.hasPendingChange)
         assertTrue(group.canChangeMembers)
@@ -37,7 +40,7 @@ class GroupMappingTest {
 
     @Test
     fun `a member who did not create the group may not change its members`() {
-        val group = groupOf(ownerUuid = ALICE).toGroupWithMembers(selfUuid = BOB, hasPendingChange = false)
+        val group = groupOf(ownerUuid = ALICE).seenBy(selfUuid = BOB)
 
         assertFalse(group.canChangeMembers)
     }
@@ -45,8 +48,7 @@ class GroupMappingTest {
     /** A log-out takes every MLS group with it. */
     @Test
     fun `the creator of a group brought back after a log-out may not change its members here`() {
-        val group = groupOf(ownerUuid = ALICE, mlsGroupId = null)
-            .toGroupWithMembers(selfUuid = ALICE, hasPendingChange = false)
+        val group = groupOf(ownerUuid = ALICE, mlsGroupId = null).seenBy(selfUuid = ALICE)
 
         assertFalse(group.canChangeMembers)
     }
@@ -55,16 +57,51 @@ class GroupMappingTest {
     fun `a group the user was removed from is left`() {
         val entity = groupOf(ownerUuid = ALICE, isLeft = true)
 
-        assertTrue(entity.toGroupWithMembers(selfUuid = BOB, hasPendingChange = false).isLeft)
+        assertTrue(entity.seenBy(selfUuid = BOB).isLeft)
         assertTrue(entity.group.toGroup().isLeft)
     }
 
     @Test
-    fun `nobody signed in created no group`() {
-        assertFalse(
-            groupOf(ownerUuid = ALICE).toGroupWithMembers(selfUuid = null, hasPendingChange = false).canChangeMembers,
-        )
+    fun `a group held here whose creator is not blocked vouches for its members`() {
+        val group = groupOf(ownerUuid = ALICE).seenBy(selfUuid = BOB)
+
+        assertTrue(group.canVouchForMembers)
     }
+
+    /** Its MLS state was deleted with the removal. */
+    @Test
+    fun `a group the user was removed from vouches for nobody`() {
+        val group = groupOf(ownerUuid = ALICE, isLeft = true).seenBy(selfUuid = BOB)
+
+        assertFalse(group.canVouchForMembers)
+    }
+
+    /** A log-out takes every MLS group with it, and the group is brought back without one. */
+    @Test
+    fun `a group brought back after a log-out vouches for nobody`() {
+        val group = groupOf(ownerUuid = ALICE, mlsGroupId = null).seenBy(selfUuid = BOB)
+
+        assertFalse(group.canVouchForMembers)
+    }
+
+    /** Its tree is their word, which may be an impostor's. */
+    @Test
+    fun `a group whose creator is blocked vouches for nobody`() {
+        val group = groupOf(ownerUuid = ALICE).seenBy(selfUuid = BOB, isCreatorBlocked = true)
+
+        assertFalse(group.canVouchForMembers)
+    }
+
+    @Test
+    fun `nobody signed in created no group`() {
+        assertFalse(groupOf(ownerUuid = ALICE).seenBy(selfUuid = null).canChangeMembers)
+    }
+
+    private fun GroupWithMembersEntity.seenBy(
+        selfUuid: String?,
+        hasPendingChange: Boolean = false,
+        isCreatorBlocked: Boolean = false,
+    ) = toGroupWithMembers(selfUuid = selfUuid, hasPendingChange = hasPendingChange, isCreatorBlocked = isCreatorBlocked)
 
     private fun groupOf(
         ownerUuid: String,

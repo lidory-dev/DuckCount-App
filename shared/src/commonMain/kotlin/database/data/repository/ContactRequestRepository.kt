@@ -5,24 +5,25 @@ import authenticationUtils.getAuthenticatedUserUuid
 import contact.AnswerContactRequestError
 import channel.DirectChannelRepository
 import contact.ContactCard
+import contact.ContactRelation
+import contact.ContactRequestSender
 import message.DirectMessageEnvelope
 import contact.ContactRequestEnvelope
 import contact.ContactSyncError
 import contact.SendContactRequestError
+import contact.toSendContactRequestError
 import database.data.local.dao.ContactRequestDao
 import database.data.local.dao.IdentityConflictDao
 import database.data.local.entity.ContactRequestEntity
 import database.data.local.entity.OpenedContactRequest
 import database.data.local.entity.OutgoingContactRequestEntity
 import database.data.mappers.toContactRequest
+import database.data.mappers.toContactRelations
 import database.data.mappers.toContactRequestEntity
 import database.data.remote.AcceptContactRequestBody
 import database.data.remote.ContactApi
 import database.data.remote.ContactRequestStatusDto
-import database.data.remote.SendContactRequestBody
 import database.domain.ContactRequest
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -43,7 +44,6 @@ import mls.verifyPeerIn
 import profile.ProfileError
 import profile.ProfileRepository
 import push.WakeList
-import uniffi.lib_duckcount.InviteeKeyPackage
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
@@ -53,7 +53,6 @@ import util.Result
 import util.map
 import util.onError
 import vault.VaultRepository
-import kotlin.io.encoding.Base64
 
 /**
  * The user's contact requests: the ones addressed to them, and the ones they send.
@@ -75,7 +74,7 @@ class ContactRequestRepository(
     private val profileRepository: ProfileRepository,
     private val contactRepository: ContactRepository,
     private val directChannelRepository: DirectChannelRepository,
-    private val wakeList: WakeList,
+    private val contactRequestSender: ContactRequestSender,
 ) {
     /**
      * Serialises the operations on the requests addressed to the user. Each one reads the
@@ -186,7 +185,8 @@ class ContactRequestRepository(
      *
      * The request creates the MLS group the two of them will share. The lookup hands over
      * one of the recipient's key packages, the group is created with them in it, and the
-     * key travels encrypted to that group next to the Welcome that lets them join it.
+     * key travels encrypted to that group next to the Welcome that lets them join it, see
+     * [ContactRequestSender.sendTo].
      *
      * The request is recorded with its group before it goes out, see
      * [OutgoingContactRequestEntity]: only its answer, the recipient's card read in that
@@ -224,92 +224,46 @@ class ContactRequestRepository(
             return Result.Error(SendContactRequestError.AlreadyContact)
         }
 
-        // The server stores key packages without reading them, so this is whatever the
-        // recipient's client published.
-        val keyPackage = runCatching { Base64.Default.decode(recipient.keyPackage) }.getOrNull()
-            ?: return Result.Error(SendContactRequestError.Crypto)
-
-        // Everything that can fail without leaving anything behind comes first. Once the group
-        // exists, a failure the library reports deletes it again, and the caller going away
-        // leaves it behind, harmlessly: its Welcome never left the device.
-        val profileEncryptionKey = when (val read = vaultRepository.getOrCreateProfileEncryptionKey()) {
-            is Result.Success -> read.data
-            is Result.Error -> return Result.Error(SendContactRequestError.Vault(read.error))
-        }
-
-        val client = when (val opened = mlsIdentityRepository.client()) {
-            is Result.Success -> opened.data
-            is Result.Error -> return Result.Error(SendContactRequestError.Identity(opened.error))
-        }
-
-        // A key package matching the identity this device pinned for them would go through,
-        // when it is the one the vault disagrees with. See IdentityConflictEntity.
-        if (identityConflictDao.isBlocked(peerUuid = recipient.userUuid)) {
-            return Result.Error(SendContactRequestError.IdentityChanged)
-        }
-
-        val group = try {
-            withContext(Dispatchers.IO) {
-                client.createGroup(
-                    groupUuid = null,
-                    invitees = listOf(
-                        InviteeKeyPackage(userUuid = recipient.userUuid, keyPackage = keyPackage),
-                    ),
-                    welcomePayload = null,
-                )
-            }
-        } catch (_: MlsException.IdentityKeyMismatch) {
-            return Result.Error(SendContactRequestError.IdentityChanged)
-        } catch (_: MlsException) {
-            return Result.Error(SendContactRequestError.Crypto)
-        }
-
-        val envelope = try {
-            val message = client.encryptApplicationMessage(
-                mlsGroupId = group.mlsGroupId,
-                payload = ContactCard(profileEncryptionKey = profileEncryptionKey).serialize(),
-            )
-
-            ContactRequestEnvelope(welcome = group.welcome, message = message)
-        } catch (_: MlsException) {
-            client.deleteGroupQuietly(mlsGroupId = group.mlsGroupId)
-
-            return Result.Error(SendContactRequestError.Crypto)
-        }
-
-        // Before the request goes out, so that no answer can arrive with nothing to match it.
-        val outgoing = OutgoingContactRequestEntity(
-            mlsGroupId = group.mlsGroupId,
-            recipientUserUuid = recipient.userUuid,
-            handedProfileKeyHash = profileEncryptionKeyPartialHash(profileEncryptionKey),
-        )
-
-        contactRequestDao.insertOutgoing(request = outgoing)
-
-        wakeList.rebuild()
-
-        val send = contactApi.sendContactRequest(
-            body = SendContactRequestBody(
-                recipientUserUuid = recipient.userUuid,
-                ciphertext = envelope.serialize(),
-            ),
-        )
-
-        if (send is Result.Error) {
-            if (send.error in REQUEST_NEVER_STORED) {
-                contactRequestDao.deleteOutgoing(
-                    recipientUserUuid = outgoing.recipientUserUuid,
-                    mlsGroupId = outgoing.mlsGroupId,
-                )
-                wakeList.rebuild()
-                client.deleteGroupQuietly(mlsGroupId = group.mlsGroupId)
-            }
-
-            return Result.Error(send.error.toSendContactRequestError())
-        }
-
-        return Result.Success(Unit)
+        return contactRequestSender.sendTo(recipientUserUuid = recipient.userUuid, keyPackage = recipient.keyPackage)
     }
+
+    /**
+     * Asks [userUuid], a member of the group [groupUuid] this device holds, to become a contact,
+     * handing them the user's profile encryption key: a request like one to the holder of a
+     * username, see [sendContactRequest], addressed by their UUID instead, the user knowing no
+     * username of theirs, and built from a key package of theirs the server serves, see
+     * [ContactRequestSender].
+     *
+     * The group is what vouches for who they are. A key package is the server's word alone, and
+     * creating the request's group pins whatever identity it carries, for want of one pinned
+     * already. The group's tree is its creator's word, whom this device trusts: the user, or a
+     * contact pinned before their Welcome was joined, see [group.GroupSync], and not blocked
+     * since. Only their Commits change its members, and they only ever add contacts of theirs
+     * they pinned. So the member is pinned first, to the identity they hold in it, see
+     * [MlsGroup.pinMember][uniffi.lib_duckcount.MlsGroup.pinMember], and a key package carrying
+     * any other is then refused, see [SendContactRequestError.IdentityChanged]. The pin stays
+     * whatever becomes of the request: it is the identity the request would have pinned them to,
+     * and what their answer is checked against. Only a group this device still holds can vouch
+     * for them, see [SendContactRequestError.NotInGroup].
+     *
+     * A request of the user's already out to them, which the server is known to hold, is refused
+     * before anything is spent, see [SendContactRequestError.AlreadyPending]: the server would
+     * refuse it too, but only once one of their key packages was spent on it. This device is never
+     * told of a refusal, so such a request stays out, here, until they answer it. One whose
+     * sending ended in doubt is not counted, see [OutgoingContactRequestEntity.isStored]: it may
+     * never have reached the server, and only sending again, which spends a key package of
+     * theirs, lets the server settle it, refusing the new one as already pending or storing it.
+     */
+    suspend fun sendContactRequest(userUuid: String, groupUuid: String): EmptyResult<SendContactRequestError> =
+        contactRequestSender.sendToMember(userUuid = userUuid, groupUuid = groupUuid)
+
+    /**
+     * Where the user stands with [userUuid], see [ContactRelation], as it changes: a contact
+     * whether blocked or not, a request of theirs waiting for the user's answer as [getPending]
+     * lists them, or one of the user's out to them that the server is known to hold.
+     */
+    fun relationTo(userUuid: String): Flow<ContactRelation> =
+        contactRequestDao.getStandingAsFlow(userUuid = userUuid).toContactRelations()
 
     /**
      * Makes [senderUserUuid] a contact on the strength of [card], when it answers a request the
@@ -331,15 +285,16 @@ class ContactRequestRepository(
             mlsGroupId = mlsGroupId,
         ) ?: return
 
-        // This one included.
-        contactRequestDao.deleteOutgoingTo(recipientUserUuid = senderUserUuid)
-
         contactRepository.add(
             userUuid = senderUserUuid,
             profileEncryptionKey = card.profileEncryptionKey,
             handedProfileKeyHash = request.handedProfileKeyHash,
             fullName = null,
         )
+
+        // This one included. Once they are a contact, as an acceptance of the user's does it, so
+        // that they read as one throughout, see [ContactRequestDao.getStandingAsFlow].
+        contactRequestDao.deleteOutgoingTo(recipientUserUuid = senderUserUuid)
 
         // Open, since it just read the card.
         val client = (mlsIdentityRepository.client() as? Result.Success)?.data ?: return
@@ -869,31 +824,6 @@ class ContactRequestRepository(
  * proxy may return after the commit) leaves open that it was taken.
  */
 private val ACCEPTANCE_NEVER_TAKEN = setOf(NetworkError.NO_INTERNET, NetworkError.UNAUTHORIZED, NetworkError.NOT_FOUND)
-
-/**
- * The failures that prove a contact request was not stored: the host never resolved, so
- * nothing was sent; the token was turned away before the handler ran; the sender is over
- * their quota, which is checked before anything is written; or the handler wrote nothing,
- * the recipient being unknown (`404`, which the proxy in front of it also answers while the
- * API is being redeployed) or asked already (`409`, about an earlier request, which stays).
- * Every other failure (a timeout, a dropped connection, a `5xx` the proxy may return after
- * the commit) leaves open that it was.
- */
-private val REQUEST_NEVER_STORED = setOf(
-    NetworkError.NO_INTERNET,
-    NetworkError.UNAUTHORIZED,
-    NetworkError.TOO_MANY_REQUESTS,
-    NetworkError.NOT_FOUND,
-    NetworkError.CONFLICT,
-)
-
-/** Maps the lookup's and the request's own refusals, the rest being plain network errors. */
-private fun NetworkError.toSendContactRequestError(): SendContactRequestError = when (this) {
-    NetworkError.NOT_FOUND -> SendContactRequestError.NotFound
-    NetworkError.CONFLICT -> SendContactRequestError.AlreadyPending
-    NetworkError.TOO_MANY_REQUESTS -> SendContactRequestError.RateLimited
-    else -> SendContactRequestError.Network(this)
-}
 
 /** How far [ContactRequestRepository] got opening a request. */
 private enum class Opening {

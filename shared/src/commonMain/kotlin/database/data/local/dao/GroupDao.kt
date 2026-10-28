@@ -66,6 +66,17 @@ interface GroupDao {
     @Query("SELECT * FROM GroupEntity WHERE uuid = :uuid")
     fun getWithMembers(uuid: String): Flow<GroupWithMembersEntity?>
 
+    /**
+     * Emits whether the creator of the group [groupUuid] is blocked, see
+     * [IdentityConflictEntity][database.data.local.entity.IdentityConflictEntity], as it changes,
+     * false while there is no such group.
+     */
+    @Query(
+        """SELECT EXISTS(SELECT 1 FROM GroupEntity
+        WHERE uuid = :groupUuid AND ownerUuid IN (SELECT peerUuid FROM IdentityConflictEntity))""",
+    )
+    fun isCreatorBlockedAsFlow(groupUuid: String): Flow<Boolean>
+
     /** Every creation the server has not been heard to take yet, see [PendingGroupCreationEntity]. */
     @Query("SELECT * FROM PendingGroupCreationEntity")
     suspend fun getPendingCreations(): List<PendingGroupCreationEntity>

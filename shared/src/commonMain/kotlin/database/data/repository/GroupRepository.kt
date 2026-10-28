@@ -59,8 +59,13 @@ class GroupRepository(
         return combine(
             groupDao.getWithMembers(uuid),
             groupDao.hasPendingChangeAsFlow(groupUuid = uuid),
-        ) { groupWithMembersEntity, hasPendingChange ->
-            groupWithMembersEntity?.toGroupWithMembers(selfUuid = selfUuid, hasPendingChange = hasPendingChange)
+            groupDao.isCreatorBlockedAsFlow(groupUuid = uuid),
+        ) { groupWithMembersEntity, hasPendingChange, isCreatorBlocked ->
+            groupWithMembersEntity?.toGroupWithMembers(
+                selfUuid = selfUuid,
+                hasPendingChange = hasPendingChange,
+                isCreatorBlocked = isCreatorBlocked,
+            )
         }
     }
 }

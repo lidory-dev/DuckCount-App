@@ -6,8 +6,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.groupList.callBacks.GroupSettingsCallBacks
+import app.lidory.duckcount.groupList.model.ContactRequestError
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import app.lidory.duckcount.groupList.model.GroupWithMembers
+import app.lidory.duckcount.groupList.model.MemberRelation
 import app.lidory.duckcount.groupList.model.MembershipChangeError
 import app.lidory.duckcount.groupList.model.MembershipChangeResult
 import app.lidory.duckcount.groupList.model.User
@@ -22,8 +24,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -132,6 +136,65 @@ class GroupSettingsViewModel(
     var memberToRemove by mutableStateOf<GroupMemberWithFullName?>(null)
         private set
 
+    // The member whose sheet is open, see openMember, until it closes, see closeMember.
+    private val openedMember = MutableStateFlow<GroupMemberWithFullName?>(null)
+
+    // True while a contact request to the member whose sheet is open is on its way to the server,
+    // so that its button can show an in-place spinner, and the sheet not be closed until it is
+    // answered, which the user is told of there, as for a change to the members, see isChanging.
+    private val _isSendingRequest = MutableStateFlow(false)
+
+    // Why the last request sent from the open sheet was not, told there until the next one is
+    // sent or the sheet closes.
+    private val requestError = MutableStateFlow<ContactRequestError?>(null)
+
+    // Whether a request sent from the open sheet is out to them, see isRequestOut, while where the
+    // user stands with them, as read, does not tell it yet, see shownRelation.
+    private val isRequestTaken = MutableStateFlow(false)
+
+    /**
+     * The sheet of the member [openMember] opened, see [MemberSheetState], null while none is
+     * open, and until where the user stands with them is read: it opens with what it offers.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val memberSheet: StateFlow<MemberSheetState?> = openedMember.flatMapLatest { member ->
+        if (member == null) return@flatMapLatest flowOf(null)
+
+        combine(
+            groupSettingsCallBacks.getContactRelation(userUuid = member.member.userUuid),
+            // Whether the group still vouches for its members, and the user is still the one to
+            // remove them.
+            _state.mapNotNull { it.groupWithMembers }.distinctUntilChanged(),
+            _isSendingRequest,
+            requestError,
+            isRequestTaken,
+        ) { relation, group, isSending, error, isTaken ->
+            // Only until the read tells anything but nobody the user asked, so that whatever
+            // changes after shows as read: they accept and then remove the user, say. This one
+            // shows the same either way.
+            if (isTaken && relation != MemberRelation.NONE) isRequestTaken.value = false
+
+            MemberSheetState(
+                member = member,
+                actions = memberSheetActions(
+                    relation = shownRelation(relation = relation, isRequestTaken = isTaken),
+                    canVouchForMembers = group.canVouchForMembers,
+                    isRemovable = isRemovable(
+                        userUuid = member.member.userUuid,
+                        selfUuid = getAuthenticatedUserUuid(),
+                        actions = group.memberActions(),
+                    ),
+                ),
+                isSendingRequest = isSending,
+                requestError = error,
+            )
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000L),
+        initialValue = null,
+    )
+
     fun getAuthenticatedUserUuid(): String? {
         return groupSettingsCallBacks.getAuthenticatedUserUuid()
     }
@@ -190,6 +253,45 @@ class GroupSettingsViewModel(
             }
         } finally {
             _isChanging.value = false
+        }
+    }
+
+    /** Opens the sheet of [member], never the user, see [memberSheet]. */
+    fun openMember(member: GroupMemberWithFullName) {
+        openedMember.value = member
+    }
+
+    /**
+     * Closes the open sheet, unless a contact request is being sent from it: what comes of it is
+     * told there. What it told goes with it.
+     */
+    fun closeMember() {
+        if (_isSendingRequest.value) return
+
+        openedMember.value = null
+        requestError.value = null
+        isRequestTaken.value = false
+    }
+
+    /**
+     * Asks [member], whose sheet is open, to become a contact, see
+     * [GroupSettingsCallBacks.sendContactRequest], telling why not in the sheet, which stays open
+     * either way.
+     */
+    fun sendContactRequest(member: GroupMemberWithFullName) = viewModelScope.launch {
+        if (_isSendingRequest.value) return@launch
+
+        _isSendingRequest.value = true
+        requestError.value = null
+
+        try {
+            val error = groupSettingsCallBacks.sendContactRequest(groupUuid = groupUuid, userUuid = member.member.userUuid)
+
+            // Before the spinner goes, so that the sheet never offers the request again meanwhile.
+            isRequestTaken.value = isRequestOut(error)
+            requestError.value = error
+        } finally {
+            _isSendingRequest.value = false
         }
     }
 
@@ -259,6 +361,85 @@ fun GroupWithMembers.memberActions(): MemberActions = when {
  */
 fun isRemovable(userUuid: String, selfUuid: String?, actions: MemberActions): Boolean =
     actions == MemberActions.AVAILABLE && userUuid != selfUuid
+
+/**
+ * The sheet of [member], a member of the group other than the user, see
+ * [GroupSettingsViewModel.memberSheet]: what it offers, [actions], in the order it shows them,
+ * whether a contact request to them is on its way to the server, [isSendingRequest], which keeps
+ * the sheet open and every action disabled meanwhile, and why the last one sent from it was not,
+ * [requestError].
+ */
+data class MemberSheetState(
+    val member: GroupMemberWithFullName,
+    val actions: List<MemberSheetAction>,
+    val isSendingRequest: Boolean,
+    val requestError: ContactRequestError?,
+)
+
+/** What the sheet of a member offers, below who they are, see [memberSheetActions]. */
+enum class MemberSheetAction {
+    /** Their profile, as one of the user's contacts, see [MemberRelation.CONTACT]. */
+    VIEW_PROFILE,
+
+    /** The contact requests, where theirs waits for the user's answer, see [MemberRelation.REQUEST_RECEIVED]. */
+    ANSWER_REQUEST,
+
+    /** Nothing but telling that the user's request waits for their answer, see [MemberRelation.REQUEST_SENT]. */
+    REQUEST_SENT,
+
+    /** A contact request to them, see [MemberRelation.NONE]. */
+    SEND_REQUEST,
+
+    /** Their removal from the group, once confirmed, see [isRemovable]. */
+    REMOVE,
+}
+
+/**
+ * What the sheet of a member offers, in the order it shows them, given where the user stands with
+ * them, [relation], whether the group vouches for who its members are on this device,
+ * [canVouchForMembers], and whether the member can be removed by the user, [isRemovable]: what
+ * their relation calls for first, then their removal.
+ *
+ * No request is sent to them from a group that does not vouch for them, see
+ * [GroupWithMembers.canVouchForMembers]: one the user was removed from, brought back after a
+ * log-out, or whose creator is blocked. Nothing else on this device vouches for who they are, and
+ * the request would be refused each time. Their sheet then shows who they are alone, unless they
+ * are a contact, or a request either way waits.
+ */
+fun memberSheetActions(
+    relation: MemberRelation,
+    canVouchForMembers: Boolean,
+    isRemovable: Boolean,
+): List<MemberSheetAction> =
+    listOfNotNull(
+        when (relation) {
+            MemberRelation.CONTACT -> MemberSheetAction.VIEW_PROFILE
+            MemberRelation.REQUEST_RECEIVED -> MemberSheetAction.ANSWER_REQUEST
+            MemberRelation.REQUEST_SENT -> MemberSheetAction.REQUEST_SENT
+            MemberRelation.NONE -> MemberSheetAction.SEND_REQUEST.takeIf { canVouchForMembers }
+        },
+        MemberSheetAction.REMOVE.takeIf { isRemovable },
+    )
+
+/**
+ * Where the sheet tells the user stands with a member, [relation] as read, once a request sent
+ * from it is out to them, [isRequestTaken], see [isRequestOut]: sent, while the read still tells
+ * nobody the user asked. It catches up a moment after the request returns, recorded as stored, or
+ * not while the sheet is open when the server refused it as one was out already that this device
+ * kept no record of, a log-out having taken it. [isRequestTaken] is dropped as soon as the read
+ * tells anything else, see [GroupSettingsViewModel.memberSheet], so that it hides nothing since.
+ */
+fun shownRelation(relation: MemberRelation, isRequestTaken: Boolean): MemberRelation =
+    if (isRequestTaken && relation == MemberRelation.NONE) MemberRelation.REQUEST_SENT else relation
+
+/**
+ * Whether a request of the user's is out to a member once the one sent from their sheet is
+ * answered, [error], null when the server took it: so it is too when it was refused as one was
+ * out already, see [ContactRequestError.ALREADY_PENDING]. Offered again, the request would only
+ * spend another of their key packages each time, for the same refusal.
+ */
+fun isRequestOut(error: ContactRequestError?): Boolean =
+    error == null || error == ContactRequestError.ALREADY_PENDING
 
 /** Who of [users] can be added to the group of [memberUuids]: whoever is not in it yet. */
 fun invitableUsers(users: List<User>, memberUuids: Set<String>): List<User> =

@@ -21,7 +21,7 @@ import model.RemoveContactError
 import model.User
 
 class ContactDetailViewModel(
-    userUuid: String,
+    private val userUuid: String,
     val contactCallBacks: ContactCallBacks,
 ) : ViewModel() {
 
@@ -62,17 +62,18 @@ class ContactDetailViewModel(
             // Not once removed: they are no longer a contact, so a second removal could only fail.
             if (_isRemoved.value) return@launch
 
-            _state.value.user?.let { user ->
-                _state.update { it.copy(isRemoving = true) }
+            _state.update { it.copy(isRemoving = true) }
 
-                val error = contactCallBacks.removeContact(user.uuid)
+            // By their UUID rather than [ContactDetailState.user]: a contact whose name is not
+            // read yet has none, opened from a group member's sheet say, and is removed as any
+            // other.
+            val error = contactCallBacks.removeContact(userUuid)
 
-                // There is no detail left to show.
-                if (error == null) _isRemoved.value = true
+            // There is no detail left to show.
+            if (error == null) _isRemoved.value = true
 
-                _state.update { it.copy(isRemoving = false) }
-                error?.let { _errors.send(it) }
-            }
+            _state.update { it.copy(isRemoving = false) }
+            error?.let { _errors.send(it) }
         }
     }
 }

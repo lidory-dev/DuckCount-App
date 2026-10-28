@@ -61,6 +61,9 @@ fun SendContactRequestError.toAddContactError(isOnline: Boolean): AddContactErro
     is SendContactRequestError.Contacts -> error.toAddContactError(isOnline = isOnline)
 
     SendContactRequestError.Crypto -> AddContactError.UNKNOWN
+
+    // Only a request to a group member is refused so, which a username never is.
+    SendContactRequestError.NotInGroup -> AddContactError.UNKNOWN
 }
 
 /** Restoring the contacts fails on the vault or on the MLS client, reported as above. */

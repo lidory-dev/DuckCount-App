@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "fc0b92f340bed27b2f25fa461d67660f",
+    "identityHash": "6d1830be6ef9d4f70904bf7e63c0339a",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -431,7 +431,7 @@
       },
       {
         "tableName": "OutgoingContactRequestEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`mlsGroupId` BLOB NOT NULL, `recipientUserUuid` TEXT NOT NULL, `handedProfileKeyHash` TEXT NOT NULL, PRIMARY KEY(`mlsGroupId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`mlsGroupId` BLOB NOT NULL, `recipientUserUuid` TEXT NOT NULL, `handedProfileKeyHash` TEXT NOT NULL, `isStored` INTEGER NOT NULL, PRIMARY KEY(`mlsGroupId`))",
         "fields": [
           {
             "fieldPath": "mlsGroupId",
@@ -449,6 +449,12 @@
             "fieldPath": "handedProfileKeyHash",
             "columnName": "handedProfileKeyHash",
             "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isStored",
+            "columnName": "isStored",
+            "affinity": "INTEGER",
             "notNull": true
           }
         ],
@@ -928,7 +934,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fc0b92f340bed27b2f25fa461d67660f')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6d1830be6ef9d4f70904bf7e63c0339a')"
     ]
   }
 }

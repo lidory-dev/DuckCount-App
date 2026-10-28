@@ -23,12 +23,11 @@ import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.R
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import app.lidory.duckcount.groupList.viewmodel.MemberActions
-import app.lidory.duckcount.groupList.viewmodel.isRemovable
 
 /**
  * The group's [members], the user first, under how many there are, see [GroupMemberDetailHeader].
- * A member the user can remove, see [isRemovable], opens [openBottomSheet] when tapped; any other
- * is shown alone.
+ * Any member but the user opens their sheet, [openBottomSheet], when tapped, see
+ * [GroupMemberBottomSheet]; the user is shown alone.
  */
 fun LazyListScope.groupMemberDetail(
     members: List<GroupMemberWithFullName>,
@@ -45,18 +44,11 @@ fun LazyListScope.groupMemberDetail(
         )
     }
 
-    fun onClickOf(member: GroupMemberWithFullName): (() -> Unit)? =
-        if (isRemovable(userUuid = member.member.userUuid, selfUuid = authenticatedUserUuid, actions = actions)) {
-            { openBottomSheet(member) }
-        } else {
-            null
-        }
-
     members.find { it.member.userUuid == authenticatedUserUuid }?.let { member ->
         item(key = member.member.userUuid) {
             MemberDetailCard(
                 member = member,
-                onClick = onClickOf(member),
+                onClick = null,
             )
         }
     }
@@ -67,7 +59,7 @@ fun LazyListScope.groupMemberDetail(
     ) { member ->
         MemberDetailCard(
             member = member,
-            onClick = onClickOf(member),
+            onClick = { openBottomSheet(member) },
         )
     }
 }

@@ -32,4 +32,12 @@ data class GroupWithMembers(
      * log-out does not bring back. Whether or not [hasPendingChange].
      */
     val canChangeMembers: Boolean,
+
+    /**
+     * Whether this device can tell who the members are on the group's word, which a contact
+     * request to one of them is checked against: the user was not removed from it, this device
+     * holds what the group says of them, which a log-out does not bring back, and its creator,
+     * whose word it is, is not blocked over a changed identity.
+     */
+    val canVouchForMembers: Boolean,
 )

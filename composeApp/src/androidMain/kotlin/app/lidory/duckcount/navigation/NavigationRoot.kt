@@ -360,6 +360,10 @@ fun NavigationRoot(
                                 },
                                 onBack = { backStack.removeIf { it is GroupSettingsScreenKey } },
                                 navigateToEditGroup = { backStack.add(CreateGroupScreenKey(key.groupUuid)) },
+                                navigateToContactDetail = { userUuid ->
+                                    backStack.add(ContactDetailScreenKey(userUuid))
+                                },
+                                navigateToContactRequests = { backStack.add(ContactRequestListScreenKey) },
                                 animatedVisibilityScope = LocalNavAnimatedContentScope.current,
                                 sharedTransitionScope = this@SharedTransitionLayout,
                             )

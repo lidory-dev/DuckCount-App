@@ -3,10 +3,13 @@ package app.lidory.duckcount.groupList
 import android.util.Log
 import app.lidory.duckcount.GroupLimits.MAX_MEMBERS
 import app.lidory.duckcount.groupList.callBacks.GroupSettingsCallBacks
+import app.lidory.duckcount.groupList.model.ContactRequestError
 import app.lidory.duckcount.groupList.model.GroupWithMembers
+import app.lidory.duckcount.groupList.model.MemberRelation
 import app.lidory.duckcount.groupList.model.MembershipChangeResult
 import app.lidory.duckcount.groupList.model.User
 import app.lidory.duckcount.networking.NetworkConnectivity
+import database.data.repository.ContactRequestRepository
 import database.data.repository.GroupRepository
 import database.data.repository.UserRepository
 import group.GroupMembershipChanger
@@ -23,6 +26,7 @@ class GroupSettingsCallBacksImpl(
     val groupRepository: GroupRepository,
     val userRepository: UserRepository,
     private val groupMembershipChanger: GroupMembershipChanger,
+    private val contactRequestRepository: ContactRequestRepository,
     private val networkConnectivity: NetworkConnectivity,
 ) : GroupSettingsCallBacks {
 
@@ -58,6 +62,20 @@ class GroupSettingsCallBacksImpl(
     override suspend fun removeMember(groupUuid: String, userUuid: String): MembershipChangeResult =
         groupMembershipChanger.remove(groupUuid = groupUuid, userUuids = setOf(userUuid))
             .toScreenResult(memberUuids = listOf(userUuid), action = "removeMember")
+
+    override fun getContactRelation(userUuid: String): Flow<MemberRelation> =
+        contactRequestRepository.relationTo(userUuid = userUuid).map { it.toMemberRelation() }
+
+    override suspend fun sendContactRequest(groupUuid: String, userUuid: String): ContactRequestError? =
+        when (val request = contactRequestRepository.sendContactRequest(userUuid = userUuid, groupUuid = groupUuid)) {
+            is Result.Success -> null
+
+            is Result.Error -> {
+                Log.w(TAG, "sendContactRequest: could not send the request: ${request.error}")
+
+                request.error.toContactRequestError(isOnline = networkConnectivity.isOnline())
+            }
+        }
 
     /**
      * What the screen is told of a change to the members of [memberUuids], in the order they were

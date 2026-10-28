@@ -22,4 +22,13 @@ data class GroupWithMembers(
      * takes. Taken whether or not [hasPendingChange].
      */
     val canChangeMembers: Boolean,
+
+    /**
+     * Whether this device can tell who the group's members are on the group's word, which a
+     * contact request to one of them is checked against, see `contact.ContactRequestSender`: the
+     * user was not removed from it, this device holds its MLS state, which a log-out takes, and
+     * its creator, whose word its tree is, is not blocked, see
+     * [IdentityConflictEntity][database.data.local.entity.IdentityConflictEntity].
+     */
+    val canVouchForMembers: Boolean,
 )

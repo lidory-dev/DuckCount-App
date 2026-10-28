@@ -80,7 +80,8 @@ data class ContactLookupResponse(
 data class SendContactRequestBody(
     /**
      * The user the lookup resolved, rather than the username: the ciphertext is bound to
-     * their key package, so it has to reach them even if the handle changes hands.
+     * their key package, so it has to reach them even if the handle changes hands. Or the
+     * group member the user asked, who has no username here to go by.
      */
     @SerialName("recipient_user_uuid")
     val recipientUserUuid: String,

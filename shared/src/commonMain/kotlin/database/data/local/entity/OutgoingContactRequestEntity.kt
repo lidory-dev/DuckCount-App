@@ -30,7 +30,9 @@ import androidx.room.PrimaryKey
  * A row is kept when sending its request ended in doubt, a timeout for instance, since the
  * request may be waiting for the recipient all the same. One that never reached the server
  * stays harmless: nobody but the recipient can answer in its group, and they never got the
- * Welcome that lets them in.
+ * Welcome that lets them in. Nor does it count as a request out to them, see [isStored]: they
+ * can be asked again, and the server settles it, refusing the new request as one already
+ * pending or storing it.
  *
  * A plain class rather than a data class: its byte array would compare by identity.
  */
@@ -50,4 +52,16 @@ class OutgoingContactRequestEntity(
      * while it is the current key, so they read the profile as it stood when it was replaced.
      */
     val handedProfileKeyHash: String,
+
+    /**
+     * Whether the server is known to hold a request of the user's to [recipientUserUuid]: this
+     * one, its sending answered with a success, or one of the others to them, when a later
+     * request was refused as one already pending, which does not say which. Only then does the
+     * user have a request out to them, see
+     * [ContactRelation.REQUEST_SENT][contact.ContactRelation.REQUEST_SENT]: one whose sending
+     * ended in doubt may never have reached the server, and nothing would ever settle it.
+     *
+     * Every row still matches its answer, stored or not.
+     */
+    val isStored: Boolean = false,
 )

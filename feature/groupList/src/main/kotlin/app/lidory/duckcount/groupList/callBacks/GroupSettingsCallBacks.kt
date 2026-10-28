@@ -1,6 +1,8 @@
 package app.lidory.duckcount.groupList.callBacks
 
+import app.lidory.duckcount.groupList.model.ContactRequestError
 import app.lidory.duckcount.groupList.model.GroupWithMembers
+import app.lidory.duckcount.groupList.model.MemberRelation
 import app.lidory.duckcount.groupList.model.MembershipChangeResult
 import app.lidory.duckcount.groupList.model.User
 import kotlinx.coroutines.flow.Flow
@@ -34,4 +36,18 @@ interface GroupSettingsCallBacks {
      * key then changes, for what the group holds from then on to be read by its members alone.
      */
     suspend fun removeMember(groupUuid: String, userUuid: String): MembershipChangeResult
+
+    /** Emits where the user stands with [userUuid], a member of the group, see [MemberRelation], as it changes. */
+    fun getContactRelation(userUuid: String): Flow<MemberRelation>
+
+    /**
+     * Asks [userUuid], a member of the group [groupUuid] who is neither the user nor one of their
+     * contacts, to become one, addressed by their UUID: the user knows no username of theirs. The
+     * group vouches for who they are, so it has to be one that can, see
+     * [GroupWithMembers.canVouchForMembers].
+     *
+     * Null once the server took the request, which [getContactRelation] then tells as sent, or
+     * why it was not.
+     */
+    suspend fun sendContactRequest(groupUuid: String, userUuid: String): ContactRequestError?
 }

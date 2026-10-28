@@ -1,5 +1,6 @@
 package app.lidory.duckcount.groupList
 
+import app.lidory.duckcount.groupList.model.ContactRequestError
 import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupCreationError
@@ -7,10 +8,13 @@ import app.lidory.duckcount.groupList.model.GroupCreationFailure
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.MemberRefusal
+import app.lidory.duckcount.groupList.model.MemberRelation
 import app.lidory.duckcount.groupList.model.MembershipChangeError
 import app.lidory.duckcount.groupList.model.MembershipChangeResult
 import app.lidory.duckcount.groupList.model.User
+import contact.ContactRelation
 import contact.ContactSyncError
+import contact.SendContactRequestError
 import mls.MlsIdentityError
 import util.NetworkError
 import vault.VaultError
@@ -42,6 +46,7 @@ fun GroupWithMembersDb.toGroupListModel(): GroupWithMembers = GroupWithMembers(
     isLeft = isLeft,
     hasPendingChange = hasPendingChange,
     canChangeMembers = canChangeMembers,
+    canVouchForMembers = canVouchForMembers,
 )
 
 fun Currency.toDb(): CurrencyDb = CurrencyDb(
@@ -262,4 +267,105 @@ private fun NetworkError.toGroupCreationFailure(isOnline: Boolean): GroupCreatio
     NetworkError.SERIALIZATION,
     NetworkError.UNKNOWN,
         -> GroupCreationFailure.UNKNOWN
+}
+
+/** Where the user stands with a member of the group, as their sheet tells it. */
+fun ContactRelation.toMemberRelation(): MemberRelation = when (this) {
+    ContactRelation.CONTACT -> MemberRelation.CONTACT
+    ContactRelation.REQUEST_RECEIVED -> MemberRelation.REQUEST_RECEIVED
+    ContactRelation.REQUEST_SENT -> MemberRelation.REQUEST_SENT
+    ContactRelation.NONE -> MemberRelation.NONE
+}
+
+/**
+ * Maps a failed contact request to a member of the group to the reason their sheet surfaces, as
+ * for one to the holder of a username, see `toAddContactError`.
+ *
+ * What went wrong with the user's own key material, in the vault or in the MLS client, is folded
+ * into [ContactRequestError.UNKNOWN]: nothing the user can act on, and nothing worth explaining
+ * to them in detail. Network failures along the way are reported as such, whichever call they
+ * came from.
+ *
+ * [isOnline] corrects a [NetworkError.UNREACHABLE] that is really airplane mode.
+ */
+fun SendContactRequestError.toContactRequestError(isOnline: Boolean): ContactRequestError = when (this) {
+    SendContactRequestError.NotFound -> ContactRequestError.NOT_FOUND
+    SendContactRequestError.AlreadyContact -> ContactRequestError.ALREADY_CONTACT
+    SendContactRequestError.AlreadyPending -> ContactRequestError.ALREADY_PENDING
+    SendContactRequestError.RateLimited -> ContactRequestError.RATE_LIMITED
+    SendContactRequestError.IdentityChanged -> ContactRequestError.IDENTITY_CHANGED
+    SendContactRequestError.NotInGroup -> ContactRequestError.NOT_IN_GROUP
+
+    is SendContactRequestError.Network -> error.toContactRequestError(isOnline = isOnline)
+
+    is SendContactRequestError.Vault -> error.toContactRequestError(isOnline = isOnline)
+
+    is SendContactRequestError.Identity -> error.toContactRequestError(isOnline = isOnline)
+
+    is SendContactRequestError.Contacts -> error.toContactRequestError(isOnline = isOnline)
+
+    SendContactRequestError.Crypto -> ContactRequestError.UNKNOWN
+
+    // A member is addressed by their UUID, never by a username, and the user never has a sheet
+    // of their own.
+    SendContactRequestError.InvalidUsername,
+    SendContactRequestError.Self,
+        -> ContactRequestError.UNKNOWN
+}
+
+/** Restoring the contacts fails on the vault or on the MLS client, reported as above. */
+private fun ContactSyncError.toContactRequestError(isOnline: Boolean): ContactRequestError = when (this) {
+    is ContactSyncError.Vault -> error.toContactRequestError(isOnline = isOnline)
+
+    is ContactSyncError.Identity -> error.toContactRequestError(isOnline = isOnline)
+
+    ContactSyncError.Storage,
+    is ContactSyncError.Profile,
+    is ContactSyncError.ProfileKey,
+    is ContactSyncError.Network,
+        -> ContactRequestError.UNKNOWN
+}
+
+private fun MlsIdentityError.toContactRequestError(isOnline: Boolean): ContactRequestError = when (this) {
+    is MlsIdentityError.Vault -> error.toContactRequestError(isOnline = isOnline)
+
+    MlsIdentityError.MissingSession,
+    MlsIdentityError.Crypto,
+        -> ContactRequestError.UNKNOWN
+}
+
+private fun VaultError.toContactRequestError(isOnline: Boolean): ContactRequestError = when (this) {
+    is VaultError.Network -> error.toContactRequestError(isOnline = isOnline)
+
+    VaultError.MissingRootKey,
+    VaultError.Crypto,
+    VaultError.MalformedKeyRing,
+    VaultError.MalformedContactBook,
+    VaultError.OrphanedEntry,
+    VaultError.Contended,
+        -> ContactRequestError.UNKNOWN
+}
+
+/**
+ * The network failures left once the shared layer has mapped the key package's and the contact
+ * route's own refusals (not found, already pending, rate limited).
+ */
+private fun NetworkError.toContactRequestError(isOnline: Boolean): ContactRequestError = when (this) {
+    NetworkError.NO_INTERNET -> ContactRequestError.NO_INTERNET
+    NetworkError.REQUEST_TIMEOUT -> ContactRequestError.TIMEOUT
+
+    NetworkError.UNREACHABLE ->
+        if (isOnline) ContactRequestError.SERVER_UNREACHABLE else ContactRequestError.NO_INTERNET
+
+    NetworkError.BAD_REQUEST,
+    NetworkError.UNAUTHORIZED,
+    NetworkError.NOT_FOUND,
+    NetworkError.CONFLICT,
+    NetworkError.TOO_MANY_REQUESTS,
+    NetworkError.PAYLOAD_TOO_LARGE,
+    NetworkError.UNPROCESSABLE_ENTITY,
+    NetworkError.SERVER_ERROR,
+    NetworkError.SERIALIZATION,
+    NetworkError.UNKNOWN,
+        -> ContactRequestError.UNKNOWN
 }

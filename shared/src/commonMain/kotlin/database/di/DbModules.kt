@@ -1,6 +1,7 @@
 package database.di
 
 import contact.ContactArrivals
+import contact.ContactRequestSender
 import contact.ContactSync
 import contact.ProfileKeyDelivery
 import contact.ProfileKeyPull
@@ -29,6 +30,19 @@ val dbModule = module {
     singleOf(::GroupRepository)
     singleOf(::GroupMemberRepository)
     singleOf(::ContactRequestRepository)
+    single {
+        ContactRequestSender(
+            contactRepository = get(),
+            contactRequestDao = get(),
+            identityConflictDao = get(),
+            groupDao = get(),
+            mlsIdentityRepository = get(),
+            keyPackageApi = get(),
+            vaultRepository = get(),
+            contactApi = get(),
+            wakeList = get(),
+        )
+    }
     singleOf(::ContactRepository)
     singleOf(::ContactSync)
     single {

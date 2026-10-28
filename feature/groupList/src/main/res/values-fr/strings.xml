@@ -75,6 +75,22 @@
         <item quantity="other">%1$s ont supprimé leur compte</item>
     </plurals>
 
+    <!-- GroupMemberBottomSheet -->
+    <string name="member_view_profile">Voir le profil</string>
+    <string name="member_answer_contact_request">Répondre à sa demande de contact</string>
+    <string name="member_contact_request_sent">Demande de contact envoyée</string>
+    <string name="member_send_contact_request">Envoyer une demande de contact</string>
+    <string name="member_contact_request_error_not_found">Ce membre ne peut pas recevoir de demande de contact pour le moment, réessayez plus tard</string>
+    <string name="member_contact_request_error_already_contact">Ce membre fait déjà partie de vos contacts</string>
+    <string name="member_contact_request_error_already_pending">Une demande de contact est déjà en attente pour ce membre</string>
+    <string name="member_contact_request_error_rate_limited">Trop de tentatives, réessayez plus tard</string>
+    <string name="member_contact_request_error_identity_changed">Votre numéro de sécurité avec ce membre a changé, la demande n’a pas été envoyée</string>
+    <string name="member_contact_request_error_not_in_group">Impossible de confirmer l’identité de ce membre à partir de ce groupe sur cet appareil, la demande n’a pas été envoyée</string>
+    <string name="member_contact_request_error_no_internet">Aucune connexion Internet</string>
+    <string name="member_contact_request_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>
+    <string name="member_contact_request_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
+    <string name="member_contact_request_error_unknown">La demande de contact n’a pas pu être envoyée</string>
+
     <!-- GroupMemberFullScreenDialog -->
     <plurals name="group_members_out_of_limit">
         <item quantity="one">%1$d/%2$d membre</item>

@@ -75,6 +75,22 @@
         <item quantity="other">%1$s deleted their accounts</item>
     </plurals>
 
+    <!-- GroupMemberBottomSheet -->
+    <string name="member_view_profile">View profile</string>
+    <string name="member_answer_contact_request">Answer their contact request</string>
+    <string name="member_contact_request_sent">Contact request sent</string>
+    <string name="member_send_contact_request">Send a contact request</string>
+    <string name="member_contact_request_error_not_found">This member can’t receive a contact request right now, please try again later</string>
+    <string name="member_contact_request_error_already_contact">This member is already one of your contacts</string>
+    <string name="member_contact_request_error_already_pending">You already sent this member a contact request</string>
+    <string name="member_contact_request_error_rate_limited">Too many attempts, please try again later</string>
+    <string name="member_contact_request_error_identity_changed">Your safety number with this member has changed, so the request was not sent</string>
+    <string name="member_contact_request_error_not_in_group">This member’s identity can’t be confirmed from this group on this device, so the request was not sent</string>
+    <string name="member_contact_request_error_no_internet">No internet connection</string>
+    <string name="member_contact_request_error_timeout">The server took too long to answer, please try again</string>
+    <string name="member_contact_request_error_server_unreachable">The server is unreachable, please try again later</string>
+    <string name="member_contact_request_error_unknown">The contact request could not be sent</string>
+
     <!-- GroupMemberFullScreenDialog -->
     <plurals name="group_members_out_of_limit">
         <item quantity="one">%1$d/%2$d member</item>

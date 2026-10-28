@@ -394,6 +394,20 @@ internal suspend fun MlsClient.pinPeerIn(mlsGroupId: ByteArray, peerUuid: String
     withGroup(mlsGroupId = mlsGroupId) { it.pinMembers(expectedMembers = listOf(peerUuid)) }
 
 /**
+ * Pins [userUuid] to the identity they hold in the group of several members [mlsGroupId], and
+ * nobody else, see [MlsGroup.pinMember]: a group the server holds, whose tree is its creator's
+ * word, which this device takes for one of its members before sending them a contact request, so
+ * that the key package the server serves for them is checked against it, see
+ * [contact.ContactRequestSender].
+ *
+ * Throws [MlsException.UnexpectedMembers] when no member of the group but the user holds
+ * [userUuid], and [MlsException.IdentityKeyMismatch] when a different identity is pinned for them,
+ * which stays pinned.
+ */
+internal suspend fun MlsClient.pinMemberOf(mlsGroupId: ByteArray, userUuid: String) =
+    withGroup(mlsGroupId = mlsGroupId) { it.pinMember(userUuid = userUuid) }
+
+/**
  * Checks the identity [peerUuid] holds in the group [mlsGroupId] against the one pinned for
  * them, if any, and pins nothing: what [pinPeerIn] checks, before trusting them with
  * something that may never land.

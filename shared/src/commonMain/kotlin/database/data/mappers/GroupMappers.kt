@@ -15,9 +15,14 @@ fun GroupEntity.toGroup() = Group(
 
 /**
  * This group as the user [selfUuid] sees it, null with nobody signed in, with [hasPendingChange]
- * read alongside, see [database.data.local.dao.GroupDao.hasPendingChange].
+ * and [isCreatorBlocked] read alongside, see [database.data.local.dao.GroupDao.hasPendingChange]
+ * and [database.data.local.dao.GroupDao.isCreatorBlockedAsFlow].
  */
-fun GroupWithMembersEntity.toGroupWithMembers(selfUuid: String?, hasPendingChange: Boolean): GroupWithMembers {
+fun GroupWithMembersEntity.toGroupWithMembers(
+    selfUuid: String?,
+    hasPendingChange: Boolean,
+    isCreatorBlocked: Boolean,
+): GroupWithMembers {
     val isCreator = group.ownerUuid == selfUuid
 
     return GroupWithMembers(
@@ -30,5 +35,6 @@ fun GroupWithMembersEntity.toGroupWithMembers(selfUuid: String?, hasPendingChang
         hasPendingChange = hasPendingChange,
         // A creator is never removed from their own group, so is never left in it either.
         canChangeMembers = isCreator && group.mlsGroupId != null,
+        canVouchForMembers = !group.isLeft && group.mlsGroupId != null && !isCreatorBlocked,
     )
 }

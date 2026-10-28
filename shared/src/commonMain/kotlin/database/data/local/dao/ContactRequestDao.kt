@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import database.data.local.entity.ContactRequestEntity
+import database.data.local.entity.ContactStanding
 import database.data.local.entity.OpenedContactRequest
 import database.data.local.entity.OutgoingContactRequestEntity
 import kotlinx.coroutines.flow.Flow
@@ -138,6 +139,42 @@ interface ContactRequestDao {
     )
     suspend fun getUnblockedOutgoing(): List<OutgoingContactRequestEntity>
 
+    /**
+     * Whether the user has a request out to [recipientUserUuid] that the server is known to hold,
+     * see [OutgoingContactRequestEntity.isStored].
+     */
+    @Query(
+        """SELECT EXISTS (
+            SELECT 1 FROM OutgoingContactRequestEntity WHERE recipientUserUuid = :recipientUserUuid AND isStored = 1
+        )""",
+    )
+    suspend fun hasStoredOutgoingTo(recipientUserUuid: String): Boolean
+
+    /**
+     * What the tables say of [userUuid], see [ContactStanding]: a contact, removed ones aside, as
+     * [ContactDao.get] reads one; a request of theirs waiting for the user's answer, opened, as
+     * [getOpenedAsFlow] lists them; and one of the user's out to them that the server is known to
+     * hold, see [OutgoingContactRequestEntity.isStored].
+     *
+     * In one query, so that the three are read together, never one of them as it stood before a
+     * write and another as it stands after. A change made in several writes is still seen between
+     * them, so an acceptance, the user's or theirs, adds them as a contact before it takes their
+     * requests along, and they read as a contact throughout. One row whatever the tables hold, an
+     * empty table included, as a log-out leaves every one of them.
+     */
+    @Query(
+        """SELECT
+        EXISTS (SELECT 1 FROM ContactEntity WHERE userUuid = :userUuid AND isRemoved = false) AS isContact,
+        EXISTS (
+            SELECT 1 FROM ContactRequestEntity
+            WHERE senderUserUuid = :userUuid AND mlsGroupId IS NOT NULL AND profileEncryptionKey IS NOT NULL
+        ) AS hasRequestFrom,
+        EXISTS (
+            SELECT 1 FROM OutgoingContactRequestEntity WHERE recipientUserUuid = :userUuid AND isStored = 1
+        ) AS hasRequestTo""",
+    )
+    fun getStandingAsFlow(userUuid: String): Flow<ContactStanding>
+
     /** Records a request the user sent, see [OutgoingContactRequestEntity]. */
     @Insert
     suspend fun insertOutgoing(request: OutgoingContactRequestEntity)
@@ -151,6 +188,23 @@ interface ContactRequestDao {
         WHERE recipientUserUuid = :recipientUserUuid AND mlsGroupId = :mlsGroupId""",
     )
     suspend fun getOutgoing(recipientUserUuid: String, mlsGroupId: ByteArray): OutgoingContactRequestEntity?
+
+    /**
+     * Marks the request the user sent [recipientUserUuid] in [mlsGroupId] as one the server
+     * stored, see [OutgoingContactRequestEntity.isStored].
+     */
+    @Query(
+        """UPDATE OutgoingContactRequestEntity SET isStored = 1
+        WHERE recipientUserUuid = :recipientUserUuid AND mlsGroupId = :mlsGroupId""",
+    )
+    suspend fun markStored(recipientUserUuid: String, mlsGroupId: ByteArray)
+
+    /**
+     * Marks every request the user sent [recipientUserUuid] as one the server may hold, the
+     * server having refused another as already pending, see [OutgoingContactRequestEntity.isStored].
+     */
+    @Query("UPDATE OutgoingContactRequestEntity SET isStored = 1 WHERE recipientUserUuid = :recipientUserUuid")
+    suspend fun markStoredTo(recipientUserUuid: String)
 
     /** Drops the request the user sent [recipientUserUuid] in [mlsGroupId]. */
     @Query(
