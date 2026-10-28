@@ -17,7 +17,8 @@ package message
  *
  * A group creation the server has not taken books it too, refused for the limit on creations or
  * not answered at all, and before it first goes out, see `group.GroupCreationSender`: nothing else
- * would send it again before the next sync either.
+ * would send it again before the next sync either. So does a group's leave the server did not
+ * answer, see `group.GroupSync`.
  *
  * Bound on Android, which runs the sync a push starts, see `PushWork.enqueueResend` in
  * `:composeApp`; a no-op on iOS, which sends no direct message yet.

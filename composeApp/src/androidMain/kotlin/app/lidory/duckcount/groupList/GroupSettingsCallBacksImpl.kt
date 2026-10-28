@@ -42,8 +42,8 @@ class GroupSettingsCallBacksImpl(
         }
     }
 
-    override fun getUserFullName(userUuid: String): Flow<String?> {
-        return userRepository.getFullName(userUuid)
+    override fun getDisplayName(userUuid: String): Flow<String?> {
+        return userRepository.getDisplayName(userUuid)
     }
 
     override fun getInvitableUsersFiltered(filter: String): Flow<List<User>> {

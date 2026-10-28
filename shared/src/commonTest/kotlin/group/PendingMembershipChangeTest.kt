@@ -22,6 +22,7 @@ class PendingMembershipChangeTest {
     private val addition = AddGroupMembersBody(
         nonce = "AAECAwQFBgcICQoLDA0ODw==",
         commitMessage = "Y29tbWl0",
+        profileKeysMessage = "cHJvZmlsZSBrZXlz",
         welcomeMessage = "d2VsY29tZQ==",
         newMemberUuids = listOf(DAVE),
     )
@@ -43,7 +44,7 @@ class PendingMembershipChangeTest {
     @Test
     fun `each change is written with the names the server reads`() {
         assertEquals(
-            setOf("nonce", "commit_message", "welcome_message", "new_member_uuids"),
+            setOf("nonce", "commit_message", "profile_keys_message", "welcome_message", "new_member_uuids"),
             keysOf(PendingMembershipChange.Addition(groupUuid = GROUP, body = addition, commitEpoch = 1).toEntity()),
         )
         assertEquals(

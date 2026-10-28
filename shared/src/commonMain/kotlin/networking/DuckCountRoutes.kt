@@ -98,7 +98,10 @@ object DuckCountRoutes {
         /** `GET` lists the groups the caller is a member of, `POST` creates one. */
         val GROUPS = GROUP_BASE_URL
 
-        /** `GET` lists the messages waiting for the caller in one group, oldest first. */
+        /**
+         * `GET` lists the messages waiting for the caller in one group, oldest first, `POST` posts
+         * one to every other current member, any member.
+         */
         val MESSAGES = "$GROUP_BASE_URL/:group_uuid/messages"
 
         /**
@@ -112,6 +115,9 @@ object DuckCountRoutes {
 
         /** `PUT` rotates the key of one group after a removal, its creator alone. */
         val KEY = "$GROUP_BASE_URL/:group_uuid/key"
+
+        /** `DELETE` takes the caller out of one group, any member but its owner. */
+        val MEMBERSHIP = "$GROUP_BASE_URL/:group_uuid/membership"
     }
 
     object Push {

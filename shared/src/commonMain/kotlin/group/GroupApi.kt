@@ -18,6 +18,7 @@ import networking.retryAfterSeconds
 import util.EmptyResult
 import util.NetworkError
 import util.Result
+import kotlin.io.encoding.Base64
 
 /**
  * The most message UUIDs one acknowledgement in a group may carry. The server refuses a larger
@@ -38,7 +39,8 @@ private const val WELCOME_TIMEOUT_MILLIS = 60_000L
 
 /**
  * Remote data source for the caller's groups: creating one, listing them, changing the members of
- * one, and the messages waiting in each, the Welcome that lets an invitee in among them.
+ * one, leaving one, and the messages waiting in each, the Welcome that lets an invitee in among
+ * them.
  *
  * Every field of a group is sealed on the creator's device under a key the server never holds,
  * see [GroupFields.seal], and every message is MLS, so the server learns who is in which group
@@ -74,7 +76,7 @@ class GroupApi(
 
     /**
      * The groups the caller is a member of, those they were invited to and have not joined yet
-     * included.
+     * included, and none they left, see [leave].
      */
     suspend fun getGroups(): Result<List<GroupDto>, NetworkError> =
         client.get<List<GroupDto>>(
@@ -134,6 +136,21 @@ class GroupApi(
             }
         }
 
+    /**
+     * Takes the caller out of the group [groupUuid], see [GroupLeaveAnswer] for what the server can
+     * answer: it no longer lists the group to them, nor them to its members, and drops whatever
+     * waits for them there, the Welcome among it, which they would otherwise never acknowledge.
+     * Any member may leave but its owner, whom the server refuses. Their leaf stays in the group's
+     * tree until its creator's device removes it, see [GroupSync].
+     */
+    suspend fun leave(groupUuid: String): GroupLeaveAnswer =
+        leaveAnswerOf(
+            sent = client.delete<Unit>(
+                route = DuckCountRoutes.Group.MEMBERSHIP,
+                pathParams = mapOf("group_uuid" to groupUuid),
+            ),
+        )
+
     /** What the server answered [request], one of the changes [GroupMembershipAnswer] is about. */
     private suspend fun changeMembers(request: suspend () -> HttpResponse): GroupMembershipAnswer {
         // Read off the response as it comes back, as for a creation.
@@ -148,6 +165,34 @@ class GroupApi(
         return when (sent) {
             is Result.Success -> GroupMembershipAnswer.Made
             is Result.Error -> refusal ?: membershipAnswerOf(error = sent.error)
+        }
+    }
+
+    /**
+     * Posts [message], an MLS application message in the group [groupUuid], to every other current
+     * member, see [GroupPostAnswer] for what the server can answer. Any current member may post,
+     * within an allowance of their own, all their groups together.
+     *
+     * The server mints a new message for every post, so one sent again whose answer was lost
+     * reaches the members twice: only what reading it twice changes nothing of is sent here, see
+     * [GroupProfileKeyDelivery].
+     */
+    suspend fun postMessage(groupUuid: String, message: ByteArray): GroupPostAnswer {
+        // Read off the response as it comes back, as for a creation.
+        var refusal: GroupPostAnswer? = null
+
+        val sent = client.execute<PostGroupMessageResponse> {
+            client.httpClient.post(urlString = DuckCountRoutes.Group.MESSAGES.replace(":group_uuid", groupUuid)) {
+                setBody(PostGroupMessageBody(ciphertext = Base64.Default.encode(message)))
+                contentType(ContentType.Application.Json)
+            }.also { response ->
+                refusal = postRefusalOf(status = response.status, headers = response.headers)
+            }
+        }
+
+        return when (sent) {
+            is Result.Success -> GroupPostAnswer.Posted
+            is Result.Error -> refusal ?: postAnswerOf(error = sent.error)
         }
     }
 
@@ -265,6 +310,63 @@ internal fun creationAnswerOf(error: NetworkError): GroupCreationAnswer =
     }
 
 /**
+ * What the server answered `POST /groups/{group_uuid}/messages`, see [GroupApi.postMessage]. Every
+ * refusal writes nothing.
+ */
+sealed interface GroupPostAnswer {
+
+    /** The `200`: the server holds the message for every other current member. */
+    data object Posted : GroupPostAnswer
+
+    /**
+     * The `409`: the caller is the group's one current member, so there is nobody to post to, and
+     * nobody the message was for.
+     */
+    data object NoOtherMembers : GroupPostAnswer
+
+    /**
+     * The `404`: the caller is no current member of the group, as once its creator removed them,
+     * which the Commit doing so tells their device, or the proxy in front of the server answering
+     * while it is being redeployed. Either way, nothing to retry now.
+     */
+    data object NotMember : GroupPostAnswer
+
+    /**
+     * The `429` of the server's limit on the messages one user posts, all their groups together,
+     * which lets one through again in [retryAfterSeconds], the `Retry-After` it carries.
+     */
+    data class RateLimited(val retryAfterSeconds: Long) : GroupPostAnswer
+
+    /**
+     * Any other failure: the request may never have left, or the message may have been stored and
+     * the answer lost on the way back.
+     */
+    data class Failed(val error: NetworkError) : GroupPostAnswer
+}
+
+/**
+ * What a `POST /groups/{group_uuid}/messages` answered with [status] and [headers] comes to, for
+ * the one answer read off the response itself, or null for the others, see [postAnswerOf]: the
+ * `429`, with its `Retry-After`.
+ */
+internal fun postRefusalOf(status: HttpStatusCode, headers: Headers): GroupPostAnswer? =
+    when (status) {
+        HttpStatusCode.TooManyRequests -> GroupPostAnswer.RateLimited(retryAfterSeconds = headers.retryAfterSeconds())
+        else -> null
+    }
+
+/**
+ * What a `POST /groups/{group_uuid}/messages` that failed with [error] answered, the `429` aside,
+ * which is read off the response itself, see [postRefusalOf].
+ */
+internal fun postAnswerOf(error: NetworkError): GroupPostAnswer =
+    when (error) {
+        NetworkError.CONFLICT -> GroupPostAnswer.NoOtherMembers
+        NetworkError.NOT_FOUND -> GroupPostAnswer.NotMember
+        else -> GroupPostAnswer.Failed(error = error)
+    }
+
+/**
  * What the server answered a change to the members of a group, `POST` or `DELETE
  * /groups/{group_uuid}/members`, or the key rotation after a removal, `PUT
  * /groups/{group_uuid}/key`.
@@ -358,4 +460,45 @@ internal fun membershipAnswerOf(error: NetworkError): GroupMembershipAnswer =
         -> GroupMembershipAnswer.Refused(error = error)
 
         else -> GroupMembershipAnswer.Failed(error = error)
+    }
+
+/**
+ * What the server answered `DELETE /groups/{group_uuid}/membership`, see [GroupApi.leave]. It
+ * writes nothing unless it takes the leave, and leaving a group the caller already left changes
+ * nothing, so the same request can be sent until it is heard.
+ */
+sealed interface GroupLeaveAnswer {
+
+    /**
+     * The empty `200`: the caller is no member of the group now, whether this request took them
+     * out, or an earlier one whose answer was lost, or its creator removed them, the Commit doing
+     * so dropped with the rest of what waited for them.
+     */
+    data object Left : GroupLeaveAnswer
+
+    /**
+     * The `404`: the server holds no such group, or the caller was never a member of it, so there
+     * is nothing to leave. Or the proxy in front of the server answering while it is being
+     * redeployed, which leaves the group listed, and the sync declines it again, see [GroupSync].
+     */
+    data object NotMember : GroupLeaveAnswer
+
+    /**
+     * Any other answer: the request may never have left, or the leave may have been taken and the
+     * answer lost on the way back, a `401` that a refresh may still turn around included. Only
+     * sending it again can tell. The `403` refusing the group's owner is one, the client reading it
+     * as no answer it knows: the sync never asks for that, see [GroupSync].
+     */
+    data class Failed(val error: NetworkError) : GroupLeaveAnswer
+}
+
+/** What a `DELETE /groups/{group_uuid}/membership` that came to [sent] answered, see [GroupLeaveAnswer]. */
+internal fun leaveAnswerOf(sent: EmptyResult<NetworkError>): GroupLeaveAnswer =
+    when (sent) {
+        is Result.Success -> GroupLeaveAnswer.Left
+
+        is Result.Error -> when (sent.error) {
+            NetworkError.NOT_FOUND -> GroupLeaveAnswer.NotMember
+            else -> GroupLeaveAnswer.Failed(error = sent.error)
+        }
     }

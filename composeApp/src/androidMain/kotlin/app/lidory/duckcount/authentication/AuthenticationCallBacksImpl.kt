@@ -17,6 +17,7 @@ import authenticationUtils.clearTokens
 import authenticationUtils.setAuthenticatedUserUsername
 import authenticationUtils.setAuthenticatedUserUuid
 import authenticationUtils.setContactsToRestore
+import authenticationUtils.setMemberProfilesToRestore
 import authenticationUtils.setHasPasswordBeenChecked
 import authenticationUtils.setPendingRegistration
 import authenticationUtils.setRootKey
@@ -208,6 +209,10 @@ class AuthenticationCallBacksImpl(
                     // who the user's contacts are, so the vault is the only place this device
                     // gets them back from, and syncs keep trying until it has.
                     setContactsToRestore()
+
+                    // Likewise the keys the user's groups handed over, which name the members
+                    // who are not contacts.
+                    setMemberProfilesToRestore()
 
                     // A session starts with nothing published, whatever a publication that
                     // finished as the last one was ending recorded, see
@@ -436,6 +441,7 @@ class AuthenticationCallBacksImpl(
         VaultError.Crypto,
         VaultError.MalformedKeyRing,
         VaultError.MalformedContactBook,
+        VaultError.MalformedMemberProfileBook,
         VaultError.OrphanedEntry,
         VaultError.Contended,
             -> AuthError.CRYPTO_ERROR

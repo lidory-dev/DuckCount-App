@@ -2,7 +2,6 @@ package app.lidory.duckcount.groupList.callBacks
 
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.groupList.model.GroupMember
-import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import kotlinx.coroutines.flow.Flow
 
 interface GroupBalanceCallBacks {
@@ -14,10 +13,14 @@ interface GroupBalanceCallBacks {
 
     fun getAllGroupExpense(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>>
 
-    fun getAllMembers(groupUuid: String): Flow<List<GroupMemberWithFullName>>
+    fun getAllMembers(groupUuid: String): Flow<List<GroupMember>>
 
     suspend fun getCurrencySymbol(groupUuid: String): String
 
-    /** The name of [userUuid], or null for somebody this device has no name for. */
-    suspend fun getFullName(userUuid: String): String?
+    /**
+     * Emits the name to show for [userUuid] as it changes, or null while this device has none for
+     * them, see [GroupSettingsCallBacks.getDisplayName]: a former member of the group included,
+     * whose name stays.
+     */
+    fun getDisplayName(userUuid: String): Flow<String?>
 }

@@ -65,11 +65,20 @@ class UserRepository(
         return userDao.getUserFullNameAsFlow(uuid = uuid)
     }
 
+    /**
+     * The name the group and expense screens show for [uuid], as it changes, or null while there is
+     * none, see [UserDao.getDisplayNameAsFlow]: a member of a group who is no contact included.
+     */
+    fun getDisplayName(uuid: String): Flow<String?> {
+        return userDao.getDisplayNameAsFlow(uuid = uuid)
+    }
+
     /** The same name, read once, hidden or not, see [UserDao.getFullNameEvenIfHidden]. */
     suspend fun getFullNameEvenIfHidden(uuid: String): String? {
         return userDao.getFullNameEvenIfHidden(uuid = uuid)
     }
 
+    /** Who a group expense of the group [groupUuid] can name, see [UserDao.getAllFromGroupFiltered]. */
     fun getAllFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> {
         return userDao.getAllFromGroupFiltered(filter, groupUuid).map { userEntities ->
             userEntities.map { it.toUser() }

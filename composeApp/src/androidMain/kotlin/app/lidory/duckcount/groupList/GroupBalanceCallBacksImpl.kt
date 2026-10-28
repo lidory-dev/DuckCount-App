@@ -4,7 +4,6 @@ import app.lidory.duckcount.calculateNetDebtsPerUser
 import app.lidory.duckcount.groupList.callBacks.GroupBalanceCallBacks
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.groupList.model.GroupMember
-import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import database.data.repository.ExpenseRepository
 import database.data.repository.GroupMemberRepository
 import database.data.repository.GroupRepository
@@ -43,22 +42,13 @@ class GroupBalanceCallBacksImpl(
         return groupRepository.get(groupUuid).first().currency.symbol
     }
 
-    override suspend fun getFullName(userUuid: String): String? {
-        return userRepository.getFullName(userUuid).first()
+    override fun getDisplayName(userUuid: String): Flow<String?> {
+        return userRepository.getDisplayName(userUuid)
     }
 
-    override fun getAllMembers(groupUuid: String): Flow<List<GroupMemberWithFullName>> {
+    override fun getAllMembers(groupUuid: String): Flow<List<GroupMember>> {
         return groupMemberRepository.getMembersFromGroup(groupUuid = groupUuid).map { groupMembers ->
-            groupMembers.map { groupMember ->
-                GroupMemberWithFullName(
-                    member = GroupMember(
-                        userUuid = groupMember.userUuid,
-                        groupUuid = groupMember.groupUuid,
-                        isAdmin = groupMember.isAdmin,
-                    ),
-                    fullName = userRepository.getFullName(groupMember.userUuid).first(),
-                )
-            }
+            groupMembers.map { it.toGroupListModel() }
         }
     }
 }

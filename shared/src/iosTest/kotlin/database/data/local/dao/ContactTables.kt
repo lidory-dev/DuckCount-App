@@ -212,6 +212,7 @@ internal class ContactTables {
         override fun getInvitableFiltered(filter: String): Flow<List<UserEntity>> = error("Not used here")
         override fun getUserAsFlow(uuid: String): Flow<UserEntity?> = error("Not used here")
         override fun getUserFullNameAsFlow(uuid: String): Flow<String?> = error("Not used here")
+        override fun getDisplayNameAsFlow(uuid: String): Flow<String?> = error("Not used here")
         override fun getAllFromGroupFiltered(filter: String, groupUuid: String): Flow<List<UserEntity>> =
             error("Not used here")
 

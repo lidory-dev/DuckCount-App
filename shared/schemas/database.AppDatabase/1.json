@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "6d1830be6ef9d4f70904bf7e63c0339a",
+    "identityHash": "8e15bf61817dd47eeddd4954ae4baa78",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -191,7 +191,7 @@
       },
       {
         "tableName": "GroupEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `currency` TEXT NOT NULL, `ownerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `groupKey` BLOB NOT NULL, `isBackedUp` INTEGER NOT NULL, `isLeft` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `currency` TEXT NOT NULL, `ownerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `groupKey` BLOB NOT NULL, `isBackedUp` INTEGER NOT NULL, `isLeft` INTEGER NOT NULL, `handedProfileKeyHash` TEXT, PRIMARY KEY(`uuid`))",
         "fields": [
           {
             "fieldPath": "uuid",
@@ -245,6 +245,11 @@
             "columnName": "isLeft",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "handedProfileKeyHash",
+            "columnName": "handedProfileKeyHash",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -930,11 +935,62 @@
             "key"
           ]
         }
+      },
+      {
+        "tableName": "MemberProfileEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `isFromOwner` INTEGER NOT NULL, `ownerKeySentAt` INTEGER, `fullName` TEXT, `nameKeyHash` TEXT, `isBackedUp` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
+        "fields": [
+          {
+            "fieldPath": "userUuid",
+            "columnName": "userUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileEncryptionKey",
+            "columnName": "profileEncryptionKey",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isFromOwner",
+            "columnName": "isFromOwner",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerKeySentAt",
+            "columnName": "ownerKeySentAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "fullName",
+            "columnName": "fullName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "nameKeyHash",
+            "columnName": "nameKeyHash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isBackedUp",
+            "columnName": "isBackedUp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "userUuid"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6d1830be6ef9d4f70904bf7e63c0339a')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8e15bf61817dd47eeddd4954ae4baa78')"
     ]
   }
 }

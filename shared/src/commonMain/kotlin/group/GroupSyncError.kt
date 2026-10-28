@@ -43,4 +43,16 @@ sealed interface GroupSyncError : Error {
 
     /** The server could not be reached, or refused the call. */
     data class Network(val error: NetworkError) : GroupSyncError
+
+    /**
+     * The removal of those the server no longer lists from a group the user created could not be
+     * made, see [GroupMembershipError]: the next sync builds it again.
+     */
+    data class Membership(val error: GroupMembershipError) : GroupSyncError
+
+    /**
+     * The device locked as the sync ran. What it stores is read with keys a locked device cannot
+     * use, so the sync stopped where it was, and the rest waits for the device to be unlocked.
+     */
+    data object DeviceLocked : GroupSyncError
 }

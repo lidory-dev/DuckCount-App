@@ -15,7 +15,9 @@ import mls.InMemoryMlsStore
 import mls.holdsGroup
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsNamespace
+import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import uniffi.lib_duckcount.isOneTimeExpenseCreditor
+import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
 import util.NetworkError
 import util.Result
 import kotlin.io.encoding.Base64
@@ -26,6 +28,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 private const val ALICE = "11111111-1111-1111-1111-111111111111"
@@ -84,6 +87,17 @@ class GroupCreatorTest {
 
     /** The keys the vault holds, by group. */
     private val backedUp = mutableMapOf<String, ByteArray>()
+
+    /**
+     * The key to Alice's own profile, null as the vault not answering leaves it, the one each
+     * contact of hers handed her, and those her device learned through the groups.
+     */
+    private var aliceProfileKey: ByteArray? = generateSymmetricEncryptionKey()
+    private val contactProfileKeys = mutableMapOf(
+        BOB to generateSymmetricEncryptionKey(),
+        CAROL to generateSymmetricEncryptionKey(),
+    )
+    private val learnedProfileKeys = mutableMapOf<String, ByteArray>()
 
     /** Whether the vault takes a key without its answer coming back, as a request timing out once sent would. */
     private var isBackUpAnswerLost = false
@@ -144,6 +158,9 @@ class GroupCreatorTest {
             backedUp[groupUuid] = groupKey
             if (!isBackUpAnswerLost) groups[groupUuid] = groups.getValue(groupUuid).backedUp()
         },
+        ownProfileKey = { aliceProfileKey },
+        contactProfileKey = { contactProfileKeys[it] },
+        learnedProfileKey = { learnedProfileKeys[it] },
     )
 
     init {
@@ -221,7 +238,7 @@ class GroupCreatorTest {
 
             assertEquals(ALICE, inspection.committerUserUuid)
 
-            val groupKey = assertNotNull(inspection.welcomePayload)
+            val groupKey = assertNotNull(welcomeHandoverOf(payload = assertNotNull(inspection.welcomePayload))).groupKey
 
             assertContentEquals(groups.getValue(groupUuid).groupKey, groupKey)
 
@@ -243,6 +260,46 @@ class GroupCreatorTest {
                 expectedMembers = listOf(ALICE, BOB),
                 pinMembers = false,
             )
+        }
+
+    /** Every invitee was a contact of Alice's, and handed her their key as one. */
+    @Test
+    fun `the Welcome hands every member the key to every member's profile`() = runBlocking<Unit> {
+        val groupUuid = assertIs<Result.Success<String>>(create()).data
+        val welcome = Base64.Default.decode(posted.single().body.welcomeMessage)
+        val payload = assertNotNull(bob.inspectWelcome(welcome = welcome, expectedGroupUuid = groupUuid).welcomePayload)
+
+        val handedOver = assertNotNull(welcomeHandoverOf(payload = payload)).profileKeys
+
+        assertEquals(setOf(ALICE, BOB, CAROL), handedOver.keys)
+        assertContentEquals(aliceProfileKey, handedOver[ALICE])
+        assertContentEquals(contactProfileKeys[BOB], handedOver[BOB])
+        assertContentEquals(contactProfileKeys[CAROL], handedOver[CAROL])
+    }
+
+    @Test
+    fun `the group is saved holding the creator's own key`() = runBlocking<Unit> {
+        val groupUuid = assertIs<Result.Success<String>>(create()).data
+
+        assertEquals(
+            profileEncryptionKeyPartialHash(assertNotNull(aliceProfileKey)),
+            groups.getValue(groupUuid).handedProfileKeyHash,
+        )
+    }
+
+    /** Created all the same: the next sync posts the key once the vault gives it, see GroupProfileKeyDelivery. */
+    @Test
+    fun `a creation the vault gives no own key for hands the others' keys and owes the group the creator's`() =
+        runBlocking<Unit> {
+            aliceProfileKey = null
+
+            val groupUuid = assertIs<Result.Success<String>>(create()).data
+            val welcome = Base64.Default.decode(posted.single().body.welcomeMessage)
+            val inspection = bob.inspectWelcome(welcome = welcome, expectedGroupUuid = groupUuid)
+            val payload = assertNotNull(inspection.welcomePayload)
+
+            assertEquals(setOf(BOB, CAROL), assertNotNull(welcomeHandoverOf(payload = payload)).profileKeys.keys)
+            assertNull(groups.getValue(groupUuid).handedProfileKeyHash)
         }
 
     /** An earlier send of the same creation was stored, and its answer lost. */
@@ -589,6 +646,7 @@ class GroupCreatorTest {
         groupKey = groupKey,
         isBackedUp = true,
         isLeft = isLeft,
+        handedProfileKeyHash = handedProfileKeyHash,
     )
 
     private fun assertNothingCreated() {

@@ -107,6 +107,7 @@ class KeyRingTest {
                 "blocked_users",
                 "mls_signature_key",
                 "contacts",
+                "member_profile_keys",
             ),
             VaultEntryKey.entries.map { it.wireName },
         )

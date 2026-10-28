@@ -26,7 +26,10 @@ data class CreateGroupBody(
 
     val currency: EncryptedFieldDto,
 
-    /** The one MLS Welcome every invitee joins from, Base64 encoded. */
+    /**
+     * The one MLS Welcome every invitee joins from, Base64 encoded, carrying the group's key and the
+     * key to every member's profile, see [welcomePayloadOf].
+     */
     @SerialName("welcome_message")
     val welcomeMessage: String,
 
@@ -52,7 +55,19 @@ data class AddGroupMembersBody(
     @SerialName("commit_message")
     val commitMessage: String,
 
-    /** The one MLS Welcome every new member joins from, Base64 encoded, carrying the group's key. */
+    /**
+     * The MLS application message handing the members already in the group the key to the profile
+     * of every member once the new ones are in, Base64 encoded, see [profileKeysMessageOf]: what the
+     * Welcome hands the new ones, which only they can read. Encrypted in the epoch before the
+     * Commit, which the server delivers it ahead of, to the Commit's recipients alone.
+     */
+    @SerialName("profile_keys_message")
+    val profileKeysMessage: String,
+
+    /**
+     * The one MLS Welcome every new member joins from, Base64 encoded, carrying the group's key and
+     * the key to every member's profile, see [welcomePayloadOf].
+     */
     @SerialName("welcome_message")
     val welcomeMessage: String,
 
@@ -119,7 +134,11 @@ data class DeletedInviteesResponse(
  * Mirrors the server's `Group`: one group the caller is a member of, as `GET /groups` lists it.
  *
  * The three fields are sealed under the group's key, which the server never holds, see
- * [SealedGroupFields.unseal]. [ownerUuid] and [members] are the server's word.
+ * [SealedGroupFields.unseal]. [ownerUuid] and [members] are the server's word, see [GroupSync]. Of a
+ * group whose MLS state this device holds, they decide one thing alone: who is no longer a member,
+ * whom its creator's device removes. A group brought back after a log-out, with no tree to tell
+ * them, takes both as they are listed. And a group this device declined is not left while the
+ * server lists the user as its owner.
  */
 @Serializable
 data class GroupDto(
@@ -134,7 +153,11 @@ data class GroupDto(
 
     val currency: EncryptedFieldDto,
 
-    /** Every member, the caller and those invited who have not joined yet included. */
+    /**
+     * Every current member, the caller and those invited who have not joined yet included: not
+     * those who left the group, see [GroupApi.leave], nor accounts deleted since, both of whom stay
+     * in its tree until its creator's device removes them, see [GroupSync], nor those it removed.
+     */
     val members: List<GroupMemberDto>,
 )
 
@@ -160,8 +183,30 @@ data class GroupMessageDto(
     /** The MLS message, Base64 encoded, opaque to the server. */
     val ciphertext: String,
 
+    /**
+     * When the server stored it, RFC 3339 in UTC to the millisecond, as the API writes it: what it
+     * lists the messages in the order of, and what ranks the keys members post of their own, see
+     * [GroupSync.takeProfileKeys].
+     */
     @SerialName("created_at")
     val createdAt: String,
+)
+
+/**
+ * Body of `POST /groups/{group_uuid}/messages`, which any current member may send: an MLS
+ * application message, which the server hands every other current member, see
+ * [GroupApi.postMessage].
+ */
+@Serializable
+data class PostGroupMessageBody(
+    /** The MLS message, Base64 encoded, opaque to the server. */
+    val ciphertext: String,
+)
+
+/** Body of the `200` to `POST /groups/{group_uuid}/messages`: the message the server minted for the post. */
+@Serializable
+data class PostGroupMessageResponse(
+    val uuid: String,
 )
 
 /** Body of `GET /groups/{group_uuid}/messages`: the caller's pending messages there, oldest first. */

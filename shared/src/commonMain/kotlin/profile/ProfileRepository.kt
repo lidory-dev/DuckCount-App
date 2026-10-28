@@ -20,22 +20,28 @@ import vault.unsealBound
 private val UNSET_FIELD = ByteArray(0)
 
 /**
- * What each sealed field of a profile is bound to.
+ * What each sealed field of a profile is bound to: whose profile it is, and which of its fields.
  *
- * Every field of one profile is sealed under the same key, so without this they would all
- * be interchangeable: the server could serve the empty phone number where the name was,
- * and it would decrypt perfectly into a blank name, or later the bank details into it.
- * The key already binds the owner; naming the field binds the rest.
+ * Every field of one profile is sealed under the same key, so without the field's name they
+ * would all be interchangeable: the server could serve the empty phone number where the name
+ * was, and it would decrypt perfectly into a blank name, or later the bank details into it.
+ *
+ * Without the owner's UUID, a key would open its owner's profile whichever user it was served
+ * as. A key does not always come from its owner: the creator of a group hands every member the
+ * keys of the others, see `MemberProfileRepository`, and the server, which serves whatever it
+ * holds under whichever UUID it is asked for, could then pass one member's profile off as
+ * another's, the key that opens it being on this device all the same. Bound to its owner, a
+ * profile opens as theirs and nobody else's: only they can store one under their UUID.
  */
 private object Context {
-    const val FULL_NAME = "profile:full_name"
-    const val PHONE_NUMBER = "profile:phone_number"
-    const val BANK_DETAILS = "profile:bank_details"
+    fun fullName(ownerUuid: String) = "profile:$ownerUuid:full_name"
+    fun phoneNumber(ownerUuid: String) = "profile:$ownerUuid:phone_number"
+    fun bankDetails(ownerUuid: String) = "profile:$ownerUuid:bank_details"
 }
 
 /**
  * User profiles as the server holds them: the authenticated user's own, and the ones their
- * contacts shared with them.
+ * contacts shared with them, or the members of their groups, see `MemberProfileRepository`.
  *
  * The key to the user's own comes from the vault, and is what a contact is handed to read
  * this profile. It changes when the user removes a contact, see [oweProfileKeyRotation], and
@@ -227,7 +233,7 @@ class ProfileRepository(
             is Result.Error -> return@withLock read
         }
 
-        val fields = ProfileFields.unseal(profile = current, key = currentKey)
+        val fields = ProfileFields.unseal(profile = current, key = currentKey, ownerUuid = userUuid)
             ?: return@withLock Result.Error(ProfileError.Crypto)
 
         takeOwedKey(userUuid = userUuid, owedKey = owedKey, fields = fields)
@@ -292,6 +298,9 @@ class ProfileRepository(
      * whoever was handed the current key. Anybody else reads the profile as it stood when their
      * key was replaced, and learns from this that a newer one exists, nothing more, see
      * [ProfileKeyPull][contact.ProfileKeyPull].
+     *
+     * Only a profile [userUuid] sealed opens, see [Context]: one of somebody else's served under
+     * their UUID is [ProfileError.Crypto], whatever key opens it.
      */
     suspend fun readFullName(
         userUuid: String,
@@ -304,7 +313,7 @@ class ProfileRepository(
 
         val fullName = unsealBound(
             key = profileEncryptionKey,
-            context = Context.FULL_NAME,
+            context = Context.fullName(ownerUuid = userUuid),
             content = profile.fullName,
         )?.decodeToString() ?: return Result.Error(ProfileError.Crypto)
 
@@ -332,13 +341,13 @@ class ProfileRepository(
             )
         }
 
-    /** Seals [fields] under [key] and uploads them as the user's version under that key. */
+    /** Seals [fields] under [key], bound to [userUuid], and uploads them as the user's version under that key. */
     private suspend fun save(
         userUuid: String,
         key: ByteArray,
         fields: ProfileFields,
     ): EmptyResult<ProfileError> {
-        val profile = fields.seal(key = key) ?: return Result.Error(ProfileError.Crypto)
+        val profile = fields.seal(key = key, ownerUuid = userUuid) ?: return Result.Error(ProfileError.Crypto)
 
         val save = profileStore.saveUserProfile(
             userUuid = userUuid,
@@ -353,33 +362,42 @@ class ProfileRepository(
     }
 }
 
-/** The fields of a profile in the clear, each sealed bound to its own [Context]. */
+/** The fields of a profile in the clear, each sealed bound to its owner and its own [Context]. */
 private class ProfileFields(
     val fullName: ByteArray,
     val phoneNumber: ByteArray,
     val bankDetails: ByteArray,
 ) {
-    /** These fields sealed under [key], or null when the key is the wrong size. */
-    fun seal(key: ByteArray): UserProfileDto? =
+    /** These fields sealed under [key] as [ownerUuid]'s, or null when the key is the wrong size. */
+    fun seal(key: ByteArray, ownerUuid: String): UserProfileDto? =
         UserProfileDto(
-            fullName = sealBound(key = key, context = Context.FULL_NAME, plaintext = fullName)
+            fullName = sealBound(key = key, context = Context.fullName(ownerUuid), plaintext = fullName)
                 ?: return null,
-            phoneNumber = sealBound(key = key, context = Context.PHONE_NUMBER, plaintext = phoneNumber)
+            phoneNumber = sealBound(key = key, context = Context.phoneNumber(ownerUuid), plaintext = phoneNumber)
                 ?: return null,
-            bankDetails = sealBound(key = key, context = Context.BANK_DETAILS, plaintext = bankDetails)
+            bankDetails = sealBound(key = key, context = Context.bankDetails(ownerUuid), plaintext = bankDetails)
                 ?: return null,
         )
 
     companion object {
-        /** The fields of [profile], or null when any of them does not open with [key]. */
-        fun unseal(profile: ServedUserProfileDto, key: ByteArray): ProfileFields? =
+        /**
+         * The fields of [profile], or null when any of them does not open with [key] as
+         * [ownerUuid]'s.
+         */
+        fun unseal(profile: ServedUserProfileDto, key: ByteArray, ownerUuid: String): ProfileFields? =
             ProfileFields(
-                fullName = unsealBound(key = key, context = Context.FULL_NAME, content = profile.fullName)
+                fullName = unsealBound(key = key, context = Context.fullName(ownerUuid), content = profile.fullName)
                     ?: return null,
-                phoneNumber = unsealBound(key = key, context = Context.PHONE_NUMBER, content = profile.phoneNumber)
-                    ?: return null,
-                bankDetails = unsealBound(key = key, context = Context.BANK_DETAILS, content = profile.bankDetails)
-                    ?: return null,
+                phoneNumber = unsealBound(
+                    key = key,
+                    context = Context.phoneNumber(ownerUuid),
+                    content = profile.phoneNumber,
+                ) ?: return null,
+                bankDetails = unsealBound(
+                    key = key,
+                    context = Context.bankDetails(ownerUuid),
+                    content = profile.bankDetails,
+                ) ?: return null,
             )
     }
 }

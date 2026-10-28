@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.TestExecutable
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -26,6 +27,13 @@ kotlin {
         iosTarget.binaries.framework {
             baseName = "Shared"
             isStatic = true
+        }
+
+        // The tests of the database's queries run them on an in-memory database opened on the
+        // system's SQLite, which the test executable alone links. The framework links none: the
+        // app supplies SQLCipher, see database/SqlCipherDriver.kt.
+        iosTarget.binaries.withType<TestExecutable>().configureEach {
+            linkerOpts("-lsqlite3")
         }
     }
 

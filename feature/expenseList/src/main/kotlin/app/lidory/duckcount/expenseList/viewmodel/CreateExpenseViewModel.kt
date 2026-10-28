@@ -32,7 +32,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -226,12 +228,15 @@ class CreateExpenseViewModel(
         )
 
     init {
+        creditorNames(
+            creditorUuids = _state.map { it.creditorUuid },
+            nameOf = createExpenseCallBacks::getUserFullName,
+        ).onEach { updateCreditorFullName(it) }.launchIn(viewModelScope)
+
         // Once, and not whenever the form is collected again: coming back to the app after a
         // few seconds away would otherwise read the expense back over what the user typed.
         viewModelScope.launch {
             updateCreditor(creditorUuid = createExpenseCallBacks.getAuthenticatedUserUuid() ?: "")
-
-            getCreditorName()
 
             groupUuid?.let {
                 val groupCurrency = createExpenseCallBacks.getGroupCurrency(groupUuid = it).first()
@@ -384,17 +389,6 @@ class CreateExpenseViewModel(
         _showError.send(error)
     }
 
-    fun getCreditorName() {
-        viewModelScope.launch {
-            createExpenseCallBacks.getUserFullName(_state.value.creditorUuid)
-                .collect {
-                    // TODO: Show that the username was not found?
-                    val fullName = it ?: _state.value.creditorUuid
-                    updateCreditorFullName(fullName)
-                }
-        }
-    }
-
     fun updateTitle(title: String) {
         _state.update {
             it.copy(title = title)
@@ -430,11 +424,11 @@ class CreateExpenseViewModel(
         }
     }
 
+    /** Makes [creditorUuid] the creditor, whose name follows, see [creditorNames]. */
     fun updateCreditor(creditorUuid: String) {
         _state.update {
             it.copy(creditorUuid = creditorUuid)
         }
-        getCreditorName()
     }
 
     fun updateCreditorFullName(creditorFullName: String) {
@@ -626,6 +620,22 @@ fun withoutDeletedAccounts(
     beneficiaryUuids: List<String>,
     deletedUserUuids: List<String>,
 ): Set<String> = beneficiaryUuids.toSet() - deletedUserUuids.toSet()
+
+/**
+ * Emits the name the form shows for the creditor, the last of [creditorUuids] picked, as [nameOf]
+ * tells it, each time it changes: a member of the group who is not the user's contact is named
+ * once a group sync reads their profile, which can be with the form open. Read for the creditor
+ * picked last alone, so that the name of one picked before never comes back over theirs.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+fun creditorNames(
+    creditorUuids: Flow<String>,
+    nameOf: (userUuid: String) -> Flow<String?>,
+): Flow<String> =
+    creditorUuids.distinctUntilChanged().flatMapLatest { creditorUuid ->
+        // TODO: Show that the username was not found?
+        nameOf(creditorUuid).map { it ?: creditorUuid }
+    }
 
 /**
  * [selected] with [uuid] taken out, or added when that keeps it within [max]: past the limit,

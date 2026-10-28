@@ -160,6 +160,32 @@ interface GroupDao {
     suspend fun markLeft(uuid: String)
 
     /**
+     * Records [handedProfileKeyHash] as the key to the user's profile the group [uuid] holds for
+     * them, or none known to be current, see [GroupEntity.handedProfileKeyHash].
+     */
+    @Query("UPDATE GroupEntity SET handedProfileKeyHash = :handedProfileKeyHash WHERE uuid = :uuid")
+    suspend fun setHandedProfileKeyHash(uuid: String, handedProfileKeyHash: String?)
+
+    /**
+     * The groups owed the key to the user's profile whose partial hash is [profileKeyHash], see
+     * [GroupEntity.handedProfileKeyHash], that it can be posted into now: those the user is still
+     * in, whose MLS group this device holds, whose creator is not blocked, see
+     * [IdentityConflictEntity][database.data.local.entity.IdentityConflictEntity], and with no change
+     * waiting on the server, its creation or a change to its members, which would leave the post in
+     * an epoch the members are moving past, or in a group the server does not hold yet.
+     */
+    @Query(
+        """SELECT * FROM GroupEntity
+        WHERE isLeft = false
+        AND mlsGroupId IS NOT NULL
+        AND ownerUuid NOT IN (SELECT peerUuid FROM IdentityConflictEntity)
+        AND uuid NOT IN (SELECT groupUuid FROM PendingGroupCreationEntity)
+        AND uuid NOT IN (SELECT groupUuid FROM PendingMembershipChangeEntity)
+        AND (handedProfileKeyHash IS NULL OR handedProfileKeyHash != :profileKeyHash)""",
+    )
+    suspend fun getOwedProfileKey(profileKeyHash: String): List<GroupEntity>
+
+    /**
      * Records [change] as the one pending for its group, see [PendingMembershipChangeEntity],
      * replacing the removal a key rotation comes after.
      */
@@ -216,4 +242,8 @@ interface GroupDao {
     /** The UUID of every group this device declined, see [DeclinedGroupEntity]. */
     @Query("SELECT groupUuid FROM DeclinedGroupEntity")
     suspend fun getDeclinedUuids(): List<String>
+
+    /** Forgets that the group [groupUuid] was declined, once the user left it, see [DeclinedGroupEntity]. */
+    @Query("DELETE FROM DeclinedGroupEntity WHERE groupUuid = :groupUuid")
+    suspend fun deleteDeclined(groupUuid: String)
 }

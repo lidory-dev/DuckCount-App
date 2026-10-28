@@ -34,6 +34,14 @@ internal class InMemoryProfileStore(private val events: MutableList<String> = mu
     /** Holds the next save back until the test releases it, saying when it got there. */
     fun holdNextSave(): HeldSave = HeldSave().also { held = it }
 
+    /**
+     * Serves the versions of [userUuid]'s profile as those of [asUserUuid], in place of theirs, as
+     * a dishonest server could: it serves whatever it holds under whichever UUID it is asked for.
+     */
+    fun serve(userUuid: String, asUserUuid: String) {
+        byUser[asUserUuid] = LinkedHashMap(byUser[userUuid].orEmpty())
+    }
+
     override suspend fun getUserProfile(
         userUuid: String,
         encryptionKeyPartialHash: String,
@@ -96,6 +104,7 @@ internal class UsersWritten : UserDao {
     override fun getInvitableFiltered(filter: String): Flow<List<UserEntity>> = error("Not used here")
     override fun getUserAsFlow(uuid: String): Flow<UserEntity?> = error("Not used here")
     override fun getUserFullNameAsFlow(uuid: String): Flow<String?> = error("Not used here")
+    override fun getDisplayNameAsFlow(uuid: String): Flow<String?> = error("Not used here")
     override suspend fun getFullName(uuid: String): String? = error("Not used here")
     override suspend fun getFullNameEvenIfHidden(uuid: String): String? = error("Not used here")
     override fun getAllFromGroupFiltered(filter: String, groupUuid: String): Flow<List<UserEntity>> =

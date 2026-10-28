@@ -22,14 +22,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
-import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -39,32 +37,21 @@ class GroupSettingsViewModel(
     private val groupUuid: String,
     private val groupSettingsCallBacks: GroupSettingsCallBacks,
 ) : ViewModel() {
-    fun getUserFullName(userUuid: String): Flow<String?> {
-        return groupSettingsCallBacks.getUserFullName(userUuid)
-    }
-
-    private val _state = MutableStateFlow(GroupSettingsState())
-
-    val state: StateFlow<GroupSettingsState> = _state.onStart {
-        groupSettingsCallBacks.getGroupWithMembers(groupUuid = groupUuid).onEach { groupWithMembers ->
-            _state.update {
-                it.copy(
-                    groupWithMembers = groupWithMembers,
-                    membersWithFullName = groupWithMembers.members.filter { it.userUuid.isNotBlank() }.map { member ->
-
-                        GroupMemberWithFullName(
-                            member = member,
-                            fullName = getUserFullName(member.userUuid).first(),
-                        )
-                    },
-                )
+    // One collection, shared by the screen, the picker and the open sheet, see memberUuids and
+    // memberSheet, and stopped 5 seconds after none of them collects it: the group and each of its
+    // members' names are observed once however often the user comes back to the screen, from a
+    // contact's profile or another app, and no more once they left it.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val state: StateFlow<GroupSettingsState> =
+        flow { emitAll(groupSettingsCallBacks.getGroupWithMembers(groupUuid = groupUuid)) }
+            .flatMapLatest { groupWithMembers ->
+                groupSettingsState(group = groupWithMembers, nameOf = groupSettingsCallBacks::getDisplayName)
             }
-        }.launchIn(viewModelScope)
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000L),
-        initialValue = GroupSettingsState(),
-    )
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000L),
+                initialValue = GroupSettingsState(),
+            )
 
     /** The most members the group may have, see [GroupSettingsCallBacks.maxMembers]. */
     val maxMembers: Int = groupSettingsCallBacks.maxMembers
@@ -91,7 +78,7 @@ class GroupSettingsViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val memberUuids: Flow<Set<String>> = _state
+    private val memberUuids: Flow<Set<String>> = state
         .map { state -> state.membersWithFullName.mapTo(HashSet()) { it.member.userUuid } }
         .distinctUntilChanged()
 
@@ -136,7 +123,8 @@ class GroupSettingsViewModel(
     var memberToRemove by mutableStateOf<GroupMemberWithFullName?>(null)
         private set
 
-    // The member whose sheet is open, see openMember, until it closes, see closeMember.
+    // The member whose sheet is open, as tapped, see openMember, until it closes, see closeMember.
+    // The sheet shows them as the group lists them since, see sheetMember.
     private val openedMember = MutableStateFlow<GroupMemberWithFullName?>(null)
 
     // True while a contact request to the member whose sheet is open is on its way to the server,
@@ -157,18 +145,16 @@ class GroupSettingsViewModel(
      * open, and until where the user stands with them is read: it opens with what it offers.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val memberSheet: StateFlow<MemberSheetState?> = openedMember.flatMapLatest { member ->
-        if (member == null) return@flatMapLatest flowOf(null)
+    val memberSheet: StateFlow<MemberSheetState?> = openedMember.flatMapLatest { opened ->
+        if (opened == null) return@flatMapLatest flowOf(null)
 
         combine(
-            groupSettingsCallBacks.getContactRelation(userUuid = member.member.userUuid),
-            // Whether the group still vouches for its members, and the user is still the one to
-            // remove them.
-            _state.mapNotNull { it.groupWithMembers }.distinctUntilChanged(),
+            groupSettingsCallBacks.getContactRelation(userUuid = opened.member.userUuid),
+            sheetMember(opened = opened, states = state),
             _isSendingRequest,
             requestError,
             isRequestTaken,
-        ) { relation, group, isSending, error, isTaken ->
+        ) { relation, (group, member), isSending, error, isTaken ->
             // Only until the read tells anything but nobody the user asked, so that whatever
             // changes after shows as read: they accept and then remove the user, say. This one
             // shows the same either way.
@@ -228,7 +214,7 @@ class GroupSettingsViewModel(
                 listedUuids = listedUuids.value,
                 uuid = uuid,
                 maxMembers = maxMembers,
-                currentMemberCount = _state.value.membersWithFullName.size,
+                currentMemberCount = state.value.membersWithFullName.size,
             )
         }
     }
@@ -331,6 +317,54 @@ data class GroupSettingsState(
     val groupWithMembers: GroupWithMembers? = null,
     val membersWithFullName: List<GroupMemberWithFullName> = emptyList(),
 )
+
+/**
+ * Emits the settings of [group], its members named as [nameOf] tells, see [displayNames], each
+ * time a name changes: a member the user is put in a group with by somebody else is named once a
+ * group sync reads their profile, which can be after the screen opened.
+ */
+fun groupSettingsState(
+    group: GroupWithMembers,
+    nameOf: (userUuid: String) -> Flow<String?>,
+): Flow<GroupSettingsState> {
+    val members = group.members.filter { it.userUuid.isNotBlank() }
+
+    return displayNames(userUuids = members.map { it.userUuid }, nameOf = nameOf).map { names ->
+        GroupSettingsState(
+            groupWithMembers = group,
+            membersWithFullName = members.map { member ->
+                GroupMemberWithFullName(member = member, fullName = names[member.userUuid])
+            },
+        )
+    }
+}
+
+/**
+ * The member whose sheet is open, [opened] as tapped, as the group's [members] list them now:
+ * under the name read last, which can have come with the sheet open. As tapped once the group
+ * lists them no more, a sync reading their removal with the sheet open, until it closes.
+ */
+fun shownMember(
+    opened: GroupMemberWithFullName,
+    members: List<GroupMemberWithFullName>,
+): GroupMemberWithFullName = members.find { it.member.userUuid == opened.member.userUuid } ?: opened
+
+/**
+ * Emits what the sheet of [opened] shows of the group, as the settings, [states], tell it: the
+ * group, whether it still vouches for its members and the user is still the one to remove them,
+ * and [opened] as it lists them, see [shownMember], again only once either changes. Nothing until
+ * the group is read.
+ */
+fun sheetMember(
+    opened: GroupMemberWithFullName,
+    states: Flow<GroupSettingsState>,
+): Flow<Pair<GroupWithMembers, GroupMemberWithFullName>> = states
+    .mapNotNull { state ->
+        state.groupWithMembers?.let { group ->
+            group to shownMember(opened = opened, members = state.membersWithFullName)
+        }
+    }
+    .distinctUntilChanged()
 
 /** What the user can do about the members of a group from its settings, see [memberActions]. */
 enum class MemberActions {

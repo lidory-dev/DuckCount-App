@@ -24,7 +24,7 @@ class ExpenseDetailCallBacksImpl(
     }
 
     override fun getUserFullName(userUuid: String): Flow<String?> {
-        return userRepository.getFullName(userUuid)
+        return userRepository.getDisplayName(userUuid)
     }
 
     override fun isGroupLeft(groupUuid: String): Flow<Boolean> {

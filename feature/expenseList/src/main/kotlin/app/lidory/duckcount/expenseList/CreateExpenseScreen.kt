@@ -102,10 +102,7 @@ fun CreateExpenseScreen(
     CreditorDialog(
         isDialogShown = viewModel.isCreditorDialogShown,
         onDismissRequest = { viewModel.hideCreditorDialog() },
-        onSelectedCreditor = {
-            viewModel.updateCreditor(creditorUuid = it)
-            viewModel.getCreditorName()
-        },
+        onSelectedCreditor = { viewModel.updateCreditor(creditorUuid = it) },
         focusManager = focusManager,
         usersList = userState.users,
         searchQuery = viewModel.searchQuery,

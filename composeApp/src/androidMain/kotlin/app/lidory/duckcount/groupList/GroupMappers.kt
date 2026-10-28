@@ -238,6 +238,7 @@ private fun VaultError.toGroupCreationFailure(isOnline: Boolean): GroupCreationF
     VaultError.Crypto,
     VaultError.MalformedKeyRing,
     VaultError.MalformedContactBook,
+    VaultError.MalformedMemberProfileBook,
     VaultError.OrphanedEntry,
     VaultError.Contended,
         -> GroupCreationFailure.UNKNOWN
@@ -341,6 +342,7 @@ private fun VaultError.toContactRequestError(isOnline: Boolean): ContactRequestE
     VaultError.Crypto,
     VaultError.MalformedKeyRing,
     VaultError.MalformedContactBook,
+    VaultError.MalformedMemberProfileBook,
     VaultError.OrphanedEntry,
     VaultError.Contended,
         -> ContactRequestError.UNKNOWN

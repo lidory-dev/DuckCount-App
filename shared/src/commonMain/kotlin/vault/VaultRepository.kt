@@ -50,7 +50,7 @@ import util.onSuccess
  */
 class VaultRepository(
     private val vaultApi: VaultApi,
-) : ProfileKeyVault {
+) : ProfileKeyVault, MemberProfileVault {
 
     /**
      * Serializes reading and replacing the profile key, which both end with writing down the
@@ -300,6 +300,59 @@ class VaultRepository(
             is Result.Error -> write
         }
     }
+
+    /**
+     * The keys to the profiles of the members of the user's groups as the vault holds them, see
+     * [MemberProfileBook]. Empty when the vault holds none yet.
+     */
+    override suspend fun getMemberProfileBook(): Result<MemberProfileBook, VaultError> {
+        val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
+
+        return when (val singleton = readPart(rootKey = rootKey, part = VaultEntryKey.MEMBER_PROFILE_KEYS)) {
+            is Result.Success -> memberProfileBookOf(read = singleton.data)
+            is Result.Error -> Result.Error(singleton.error)
+        }
+    }
+
+    /**
+     * Writes each member in [added], keyed by their user UUID, into what the vault holds, see
+     * [MemberProfileBook.with]: a key from its owner the vault holds is not replaced by a relayed
+     * one.
+     *
+     * The members are sealed whole, so any change rewrites all of them, in one write against the
+     * version they were read at: a member another device wrote in between is refused as
+     * [VaultError.Contended] rather than overwritten, for the caller to read and merge again.
+     */
+    override suspend fun updateMemberProfiles(added: Map<String, VaultMemberProfile>): EmptyResult<VaultError> {
+        val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
+
+        val read = when (val singleton = readPart(rootKey = rootKey, part = VaultEntryKey.MEMBER_PROFILE_KEYS)) {
+            is Result.Success -> singleton.data
+            is Result.Error -> return Result.Error(singleton.error)
+        }
+
+        val book = when (val parsed = memberProfileBookOf(read = read)) {
+            is Result.Success -> parsed.data
+            is Result.Error -> return Result.Error(parsed.error)
+        }
+
+        return writePart(
+            rootKey = rootKey,
+            keyRing = read.keyRing,
+            part = VaultEntryKey.MEMBER_PROFILE_KEYS,
+            plaintext = book.withChanges(added = added).serialize(),
+            expectedVersion = read.version,
+        )
+    }
+
+    /** The book [read] of [VaultEntryKey.MEMBER_PROFILE_KEYS] holds, empty when the vault holds none. */
+    private fun memberProfileBookOf(read: PartRead): Result<MemberProfileBook, VaultError> =
+        when (val plaintext = read.plaintext) {
+            null -> Result.Success(MemberProfileBook.EMPTY)
+
+            else -> MemberProfileBook.parse(plaintext = plaintext)?.let { Result.Success(it) }
+                ?: Result.Error(VaultError.MalformedMemberProfileBook)
+        }
 
     /**
      * Backs up [groupKey] as the key of the group [groupUuid], replacing whatever the vault held

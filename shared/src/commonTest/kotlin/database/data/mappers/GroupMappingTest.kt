@@ -118,6 +118,7 @@ class GroupMappingTest {
             groupKey = ByteArray(32),
             isBackedUp = true,
             isLeft = isLeft,
+            handedProfileKeyHash = null,
         ),
         groupMembers = listOf(
             GroupMemberEntity(userUuid = ALICE, groupUuid = GROUP, isAdmin = ownerUuid == ALICE),

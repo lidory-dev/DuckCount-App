@@ -17,6 +17,7 @@ import database.data.local.dao.GroupMemberDao
 import database.data.local.dao.IdentityConflictDao
 import database.data.local.dao.ListedOneTimeExpenseDao
 import database.data.local.dao.LocalDataDao
+import database.data.local.dao.MemberProfileDao
 import database.data.local.dao.MlsRecordDao
 import database.data.local.dao.OneTimeExpenseKeyDao
 import database.data.local.dao.OwedExpenseKeyDao
@@ -36,6 +37,7 @@ import database.data.local.entity.GroupMemberEntity
 import database.data.local.entity.IdentityConflictEntity
 import database.data.local.entity.KeyRequestBudgetEntity
 import database.data.local.entity.ListedOneTimeExpenseEntity
+import database.data.local.entity.MemberProfileEntity
 import database.data.local.entity.MlsRecordEntity
 import database.data.local.entity.OneTimeExpenseKeyEntity
 import database.data.local.entity.OneTimeExpenseRevisionEntity
@@ -84,6 +86,7 @@ import org.koin.mp.KoinPlatform.getKoin
         ListedOneTimeExpenseEntity::class,
         ChangeFeedEntity::class,
         MlsRecordEntity::class,
+        MemberProfileEntity::class,
     ],
     version = 1,
 )
@@ -106,6 +109,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract val owedExpenseKeyDao: OwedExpenseKeyDao
     abstract val listedOneTimeExpenseDao: ListedOneTimeExpenseDao
     abstract val mlsRecordDao: MlsRecordDao
+    abstract val memberProfileDao: MemberProfileDao
 
     abstract val localDataDao: LocalDataDao
 

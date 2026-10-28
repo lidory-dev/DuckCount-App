@@ -10,6 +10,7 @@ import contact.RemoveContactError
 import database.data.local.dao.ContactDao
 import database.data.local.dao.DirectChannelDao
 import database.data.local.dao.IdentityConflictDao
+import database.data.local.dao.MemberProfileDao
 import database.data.local.dao.PendingExpenseKeyDao
 import database.data.local.dao.PendingProfileKeyDao
 import database.data.local.entity.ContactEntity
@@ -68,6 +69,7 @@ class ContactRepository(
     private val identityConflictDao: IdentityConflictDao,
     private val pendingExpenseKeyDao: PendingExpenseKeyDao,
     private val pendingProfileKeyDao: PendingProfileKeyDao,
+    private val memberProfileDao: MemberProfileDao,
     private val userRepository: UserRepository,
     private val vaultRepository: VaultRepository,
     private val profileRepository: ProfileRepository,
@@ -664,7 +666,9 @@ class ContactRepository(
      * Their user stays, hidden from the contact list, rather than being deleted: a user can
      * be more than a contact, a group the two of them are in still lists them, and an expense
      * they share still names them, by the name [backUp] keeps in the vault for every former
-     * contact. Their channel row stays too, emptied, see [DirectChannelEntity].
+     * contact. Their channel row stays too, emptied, see [DirectChannelEntity]. A group that named
+     * them before they became a contact names them by the contact list's name until it reads theirs
+     * again, see [MemberProfileDao.takeFormerContactName].
      *
      * What this device is still waiting for from them is noted first: the keys to those
      * expenses are the only ones they can still hand over, see
@@ -697,6 +701,14 @@ class ContactRepository(
         wakeList.rebuild()
 
         userRepository.remove(userUuid = userUuid)
+
+        // From here on the groups name them by the name read with the key a group handed over, see
+        // UserDao.getDisplayNameAsFlow, which can be one read before they became a contact: the
+        // contact list's takes its place until it is read again.
+        memberProfileDao.takeFormerContactName(
+            userUuid = userUuid,
+            fullName = userRepository.getFullNameEvenIfHidden(uuid = userUuid),
+        )
 
         // Under the peer's lock, which every change to the groups their channel names takes: a
         // group adopted between the read and the clear would be left with nothing naming it.

@@ -44,6 +44,7 @@ interface LocalDataDao {
         deleteListedOneTimeExpenses()
         deleteChangeFeeds()
         deleteMlsRecords()
+        deleteMemberProfiles()
     }
 
     @Query("DELETE FROM UserEntity")
@@ -123,4 +124,7 @@ interface LocalDataDao {
 
     @Query("DELETE FROM MlsRecordEntity")
     suspend fun deleteMlsRecords()
+
+    @Query("DELETE FROM MemberProfileEntity")
+    suspend fun deleteMemberProfiles()
 }

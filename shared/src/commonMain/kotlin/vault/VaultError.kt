@@ -33,6 +33,13 @@ sealed interface VaultError : Error {
     data object MalformedContactBook : VaultError
 
     /**
+     * The plaintext of the members' keys is not the map of members it is supposed to be, see
+     * [MemberProfileBook], so it is left alone rather than overwritten with the members this build
+     * could make sense of.
+     */
+    data object MalformedMemberProfileBook : VaultError
+
+    /**
      * The vault holds a part whose key the key ring does not carry, so the part can
      * never be read again.
      */

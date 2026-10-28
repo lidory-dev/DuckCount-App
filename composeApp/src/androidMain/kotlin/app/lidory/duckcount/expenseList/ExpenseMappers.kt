@@ -56,6 +56,7 @@ fun OneTimeExpenseWriteError.toExpenseWriteError(isOnline: Boolean): ExpenseWrit
             VaultError.Crypto,
             VaultError.MalformedKeyRing,
             VaultError.MalformedContactBook,
+            VaultError.MalformedMemberProfileBook,
             VaultError.OrphanedEntry,
                 -> ExpenseWriteError.UNKNOWN
         }

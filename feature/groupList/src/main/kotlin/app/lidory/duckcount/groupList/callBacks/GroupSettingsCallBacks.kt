@@ -16,7 +16,12 @@ interface GroupSettingsCallBacks {
 
     suspend fun getGroupWithMembers(groupUuid: String): Flow<GroupWithMembers>
 
-    fun getUserFullName(userUuid: String): Flow<String?>
+    /**
+     * Emits the name to show for [userUuid], a member of the group, as it changes, or null while
+     * this device has none for them: one who is not the user's contact is named once a group hands
+     * over the key to their profile, and it is read.
+     */
+    fun getDisplayName(userUuid: String): Flow<String?>
 
     /**
      * Emits who the user can put in a group, whose name contains [filter], see

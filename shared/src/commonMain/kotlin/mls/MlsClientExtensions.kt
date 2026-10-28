@@ -314,8 +314,9 @@ internal suspend fun MlsClient.inspectGroupWelcome(welcome: ByteArray, groupUuid
  * [groupUuid], as the inspection checked, and the group holds exactly the user and
  * [expectedMembers], the members that inspection read in the Welcome's tree, which whoever wrote
  * it signed. Not those the server lists: that list is today's, the tree the one of the epoch the
- * Welcome opens, and a member who deleted their account since is gone from the one and still in
- * the other, nobody committing their removal yet.
+ * Welcome opens, and a member who left the group since, or deleted their account, is gone from
+ * the one and still in the other until the creator's device next syncs and removes them, see
+ * [group.GroupSync].
  *
  * Those this device pinned an identity for are checked against it, the others left unpinned:
  * theirs is whatever key package the server served whoever wrote the Welcome, which is not

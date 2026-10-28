@@ -13,6 +13,7 @@ import expense.ExpenseArrivals
 import expense.ExpenseChanges
 import expense.OneTimeExpenseSync
 import group.GroupSync
+import group.GroupSyncError
 import kotlinx.coroutines.CancellationException
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -114,7 +115,12 @@ class PushSyncWorker(
         // bring in, which is why the groups hear whether it did.
         val contacts = contactSync.sync()
         val groups = groupSync.sync(contactsTakenIn = contacts.isTakenIn)
-        val expenses = oneTimeExpenseSync.sync()
+
+        // The device locked as the groups were synced, which reports what it joined and left all
+        // the same, to be told about below: the next sync finds them read already. The expenses
+        // could only throw now, and wait for the unlock with the rest.
+        val isLocked = groups.failure == GroupSyncError.DeviceLocked
+        val expenses = if (isLocked) null else oneTimeExpenseSync.sync()
 
         // Whatever did arrive, or change, is worth showing even when a later step failed,
         // and whatever left takes what was said about it down: a contact who removed the
@@ -128,6 +134,8 @@ class PushSyncWorker(
 
         expenseNotifier.notify(arrivals = expenseArrivals.since(snapshot = expensesBefore))
         expenseNotifier.notifyChanges(changes = expenseChanges.since(snapshot = shownBefore))
+
+        if (isLocked) return waitForUnlock()
 
         if (contacts.failure != null) {
             Log.w(TAG, "doWork: could not sync the contacts: ${contacts.failure}")

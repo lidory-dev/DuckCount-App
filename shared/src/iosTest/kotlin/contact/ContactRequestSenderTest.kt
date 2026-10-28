@@ -504,6 +504,7 @@ class ContactRequestSenderTest {
         groupKey = groupKey,
         isBackedUp = true,
         isLeft = isLeft,
+        handedProfileKeyHash = null,
     )
 
     /**

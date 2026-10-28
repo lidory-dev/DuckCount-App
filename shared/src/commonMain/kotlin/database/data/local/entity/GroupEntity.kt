@@ -63,4 +63,23 @@ class GroupEntity(
      * to life.
      */
     val isLeft: Boolean,
+
+    /**
+     * The partial hash of the key to the user's own profile they last posted into the group, which
+     * its members read their name with, see `group.MemberProfileRepository`, or null when they owe
+     * it theirs, posted into the group, see `group.GroupProfileKeyDelivery`.
+     *
+     * The creator hands every member's key over when he seats somebody, the user's included, and
+     * the members take it only for somebody they hold no key for: one of them may hold an older
+     * key of the user's, which only the user's own post replaces. So a group the user joins is
+     * owed it, and so is one whose creator seats somebody, whatever key he relays for the user,
+     * see `group.GroupSync.takeProfileKeys`. The creator's own entry is his own word to every
+     * member, so a group he creates holds his key from the start, and one he seats somebody in
+     * goes on holding what it held: unless his entry is missing, the vault not answering for his
+     * key, which leaves the group owed it either way, see `group.GroupCreator` and
+     * `group.GroupMembershipChanger`. One that is not the user's current key, as every group's is
+     * once theirs rotates, is owed the current one just the same, see
+     * [database.data.local.dao.GroupDao.getOwedProfileKey].
+     */
+    val handedProfileKeyHash: String?,
 )

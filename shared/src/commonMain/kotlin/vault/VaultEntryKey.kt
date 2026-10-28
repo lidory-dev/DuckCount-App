@@ -115,7 +115,21 @@ enum class VaultEntryKey(val wireName: String) {
      * account's profile along with it, so without this entry a log-out or a reinstall would
      * lose who they were in every expense the two of them share.
      */
-    CONTACTS("contacts");
+    CONTACTS("contacts"),
+
+    /**
+     * The keys to the profiles of the members of the user's groups, which the groups handed over,
+     * each with the name read with it, if any: a contact's included, which names them should the
+     * two of them part, a contact being named by [CONTACTS] until then. Singleton, see
+     * [MemberProfileBook].
+     *
+     * Sealed whole rather than split into an entry per member, so the server learns neither who
+     * they are nor how many, for the same reason as [CONTACTS]. A log-out takes every key learned
+     * over MLS with it, and a group brought back after one reads nothing until its creator adds
+     * the user back: without this entry, every member who is not a contact would go unnamed until
+     * then, and one who left the group for good would never be named again.
+     */
+    MEMBER_PROFILE_KEYS("member_profile_keys");
 
     companion object {
         /** The part [wireName] names, or null for one this build does not know. */

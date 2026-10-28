@@ -25,9 +25,11 @@ import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import uniffi.lib_duckcount.newGroupId
+import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
 import util.EmptyResult
 import util.NetworkError
 import util.Result
+import vault.ProfileKeyVault
 import kotlin.io.encoding.Base64
 
 /**
@@ -42,11 +44,12 @@ import kotlin.io.encoding.Base64
  *    of them blocked, see [refusalOf].
  * 2. A key package is asked for each of them, a few at a time, see [fetchKeyPackages]. Any of them
  *    without one stops everything here, every one of them named, with nothing saved.
- * 3. The group is built with the library, its key travelling in the Welcome, see [build], and saved
- *    with its members and the request that will create it, in one transaction, before anything is
- *    sent. Its UUID is derived from the user's own and a nonce this device draws, as the server
- *    derives it, see `group_uuid` in lib-duckcount, so nobody else's request can create a group
- *    under it, and the group is the creator's from then on, whatever the server answers.
+ * 3. The group is built with the library, its key travelling in the Welcome with the key to every
+ *    member's profile this device holds, see [build] and [profileKeysToHandOut], and saved with its
+ *    members and the request that will create it, in one transaction, before anything is sent.
+ *    Its UUID is derived from the user's own and a nonce this device draws, as the server derives
+ *    it, see `group_uuid` in lib-duckcount, so nobody else's request can create a group under it,
+ *    and the group is the creator's from then on, whatever the server answers.
  * 4. It is sent, see [GroupCreationSender.send], its resend booked first, see
  *    [GroupCreationSender.bookResend]. Only a refusal undoes it; the server not answering, or
  *    answering that it cannot take it yet, leaves it to go out again, and the user is told it is
@@ -63,8 +66,11 @@ import kotlin.io.encoding.Base64
  * [contacts] and [blocked] are [ContactDao.getUserUuids] and [IdentityConflictDao.getBlocked],
  * [client] is [MlsIdentityRepository.client], [consumeKeyPackage] is
  * [KeyPackageApi.consumeKeyPackage], [save] is [GroupDao.insertCreated], [bookResend] and [send]
- * are [GroupCreationSender.bookResend] and [GroupCreationSender.send], and [backUp] is
- * [GroupKeyBackUp.backUp], or what a test stands in for any of them.
+ * are [GroupCreationSender.bookResend] and [GroupCreationSender.send], [backUp] is
+ * [GroupKeyBackUp.backUp], [ownProfileKey] is [ProfileKeyVault.getOrCreateProfileEncryptionKey],
+ * null when it fails, [contactProfileKey] is the key [ContactDao.get] holds and
+ * [learnedProfileKey] is [MemberProfileRepository.keyFor], or what a test stands in for any of
+ * them.
  */
 class GroupCreator internal constructor(
     private val userUuid: () -> String?,
@@ -81,6 +87,9 @@ class GroupCreator internal constructor(
     private val bookResend: suspend () -> Unit,
     private val send: suspend (pendingCreation: PendingGroupCreationEntity) -> GroupCreationAnswer,
     private val backUp: suspend (groupUuid: String, groupKey: ByteArray) -> Unit,
+    private val ownProfileKey: suspend () -> ByteArray?,
+    private val contactProfileKey: suspend (userUuid: String) -> ByteArray?,
+    private val learnedProfileKey: suspend (userUuid: String) -> ByteArray?,
 ) {
     constructor(
         contactRepository: ContactRepository,
@@ -91,6 +100,8 @@ class GroupCreator internal constructor(
         groupDao: GroupDao,
         groupCreationSender: GroupCreationSender,
         groupKeyBackUp: GroupKeyBackUp,
+        profileKeyVault: ProfileKeyVault,
+        memberProfileRepository: MemberProfileRepository,
     ) : this(
         userUuid = ::getAuthenticatedUserUuid,
         restoreContacts = contactRepository::restore,
@@ -102,6 +113,9 @@ class GroupCreator internal constructor(
         bookResend = groupCreationSender::bookResend,
         send = groupCreationSender::send,
         backUp = { groupUuid, groupKey -> groupKeyBackUp.backUp(groupUuid = groupUuid, groupKey = groupKey) },
+        ownProfileKey = { (profileKeyVault.getOrCreateProfileEncryptionKey() as? Result.Success)?.data },
+        contactProfileKey = { userUuid -> contactDao.get(userUuid = userUuid)?.profileEncryptionKey },
+        learnedProfileKey = memberProfileRepository::keyFor,
     )
 
     /**
@@ -172,6 +186,17 @@ class GroupCreator internal constructor(
             is KeyPackageFetch.Failed -> return Result.Error(GroupCreationError.Network(fetched.error))
         }
 
+        // Every member's, for the others to read their names with: each invitee's, whom the user
+        // seats as a contact, and the user's own, unless the vault does not answer, which leaves
+        // the group owed it, posted by the next sync, see GroupProfileKeyDelivery.
+        val profileKeys = profileKeysToHandOut(
+            memberUuids = listOf(selfUuid) + keyPackages.map { it.userUuid },
+            selfUuid = selfUuid,
+            ownProfileKey = ownProfileKey(),
+            contactProfileKey = contactProfileKey,
+            learnedProfileKey = learnedProfileKey,
+        )
+
         val pendingCreation = when (
             val built = withContext(NonCancellable) {
                 build(
@@ -183,6 +208,7 @@ class GroupCreator internal constructor(
                     groupKey = groupKey,
                     sealedFields = sealedFields,
                     keyPackages = keyPackages,
+                    profileKeys = profileKeys,
                 ).also { saved ->
                     // Before the send, which the caller may cut short or the process not live
                     // through: booked here, nothing keeps the creation from going out again.
@@ -228,10 +254,13 @@ class GroupCreator internal constructor(
 
     /**
      * Builds the MLS group of the user, [selfUuid], and the owners of [keyPackages], under the id
-     * the library derives from [groupUuid], handing them [groupKey] in the Welcome, bare: the id
-     * already binds the Welcome to [groupUuid], see [GroupSync]. Then saves it as that group,
-     * see [GroupDao.insertCreated], with the request that creates it on the server, which it
-     * returns: sending [nonce], from which the server derives [groupUuid] as this device did.
+     * the library derives from [groupUuid], handing them [groupKey] in the Welcome, with
+     * [profileKeys], the key to the profile of each member this device holds, see
+     * [welcomePayloadOf]: the id already binds the Welcome to [groupUuid], see [GroupSync]. Then
+     * saves it as that group, see [GroupDao.insertCreated], holding the user's own key among
+     * [profileKeys] for them, see [GroupEntity.handedProfileKeyHash], with the request that creates
+     * it on the server, which it returns: sending [nonce], from which the server derives
+     * [groupUuid] as this device did.
      *
      * Those of [keyPackages] the library cannot use, an expired one say, are named as having none,
      * as [fetchKeyPackages] names those who have none at all.
@@ -247,12 +276,13 @@ class GroupCreator internal constructor(
         groupKey: ByteArray,
         sealedFields: SealedGroupFields,
         keyPackages: List<InviteeKeyPackage>,
+        profileKeys: Map<String, ByteArray>,
     ): Result<PendingGroupCreationEntity, GroupCreationError> {
         val creation = try {
             client.createGroupOf(
                 groupUuid = groupUuid,
                 invitees = keyPackages,
-                welcomePayload = groupKey,
+                welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = profileKeys),
             )
         } catch (exception: MlsException) {
             return Result.Error(
@@ -291,6 +321,7 @@ class GroupCreator internal constructor(
             groupKey = groupKey,
             isBackedUp = false,
             isLeft = false,
+            handedProfileKeyHash = profileKeys[selfUuid]?.let { profileEncryptionKeyPartialHash(it) },
         )
 
         val members = listOf(GroupMemberEntity(userUuid = selfUuid, groupUuid = groupUuid, isAdmin = true)) +

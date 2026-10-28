@@ -29,6 +29,7 @@ interface ExpenseListCallBacks {
 
     fun getAllExpensesFromGroup(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>>
 
+    /** Emits the name to show for [userUuid] as it changes, see [CreateExpenseCallBacks.getUserFullName]. */
     fun getUserFullName(userUuid: String): Flow<String?>
 
     fun getAuthenticatedUserUuid(): String?

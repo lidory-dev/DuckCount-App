@@ -6,13 +6,33 @@ import group.GroupCreator
 import group.GroupKeyBackUp
 import group.GroupMembershipChanger
 import group.GroupMembershipSender
+import group.GroupProfileKeyDelivery
 import group.GroupSync
+import group.MemberProfileRepository
 import org.koin.dsl.module
 
 val groupModule = module {
     single { GroupApi(client = get()) }
 
     single { GroupKeyBackUp(groupDao = get(), vaultRepository = get()) }
+
+    single {
+        MemberProfileRepository(
+            memberProfileDao = get(),
+            memberProfileVault = get(),
+            profileRepository = get(),
+        )
+    }
+
+    single {
+        GroupProfileKeyDelivery(
+            profileKeyVault = get(),
+            groupDao = get(),
+            mlsIdentityRepository = get(),
+            groupApi = get(),
+            resendScheduler = get(),
+        )
+    }
 
     single {
         GroupCreationSender(
@@ -35,6 +55,8 @@ val groupModule = module {
             groupDao = get(),
             groupCreationSender = get(),
             groupKeyBackUp = get(),
+            profileKeyVault = get(),
+            memberProfileRepository = get(),
         )
     }
 
@@ -58,6 +80,8 @@ val groupModule = module {
             keyPackageApi = get(),
             groupDao = get(),
             groupMembershipSender = get(),
+            profileKeyVault = get(),
+            memberProfileRepository = get(),
         )
     }
 
@@ -67,12 +91,17 @@ val groupModule = module {
             groupDao = get(),
             groupCreationSender = get(),
             groupMembershipSender = get(),
+            groupMembershipChanger = get(),
             groupKeyBackUp = get(),
+            groupProfileKeyDelivery = get(),
+            memberProfileRepository = get(),
             vaultRepository = get(),
             contactRepository = get(),
             contactDao = get(),
+            identityConflictDao = get(),
             mlsIdentityRepository = get(),
             userDao = get(),
+            resendScheduler = get(),
         )
     }
 }

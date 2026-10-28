@@ -5,8 +5,7 @@ import app.lidory.duckcount.getTransactionForGroup
 import app.lidory.duckcount.groupList.callBacks.GroupSettleUpCallBacks
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.groupList.model.GroupMember
-import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
-import app.lidory.duckcount.groupList.model.TransactionWithFullName
+import app.lidory.duckcount.groupList.model.Transaction
 import database.data.repository.ExpenseRepository
 import database.data.repository.GroupMemberRepository
 import database.data.repository.GroupRepository
@@ -30,7 +29,7 @@ class GroupSettleUpCallBacksImpl(
         groupUuid: String,
         groupMembers: List<GroupMember>,
         groupExpenses: List<ExpenseWithBeneficiaries>,
-    ): List<TransactionWithFullName> {
+    ): List<Transaction> {
         return getTransactionForGroup(
             currency = getCurrency(groupUuid),
             members = groupMembers.map { groupMember ->
@@ -38,29 +37,22 @@ class GroupSettleUpCallBacksImpl(
             },
             expenses = groupExpenses.map { it.toDb() },
         ).map { transaction ->
-            TransactionWithFullName(
+            Transaction(
                 debtorUuid = transaction.debtorUuid,
-                debtorFullName = userRepository.getFullName(transaction.debtorUuid).first(),
                 creditorUuid = transaction.creditorUuid,
-                creditorFullName = userRepository.getFullName(transaction.creditorUuid).first(),
                 amount = transaction.amount,
             )
         }
     }
 
-    override fun getAllMembers(groupUuid: String): Flow<List<GroupMemberWithFullName>> {
+    override fun getAllMembers(groupUuid: String): Flow<List<GroupMember>> {
         return groupMemberRepository.getMembersFromGroup(groupUuid = groupUuid).map { groupMembers ->
-            groupMembers.map { groupMember ->
-                GroupMemberWithFullName(
-                    member = GroupMember(
-                        userUuid = groupMember.userUuid,
-                        groupUuid = groupMember.groupUuid,
-                        isAdmin = groupMember.isAdmin,
-                    ),
-                    fullName = userRepository.getFullName(groupMember.userUuid).first(),
-                )
-            }
+            groupMembers.map { it.toGroupListModel() }
         }
+    }
+
+    override fun getDisplayName(userUuid: String): Flow<String?> {
+        return userRepository.getDisplayName(userUuid)
     }
 
     override fun getAllGroupActiveExpenses(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> {

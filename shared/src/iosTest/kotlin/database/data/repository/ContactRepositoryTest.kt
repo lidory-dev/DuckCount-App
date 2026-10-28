@@ -15,6 +15,7 @@ import database.data.local.dao.ContactRequestDao
 import database.data.local.dao.ContactTables
 import database.data.local.dao.DirectChannelDao
 import database.data.local.dao.LocalDataDao
+import database.data.local.dao.MemberProfileTables
 import database.data.local.dao.NoChannels
 import database.data.local.dao.NothingAwaited
 import database.data.local.dao.copy
@@ -22,6 +23,7 @@ import database.data.local.entity.ContactEntity
 import database.data.local.entity.ContactRequestEntity
 import database.data.local.entity.ContactStanding
 import database.data.local.entity.DirectChannelEntity
+import database.data.local.entity.MemberProfileEntity
 import database.data.local.entity.OpenedContactRequest
 import database.data.local.entity.OutgoingContactRequestEntity
 import database.data.local.entity.PendingProfileKeyEntity
@@ -42,6 +44,7 @@ import profile.ProfileRepository
 import profile.UsersWritten
 import push.WakeList
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
+import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
 import util.NetworkError
 import util.Result
 import vault.ContactBook
@@ -75,6 +78,7 @@ private const val ERIN = "99999999-9999-9999-9999-999999999999"
 class ContactRepositoryTest {
 
     private val tables = ContactTables()
+    private val memberProfiles = MemberProfileTables(contacts = tables)
     private val store = InMemoryProfileStore()
 
     private val userFirstKey = generateSymmetricEncryptionKey()
@@ -114,6 +118,7 @@ class ContactRepositoryTest {
         identityConflictDao = tables.identityConflictDao,
         pendingExpenseKeyDao = NothingAwaited,
         pendingProfileKeyDao = tables.pendingProfileKeyDao,
+        memberProfileDao = memberProfiles.memberProfileDao,
         userRepository = UserRepository(userDao = tables.userDao, userApi = UserApi(client = client)),
         vaultRepository = vaultRepository,
         profileRepository = profiles,
@@ -224,6 +229,38 @@ class ContactRepositoryTest {
         assertNull(tables.names[ALICE])
         assertEquals("Alice Martin", tables.hidden[ALICE])
     }
+
+    /**
+     * A group named Alice before she became a contact, under the very key she handed over since,
+     * and she renamed herself while she was one: the name the group read is older than the
+     * contact list's, and its read marker still matches her key, so nothing would read it again.
+     */
+    @Test
+    fun `a former contact a group named before is named as the contact list named them and read again`() =
+        runBlocking<Unit> {
+            tables.add(contact(ALICE, key = aliceFirstKey))
+            tables.names[ALICE] = "Alice Martin"
+            memberProfiles.add(
+                MemberProfileEntity(
+                    userUuid = ALICE,
+                    profileEncryptionKey = aliceFirstKey,
+                    isFromOwner = true,
+                    ownerKeySentAt = 1_000L,
+                    fullName = "alice",
+                    nameKeyHash = profileEncryptionKeyPartialHash(aliceFirstKey),
+                    isBackedUp = true,
+                ),
+            )
+
+            receive(from = ALICE, payload = ContactRemoval.serialize())
+
+            val alice = memberProfiles.rows.getValue(ALICE)
+
+            assertEquals("Alice Martin", alice.fullName)
+            assertNull(alice.nameKeyHash)
+            assertFalse(alice.isBackedUp)
+            assertContentEquals(aliceFirstKey, alice.profileEncryptionKey)
+        }
 
     /**
      * A message to Alice found her account deleted: she is forgotten as if her notice of removal
@@ -825,4 +862,5 @@ private object NoLocalData : LocalDataDao {
     override suspend fun deleteListedOneTimeExpenses() = error("Not used here")
     override suspend fun deleteChangeFeeds() = error("Not used here")
     override suspend fun deleteMlsRecords() = error("Not used here")
+    override suspend fun deleteMemberProfiles() = error("Not used here")
 }

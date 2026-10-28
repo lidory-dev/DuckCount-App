@@ -4,6 +4,7 @@ import database.data.local.entity.GroupEntity
 import database.data.local.entity.GroupMemberEntity
 import database.domain.CurrencyCatalog
 import kotlinx.coroutines.runBlocking
+import message.ResendsBooked
 import mls.InMemoryMlsStore
 import mls.addMembersTo
 import mls.applyPendingCommitIn
@@ -89,12 +90,18 @@ class GroupSyncMembershipTest {
     private val members = mutableMapOf<String, List<GroupMemberEntity>>()
     private val declined = mutableSetOf<String>()
 
+    /** The groups Bob left on the server, in order. */
+    private val left = mutableListOf<String>()
+
     /** The group keys the vault held before the sync ran, and those it backed up. */
     private val vault = mutableMapOf<String, ByteArray>()
     private val backedUp = mutableMapOf<String, ByteArray>()
 
     /** Whether the device is locked, which has every vault write throw, as `KSafe` does. */
     private var isDeviceLocked = false
+
+    /** What runs as the sync posts the user's own key, once every group is caught up. */
+    private var onHandOut: suspend () -> Unit = {}
 
     /** The Welcome Alice's creation let Carol in with. */
     private var carolsWelcome: ByteArray? = null
@@ -147,6 +154,16 @@ class GroupSyncMembershipTest {
                 Result.Success(Unit)
             }
         },
+        leave = { groupUuid ->
+            left += groupUuid
+
+            // As the server takes it: Bob is no current member any more, and what waited for him
+            // there is dropped.
+            serverMembers -= BOB
+            waiting.remove(groupUuid)
+
+            GroupLeaveAnswer.Left
+        },
         isUnblockedContact = { it in contacts },
         client = { Result.Success(bob) },
         save = { group, groupMembers ->
@@ -160,6 +177,8 @@ class GroupSyncMembershipTest {
         },
         markLeft = { groupUuid -> groups[groupUuid] = groups.getValue(groupUuid).with(isLeft = true) },
         recordDeclined = { groupUuid -> declined += groupUuid },
+        forgetDeclined = { groupUuid -> declined -= groupUuid },
+        removeDeparted = { _, _ -> error("Bob created no group here.") },
         backUp = { groupUuid, key ->
             check(!isDeviceLocked) { "Cannot access Keystore key - device is locked" }
             backedUp[groupUuid] = key
@@ -167,6 +186,20 @@ class GroupSyncMembershipTest {
             Result.Success(Unit)
         },
         fullName = { names[it] },
+        // What becomes of the keys to the members' profiles is GroupSyncProfileKeysTest's.
+        hasPendingChange = { false },
+        isBlocked = { false },
+        setHandedProfileKey = { _, _ -> },
+        takeOwnerKey = { _, _, _ -> },
+        fillGap = { _, _ -> },
+        restoreMemberProfiles = { Result.Success(Unit) },
+        readMemberNames = { Result.Success(Unit) },
+        backUpMemberProfiles = { Result.Success(Unit) },
+        handOutProfileKey = {
+            onHandOut()
+            Result.Success(Unit)
+        },
+        resendScheduler = ResendsBooked(),
     )
 
     init {
@@ -248,6 +281,25 @@ class GroupSyncMembershipTest {
         assertFalse(bob.holdsGroup(mlsGroupId = mlsGroupId))
         assertEquals(listOf(removal), acknowledged[GROUP]?.toList())
     }
+
+    /**
+     * The device locking once the Commit is read, as the user's key is posted say: the removal was
+     * recorded before, and the next pass finds the group left, with nothing to tell.
+     */
+    @Test
+    fun `the creator removing the user is reported even when the device locks later in the sync`() =
+        runBlocking<Unit> {
+            joined()
+            aliceRemoves(BOB)
+
+            onHandOut = { error("Cannot access Keystore key - device is locked") }
+
+            val pass = groupSync.sync(contactsTakenIn = true)
+
+            assertEquals(GroupSyncError.DeviceLocked, pass.failure)
+            assertEquals(listOf(GROUP), pass.removed.map { it.groupUuid })
+            assertTrue(groups.getValue(GROUP).isLeft)
+        }
 
     /** The server lists a group to its current members alone, and the Commit removing Bob is its last word to him. */
     @Test
@@ -531,13 +583,16 @@ class GroupSyncMembershipTest {
         assertEquals(alice.rosterOf(mlsGroupId = aliceGroup()).epoch, bobRoster().epoch)
     }
 
-    /** The server serving fields sealed under none of the keys Alice handed over. */
+    /**
+     * The server serving fields sealed under none of the keys Alice handed over: the leave drops
+     * what was read to tell, which is acknowledged no more than the Welcome.
+     */
     @Test
-    fun `a group whose fields open under no key its creator handed over is declined once caught up`() =
+    fun `a group whose fields open under no key its creator handed over is declined and left once caught up`() =
         runBlocking<Unit> {
-            val welcome = aliceCreates()
-            val removal = aliceRemoves(CAROL)
-            val rotation = aliceRotates()
+            aliceCreates()
+            aliceRemoves(CAROL)
+            aliceRotates()
 
             serverFields = checkNotNull(FIELDS.seal(groupKey = generateSymmetricEncryptionKey(), groupUuid = GROUP))
 
@@ -546,8 +601,10 @@ class GroupSyncMembershipTest {
             assertNull(pass.failure)
             assertTrue(pass.joined.isEmpty())
             assertTrue(groups.isEmpty())
-            assertEquals(setOf(GROUP), declined)
-            assertEquals(listOf(welcome, removal, rotation), acknowledged[GROUP]?.toList())
+            assertEquals(listOf(GROUP), left)
+            assertTrue(declined.isEmpty())
+            assertNull(acknowledged[GROUP])
+            assertTrue(GROUP !in waiting)
             assertTrue(bobStore.keys(namespace_ = MlsNamespace.GROUP_STATE).isEmpty())
         }
 
@@ -706,6 +763,7 @@ class GroupSyncMembershipTest {
             assertTrue(pass.joined.isEmpty())
             assertTrue(groups.getValue(GROUP).isLeft)
             assertTrue(declined.isEmpty())
+            assertTrue(left.isEmpty())
             assertEquals(listOf(welcome), acknowledged[GROUP]?.toList())
             assertTrue(bobStore.keys(namespace_ = MlsNamespace.GROUP_STATE).isEmpty())
         }
@@ -776,6 +834,7 @@ class GroupSyncMembershipTest {
             assertTrue(pass.joined.isEmpty())
             assertTrue(groups.getValue(GROUP).isLeft)
             assertTrue(declined.isEmpty())
+            assertTrue(left.isEmpty())
             assertEquals(listOf(forgedUuid), acknowledged[GROUP]?.toList())
             assertTrue(bobStore.keys(namespace_ = MlsNamespace.GROUP_STATE).isEmpty())
         }
@@ -813,6 +872,7 @@ class GroupSyncMembershipTest {
             assertEquals(rowsOf(ALICE, BOB, CAROL, DAVE), members.getValue(GROUP).toSet())
             assertTrue(bobStore.keys(namespace_ = MlsNamespace.GROUP_STATE).isEmpty())
             assertTrue(declined.isEmpty())
+            assertTrue(left.isEmpty())
         }
 
     /**
@@ -958,6 +1018,7 @@ class GroupSyncMembershipTest {
             assertTrue(pass.joined.isEmpty())
             assertTrue(groups.isEmpty())
             assertTrue(declined.isEmpty())
+            assertTrue(left.isEmpty())
             assertEquals(listOf(removal, rotation), acknowledged[GROUP]?.toList())
             assertTrue(groupSync.hasNoWelcomeWaiting())
         }
@@ -1021,6 +1082,7 @@ class GroupSyncMembershipTest {
             groupKey = groupKey,
             isBackedUp = true,
             isLeft = false,
+            handedProfileKeyHash = null,
         )
         members[GROUP] = rowsOf(ALICE, BOB, CAROL).toList()
     }
@@ -1043,7 +1105,7 @@ class GroupSyncMembershipTest {
         val creation = alice.createGroup(
             groupUuid = GROUP,
             invitees = listOf(bob.inviteeKeyPackage(), carol.inviteeKeyPackage()),
-            welcomePayload = groupKey,
+            welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
         )
 
         aliceGroupId = creation.mlsGroupId
@@ -1062,7 +1124,7 @@ class GroupSyncMembershipTest {
         val addition = alice.addMembersTo(
             mlsGroupId = aliceGroup(),
             invitees = listOf(invitee.inviteeKeyPackage()),
-            welcomePayload = groupKey,
+            welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
         )
 
         alice.applyPendingCommitIn(mlsGroupId = aliceGroup())
@@ -1180,4 +1242,5 @@ private fun GroupEntity.with(
     groupKey = groupKey,
     isBackedUp = isBackedUp,
     isLeft = isLeft,
+    handedProfileKeyHash = handedProfileKeyHash,
 )

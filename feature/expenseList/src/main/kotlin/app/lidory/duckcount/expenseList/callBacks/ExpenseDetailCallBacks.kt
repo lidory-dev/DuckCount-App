@@ -18,6 +18,7 @@ interface ExpenseDetailCallBacks {
 
     suspend fun restoreExpense(expenseUuid: String)
 
+    /** Emits the name to show for [userUuid] as it changes, see [CreateExpenseCallBacks.getUserFullName]. */
     fun getUserFullName(userUuid: String): Flow<String?>
 
     /**

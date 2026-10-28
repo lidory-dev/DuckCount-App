@@ -5,9 +5,9 @@ data class GroupMemberWithFullName(
     val member: GroupMember,
 
     /**
-     * Null for a member this device has no name for: one who is not the user's contact, whom the
-     * user was put in a group with by somebody else. Shown with a neutral label rather than their
-     * UUID.
+     * Null for a member this device has no name for yet: one who is not the user's contact, whom
+     * the user was put in a group with by somebody else, until the group hands over the key to
+     * their profile and a sync reads it. Shown with a neutral label rather than their UUID.
      */
     val fullName: String?,
 )

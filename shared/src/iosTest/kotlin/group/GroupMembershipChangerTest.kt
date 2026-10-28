@@ -21,6 +21,7 @@ import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.ProcessedMessage
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
+import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
 import util.NetworkError
 import util.Result
 import kotlin.io.encoding.Base64
@@ -111,6 +112,7 @@ class GroupMembershipChangerTest {
             groupKey = groupKey,
             isBackedUp = true,
             isLeft = false,
+            handedProfileKeyHash = null,
         ),
     )
 
@@ -120,6 +122,21 @@ class GroupMembershipChangerTest {
 
     /** The keys the vault holds, by group. */
     private val backedUp = mutableMapOf<String, ByteArray>()
+
+    /**
+     * The key to Alice's own profile, the one each contact of hers handed her, and those her device
+     * learned through the groups.
+     */
+    private val aliceProfileKey = generateSymmetricEncryptionKey()
+
+    /** Whether the vault answers for Alice's own key, see `ProfileKeyVault.getOrCreateProfileEncryptionKey`. */
+    private var isVaultAnswering = true
+    private val contactProfileKeys = mutableMapOf(
+        BOB to generateSymmetricEncryptionKey(),
+        CAROL to generateSymmetricEncryptionKey(),
+        DAVE to generateSymmetricEncryptionKey(),
+    )
+    private val learnedProfileKeys = mutableMapOf<String, ByteArray>()
 
     /** Whom the server's refusals named as having deleted their account. */
     private val deletedAccounts = mutableListOf<String>()
@@ -215,6 +232,12 @@ class GroupMembershipChangerTest {
         savePending = ::save,
         bookResend = sender::bookResend,
         send = sender::send,
+        ownProfileKey = { aliceProfileKey.takeIf { isVaultAnswering } },
+        contactProfileKey = { contactProfileKeys[it] },
+        learnedProfileKey = { learnedProfileKeys[it] },
+        oweProfileKey = { groupUuid ->
+            groups[groupUuid] = groups.getValue(groupUuid).copy(handedProfileKeyHash = null)
+        },
     )
 
     init {
@@ -270,7 +293,7 @@ class GroupMembershipChangerTest {
         assertEquals(ALICE, inspection.committerUserUuid)
         assertEquals(listOf(ALICE, BOB, CAROL), inspection.memberUuids)
 
-        val handedKey = assertNotNull(inspection.welcomePayload)
+        val handedKey = assertNotNull(welcomeHandoverOf(payload = assertNotNull(inspection.welcomePayload))).groupKey
 
         assertContentEquals(groupKey, handedKey)
         assertEquals(FIELDS.title, serverFields.unseal(groupKey = handedKey, groupUuid = GROUP)?.title)
@@ -284,6 +307,100 @@ class GroupMembershipChangerTest {
 
         assertEquals(setOf(ALICE, BOB, CAROL, DAVE), dave.membersOf(daveGroupId))
     }
+
+    @Test
+    fun `the Welcome hands the newcomer the key to every member's profile`() = runBlocking<Unit> {
+        add(DAVE)
+
+        val welcome = Base64.Default.decode(additions.single().welcomeMessage)
+        val payload = assertNotNull(dave.inspectWelcome(welcome = welcome, expectedGroupUuid = GROUP).welcomePayload)
+
+        assertEveryMemberHandedOver(assertNotNull(welcomeHandoverOf(payload = payload)).profileKeys)
+    }
+
+    /** The server lists it ahead of the Commit, in the epoch the members are still in. */
+    @Test
+    fun `the members already in the group are handed the same keys ahead of the Commit`() = runBlocking<Unit> {
+        add(DAVE)
+
+        val body = additions.single()
+        val handedOver = assertIs<ProcessedMessage.ApplicationMessage>(bob.process(bobGroupId, body.profileKeysMessage))
+
+        assertEquals(ALICE, handedOver.senderUserUuid)
+        assertEveryMemberHandedOver(assertNotNull(profileKeysOf(payload = handedOver.payload)))
+
+        assertIs<ProcessedMessage.Commit>(bob.process(bobGroupId, body.commitMessage))
+    }
+
+    /** Read in the epoch it was sent in, which the library keeps once past it. */
+    @Test
+    fun `the members already in the group read the keys listed behind the Commit as well`() = runBlocking<Unit> {
+        add(DAVE)
+
+        val body = additions.single()
+
+        assertIs<ProcessedMessage.Commit>(carol.process(carolGroupId, body.commitMessage))
+
+        val handedOver = assertIs<ProcessedMessage.ApplicationMessage>(
+            carol.process(carolGroupId, body.profileKeysMessage),
+        )
+
+        assertEveryMemberHandedOver(assertNotNull(profileKeysOf(payload = handedOver.payload)))
+    }
+
+    /** The group holds her key from her own entry, which goes on naming her to everybody already in it. */
+    @Test
+    fun `an addition handing over the creator's own key leaves the group holding it`() = runBlocking<Unit> {
+        val handedHash = profileEncryptionKeyPartialHash(aliceProfileKey)
+        groups[GROUP] = groups.getValue(GROUP).copy(handedProfileKeyHash = handedHash)
+
+        add(DAVE)
+
+        assertEquals(handedHash, groups.getValue(GROUP).handedProfileKeyHash)
+    }
+
+    /**
+     * The vault not answering, nothing hands Alice's key over: whatever the members held for her
+     * stays, and Dave holds none from the group, so her post is owed, once the addition is settled.
+     */
+    @Test
+    fun `an addition with no key of the creator's own to hand over leaves the group owed hers`() =
+        runBlocking<Unit> {
+            groups[GROUP] = groups.getValue(GROUP).copy(
+                handedProfileKeyHash = profileEncryptionKeyPartialHash(aliceProfileKey),
+            )
+            isVaultAnswering = false
+
+            assertEquals(Result.Success(MembershipChangeOutcome.MADE), add(DAVE))
+
+            val welcome = Base64.Default.decode(additions.single().welcomeMessage)
+            val inspection = dave.inspectWelcome(welcome = welcome, expectedGroupUuid = GROUP)
+            val handedOver = assertNotNull(welcomeHandoverOf(payload = assertNotNull(inspection.welcomePayload)))
+
+            assertEquals(setOf(BOB, CAROL, DAVE), handedOver.profileKeys.keys)
+            assertNull(groups.getValue(GROUP).handedProfileKeyHash)
+        }
+
+    /** Carol is no longer Alice's contact, and nothing handed Alice Bob's key in any way. */
+    @Test
+    fun `a member no longer a contact is handed the key learned through the groups and one with none left out`() =
+        runBlocking<Unit> {
+            val learned = generateSymmetricEncryptionKey()
+
+            contactProfileKeys.remove(CAROL)
+            contactProfileKeys.remove(BOB)
+            learnedProfileKeys[CAROL] = learned
+
+            add(DAVE)
+
+            val welcome = Base64.Default.decode(additions.single().welcomeMessage)
+            val inspection = dave.inspectWelcome(welcome = welcome, expectedGroupUuid = GROUP)
+            val payload = assertNotNull(inspection.welcomePayload)
+            val handedOver = assertNotNull(welcomeHandoverOf(payload = payload)).profileKeys
+
+            assertEquals(setOf(ALICE, CAROL, DAVE), handedOver.keys)
+            assertContentEquals(learned, handedOver[CAROL])
+        }
 
     /** An earlier send of the same addition was stored, and its answer lost. */
     @Test
@@ -849,6 +966,15 @@ class GroupMembershipChangerTest {
 
     private suspend fun aliceRoster() = alice.rosterOf(mlsGroupId = creation.mlsGroupId)
 
+    /** That [handedOver] is the key to the profile of every member once Dave is in, as Alice holds them. */
+    private fun assertEveryMemberHandedOver(handedOver: Map<String, ByteArray>) {
+        assertEquals(setOf(ALICE, BOB, CAROL, DAVE), handedOver.keys)
+        assertContentEquals(aliceProfileKey, handedOver[ALICE])
+        assertContentEquals(contactProfileKeys[BOB], handedOver[BOB])
+        assertContentEquals(contactProfileKeys[CAROL], handedOver[CAROL])
+        assertContentEquals(contactProfileKeys[DAVE], handedOver[DAVE])
+    }
+
     /** The group as the server lists it. */
     private fun listedGroup() = GroupDto(
         uuid = GROUP,
@@ -910,6 +1036,7 @@ private fun GroupEntity.copy(
     mlsGroupId: ByteArray? = this.mlsGroupId,
     groupKey: ByteArray = this.groupKey,
     isBackedUp: Boolean = this.isBackedUp,
+    handedProfileKeyHash: String? = this.handedProfileKeyHash,
 ) = GroupEntity(
     uuid = uuid,
     title = title,
@@ -920,6 +1047,7 @@ private fun GroupEntity.copy(
     groupKey = groupKey,
     isBackedUp = isBackedUp,
     isLeft = isLeft,
+    handedProfileKeyHash = handedProfileKeyHash,
 )
 
 /** [this] as `GroupDao.adoptRotatedKey` and `GroupDao.markBackedUp` leave it. */

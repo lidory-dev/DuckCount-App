@@ -16,7 +16,8 @@ import kotlinx.coroutines.sync.withLock
  *
  * Process-wide, like the store the groups live in: one MLS client is opened per process, see
  * [mls.MlsIdentityRepository]. Not reentrant, so nothing called under it may take it again,
- * [GroupCreationSender.send] included, which is why it takes none itself.
+ * [GroupCreationSender.send] included, which is why it takes none itself, nor does
+ * [GroupMembershipChanger.removeUnderGroupsLock], which the sync removes members with.
  */
 internal suspend fun <T> withGroupsLock(block: suspend () -> T): T = groupsLock.withLock { block() }
 

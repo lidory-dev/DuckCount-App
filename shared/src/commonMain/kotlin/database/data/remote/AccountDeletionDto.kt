@@ -38,9 +38,10 @@ data class FinishAccountDeletionRequestBody(
      *
      * Always none, which the server takes: a commit there is the client's to give or not, since
      * an invitee who never joined a group has no MLS state to build one from, and the user leaves
-     * every group all the same, with nothing relayed to its members. Nothing here builds one yet,
-     * so the members' groups keep the user's leaf until removing a member is something the app
-     * does.
+     * every group all the same, with nothing relayed to its members. Nothing here builds one: the
+     * creator of each group takes the user's leaf out at their device's next sync, the server no
+     * longer listing them, see `group.GroupSync`, and the groups the user created keep it, nobody
+     * else changing them.
      */
     @OptIn(ExperimentalSerializationApi::class)
     @EncodeDefault

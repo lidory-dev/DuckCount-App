@@ -94,6 +94,7 @@ private fun VaultError.toAddContactError(isOnline: Boolean): AddContactError = w
     VaultError.Crypto,
     VaultError.MalformedKeyRing,
     VaultError.MalformedContactBook,
+    VaultError.MalformedMemberProfileBook,
     VaultError.OrphanedEntry,
     VaultError.Contended,
         -> AddContactError.UNKNOWN
@@ -156,6 +157,7 @@ private fun VaultError.toAnswerContactRequestError(isOnline: Boolean): AnswerCon
         VaultError.Crypto,
         VaultError.MalformedKeyRing,
         VaultError.MalformedContactBook,
+        VaultError.MalformedMemberProfileBook,
         VaultError.OrphanedEntry,
         VaultError.Contended,
             -> AnswerContactRequestError.UNKNOWN
@@ -192,6 +194,7 @@ private fun VaultError.toRemoveContactError(isOnline: Boolean): RemoveContactErr
     VaultError.Crypto,
     VaultError.MalformedKeyRing,
     VaultError.MalformedContactBook,
+    VaultError.MalformedMemberProfileBook,
     VaultError.OrphanedEntry,
     VaultError.Contended,
         -> RemoveContactError.UNKNOWN
@@ -236,6 +239,7 @@ private fun VaultError.toContactVerificationError(isOnline: Boolean): ContactVer
     VaultError.Crypto,
     VaultError.MalformedKeyRing,
     VaultError.MalformedContactBook,
+    VaultError.MalformedMemberProfileBook,
     VaultError.OrphanedEntry,
     VaultError.Contended,
         -> ContactVerificationError.UNKNOWN

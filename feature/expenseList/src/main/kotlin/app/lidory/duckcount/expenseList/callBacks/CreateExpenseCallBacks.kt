@@ -33,6 +33,11 @@ interface CreateExpenseCallBacks {
     /** Returns null when write succeeds (server + local), or the reason it failed. */
     suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseSaveError?
 
+    /**
+     * Emits the name to show for [userUuid] as it changes, or null while this device has none for
+     * them: a member of the group who is not the user's contact is named once the group hands over
+     * the key to their profile, and it is read.
+     */
     fun getUserFullName(userUuid: String): Flow<String?>
 
     fun getExpenseWithBeneficiaries(expenseUuid: String): Flow<ExpenseWithBeneficiaries>

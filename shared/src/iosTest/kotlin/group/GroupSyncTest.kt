@@ -1,11 +1,13 @@
 package group
 
+import contact.ProfileKeyUpdate
 import database.data.local.entity.GroupEntity
 import database.data.local.entity.GroupMemberEntity
 import database.data.local.entity.PendingGroupCreationEntity
 import database.data.remote.DirectMessageDto
 import database.data.remote.ListDirectMessagesResponse
 import database.domain.CurrencyCatalog
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -17,11 +19,15 @@ import message.DirectMessageSync
 import message.ResendsBooked
 import mls.ApplicationMessageReading
 import mls.InMemoryMlsStore
+import mls.addMembersTo
+import mls.applyPendingCommitIn
 import mls.encryptApplicationMessage
 import mls.holdsGroup
 import mls.inviteeKeyPackage
 import mls.joinGroupFrom
+import mls.processGroupMessageIn
 import mls.readApplicationMessage
+import mls.removeMembersFrom
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.MlsNamespace
@@ -68,6 +74,9 @@ private val DAVES_FIELDS = GroupFields(
  * own creations still waiting for an answer. The database, the vault and the server are stood in
  * for.
  *
+ * Every group Bob declines he leaves on the server, which then lists it to him no more and drops
+ * what waited for him there, unless a test has it answer otherwise.
+ *
  * Alice and Dave are Bob's contacts, Alice pinned as becoming a contact pins her, Dave reached over
  * MLS by no device of Bob's yet, unless a test pins him too. Carol is nobody to Bob, and Mallory a
  * stranger.
@@ -107,6 +116,24 @@ class GroupSyncTest {
     private val pending = mutableMapOf<String, PendingGroupCreationEntity>()
     private val declined = mutableSetOf<String>()
 
+    /**
+     * The groups Bob asked the server to leave, in order, what it answers, and what runs as each
+     * leave is asked for.
+     */
+    private val left = mutableListOf<String>()
+    private var leaveAnswer: GroupLeaveAnswer = GroupLeaveAnswer.Left
+    private var onLeave: suspend () -> Unit = {}
+
+    /** The groups a change of Bob's to their members waits on the server for, see `GroupDao.hasPendingChange`. */
+    private val pendingChanges = mutableSetOf<String>()
+
+    /**
+     * The keys to the members' profiles the sync took, from their owners and relayed, see
+     * `MemberProfileRepository`.
+     */
+    private val ownerKeys = mutableMapOf<String, ByteArray>()
+    private val relayedKeys = mutableMapOf<String, ByteArray>()
+
     /** Whether saving a group fails, as the database failing would. */
     private var isDatabaseFailing = false
 
@@ -119,13 +146,22 @@ class GroupSyncTest {
      */
     private var onContactChecked: suspend () -> Unit = {}
 
+    /**
+     * What runs as the sync posts the user's own key, once every group is caught up, then as it
+     * reads the members' names, and as it backs them up, with the groups free again.
+     */
+    private var onHandOut: suspend () -> Unit = {}
+    private var onMemberNamesRead: suspend () -> Unit = {}
+    private var onMemberProfilesBackedUp: suspend () -> Unit = {}
+
     /** The group keys the vault holds, and those the sync backed up. */
     private val vault = mutableMapOf<String, ByteArray>()
     private val backedUp = mutableMapOf<String, ByteArray>()
 
-    /** The Welcome of the last group [invite] had created, and its MLS group. */
+    /** The Welcome of the last group [invite] had created, its MLS group, and who created it. */
     private var welcome: ByteArray? = null
     private var mlsGroupId: ByteArray? = null
+    private var inviterUuid: String? = null
 
     /** What the server answers a creation sent again. */
     private var answer: GroupCreationAnswer = GroupCreationAnswer.Created
@@ -175,6 +211,19 @@ class GroupSyncTest {
             waiting[groupUuid]?.removeAll { it.uuid in messageUuids }
             Result.Success(Unit)
         },
+        leave = { groupUuid ->
+            onLeave()
+            left += groupUuid
+
+            // As the server takes it: the group is listed to Bob no more, and what waited for him
+            // there is dropped.
+            if (leaveAnswer == GroupLeaveAnswer.Left) {
+                listed.removeAll { it.uuid == groupUuid }
+                waiting.remove(groupUuid)
+            }
+
+            leaveAnswer
+        },
         isUnblockedContact = {
             onContactChecked()
             it in contacts && it !in blocked
@@ -191,11 +240,34 @@ class GroupSyncTest {
         updateKey = { _, _ -> error("No group here is handed a new key.") },
         markLeft = { error("Nobody is removed from a group here.") },
         recordDeclined = { groupUuid -> declined += groupUuid },
+        forgetDeclined = { groupUuid -> declined -= groupUuid },
+        removeDeparted = { _, _ -> error("No group Bob created is listed here.") },
         backUp = { groupUuid, groupKey ->
             backedUp[groupUuid] = groupKey
             Result.Success(Unit)
         },
         fullName = { names[it] },
+        hasPendingChange = { it in pending || it in pendingChanges },
+        isBlocked = { it in blocked },
+        setHandedProfileKey = { groupUuid, handedProfileKeyHash ->
+            groups[groupUuid] = groups.getValue(groupUuid).withHanded(handedProfileKeyHash)
+        },
+        takeOwnerKey = { userUuid, profileEncryptionKey, _ -> ownerKeys[userUuid] = profileEncryptionKey },
+        fillGap = { userUuid, profileEncryptionKey -> relayedKeys.getOrPut(userUuid) { profileEncryptionKey } },
+        restoreMemberProfiles = { Result.Success(Unit) },
+        readMemberNames = {
+            onMemberNamesRead()
+            Result.Success(Unit)
+        },
+        backUpMemberProfiles = {
+            onMemberProfilesBackedUp()
+            Result.Success(Unit)
+        },
+        handOutProfileKey = {
+            onHandOut()
+            Result.Success(Unit)
+        },
+        resendScheduler = resends,
     )
 
     init {
@@ -238,6 +310,63 @@ class GroupSyncTest {
     }
 
     /**
+     * Nothing this device stores reads once it locks, and the pass stops there: the group was
+     * recorded joined before, and the next pass finds it joined, with nothing to tell.
+     */
+    @Test
+    fun `a group joined is reported even when the device locks as the user's key is posted`() =
+        runBlocking<Unit> {
+            invite(creator = alice)
+
+            var isNameRead = false
+
+            onHandOut = { error("Cannot access Keystore key - device is locked") }
+            onMemberNamesRead = { isNameRead = true }
+
+            val pass = groupSync.sync(contactsTakenIn = true)
+
+            assertEquals(GroupSyncError.DeviceLocked, pass.failure)
+            assertEquals(listOf(GROUP), pass.joined.map { it.groupUuid })
+            assertNotNull(groups[GROUP])
+            assertFalse(isNameRead)
+        }
+
+    /** With the groups free again, the backup writes into the vault. */
+    @Test
+    fun `a group joined is reported even when the device locks as the members are backed up`() =
+        runBlocking<Unit> {
+            invite(creator = alice)
+
+            onMemberProfilesBackedUp = { error("Cannot access Keystore key - device is locked") }
+
+            val pass = groupSync.sync(contactsTakenIn = true)
+
+            assertEquals(GroupSyncError.DeviceLocked, pass.failure)
+            assertEquals(listOf(GROUP), pass.joined.map { it.groupUuid })
+        }
+
+    /** The push worker waits for an unlock on it, rather than retrying what a lock would fail again. */
+    @Test
+    fun `the device locking is reported over whatever failed before it`() = runBlocking<Unit> {
+        invite(creator = alice)
+        unreachableMessages += GROUP
+
+        onMemberNamesRead = { error("Cannot access Keystore key - device is locked") }
+
+        assertEquals(GroupSyncError.DeviceLocked, groupSync.sync(contactsTakenIn = true).failure)
+    }
+
+    /** WorkManager stopping the worker, say, a CancellationException being an IllegalStateException. */
+    @Test
+    fun `a sync cancelled is not taken for a device that locked`() = runBlocking<Unit> {
+        invite(creator = alice)
+
+        onHandOut = { throw CancellationException("Stopped") }
+
+        assertFailsWith<CancellationException> { groupSync.sync(contactsTakenIn = true) }
+    }
+
+    /**
      * The owner the server lists is the creator until their account is deleted, which hands the
      * group to another member, whose Commits no member's device would take.
      */
@@ -271,7 +400,7 @@ class GroupSyncTest {
     }
 
     @Test
-    fun `a group a stranger created is acknowledged and never joined or asked about again`() = runBlocking<Unit> {
+    fun `a group a stranger created is left and never joined or asked about again`() = runBlocking<Unit> {
         invite(creator = mallory)
 
         assertDeclinedStoringNothing()
@@ -281,10 +410,11 @@ class GroupSyncTest {
         groupSync.sync(contactsTakenIn = true)
 
         assertTrue(fetched.isEmpty())
+        assertEquals(listOf(GROUP), left)
     }
 
     @Test
-    fun `a group a blocked contact created is acknowledged and never joined or asked about again`() =
+    fun `a group a blocked contact created is left and never joined or asked about again`() =
         runBlocking<Unit> {
             blocked = setOf(ALICE)
             invite(creator = alice)
@@ -296,6 +426,7 @@ class GroupSyncTest {
             groupSync.sync(contactsTakenIn = true)
 
             assertTrue(fetched.isEmpty())
+            assertEquals(listOf(GROUP), left)
         }
 
     /** Mallory may have become a contact in what the contact sync could not take in. */
@@ -310,6 +441,7 @@ class GroupSyncTest {
             assertTrue(pass.joined.isEmpty())
             assertTrue(groups.isEmpty())
             assertTrue(declined.isEmpty())
+            assertTrue(left.isEmpty())
             assertNull(acknowledged[GROUP])
             assertTrue(isWelcomeUnspent())
         }
@@ -364,6 +496,15 @@ class GroupSyncTest {
         assertDeclinedStoringNothing()
     }
 
+    /** As above, before the inspection: what the server stored is not even Base64. */
+    @Test
+    fun `a Welcome that is not Base64 is declined and left`() = runBlocking<Unit> {
+        invite(creator = alice)
+        waiting[GROUP] = waiting.getValue(GROUP).mapTo(mutableListOf()) { it.copy(ciphertext = "not base64!") }
+
+        assertDeclinedStoringNothing()
+    }
+
     /** Refused by the fields, which open under nothing but a 32-byte key, see [SealedGroupFields.unseal]. */
     @Test
     fun `a key that is not 32 bytes is refused before anything is joined`() = runBlocking<Unit> {
@@ -372,7 +513,7 @@ class GroupSyncTest {
         invite(
             creator = alice,
             groupKey = groupKey,
-            welcomePayload = groupKey + 0,
+            welcomePayload = welcomePayloadOf(groupKey = groupKey + 0, profileKeys = emptyMap()),
         )
 
         assertDeclinedStoringNothing()
@@ -381,6 +522,16 @@ class GroupSyncTest {
     @Test
     fun `a Welcome handing over no key is refused before anything is joined`() = runBlocking<Unit> {
         invite(creator = alice, welcomePayload = null)
+
+        assertDeclinedStoringNothing()
+    }
+
+    /** The group's key alone, say: what the Welcome hands over is to name the members' profile keys too. */
+    @Test
+    fun `a Welcome whose payload does not read as one is refused before anything is joined`() = runBlocking<Unit> {
+        val groupKey = generateSymmetricEncryptionKey()
+
+        invite(creator = alice, groupKey = groupKey, welcomePayload = groupKey)
 
         assertDeclinedStoringNothing()
     }
@@ -426,7 +577,7 @@ class GroupSyncTest {
 
             assertEquals(GroupSyncError.Network(NetworkError.NO_INTERNET), passedOver.failure)
             assertTrue(passedOver.joined.isEmpty())
-            assertEquals(setOf(OTHER_GROUP), declined)
+            assertEquals(listOf(OTHER_GROUP), left)
             assertTrue(holdsNoGroup())
 
             unreachableMessages.clear()
@@ -621,7 +772,8 @@ class GroupSyncTest {
 
     /**
      * Carol deleting her account takes her off the server's list at once, and leaves her in the
-     * tree of the Welcome, nobody committing her removal.
+     * tree of the Welcome until Alice's device next syncs and removes her, see
+     * [GroupSync.dropDeparted].
      */
     @Test
     fun `a member who deleted their account since keeps nobody from joining and is recorded as a member`() =
@@ -668,9 +820,12 @@ class GroupSyncTest {
         assertTrue(backedUp.isEmpty())
     }
 
-    /** As a log-out leaves every group declined before it: the Welcome acknowledged, no key in the vault. */
+    /**
+     * As a log-out leaves a group joined before it whose key was never backed up: the Welcome
+     * acknowledged, no key in the vault.
+     */
     @Test
-    fun `a group with no Welcome waiting and no key in the vault is declined and never asked about again`() =
+    fun `a group with no Welcome waiting and no key in the vault is declined and left and never asked about again`() =
         runBlocking<Unit> {
             list(owner = ALICE, groupKey = generateSymmetricEncryptionKey())
 
@@ -678,14 +833,195 @@ class GroupSyncTest {
 
             assertNull(pass.failure)
             assertTrue(groups.isEmpty())
-            assertEquals(setOf(GROUP), declined)
+            assertEquals(listOf(GROUP), left)
+            assertTrue(declined.isEmpty())
             assertEquals(listOf(GROUP), fetched)
 
             fetched.clear()
-            groupSync.sync(contactsTakenIn = true)
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
 
             assertTrue(fetched.isEmpty())
+            assertEquals(listOf(GROUP), left)
         }
+
+    /**
+     * Carol pinned to another identity between the inspection and the join, as a contact sync
+     * running alongside could: the join refuses the Welcome for good.
+     */
+    @Test
+    fun `a group whose join is refused for good is declined and left`() = runBlocking<Unit> {
+        invite(creator = alice)
+
+        onContactChecked = {
+            onContactChecked = {}
+            bob.pinIdentity(userUuid = CAROL, signatureKey = mallory.signaturePublicKey())
+        }
+
+        val pass = groupSync.sync(contactsTakenIn = true)
+
+        assertNull(pass.failure)
+        assertTrue(pass.joined.isEmpty())
+        assertTrue(groups.isEmpty())
+        assertEquals(listOf(GROUP), left)
+        assertTrue(declined.isEmpty())
+        assertTrue(holdsNoGroup())
+    }
+
+    /** Asked again by the resend booked for it, the user having no other way to be woken for it. */
+    @Test
+    fun `a leave the server does not answer is kept and asked again without the group being decided again`() =
+        runBlocking<Unit> {
+            invite(creator = mallory)
+            leaveAnswer = GroupLeaveAnswer.Failed(error = NetworkError.SERVER_ERROR)
+
+            val failed = groupSync.sync(contactsTakenIn = true)
+
+            assertEquals(GroupSyncError.Network(NetworkError.SERVER_ERROR), failed.failure)
+            assertEquals(setOf(GROUP), declined)
+            assertEquals(listOf(GROUP), left)
+            assertEquals(listOf(60L), resends.seconds)
+            assertNull(acknowledged[GROUP])
+
+            fetched.clear()
+            leaveAnswer = GroupLeaveAnswer.Left
+
+            val pass = groupSync.sync(contactsTakenIn = true)
+
+            assertNull(pass.failure)
+            assertTrue(fetched.isEmpty())
+            assertEquals(listOf(GROUP, GROUP), left)
+            assertTrue(declined.isEmpty())
+            assertTrue(listed.isEmpty())
+        }
+
+    /** The next one would fare no better, and the resend booked goes for them all. */
+    @Test
+    fun `a leave the server does not answer holds back the others until the next sync`() = runBlocking<Unit> {
+        list(owner = ALICE, groupKey = generateSymmetricEncryptionKey())
+        list(owner = ALICE, groupKey = generateSymmetricEncryptionKey(), groupUuid = OTHER_GROUP)
+        leaveAnswer = GroupLeaveAnswer.Failed(error = NetworkError.NO_INTERNET)
+
+        val pass = groupSync.sync(contactsTakenIn = true)
+
+        assertEquals(GroupSyncError.Network(NetworkError.NO_INTERNET), pass.failure)
+        assertEquals(1, left.size)
+        assertEquals(setOf(GROUP, OTHER_GROUP), declined)
+    }
+
+    /**
+     * The server forgot the group or never had the user in it, or the proxy answered for it while
+     * it is redeployed: the group it still lists is declined and left again.
+     */
+    @Test
+    fun `a leave answered 404 is forgotten and a group still listed is declined and left again`() =
+        runBlocking<Unit> {
+            invite(creator = mallory)
+            leaveAnswer = GroupLeaveAnswer.NotMember
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            assertEquals(listOf(GROUP), left)
+            assertTrue(declined.isEmpty())
+
+            fetched.clear()
+            leaveAnswer = GroupLeaveAnswer.Left
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            assertEquals(listOf(GROUP), fetched)
+            assertEquals(listOf(GROUP, GROUP), left)
+            assertTrue(declined.isEmpty())
+            assertTrue(listed.isEmpty())
+        }
+
+    /**
+     * The server lists Bob as the owner of a group he declined, as once its creator's account is
+     * deleted: it would refuse him, and nobody could change the group then.
+     */
+    @Test
+    fun `a group the server lists the user as the owner of stays declined and is never left`() =
+        runBlocking<Unit> {
+            invite(creator = mallory)
+            listed[0] = listed[0].copy(ownerUuid = BOB)
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            fetched.clear()
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            assertTrue(left.isEmpty())
+            assertEquals(setOf(GROUP), declined)
+            assertTrue(fetched.isEmpty())
+        }
+
+    /** The row recorded before the leave is asked for, the device locking as it is. */
+    @Test
+    fun `a group declined as the device locks is left by the next pass`() = runBlocking<Unit> {
+        invite(creator = mallory)
+
+        onLeave = { error("Cannot access Keystore key - device is locked") }
+
+        assertEquals(GroupSyncError.DeviceLocked, groupSync.sync(contactsTakenIn = true).failure)
+
+        assertEquals(setOf(GROUP), declined)
+        assertTrue(left.isEmpty())
+
+        fetched.clear()
+        onLeave = {}
+
+        assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+        assertTrue(fetched.isEmpty())
+        assertEquals(listOf(GROUP), left)
+        assertTrue(declined.isEmpty())
+    }
+
+    /**
+     * Dave unpinned when he first created the group, so it was declined and left. His device then
+     * dropped Bob's leaf at its next sync, and added him back once Bob pinned him: the Welcome doing
+     * so is decided on afresh, the first thing waiting there, and joined.
+     */
+    @Test
+    fun `a group left once declined is joined when its creator adds the user back`() = runBlocking<Unit> {
+        val groupKey = invite(creator = dave)
+
+        assertNull(groupSync.sync(contactsTakenIn = true).failure)
+        assertEquals(listOf(GROUP), left)
+
+        val daveGroup = assertNotNull(mlsGroupId)
+
+        dave.removeMembersFrom(mlsGroupId = daveGroup, userUuids = listOf(BOB))
+        dave.applyPendingCommitIn(mlsGroupId = daveGroup)
+
+        val addition = dave.addMembersTo(
+            mlsGroupId = daveGroup,
+            invitees = listOf(bob.inviteeKeyPackage()),
+            welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
+        )
+
+        dave.applyPendingCommitIn(mlsGroupId = daveGroup)
+        bob.pinIdentity(userUuid = DAVE, signatureKey = dave.signaturePublicKey())
+
+        list(owner = DAVE, groupKey = groupKey)
+        waiting[GROUP] = mutableListOf(
+            GroupMessageDto(
+                uuid = "welcome-back",
+                senderUserUuid = DAVE,
+                ciphertext = Base64.Default.encode(addition.welcome),
+                createdAt = "2026-10-24T12:00:00Z",
+            ),
+        )
+
+        val pass = groupSync.sync(contactsTakenIn = true)
+
+        assertNull(pass.failure)
+        assertEquals(listOf(GROUP), pass.joined.map { it.groupUuid })
+        assertEquals(DAVE, groups.getValue(GROUP).ownerUuid)
+        assertEquals(listOf("welcome-back"), acknowledged[GROUP]?.toList())
+        assertEquals(listOf(GROUP), left)
+    }
 
     @Test
     fun `a creation the server takes at the next sync keeps its group and nothing pending`() = runBlocking<Unit> {
@@ -735,6 +1071,60 @@ class GroupSyncTest {
             assertEquals(listOf(120L), resends.seconds)
         }
 
+    /**
+     * Bob created the group with Alice and adds Dave, the server taking the addition and the answer
+     * getting lost: Alice, past the Commit, posts the key to her profile in the epoch it leads to,
+     * which Bob's device reads only once it applied the Commit too. Read before, it would be
+     * refused for good.
+     */
+    @Test
+    fun `a key a member posts while the creator's change is pending is read once the change is settled`() =
+        runBlocking<Unit> {
+            val aliceGroupId = createdWithAlice()
+            val bobGroupId = assertNotNull(groups.getValue(GROUP).mlsGroupId)
+
+            val addition = bob.addMembersTo(
+                mlsGroupId = bobGroupId,
+                invitees = listOf(dave.inviteeKeyPackage()),
+                welcomePayload = welcomePayloadOf(groupKey = groups.getValue(GROUP).groupKey, profileKeys = emptyMap()),
+            )
+
+            pendingChanges += GROUP
+
+            alice.processGroupMessageIn(mlsGroupId = aliceGroupId, message = addition.commit, creatorUuid = BOB)
+
+            val aliceKey = generateSymmetricEncryptionKey()
+            val post = alice.encryptApplicationMessage(
+                mlsGroupId = aliceGroupId,
+                payload = ProfileKeyUpdate(profileEncryptionKey = aliceKey).serialize(),
+            )
+
+            waiting[GROUP] = mutableListOf(
+                GroupMessageDto(
+                    uuid = "post",
+                    senderUserUuid = ALICE,
+                    ciphertext = Base64.Default.encode(post),
+                    createdAt = "2026-10-27T12:00:00Z",
+                ),
+            )
+
+            val waited = groupSync.sync(contactsTakenIn = true)
+
+            assertNull(waited.failure)
+            assertNull(acknowledged[GROUP])
+            assertTrue(ownerKeys.isEmpty())
+
+            // As the next resend hears 409, see GroupMembershipSender.
+            bob.applyPendingCommitIn(mlsGroupId = bobGroupId)
+            pendingChanges -= GROUP
+
+            val pass = groupSync.sync(contactsTakenIn = true)
+
+            assertNull(pass.failure)
+            assertContentEquals(aliceKey, ownerKeys[ALICE])
+            assertEquals(listOf("post"), acknowledged[GROUP]?.toList())
+        }
+
     @Test
     fun `a Welcome not taken in yet holds pruning back until the sync joins its group`() = runBlocking<Unit> {
         invite(creator = alice)
@@ -757,6 +1147,18 @@ class GroupSyncTest {
         assertTrue(groupSync.hasNoWelcomeWaiting())
     }
 
+    /** Still waiting there, it is never to be joined. */
+    @Test
+    fun `a Welcome declined in a group not left yet holds pruning back no longer`() = runBlocking<Unit> {
+        invite(creator = mallory)
+        leaveAnswer = GroupLeaveAnswer.Failed(error = NetworkError.SERVER_ERROR)
+
+        groupSync.sync(contactsTakenIn = true)
+
+        assertTrue(GROUP in waiting)
+        assertTrue(groupSync.hasNoWelcomeWaiting())
+    }
+
     @Test
     fun `pruning waits when the server cannot be asked`() = runBlocking<Unit> {
         isServerReachable = false
@@ -775,7 +1177,7 @@ class GroupSyncTest {
         creator: MlsClient,
         invitees: List<MlsClient> = listOf(bob, carol),
         groupKey: ByteArray = generateSymmetricEncryptionKey(),
-        welcomePayload: ByteArray? = groupKey,
+        welcomePayload: ByteArray? = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
         sealedFor: String = GROUP,
         listedMembers: List<String> = (listOf(creator) + invitees).map { it.userUuid() },
         sealedToLastResort: Boolean = false,
@@ -790,6 +1192,7 @@ class GroupSyncTest {
 
         welcome = creation.welcome
         mlsGroupId = creation.mlsGroupId
+        inviterUuid = creator.userUuid()
 
         waiting[GROUP] = mutableListOf(
             GroupMessageDto(
@@ -868,8 +1271,8 @@ class GroupSyncTest {
 
     /**
      * That Bob holds the group [inviteWithDave] had Alice create as [GROUP] alone, with its own
-     * fields, [groupKey] and members, and declined [OTHER_GROUP] for good, which [postAgain] listed
-     * it under.
+     * fields, [groupKey] and members, and declined and left [OTHER_GROUP], which [postAgain] listed
+     * it under, acknowledging nothing there.
      */
     private suspend fun assertHeldUnderItsOwnGroupAlone(groupKey: ByteArray) {
         assertEquals(setOf(GROUP), groups.keys)
@@ -882,8 +1285,9 @@ class GroupSyncTest {
         assertTrue(bob.holdsGroup(mlsGroupId = assertNotNull(group.mlsGroupId)))
         assertEquals(setOf(ALICE, BOB, CAROL, DAVE), members.getValue(GROUP).mapTo(HashSet()) { it.userUuid })
 
-        assertEquals(setOf(OTHER_GROUP), declined)
-        assertEquals(listOf(welcomeOf(OTHER_GROUP)), acknowledged[OTHER_GROUP]?.toList())
+        assertEquals(listOf(OTHER_GROUP), left)
+        assertTrue(declined.isEmpty())
+        assertNull(acknowledged[OTHER_GROUP])
     }
 
     /**
@@ -896,7 +1300,7 @@ class GroupSyncTest {
         val creation = bob.createGroup(
             groupUuid = GROUP,
             invitees = listOf(alice.inviteeKeyPackage()),
-            welcomePayload = groupKey,
+            welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
         )
         val sealed = assertNotNull(FIELDS.seal(groupKey = groupKey, groupUuid = GROUP))
 
@@ -910,6 +1314,7 @@ class GroupSyncTest {
             groupKey = groupKey,
             isBackedUp = true,
             isLeft = false,
+            handedProfileKeyHash = null,
         )
 
         vault[GROUP] = groupKey
@@ -927,6 +1332,43 @@ class GroupSyncTest {
         )
 
         return creation.mlsGroupId
+    }
+
+    /**
+     * Has Bob create [GROUP] with Alice, saved as [GroupCreator] saves it once the server took it,
+     * and Alice join it from its Welcome, and returns her MLS group.
+     */
+    private fun createdWithAlice(): ByteArray {
+        val groupKey = generateSymmetricEncryptionKey()
+        val creation = bob.createGroup(
+            groupUuid = GROUP,
+            invitees = listOf(alice.inviteeKeyPackage()),
+            welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
+        )
+
+        groups[GROUP] = GroupEntity(
+            uuid = GROUP,
+            title = FIELDS.title,
+            description = FIELDS.description,
+            currency = FIELDS.currency,
+            ownerUuid = BOB,
+            mlsGroupId = creation.mlsGroupId,
+            groupKey = groupKey,
+            isBackedUp = true,
+            isLeft = false,
+            handedProfileKeyHash = null,
+        )
+        members[GROUP] = listOf(
+            GroupMemberEntity(userUuid = BOB, groupUuid = GROUP, isAdmin = true),
+            GroupMemberEntity(userUuid = ALICE, groupUuid = GROUP, isAdmin = false),
+        )
+
+        return alice.joinGroup(
+            welcome = creation.welcome,
+            expectedGroupUuid = GROUP,
+            expectedMembers = listOf(BOB),
+            pinMembers = false,
+        )
     }
 
     private fun welcomeOf(groupUuid: String) = "welcome-$groupUuid"
@@ -988,7 +1430,7 @@ class GroupSyncTest {
         bob.joinGroup(
             welcome = assertNotNull(welcome),
             expectedGroupUuid = GROUP,
-            expectedMembers = listOf(listed.single().ownerUuid, CAROL),
+            expectedMembers = listOf(assertNotNull(inviterUuid), CAROL),
             pinMembers = false,
         )
     }.isSuccess
@@ -1038,14 +1480,34 @@ class GroupSyncTest {
         assertTrue(declined.isEmpty())
     }
 
-    /** That [pass] joined nothing, and declined [GROUP] for good, its Welcome acknowledged. */
+    /**
+     * That [pass] joined nothing, and declined [GROUP] and left it, forgetting it was declined once
+     * the server took the leave: nothing there is acknowledged, the leave dropping all of it, and
+     * the server lists the group no more.
+     */
     private fun assertNothingJoined(pass: GroupSyncPass) {
         assertNull(pass.failure)
         assertTrue(pass.joined.isEmpty())
         assertTrue(groups.isEmpty())
         assertTrue(members.isEmpty())
         assertTrue(backedUp.isEmpty())
-        assertEquals(listOf(welcomeOf(GROUP)), acknowledged[GROUP]?.toList())
-        assertEquals(setOf(GROUP), declined)
+        assertNull(acknowledged[GROUP])
+        assertEquals(listOf(GROUP), left)
+        assertTrue(declined.isEmpty())
+        assertTrue(listed.none { it.uuid == GROUP })
     }
 }
+
+/** [this] once the user's own profile key the group holds for them is recorded as [handedProfileKeyHash]. */
+private fun GroupEntity.withHanded(handedProfileKeyHash: String?) = GroupEntity(
+    uuid = uuid,
+    title = title,
+    description = description,
+    currency = currency,
+    ownerUuid = ownerUuid,
+    mlsGroupId = mlsGroupId,
+    groupKey = groupKey,
+    isBackedUp = isBackedUp,
+    isLeft = isLeft,
+    handedProfileKeyHash = handedProfileKeyHash,
+)

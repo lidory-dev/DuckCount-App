@@ -24,11 +24,11 @@ import kotlin.test.assertTrue
 
 private const val ALICE = "11111111-1111-1111-1111-111111111111"
 
-/** Each field of a profile and what it is sealed bound to, as `ProfileRepository` seals them. */
+/** Each field of Alice's profile and what it is sealed bound to, as `ProfileRepository` seals them. */
 private val FIELDS: List<Pair<String, (UserProfileDto) -> EncryptedFieldDto>> = listOf(
-    "profile:full_name" to { it.fullName },
-    "profile:phone_number" to { it.phoneNumber },
-    "profile:bank_details" to { it.bankDetails },
+    "profile:$ALICE:full_name" to { it.fullName },
+    "profile:$ALICE:phone_number" to { it.phoneNumber },
+    "profile:$ALICE:bank_details" to { it.bankDetails },
 )
 
 /**

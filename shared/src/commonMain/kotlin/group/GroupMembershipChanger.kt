@@ -18,6 +18,7 @@ import mls.MlsIdentityError
 import mls.MlsIdentityRepository
 import mls.addMembersTo
 import mls.discardPendingCommitIn
+import mls.encryptApplicationMessage
 import mls.isRetryable
 import mls.removeMembersFrom
 import mls.rosterOf
@@ -27,6 +28,7 @@ import util.EmptyResult
 import util.NetworkError
 import util.Result
 import util.onError
+import vault.ProfileKeyVault
 import kotlin.io.encoding.Base64
 
 /** What a change to a group's members came to, when it did not fail, see [GroupMembershipChanger]. */
@@ -64,13 +66,21 @@ enum class MembershipChangeOutcome {
  *    already, or for a removal who is no member, is left out: a change asked for twice is made
  *    once.
  * 3. The Commit is built with the library, an addition's Welcome handing the new members the
- *    group's key, and saved with the request that will make it, see
- *    [PendingMembershipChangeEntity], before anything is sent.
+ *    group's key and the key to every member's profile this device holds, see
+ *    [profileKeysToHandOut], and saved with the request that will make it, see
+ *    [PendingMembershipChangeEntity], before anything is sent. The members already in the group
+ *    are handed the same keys in an application message of the epoch before the Commit's, see
+ *    [AddGroupMembersBody.profileKeysMessage], which goes with it. An addition handing over none
+ *    of the user's own leaves the group owed it, see [GroupEntity.handedProfileKeyHash].
  * 4. It is sent, see [GroupMembershipSender.send], its resend booked first, see
  *    [GroupMembershipSender.bookResend]. Only a refusal undoes it; the server not answering, or
  *    answering that it cannot take it yet, leaves it to go out again, see
  *    [MembershipChangeOutcome.PENDING]. A removal taken is followed by the rotation of the group's
  *    key, which the sender sees to.
+ *
+ * The user removes members by hand, and the group sync removes those the server no longer lists:
+ * members who left the group, as a device declining it does, and accounts deleted since, see
+ * [GroupSync]. Both go through the same removal, and the same key rotation after it.
  *
  * Everything that can fail without leaving anything behind comes before the Commit is built. From
  * there to the answer is not cancellable: a Commit built and never saved would hold the group's
@@ -81,9 +91,12 @@ enum class MembershipChangeOutcome {
  * [contacts] and [blocked] are [ContactDao.getUserUuids] and [IdentityConflictDao.getBlocked],
  * [client] is [MlsIdentityRepository.client], [consumeKeyPackage] is
  * [KeyPackageApi.consumeKeyPackage], [group] is [GroupDao.get], [hasPendingChange] is
- * [GroupDao.hasPendingChange], [savePending] is [GroupDao.upsertMembershipChange], and
- * [bookResend] and [send] are [GroupMembershipSender.bookResend] and [GroupMembershipSender.send],
- * or what a test stands in for any of them.
+ * [GroupDao.hasPendingChange], [savePending] is [GroupDao.upsertMembershipChange], [bookResend]
+ * and [send] are [GroupMembershipSender.bookResend] and [GroupMembershipSender.send],
+ * [ownProfileKey] is [ProfileKeyVault.getOrCreateProfileEncryptionKey], null when it fails,
+ * [contactProfileKey] is the key [ContactDao.get] holds, [learnedProfileKey] is
+ * [MemberProfileRepository.keyFor] and [oweProfileKey] is [GroupDao.setHandedProfileKeyHash] to
+ * null, or what a test stands in for any of them.
  */
 class GroupMembershipChanger internal constructor(
     private val userUuid: () -> String?,
@@ -101,6 +114,10 @@ class GroupMembershipChanger internal constructor(
         group: GroupEntity,
         client: MlsClient,
     ) -> GroupMembershipAnswer,
+    private val ownProfileKey: suspend () -> ByteArray?,
+    private val contactProfileKey: suspend (userUuid: String) -> ByteArray?,
+    private val learnedProfileKey: suspend (userUuid: String) -> ByteArray?,
+    private val oweProfileKey: suspend (groupUuid: String) -> Unit,
 ) {
     constructor(
         contactRepository: ContactRepository,
@@ -110,6 +127,8 @@ class GroupMembershipChanger internal constructor(
         keyPackageApi: KeyPackageApi,
         groupDao: GroupDao,
         groupMembershipSender: GroupMembershipSender,
+        profileKeyVault: ProfileKeyVault,
+        memberProfileRepository: MemberProfileRepository,
     ) : this(
         userUuid = ::getAuthenticatedUserUuid,
         restoreContacts = contactRepository::restore,
@@ -122,6 +141,12 @@ class GroupMembershipChanger internal constructor(
         savePending = groupDao::upsertMembershipChange,
         bookResend = groupMembershipSender::bookResend,
         send = groupMembershipSender::send,
+        ownProfileKey = { (profileKeyVault.getOrCreateProfileEncryptionKey() as? Result.Success)?.data },
+        contactProfileKey = { userUuid -> contactDao.get(userUuid = userUuid)?.profileEncryptionKey },
+        learnedProfileKey = memberProfileRepository::keyFor,
+        oweProfileKey = { groupUuid ->
+            groupDao.setHandedProfileKeyHash(uuid = groupUuid, handedProfileKeyHash = null)
+        },
     )
 
     /**
@@ -142,6 +167,18 @@ class GroupMembershipChanger internal constructor(
     suspend fun remove(
         groupUuid: String,
         userUuids: Set<String>,
+    ): Result<MembershipChangeOutcome, GroupMembershipError> =
+        withGroupsLock { removeUnderGroupsLock(groupUuid = groupUuid, userUuids = userUuids) }
+
+    /**
+     * Removes [userUuids] as [remove] does, for a caller already holding [withGroupsLock], which
+     * this does not take: the group sync, which removes from the groups the user created whoever
+     * the server no longer lists, see [GroupSync]. To be called under that lock alone, which is not
+     * reentrant: [remove] would wait on it for good there.
+     */
+    internal suspend fun removeUnderGroupsLock(
+        groupUuid: String,
+        userUuids: Set<String>,
     ): Result<MembershipChangeOutcome, GroupMembershipError> {
         require(userUuids.isNotEmpty()) { "Members are removed one at least." }
 
@@ -150,7 +187,7 @@ class GroupMembershipChanger internal constructor(
         // Leaving is no removal, and the creator never leaves: nobody else could change the group.
         require(selfUuid !in userUuids) { "The creator of a group is never removed from it." }
 
-        return withGroupsLock { removeLocked(selfUuid = selfUuid, groupUuid = groupUuid, userUuids = userUuids) }
+        return removeLocked(selfUuid = selfUuid, groupUuid = groupUuid, userUuids = userUuids)
     }
 
     private suspend fun addLocked(
@@ -199,6 +236,40 @@ class GroupMembershipChanger internal constructor(
             is KeyPackageFetch.Failed -> return Result.Error(GroupMembershipError.Network(fetched.error))
         }
 
+        // Every member's once the new ones are in, as for a creation: the user's own, unless the
+        // vault does not answer, which leaves the group owed it, see below, and the others' as
+        // they were handed to the user, see profileKeysToHandOut.
+        val profileKeys = profileKeysToHandOut(
+            memberUuids = roster.memberUuids + keyPackages.map { it.userUuid },
+            selfUuid = selfUuid,
+            ownProfileKey = ownProfileKey(),
+            contactProfileKey = contactProfileKey,
+            learnedProfileKey = learnedProfileKey,
+        )
+
+        // With no entry of the user's own, the members go on holding whatever key of theirs they
+        // held, an older one or none: the group is owed theirs, posted by the sync once the
+        // addition is settled, see GroupProfileKeyDelivery. Before anything is built, so that no
+        // addition goes out with the group still recorded as holding it; one that never goes out
+        // leaves a post owed for nothing, read and changing nothing.
+        if (selfUuid !in profileKeys) oweProfileKey(groupUuid)
+
+        // For the members already in, who cannot read the Welcome: in the epoch the Commit leaves,
+        // which they read it in whether the server lists it before the Commit or after, see
+        // GroupSync.takeProfileKeys. Built before the Commit, once no Commit of the user's is
+        // pending, see settledRosterOf. One that never goes out, the Commit failing or refused,
+        // leaves nothing behind but a key of the user's spent in the group.
+        val profileKeysMessage = try {
+            client.encryptApplicationMessage(
+                mlsGroupId = held.mlsGroupId,
+                payload = profileKeysMessageOf(profileKeys = profileKeys),
+            )
+        } catch (exception: MlsException) {
+            return Result.Error(
+                if (exception.isRetryable()) GroupMembershipError.Storage else GroupMembershipError.Crypto,
+            )
+        }
+
         return withContext(NonCancellable) {
             val addition = try {
                 // The group's key, which its fields are sealed under, as for a creation: the
@@ -206,7 +277,7 @@ class GroupMembershipChanger internal constructor(
                 client.addMembersTo(
                     mlsGroupId = held.mlsGroupId,
                     invitees = keyPackages,
-                    welcomePayload = held.group.groupKey,
+                    welcomePayload = welcomePayloadOf(groupKey = held.group.groupKey, profileKeys = profileKeys),
                 )
             } catch (exception: MlsException) {
                 return@withContext Result.Error(
@@ -228,6 +299,7 @@ class GroupMembershipChanger internal constructor(
                 body = AddGroupMembersBody(
                     nonce = newChangeNonce(),
                     commitMessage = Base64.Default.encode(addition.commit),
+                    profileKeysMessage = Base64.Default.encode(profileKeysMessage),
                     welcomeMessage = Base64.Default.encode(addition.welcome),
                     newMemberUuids = keyPackages.map { it.userUuid },
                 ),
