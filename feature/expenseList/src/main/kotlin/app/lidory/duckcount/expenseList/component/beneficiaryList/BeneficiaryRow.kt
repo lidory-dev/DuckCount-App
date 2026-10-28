@@ -10,9 +10,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -23,15 +28,24 @@ import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.R
 import app.lidory.duckcount.expenseList.model.BeneficiaryUi
 
+/**
+ * A beneficiary and their share, whose field takes only what [acceptsShare] does, see
+ * [DuckCountTextField], and tells [onShareFinished] once the user leaves it, so that its text can
+ * be written as the share it stands for.
+ */
 @Composable
 fun BeneficiaryRow(
     enabled: Boolean,
     onBeneficiaryAmountChange: (String, String) -> Unit,
+    acceptsShare: (String) -> Boolean,
+    onShareFinished: () -> Unit,
     beneficiary: BeneficiaryUi,
     currencySymbol: String,
     removeFixedShare: () -> Unit,
     focusManager: FocusManager,
 ) {
+    var isShareFocused by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -78,11 +92,18 @@ fun BeneficiaryRow(
                         beneficiary.userUuid, it,
                     )
                 },
+                accepts = acceptsShare,
                 keyboardOptions = KeyboardOptions.Default.copy(
                     keyboardType = KeyboardType.Number,
                 ),
                 focusManager = focusManager,
-                modifier = Modifier.fillMaxWidth(.75f),
+                modifier = Modifier
+                    .fillMaxWidth(.75f)
+                    .onFocusChanged {
+                        // Once left, not as it is first laid out unfocused.
+                        if (isShareFocused && !it.isFocused) onShareFinished()
+                        isShareFocused = it.isFocused
+                    },
             )
 
             Text(

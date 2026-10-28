@@ -253,7 +253,9 @@ fun CreateExpenseScreen(
                 item {
                     // TODO: readOnly = isSaving,
                     AmountTextField(
-                        amountValue = viewModel.state.amount,
+                        amountValue = viewModel.state.amountText,
+                        acceptsAmount = viewModel::acceptsAmount,
+                        isAmountMissing = viewModel.state.amount.isBlank(),
                         currencyValue = viewModel.state.currency.symbol,
                         currencies = viewModel.currencies,
                         currencyDisplayName = viewModel::currencyDisplayName,
@@ -262,6 +264,7 @@ fun CreateExpenseScreen(
                             viewModel.updateAmount(amount)
                             viewModel.calculateShares()
                         },
+                        onAmountFinished = viewModel::finishAmount,
                         onCurrencyValueChange = { currency ->
                             viewModel.updateCurrency(currency)
                             focusManager.clearFocus()
@@ -295,13 +298,15 @@ fun CreateExpenseScreen(
                     currencySymbol = viewModel.state.currency.symbol,
                     enabled = !isSaving,
                     onBeneficiaryAmountChange = { userUuid, share ->
-                        viewModel.updateBeneficiaryShare(
+                        viewModel.typeBeneficiaryShare(
                             userUuid = userUuid,
-                            share = share,
+                            text = share,
                         )
                         viewModel.setBeneficiaryFixedShare(userUuid)
                         viewModel.calculateShares()
                     },
+                    acceptsShare = viewModel::acceptsAmount,
+                    onShareFinished = { userUuid -> viewModel.finishBeneficiaryShare(userUuid = userUuid) },
                     onModifyBeneficiaryList = {
                         viewModel.showBeneficiariesDialog()
                         focusManager.clearFocus()

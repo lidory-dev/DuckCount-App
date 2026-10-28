@@ -16,6 +16,8 @@ fun LazyListScope.beneficiaryList(
     currencySymbol: String,
     enabled: Boolean,
     onBeneficiaryAmountChange: (String, String) -> Unit,
+    acceptsShare: (String) -> Boolean,
+    onShareFinished: (String) -> Unit,
     onModifyBeneficiaryList: () -> Unit,
     @StringRes expenseError: Int?,
     focusManager: FocusManager,
@@ -45,6 +47,8 @@ fun LazyListScope.beneficiaryList(
         BeneficiaryRow(
             enabled = enabled,
             onBeneficiaryAmountChange = onBeneficiaryAmountChange,
+            acceptsShare = acceptsShare,
+            onShareFinished = { onShareFinished(beneficiary.userUuid) },
             beneficiary = beneficiary,
             currencySymbol = currencySymbol,
             removeFixedShare = {

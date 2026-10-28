@@ -16,10 +16,12 @@ import app.lidory.duckcount.expenseList.model.ExpenseSaveError
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import app.lidory.duckcount.expenseList.model.User
-import app.lidory.duckcount.expenseList.utils.formatAmountWithSubunits
+import app.lidory.duckcount.expenseList.utils.dropDecimalsIfSeparatorDeleted
 import app.lidory.duckcount.expenseList.utils.getCurrentTimestamp
+import app.lidory.duckcount.expenseList.utils.isAmountInput
 import app.lidory.duckcount.expenseList.utils.roundAmountWithSubunits
 import app.lidory.duckcount.expenseList.utils.roundAmountWithoutSubunits
+import app.lidory.duckcount.expenseList.utils.toAmount
 import app.lidory.duckcount.expenseList.utils.toValidNumber
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -84,25 +86,11 @@ class CreateExpenseViewModel(
     /** Localized display name for an ISO 4217 currency code (e.g. "USD" -> "US Dollar"). */
     fun currencyDisplayName(code: String): String = createExpenseCallBacks.getCurrencyDisplayName(code)
 
-    private fun normalizeAmountInput(raw: String, previous: String): String? {
-        val formatted = raw.formatAmountWithSubunits()
-        if (!formatted.matches(Regex("""^\d*\.?\d*$"""))) return null
-
-        val hasSubunits = state.currency.hasSubunits
-        val rounded = when {
-            formatted.isBlank() -> formatted
-            hasSubunits -> formatted.roundAmountWithSubunits()
-            else -> formatted.roundAmountWithoutSubunits()
-        }
-
-        val droppedDecimalSeparator =
-            hasSubunits
-                    && previous.contains('.')
-                    && !rounded.contains('.')
-                    && previous.replace(".", "") == rounded
-
-        return if (droppedDecimalSeparator) rounded.dropLast(2) else rounded
-    }
+    /**
+     * Whether an amount field, the expense's or a share's, takes [text] as typed, see
+     * [isAmountInput]: the field refuses the edit otherwise, keeping its text and its cursor.
+     */
+    fun acceptsAmount(text: String): Boolean = text.isAmountInput(hasSubunits = state.currency.hasSubunits)
 
     fun showCreditorDialog() {
         isCreditorDialogShown = true
@@ -224,7 +212,8 @@ class CreateExpenseViewModel(
             BeneficiaryUi(
                 uuid = beneficiary.uuid,
                 userUuid = beneficiary.userUuid,
-                share = beneficiary.share,
+                // As typed while its field is being typed in.
+                share = state.shareTexts[beneficiary.userUuid] ?: beneficiary.share,
                 fullName = names[beneficiary.userUuid] ?: beneficiary.userUuid,
                 isShareFixed = beneficiary.isShareFixed,
             )
@@ -396,9 +385,25 @@ class CreateExpenseViewModel(
         state = state.copy(title = title)
     }
 
+    /**
+     * Takes [amount], the amount field's text, as typed: neither formatted nor rounded, which would
+     * hand the keyboard a new text. The amount it stands for is what the form uses and saves, see
+     * [toAmount], and the field shows it written so once the user is done with it, see
+     * [finishAmount].
+     */
     fun updateAmount(amount: String) {
-        val newAmount = normalizeAmountInput(raw = amount, previous = state.amount) ?: return
-        state = state.copy(amount = newAmount)
+        val typed = amount.dropDecimalsIfSeparatorDeleted(previous = state.amountText)
+        if (!acceptsAmount(typed)) return
+
+        state = state.copy(
+            amountText = typed,
+            amount = typed.toAmount(hasSubunits = state.currency.hasSubunits),
+        )
+    }
+
+    /** Writes the amount field's text as the amount it stands for, once the field is left. */
+    fun finishAmount() {
+        state = state.copy(amountText = state.amount)
     }
 
     fun updateCurrency(currency: Currency) {
@@ -410,10 +415,14 @@ class CreateExpenseViewModel(
             }
         }
 
+        val amount = reformat(state.amount)
+
         state = state.copy(
             currency = currency,
-            amount = reformat(state.amount),
+            amount = amount,
+            amountText = amount,
             beneficiaries = state.beneficiaries.map { it.copy(share = reformat(it.share)) },
+            shareTexts = emptyMap(),
         )
     }
 
@@ -431,21 +440,25 @@ class CreateExpenseViewModel(
     }
 
     fun updateBeneficiaries(beneficiaries: List<Beneficiary>) {
-        state = state.copy(beneficiaries = beneficiaries)
+        val userUuids = beneficiaries.mapTo(HashSet()) { it.userUuid }
+
+        state = state.copy(
+            beneficiaries = beneficiaries,
+            shareTexts = state.shareTexts.filterKeys { it in userUuids },
+        )
         _selectedUuids.update { state.beneficiaries.map { it.userUuid }.toSet() }
     }
 
+    /** Sets the share of [userUuid] to [share], as worked out or read back, written as the form keeps it. */
     fun updateBeneficiaryShare(userUuid: String, share: String) {
-        val previous = state.beneficiaries
-            .firstOrNull { it.userUuid == userUuid }
-            ?.share
-            ?: return
-        val newShare = normalizeAmountInput(share, previous) ?: return
+        if (state.beneficiaries.none { it.userUuid == userUuid }) return
+
+        val written = share.toAmount(hasSubunits = state.currency.hasSubunits)
 
         state = state.copy(
             beneficiaries = state.beneficiaries.map { beneficiary ->
                 if (beneficiary.userUuid == userUuid) {
-                    beneficiary.copy(share = newShare)
+                    beneficiary.copy(share = written)
                 } else {
                     beneficiary
                 }
@@ -453,9 +466,32 @@ class CreateExpenseViewModel(
         )
     }
 
+    /**
+     * Takes [text], the share field of [userUuid] as typed, as [updateAmount] takes the amount's:
+     * the field shows it as typed until it is left, see [finishBeneficiaryShare], while the share
+     * it stands for is the one worked out and saved, whatever the shares worked out again from it
+     * write there meanwhile.
+     */
+    fun typeBeneficiaryShare(userUuid: String, text: String) {
+        val share = state.beneficiaries.firstOrNull { it.userUuid == userUuid }?.share ?: return
+        val typed = text.dropDecimalsIfSeparatorDeleted(previous = state.shareTexts[userUuid] ?: share)
+        if (!acceptsAmount(typed)) return
+
+        state = state.copy(shareTexts = state.shareTexts + (userUuid to typed))
+        updateBeneficiaryShare(userUuid = userUuid, share = typed)
+    }
+
+    /** Shows the share of [userUuid] as the form keeps it, once its field is left. */
+    fun finishBeneficiaryShare(userUuid: String) {
+        state = state.copy(shareTexts = state.shareTexts - userUuid)
+    }
+
     fun isNewExpense() = _expenseUuid.value == null
 
     fun removeBeneficiaryFixedShare(userUuid: String) {
+        // Worked out again from here on, so what was typed there no longer stands.
+        finishBeneficiaryShare(userUuid = userUuid)
+
         updateBeneficiaries(
             state.beneficiaries.map { beneficiary ->
                 if (beneficiary.userUuid == userUuid) {
@@ -544,12 +580,23 @@ data class CreateExpenseState(
     val timestamp: String = "",
     val title: String = "",
     val description: String = "",
+
+    /** The amount, as the form uses and saves it, see [toAmount]. */
     val amount: String = "",
+
+    /** The amount field's text, as typed until the field is left, see [CreateExpenseViewModel.updateAmount]. */
+    val amountText: String = "",
     val creditorUuid: String = "",
     val creditorFullName: String = "",
     val isSettlement: Boolean = false,
     val currency: Currency,
     val beneficiaries: List<Beneficiary> = emptyList(),
+
+    /**
+     * The text of each share field being typed in, by the beneficiary's user uuid, see
+     * [CreateExpenseViewModel.typeBeneficiaryShare]: the share itself is in [beneficiaries].
+     */
+    val shareTexts: Map<String, String> = emptyMap(),
     val isDeleted: Boolean = false,
     private val validateExpenseCallBack: (String, Currency, List<Beneficiary>) -> Int?,
 ) {

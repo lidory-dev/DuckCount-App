@@ -54,7 +54,10 @@ import kotlinx.coroutines.launch
  *
  * With a [maxLength], it stops there: of what an edit inserts past it only what fits is kept,
  * see [limitedTo], and an edit nothing of which fits is refused with the cursor left where it
- * was. [counter] shows how much of it is used.
+ * was. [counter] shows how much of it is used. An edit whose text [accepts] refuses is refused
+ * the same way, for a field that takes only some texts, an amount for instance, rather than have
+ * its owner rewrite what is typed: that would hand the keyboard a new text, and drop the keys
+ * already on their way to it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +70,7 @@ fun DuckCountTextField(
     error: String? = "",
     counter: String? = null,
     maxLength: Int? = null,
+    accepts: ((String) -> Boolean)? = null,
     placeholder: @Composable (() -> Unit)? = null,
     enabled: Boolean = true,
     textStyle: TextStyle = MaterialTheme.typography.bodyLarge.copy(
@@ -185,7 +189,12 @@ fun DuckCountTextField(
         onValueChange = { edited ->
             // Against what the field last kept, which an edit earlier in the frame may have moved
             // on from what it shows.
-            val kept = maxLength?.let { edited.limitedTo(maxLength = it, previous = fieldValue) } ?: edited
+            val limited = maxLength?.let { edited.limitedTo(maxLength = it, previous = fieldValue) } ?: edited
+            // A cursor moved or a selection made changes no text, and is never refused.
+            val kept = when {
+                accepts == null || limited.text == fieldValue.text || accepts(limited.text) -> limited
+                else -> fieldValue
+            }
             fieldValue = kept
 
             if (kept.text != lastText) {
