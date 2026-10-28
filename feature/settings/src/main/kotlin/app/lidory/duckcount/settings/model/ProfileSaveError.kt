@@ -29,6 +29,9 @@ enum class ProfileSaveError {
     /** Another device changed the vault while this save was in flight; retrying works. */
     CONFLICT,
 
+    /** The full name is longer than the server takes, which the form keeps it from being. */
+    FULL_NAME_TOO_LONG,
+
     /** Anything else (server error, key material that will not unseal, …). */
     UNKNOWN,
 }
@@ -40,5 +43,6 @@ fun ProfileSaveError.messageRes(): Int = when (this) {
     ProfileSaveError.SERVER_UNREACHABLE -> R.string.profile_error_server_unreachable
     ProfileSaveError.UNAUTHORIZED -> R.string.profile_error_unauthorized
     ProfileSaveError.CONFLICT -> R.string.profile_error_conflict
+    ProfileSaveError.FULL_NAME_TOO_LONG -> R.string.profile_error_full_name_too_long
     ProfileSaveError.UNKNOWN -> R.string.profile_error_unknown
 }

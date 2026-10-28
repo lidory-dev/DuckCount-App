@@ -4,6 +4,7 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
+import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
@@ -12,12 +13,17 @@ import io.ktor.http.ContentType
 import io.ktor.http.Headers
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import networking.CURSOR_QUERY
 import networking.DuckCountClient
 import networking.DuckCountRoutes
+import networking.LARGE_BODY_TIMEOUT_MILLIS
+import networking.ListingPage
+import networking.readWholeListing
 import networking.retryAfterSeconds
 import util.EmptyResult
 import util.NetworkError
 import util.Result
+import util.map
 import kotlin.io.encoding.Base64
 
 /**
@@ -25,17 +31,6 @@ import kotlin.io.encoding.Base64
  * batch with a `400`.
  */
 const val MAX_GROUP_ACKNOWLEDGEMENT_BATCH = 100
-
-/**
- * How long a request carrying a group's Welcome is given, against the 5 s every other request
- * gets, see [DuckCountClient]: the Welcome carries the group's whole ratchet tree, some 400 KB at
- * a hundred members, which a slow connection takes far longer than that to move. The creator
- * uploads it, see [GroupApi.createGroup], a creation that runs out of time being sent again all
- * the same, see [GroupCreationAnswer.Failed], and so does an addition to a group, see
- * [GroupApi.addMembers], and every invitee downloads that same Welcome, see
- * [GroupApi.getGroupMessages].
- */
-private const val WELCOME_TIMEOUT_MILLIS = 60_000L
 
 /**
  * Remote data source for the caller's groups: creating one, listing them, changing the members of
@@ -52,7 +47,9 @@ class GroupApi(
     /**
      * Creates the group whose UUID [CreateGroupBody.nonce] derives from the caller's, the caller
      * owning it, and hands its Welcome to every invitee, see [GroupCreationAnswer] for what the
-     * server can answer.
+     * server can answer. Given [LARGE_BODY_TIMEOUT_MILLIS] for the Welcome, which carries the
+     * group's whole ratchet tree, some 370 KB at a hundred members: a creation that runs out of
+     * time is sent again all the same, see [GroupCreationAnswer.Failed].
      */
     suspend fun createGroup(body: CreateGroupBody): GroupCreationAnswer {
         // Read off the response as it comes back, a NetworkError having no room for it.
@@ -60,7 +57,7 @@ class GroupApi(
 
         val sent = client.execute<Unit> {
             client.httpClient.post(urlString = DuckCountRoutes.Group.GROUPS) {
-                timeout { requestTimeoutMillis = WELCOME_TIMEOUT_MILLIS }
+                timeout { requestTimeoutMillis = LARGE_BODY_TIMEOUT_MILLIS }
                 setBody(body)
                 contentType(ContentType.Application.Json)
             }.also { response ->
@@ -84,29 +81,47 @@ class GroupApi(
         )
 
     /**
-     * The messages waiting for the caller in the group [groupUuid], oldest first, the Welcome of a
-     * group they have yet to join among them, which is why they get as long as a creation does.
-     * Each stays until acknowledged, see [acknowledgeGroupMessages].
+     * Every message waiting for the caller in the group [groupUuid], oldest first, read a page at a
+     * time, see [getGroupMessagesPage], or the first failure and none of them, see
+     * [readWholeListing]. Each stays until acknowledged, see [acknowledgeGroupMessages].
      *
      * The server checks no membership, it lists by recipient: a group the caller is not a member
      * of, like one with nothing waiting for them, answers an empty list.
      */
     suspend fun getGroupMessages(groupUuid: String): Result<ListGroupMessagesResponse, NetworkError> =
+        readWholeListing { cursor ->
+            getGroupMessagesPage(groupUuid = groupUuid, cursor = cursor).map { page ->
+                ListingPage(items = page.messages, nextCursor = page.nextCursor)
+            }
+        }.map { messages -> ListGroupMessagesResponse(messages = messages) }
+
+    /**
+     * The page of the messages waiting for the caller in the group [groupUuid] that [cursor], the
+     * `next_cursor` of the page before, starts, or the first page with no cursor: at most a hundred
+     * messages and 1 MiB of them, one at least, a Welcome or a Commit of a group of a hundred among
+     * them, which is why each page gets [LARGE_BODY_TIMEOUT_MILLIS].
+     */
+    suspend fun getGroupMessagesPage(
+        groupUuid: String,
+        cursor: String?,
+    ): Result<ListGroupMessagesResponse, NetworkError> =
         client.execute {
             client.httpClient.get(urlString = DuckCountRoutes.Group.MESSAGES.replace(":group_uuid", groupUuid)) {
-                timeout { requestTimeoutMillis = WELCOME_TIMEOUT_MILLIS }
+                timeout { requestTimeoutMillis = LARGE_BODY_TIMEOUT_MILLIS }
+                cursor?.let { parameter(key = CURSOR_QUERY, value = it) }
             }
         }
 
     /**
      * Adds the members [body] names to the group [groupUuid], which the caller created, see
      * [GroupMembershipAnswer] for what the server can answer. Given as long as a creation, for the
-     * Welcome it carries.
+     * Welcome it carries and the Commit, which carries every key package it adds, some 440 KB for
+     * ninety-nine of them.
      */
     suspend fun addMembers(groupUuid: String, body: AddGroupMembersBody): GroupMembershipAnswer =
         changeMembers {
             client.httpClient.post(urlString = DuckCountRoutes.Group.MEMBERS.replace(":group_uuid", groupUuid)) {
-                timeout { requestTimeoutMillis = WELCOME_TIMEOUT_MILLIS }
+                timeout { requestTimeoutMillis = LARGE_BODY_TIMEOUT_MILLIS }
                 setBody(body)
                 contentType(ContentType.Application.Json)
             }
@@ -114,11 +129,13 @@ class GroupApi(
 
     /**
      * Removes the members [body] names from the group [groupUuid], which the caller created, see
-     * [GroupMembershipAnswer].
+     * [GroupMembershipAnswer]. Given as long as a creation too: the Commit encrypts a path to every
+     * member staying, some 175 KB in a group of a hundred.
      */
     suspend fun removeMembers(groupUuid: String, body: RemoveGroupMembersBody): GroupMembershipAnswer =
         changeMembers {
             client.httpClient.delete(urlString = DuckCountRoutes.Group.MEMBERS.replace(":group_uuid", groupUuid)) {
+                timeout { requestTimeoutMillis = LARGE_BODY_TIMEOUT_MILLIS }
                 setBody(body)
                 contentType(ContentType.Application.Json)
             }

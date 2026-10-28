@@ -52,6 +52,7 @@
     <string name="profile_error_unauthorized">Please log in again to change your profile</string>
     <string name="profile_error_conflict">Your profile changed on another device, please try again</string>
     <string name="profile_error_unknown">Your profile could not be saved</string>
+    <string name="profile_error_full_name_too_long">Your full name is too long</string>
     <string name="account_deletion_error_wrong_password">Incorrect password</string>
     <string name="account_deletion_error_no_internet">No internet connection</string>
     <string name="account_deletion_error_timeout">The server took too long to answer, please try again</string>

@@ -25,4 +25,5 @@
     <string name="date">%1$s, %2$s</string>
     <string name="names_list_separator">", "</string>
     <string name="names_list_last">%1$s and %2$s</string>
+    <string name="character_count">%1$d/%2$d</string>
 </resources>

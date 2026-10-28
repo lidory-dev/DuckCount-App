@@ -180,6 +180,11 @@ fun UserProfileScreen(
                             enabled = !isSaving,
                             isInError = state.draftFullName.isBlank(),
                             error = stringResource(androidUiR.string.required),
+                            counter = stringResource(
+                                androidUiR.string.character_count,
+                                state.draftFullName.length,
+                                viewModel.maxFullNameLength,
+                            ),
                         )
 
                         state.error?.let { error ->

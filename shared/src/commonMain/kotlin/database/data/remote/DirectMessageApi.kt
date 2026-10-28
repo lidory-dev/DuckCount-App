@@ -1,17 +1,25 @@
 package database.data.remote
 
+import io.ktor.client.plugins.timeout
+import io.ktor.client.request.get
+import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.Headers
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import networking.CURSOR_QUERY
 import networking.DuckCountClient
 import networking.DuckCountRoutes
+import networking.LARGE_BODY_TIMEOUT_MILLIS
+import networking.ListingPage
+import networking.readWholeListing
 import networking.retryAfterSeconds
 import util.Error
 import util.NetworkError
 import util.Result
+import util.map
 
 /**
  * The most message UUIDs one acknowledgement may carry. The server refuses a larger batch
@@ -26,6 +34,26 @@ const val MAX_ACKNOWLEDGEMENT_BATCH = 100
 private const val RATE_LIMIT_SCOPE_HEADER = "X-Rate-Limit-Scope"
 
 /**
+ * The longest [SendDirectMessageBody.ciphertext] sent within the 5 s every request gets, which
+ * moves it on a connection of some 105 kbit/s. Past it, and only past it, a send gets
+ * [LARGE_BODY_TIMEOUT_MILLIS], see [sendTimeoutMillisOf].
+ *
+ * Only a share of the keys to many one-time expenses is longer, up to some 160 KB, see
+ * `expense.ExpenseKeyShare`. Every other message is far shorter, a share of the one key to an
+ * expense of a hundred beneficiaries some 14 KB with the Welcome to the channel included, and is
+ * often sent while the user waits, as each share of a new expense is: over a connection that
+ * stalls, the long timeout would hold them for a minute per recipient.
+ */
+internal const val LARGE_DIRECT_MESSAGE_LENGTH = 64 * 1024
+
+/**
+ * How long sending [body] is given: [LARGE_BODY_TIMEOUT_MILLIS] past
+ * [LARGE_DIRECT_MESSAGE_LENGTH], or null for the 5 s every request gets.
+ */
+internal fun sendTimeoutMillisOf(body: SendDirectMessageBody): Long? =
+    LARGE_BODY_TIMEOUT_MILLIS.takeIf { body.ciphertext.length > LARGE_DIRECT_MESSAGE_LENGTH }
+
+/**
  * Remote data source for the caller's direct messages.
  *
  * The channel two users talk over outside of any group the server knows about, keyed by
@@ -35,11 +63,30 @@ private const val RATE_LIMIT_SCOPE_HEADER = "X-Rate-Limit-Scope"
 class DirectMessageApi(
     private val client: DuckCountClient,
 ) {
-    /** The messages waiting for the caller, oldest first. Each stays until acknowledged. */
+    /**
+     * Every message waiting for the caller, oldest first, read a page at a time, see
+     * [getDirectMessagesPage], or the first failure and none of them, see [readWholeListing].
+     * Each stays until acknowledged.
+     */
     suspend fun getDirectMessages(): Result<ListDirectMessagesResponse, NetworkError> =
-        client.get<ListDirectMessagesResponse>(
-            route = DuckCountRoutes.Message.MESSAGES,
-        )
+        readWholeListing { cursor ->
+            getDirectMessagesPage(cursor = cursor).map { page ->
+                ListingPage(items = page.messages, nextCursor = page.nextCursor)
+            }
+        }.map { messages -> ListDirectMessagesResponse(messages = messages) }
+
+    /**
+     * The page of the messages waiting for the caller that [cursor], the `next_cursor` of the page
+     * before, starts, or the first page with no cursor: at most a hundred messages and 1 MiB of
+     * them, one at least, which is why each page gets [LARGE_BODY_TIMEOUT_MILLIS].
+     */
+    suspend fun getDirectMessagesPage(cursor: String?): Result<ListDirectMessagesResponse, NetworkError> =
+        client.execute {
+            client.httpClient.get(urlString = DuckCountRoutes.Message.MESSAGES) {
+                timeout { requestTimeoutMillis = LARGE_BODY_TIMEOUT_MILLIS }
+                cursor?.let { parameter(key = CURSOR_QUERY, value = it) }
+            }
+        }
 
     /**
      * Sends a message to [SendDirectMessageBody.recipientUserUuid].
@@ -51,6 +98,10 @@ class DirectMessageApi(
      * Sending is limited twice over, for what the caller sends this recipient and for what they
      * send everybody together, and a `429` says which of the two refused the message and when it
      * lets one through again, see [SendDirectMessageError.RateLimited].
+     *
+     * Given [LARGE_BODY_TIMEOUT_MILLIS] when it is long, see [sendTimeoutMillisOf]: the server takes
+     * up to 256 KiB of ciphertext, and a share of the keys to one-time expenses takes some 160 KB of
+     * it at most, see `expense.ExpenseKeyShare`, the Welcome to the channel it may carry included.
      */
     suspend fun sendDirectMessage(body: SendDirectMessageBody): Result<Unit, SendDirectMessageError> {
         // Read off the response as it comes back, a NetworkError having no room for it.
@@ -58,6 +109,7 @@ class DirectMessageApi(
 
         val sent = client.execute<Unit> {
             client.httpClient.post(urlString = DuckCountRoutes.Message.MESSAGES) {
+                sendTimeoutMillisOf(body = body)?.let { millis -> timeout { requestTimeoutMillis = millis } }
                 setBody(body)
                 contentType(ContentType.Application.Json)
             }.also { response ->

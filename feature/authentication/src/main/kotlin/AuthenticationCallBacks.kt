@@ -5,6 +5,9 @@ interface AuthenticationCallBacks {
     /** Longest username `lib-duckcount` accepts, for the "too long" message to count against. */
     val maxUsernameLength: Int
 
+    /** Longest full name the server takes on a profile, which the profile's form stops at. */
+    val maxFullNameLength: Int
+
     /** Number of times the password appears in known breaches (Have I Been Pwned). */
     suspend fun passwordLeakAmount(password: String): AuthOutcome<Int>
 

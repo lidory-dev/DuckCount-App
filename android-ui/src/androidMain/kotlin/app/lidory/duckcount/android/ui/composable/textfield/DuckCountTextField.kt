@@ -53,6 +53,7 @@ fun DuckCountTextField(
     modifier: Modifier = Modifier,
     isInError: Boolean = false,
     error: String? = "",
+    counter: String? = null,
     placeholder: @Composable (() -> Unit)? = null,
     enabled: Boolean = true,
     textStyle: TextStyle = MaterialTheme.typography.bodyLarge.copy(
@@ -183,6 +184,7 @@ fun DuckCountTextField(
                     modifier = innerModifier,
                     error = error,
                     isInError = isInError,
+                    counter = counter,
                     colors = colors,
                 ) {
                     Box(modifier = Modifier.bringIntoViewRequester(textBringIntoViewRequester)) {

@@ -40,4 +40,5 @@
     <string name="error_server">Something went wrong on our end. Please try again later.</string>
     <string name="error_crypto">We couldn’t complete the secure handshake. Please try again.</string>
     <string name="error_unknown">Something went wrong. Please try again.</string>
+    <string name="error_full_name_too_long">Your full name is too long.</string>
 </resources>

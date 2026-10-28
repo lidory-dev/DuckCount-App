@@ -8,10 +8,12 @@ import message.DirectMessageHandler
 import message.DirectMessageHandling
 import message.DirectMessageSender
 import database.data.remote.DirectMessageKindDto
+import message.DirectSendError
 import mls.MlsIdentityRepository
 import mls.pinnedSignatureKeyFor
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.isOneTimeExpenseCreditor
+import util.EmptyResult
 import util.Result
 
 /**
@@ -145,6 +147,14 @@ internal class OneTimeExpenseMessageHandler(
      * before, at their first try an hour after the last reply this device sent them at the
      * latest.
      *
+     * An answer of more keys than one message holds goes out as several shares, see
+     * [replyInShares], each one reply of that budget: those it does not cover are not sent. The
+     * asker keeps every expense whose key has not come waiting, all of them due again together,
+     * and their next request names them all, see [ExpenseKeyPull], which this device answers
+     * as far as the budget then lets it: one share an hour after two went out, two once it is
+     * whole again. So the hundred keys a request can ask for, of expenses with a hundred
+     * beneficiaries each, five shares, come two at once, and the rest over a few hours.
+     *
      * A key the answer hands over is no longer owed to the asker, see
      * [database.data.local.entity.OwedExpenseKeyEntity], or the next sync would hand it
      * over again.
@@ -163,23 +173,52 @@ internal class OneTimeExpenseMessageHandler(
         // Before the budget is asked: an asker owed nothing spends none of it.
         if (answers.isEmpty()) return
 
-        if (!directChannelRepository.claimReply(peerUuid = requesterUuid, reply = Reply.EXPENSE_KEYS)) return
-
-        val replied = directMessageSender.replyIn(
-            recipientUserUuid = requesterUuid,
-            mlsGroupId = mlsGroupId,
-            payload = ExpenseKeyShare(keys = answers).serialize(),
-            // The answer makes an expense readable just as the first share did.
-            kind = DirectMessageKindDto.ONE_TIME_EXPENSE,
+        val handedOver = replyInShares(
+            keys = answers,
+            claim = { directChannelRepository.claimReply(peerUuid = requesterUuid, reply = Reply.EXPENSE_KEYS) },
+            reply = { payload ->
+                directMessageSender.replyIn(
+                    recipientUserUuid = requesterUuid,
+                    mlsGroupId = mlsGroupId,
+                    payload = payload,
+                    // The answer makes an expense readable just as the first share did.
+                    kind = DirectMessageKindDto.ONE_TIME_EXPENSE,
+                )
+            },
         )
 
-        if (replied is Result.Success) {
-            owedExpenseKeyDao.delete(
-                recipientUuid = requesterUuid,
-                expenseUuids = answers.map { it.expenseUuid },
-            )
+        if (handedOver.isNotEmpty()) {
+            owedExpenseKeyDao.delete(recipientUuid = requesterUuid, expenseUuids = handedOver)
         }
     }
+}
+
+/**
+ * Answers a request with [keys], in as many shares as they take, see [ExpenseKeyShare.chunked],
+ * each sent with [reply] once [claim] says the asker's budget of replies covers it, see
+ * [DirectChannelRepository.claimReply], and returns the expenses whose keys went out.
+ *
+ * In order, and stopping at the first share the budget does not cover, or that does not go out:
+ * the rest wait for the asker to ask again. A share not sent is a reply kept all the same, the
+ * budget being claimed before each send, see [DirectChannelRepository.claimReply] on why, so one
+ * failing stops the ones after it rather than have each spend a reply on what fails just the same.
+ */
+internal suspend fun replyInShares(
+    keys: List<ExpenseKey>,
+    claim: suspend () -> Boolean,
+    reply: suspend (payload: ByteArray) -> EmptyResult<DirectSendError>,
+): List<String> {
+    val handedOver = mutableListOf<String>()
+
+    for (share in ExpenseKeyShare(keys = keys).chunked()) {
+        if (!claim()) break
+
+        if (reply(share.serialize()) !is Result.Success) break
+
+        handedOver += share.keys.map { it.expenseUuid }
+    }
+
+    return handedOver
 }
 
 /**

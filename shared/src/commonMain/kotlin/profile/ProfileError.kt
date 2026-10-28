@@ -24,4 +24,11 @@ sealed interface ProfileError : Error {
 
     /** A stored field could not be unsealed with the key that should open it. */
     data object Crypto : ProfileError
+
+    /**
+     * The full name is longer than the server takes one sealed, see
+     * [app.lidory.duckcount.ProfileLimits.MAX_FULL_NAME_LENGTH], and was refused before anything
+     * was sealed.
+     */
+    data object FullNameTooLong : ProfileError
 }

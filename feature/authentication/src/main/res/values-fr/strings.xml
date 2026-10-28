@@ -40,4 +40,5 @@
     <string name="error_server">Une erreur est survenue de notre côté. Réessayez plus tard.</string>
     <string name="error_crypto">La connexion sécurisée n’a pas pu être établie. Réessayez.</string>
     <string name="error_unknown">Une erreur est survenue. Réessayez.</string>
+    <string name="error_full_name_too_long">Votre nom complet est trop long.</string>
 </resources>

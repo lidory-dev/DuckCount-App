@@ -59,14 +59,16 @@ class ExpenseKeyDelivery internal constructor(
      * Hands every recipient the keys owed to them that [ownUserUuid], the creditor, holds the
      * records of.
      *
-     * One message per person, and one person at a time: the server counts messages against two
-     * allowances, and running past either holds the rest back until it reopens, when the pass
-     * runs again, see [ResendScheduler]. Past what the user may send one recipient, theirs wait
-     * and the pass goes on to the others, though what the user may send everybody can still
-     * refuse them; past that, the pass stops. Whatever waits for a recipient, for a limit or for
-     * anything else, is batched with what they are owed since at the next pass: one message,
-     * carrying no more keys than a recipient reads of one, see [ExpenseKeyShare.MAX_KEYS].
-     * Past that many, the rest wait for the pass after.
+     * One person at a time, and as few messages per person as their keys fit in: one share, or
+     * as many as it takes to keep each within what the server takes of one message, see
+     * [ExpenseKeyShare.chunked]. The server counts messages against two allowances, and running
+     * past either holds the rest back until it reopens, when the pass runs again, see
+     * [ResendScheduler]. Past what the user may send one recipient, theirs wait and the pass goes
+     * on to the others, though what the user may send everybody can still refuse them; past that,
+     * the pass stops. A share refused, for a limit or for anything else, holds back the shares
+     * after it, and whatever waits for a recipient is batched with what they are owed since at the
+     * next pass, no more keys of it than a recipient reads of one share, see
+     * [ExpenseKeyShare.MAX_KEYS]. Past that many, the rest wait for the pass after.
      *
      * Every recipient owed is attempted until the user's allowance of messages runs out, and
      * the first failure is reported. A refusal for either allowance is not one: the resend it
@@ -79,30 +81,36 @@ class ExpenseKeyDelivery internal constructor(
 
         var failure: OneTimeExpenseSyncError? = null
 
-        for ((recipientUuid, rows) in owed.groupBy { it.recipientUuid }) {
+        recipients@ for ((recipientUuid, rows) in owed.groupBy { it.recipientUuid }) {
             val keys = rows.mapNotNull { row ->
                 record(row.expenseUuid)?.keyFor(requesterUuid = recipientUuid, ownUserUuid = ownUserUuid)
             }.take(ExpenseKeyShare.MAX_KEYS)
 
             if (keys.isEmpty()) continue
 
-            val expenseUuids = keys.map { it.expenseUuid }
+            for (share in ExpenseKeyShare(keys = keys).chunked()) {
+                val error = when (val sent = send(recipientUuid, share.serialize())) {
+                    is Result.Success -> {
+                        owedExpenseKeyDao.delete(
+                            recipientUuid = recipientUuid,
+                            expenseUuids = share.keys.map { it.expenseUuid },
+                        )
 
-            when (val sent = send(recipientUuid, ExpenseKeyShare(keys = keys).serialize())) {
-                is Result.Success -> owedExpenseKeyDao.delete(
-                    recipientUuid = recipientUuid,
-                    expenseUuids = expenseUuids,
-                )
+                        continue
+                    }
 
-                is Result.Error -> when (val error = sent.error) {
-                    // Nobody to hand the key to: they deleted their account, or the server offers
+                    is Result.Error -> sent.error
+                }
+
+                when (error) {
+                    // Nobody to hand the keys to: they deleted their account, or the server offers
                     // no way to reach them that this build can use, and should they come back,
-                    // they ask for the key and the record answers them.
+                    // they ask for the keys and the records answer them.
                     DirectSendError.RecipientDeleted,
                     DirectSendError.Channel(DirectChannelError.Unreachable),
                         -> owedExpenseKeyDao.delete(
                         recipientUuid = recipientUuid,
-                        expenseUuids = expenseUuids,
+                        expenseUuids = keys.map { it.expenseUuid },
                     )
 
                     // A recipient the server knows nothing of, which says nothing of their
@@ -119,11 +127,14 @@ class ExpenseKeyDelivery internal constructor(
                     is DirectSendError.RateLimited -> {
                         resendScheduler.resendAfter(seconds = error.retryAfterSeconds)
 
-                        if (error.scope == MessageLimitScope.SENDER) break
+                        if (error.scope == MessageLimitScope.SENDER) break@recipients
                     }
 
                     else -> failure = failure ?: error.toSyncError()
                 }
+
+                // Whatever refused this share would refuse the next ones just the same.
+                continue@recipients
             }
         }
 

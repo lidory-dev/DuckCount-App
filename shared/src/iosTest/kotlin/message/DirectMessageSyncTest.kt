@@ -1,5 +1,6 @@
 package message
 
+import contact.ContactSyncError
 import database.data.remote.DirectMessageDto
 import database.data.remote.ListDirectMessagesResponse
 import kotlinx.coroutines.runBlocking
@@ -8,9 +9,13 @@ import mls.InMemoryMlsStore
 import mls.encryptApplicationMessage
 import mls.inviteeKeyPackage
 import mls.readApplicationMessage
+import networking.pageOf
+import networking.readWholeListing
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
+import util.NetworkError
 import util.Result
+import util.map
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -99,6 +104,57 @@ class DirectMessageSyncTest {
             assertEquals(listOf("hello"), offered)
             assertTrue(notedReads.single().contentEquals(group))
         }
+
+    /**
+     * Alice's first message has to be read again, its acceptance not yet completed, and her next
+     * one is on the next page of what is listed: she is left alone for the rest of the pass all the
+     * same, which is what keeps her messages in order. Carol's, on the same page, is read.
+     */
+    @Test
+    fun `a sender left for the pass on one page is left on the next`() = runBlocking<Unit> {
+        val envelope = DirectMessageEnvelope(mlsGroupId = ByteArray(32) { 5 }, message = byteArrayOf(1)).serialize()
+        val listed = listOf(
+            DirectMessageDto(uuid = "m1", senderUserUuid = ALICE, ciphertext = envelope, createdAt = "2026-10-23T12:00:00Z"),
+            DirectMessageDto(uuid = "m2", senderUserUuid = ALICE, ciphertext = envelope, createdAt = "2026-10-23T12:01:00Z"),
+            DirectMessageDto(uuid = "m3", senderUserUuid = CAROL, ciphertext = "not an envelope", createdAt = "2026-10-23T12:02:00Z"),
+        )
+        val completed = mutableListOf<String>()
+
+        val sync = DirectMessageSync(
+            restoreContacts = { Result.Success(Unit) },
+            listMessages = {
+                readWholeListing { cursor -> Result.Success(pageOf(items = listed, cursor = cursor, perPage = 1)) }
+                    .map { ListDirectMessagesResponse(messages = it) }
+            },
+            acknowledge = { body ->
+                acknowledged += body.messageUuids
+                Result.Success(Unit)
+            },
+            client = { Result.Success(bob) },
+            isBlocked = { false },
+            isGroup = { false },
+            completeAcceptanceIn = { _, senderUserUuid, _ ->
+                completed += senderUserUuid
+                Result.Error(ContactSyncError.Network(NetworkError.NO_INTERNET))
+            },
+            isKnownPeer = { true },
+            adopt = { _, _, mlsGroupId -> adopted += mlsGroupId },
+            noteReadIn = { _, _, mlsGroupId -> notedReads += mlsGroupId },
+            claimReply = { _, _ -> false },
+            replyIn = { _, _, _ -> },
+            handlers = listOf(handler),
+        )
+
+        val pass = sync.sync()
+
+        assertEquals(
+            DirectMessageSyncError.Contacts(ContactSyncError.Network(NetworkError.NO_INTERNET)),
+            assertIs<Result.Error<DirectMessageSyncError>>(pass).error,
+        )
+        assertEquals(listOf(ALICE), completed)
+        assertEquals(listOf("m3"), acknowledged)
+        assertTrue(offered.isEmpty())
+    }
 
     /** Alice's message in her group, as an application message she encrypted there. */
     private suspend fun aliceSends(): ByteArray =

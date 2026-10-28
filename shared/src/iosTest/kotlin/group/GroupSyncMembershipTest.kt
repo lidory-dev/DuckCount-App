@@ -14,6 +14,8 @@ import mls.inviteeKeyPackage
 import mls.processGroupMessageIn
 import mls.removeMembersFrom
 import mls.rosterOf
+import networking.pageOf
+import networking.readWholeListing
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.MlsNamespace
@@ -21,6 +23,7 @@ import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import util.EmptyResult
 import util.NetworkError
 import util.Result
+import util.map
 import kotlin.io.encoding.Base64
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -86,6 +89,12 @@ class GroupSyncMembershipTest {
     private var isAcknowledgingFailing = false
     private var messageCount = 0
 
+    /**
+     * How many messages the server lists a page, the sync reading every page as
+     * `GroupApi.getGroupMessages` does: all of them on one unless a test says otherwise.
+     */
+    private var messagesPerPage = Int.MAX_VALUE
+
     private val groups = mutableMapOf<String, GroupEntity>()
     private val members = mutableMapOf<String, List<GroupMemberEntity>>()
     private val declined = mutableSetOf<String>()
@@ -143,7 +152,10 @@ class GroupSyncMembershipTest {
         vaultKeys = { Result.Success(vault.toMap()) },
         listMessages = { groupUuid ->
             fetched += groupUuid
-            Result.Success(ListGroupMessagesResponse(messages = waiting[groupUuid].orEmpty().toList()))
+            val listed = waiting[groupUuid].orEmpty().toList()
+
+            readWholeListing { cursor -> Result.Success(pageOf(items = listed, cursor = cursor, perPage = messagesPerPage)) }
+                .map { ListGroupMessagesResponse(messages = it) }
         },
         acknowledge = { groupUuid, messageUuids ->
             if (isAcknowledgingFailing) {
@@ -533,6 +545,28 @@ class GroupSyncMembershipTest {
             assertContentEquals(groupKey, groups.getValue(GROUP).groupKey)
         }
 
+    /** The same, the message left waiting on the first page and what comes after it on the next. */
+    @Test
+    fun `a message left waiting on one page leaves what the next pages list unacknowledged`() =
+        runBlocking<Unit> {
+            joined()
+            messagesPerPage = 1
+
+            val commit = aliceAdds(dave)
+            val rotation = aliceRotates()
+
+            bobStore.failing = setOf(MlsNamespace.GROUP_STATE)
+
+            assertEquals(GroupSyncError.Storage, groupSync.sync(contactsTakenIn = true).failure)
+            assertNull(acknowledged[GROUP])
+
+            bobStore.failing = emptySet()
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+            assertEquals(listOf(commit, rotation), acknowledged[GROUP]?.toList())
+            assertContentEquals(groupKey, groups.getValue(GROUP).groupKey)
+        }
+
     /**
      * Somebody holding Dave's UUID under a key of their own is who the server served Alice as him,
      * against the one Bob pinned for Dave: taken in, the Commit would have Bob trust them.
@@ -689,6 +723,35 @@ class GroupSyncMembershipTest {
 
             assertFalse(group.isLeft)
             assertContentEquals(groupKey, group.groupKey)
+            assertEquals(rowsOf(ALICE, BOB, CAROL), members.getValue(GROUP).toSet())
+            assertEquals(listOf(firstWelcome, removal, lastWelcome), acknowledged[GROUP]?.toList())
+            assertEquals(alice.rosterOf(mlsGroupId = aliceGroup()).epoch, bobRoster().epoch)
+        }
+
+    /**
+     * The same, the server listing a message a page: the Welcome Bob is joined from is on the
+     * last page, and the Welcome on the first still says who the creator is.
+     */
+    @Test
+    fun `the last Welcome its creator wrote is joined from whichever page it is listed on`() =
+        runBlocking<Unit> {
+            messagesPerPage = 1
+
+            val firstWelcome = aliceCreates()
+            val removal = aliceRemoves(BOB)
+
+            aliceRotates()
+
+            val lastWelcome = aliceAdds(bob)
+
+            assertEquals(listOf(firstWelcome, removal, lastWelcome), waiting.getValue(GROUP).map { it.uuid })
+
+            val pass = groupSync.sync(contactsTakenIn = true)
+
+            assertNull(pass.failure)
+            assertEquals(listOf(GROUP), pass.joined.map { it.groupUuid })
+            assertTrue(pass.removed.isEmpty())
+            assertContentEquals(groupKey, groups.getValue(GROUP).groupKey)
             assertEquals(rowsOf(ALICE, BOB, CAROL), members.getValue(GROUP).toSet())
             assertEquals(listOf(firstWelcome, removal, lastWelcome), acknowledged[GROUP]?.toList())
             assertEquals(alice.rosterOf(mlsGroupId = aliceGroup()).epoch, bobRoster().epoch)

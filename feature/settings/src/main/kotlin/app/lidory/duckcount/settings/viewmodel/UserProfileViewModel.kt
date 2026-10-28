@@ -2,6 +2,7 @@ package app.lidory.duckcount.settings.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.lidory.duckcount.android.ui.text.limitedTo
 import app.lidory.duckcount.settings.SettingsCallBacks
 import app.lidory.duckcount.settings.model.ProfileSaveError
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +17,9 @@ class UserProfileViewModel(
 ) : ViewModel() {
 
     val authenticatedUserUuid = settingsCallBacks.getAuthenticatedUserUuid()
+
+    /** The longest full name the form takes, see [onFullNameChanged]. */
+    val maxFullNameLength = settingsCallBacks.maxFullNameLength
 
     val draftFullName = MutableStateFlow<String?>(null)
 
@@ -57,8 +61,15 @@ class UserProfileViewModel(
         )
     }
 
+    /**
+     * Takes [fullName], the field's text after an edit, held to [maxFullNameLength]: of what the
+     * edit inserts past it, only what fits is kept, see [limitedTo]. The field showed the saved name
+     * until the first edit made a draft of it.
+     */
     fun onFullNameChanged(fullName: String) {
-        draftFullName.value = fullName
+        val shown = draftFullName.value ?: (state.value as? UserProfileScreenState.Content)?.fullName.orEmpty()
+
+        draftFullName.value = fullName.limitedTo(maxLength = maxFullNameLength, previous = shown)
         error.value = null
     }
 

@@ -129,6 +129,8 @@ fun ProfileError.toProfileSaveError(isOnline: Boolean): ProfileSaveError = when 
             -> ProfileSaveError.UNKNOWN
     }
 
+    ProfileError.FullNameTooLong -> ProfileSaveError.FULL_NAME_TOO_LONG
+
     ProfileError.NotStored,
     ProfileError.Crypto,
         -> ProfileSaveError.UNKNOWN

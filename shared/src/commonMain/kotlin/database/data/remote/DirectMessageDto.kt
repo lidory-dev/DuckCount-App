@@ -24,10 +24,18 @@ data class DirectMessageDto(
     val createdAt: String,
 )
 
-/** Body of `GET /messages`: the caller's pending messages, oldest first. */
+/**
+ * Body of `GET /messages`: a page of the caller's pending messages, oldest first, and
+ * [nextCursor] to ask for the next page with, null when this is the last, see
+ * [DirectMessageApi.getDirectMessagesPage]. Every page read, see
+ * [DirectMessageApi.getDirectMessages], it holds them all, with no next cursor.
+ */
 @Serializable
 data class ListDirectMessagesResponse(
     val messages: List<DirectMessageDto>,
+
+    @SerialName("next_cursor")
+    val nextCursor: String? = null,
 )
 
 /** Body of `POST /messages`. */

@@ -7,9 +7,12 @@ import database.data.remote.MessageLimitScope
 import database.data.remote.SendDirectMessageBody
 import database.data.remote.SendDirectMessageError
 import kotlinx.coroutines.runBlocking
+import networking.pageOf
+import networking.readWholeListing
 import util.EmptyResult
 import util.NetworkError
 import util.Result
+import util.map
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -109,6 +112,33 @@ class DirectMessageSenderTest {
 
         assertEquals(listOf(ALICE), forgotten)
     }
+
+    /**
+     * What waits is listed a page at a time and read whole, see `DirectMessageApi.getDirectMessages`:
+     * Alice's message on the last page keeps her as surely as on the first.
+     */
+    @Test
+    fun `a contact who deleted their account is kept while what they sent waits on a later page`() =
+        runBlocking<Unit> {
+            val listed = listOf(messageFrom(BOB), messageFrom(BOB), messageFrom(ALICE))
+            val paged = DirectMessageSender(
+                ensureChannel = { Result.Success(DirectChannel(mlsGroupId = byteArrayOf(1, 2, 3), welcome = null)) },
+                noteWelcomeAttached = { },
+                encrypt = { _, payload -> Result.Success(payload) },
+                post = { answer },
+                listWaiting = {
+                    readWholeListing { cursor -> Result.Success(pageOf(items = listed, cursor = cursor, perPage = 2)) }
+                        .map { ListDirectMessagesResponse(messages = it) }
+                },
+                receiveAccountDeletion = { userUuid -> forgotten += userUuid },
+            )
+            answer = Result.Error(SendDirectMessageError.RecipientDeleted)
+
+            val sent = paged.send(recipientUserUuid = ALICE, payload = byteArrayOf(9))
+
+            assertEquals(Result.Error(DirectSendError.RecipientDeleted), sent)
+            assertTrue(forgotten.isEmpty())
+        }
 
     /** Anything of hers could be waiting, so she is left to the next message to her. */
     @Test

@@ -5,6 +5,7 @@ import AuthOutcome
 import AuthenticationCallBacks
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.lidory.duckcount.android.ui.text.limitedTo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
@@ -22,9 +23,16 @@ class UserInformationViewModel(
         initialValue = _state.value,
     )
 
+    /** The longest full name the form takes, see [updateFullName]. */
+    val maxFullNameLength = authenticationCallBacks.maxFullNameLength
+
+    /**
+     * Takes [fullName], the field's text after an edit, held to [maxFullNameLength]: of what the
+     * edit inserts past it, only what fits is kept, see [limitedTo].
+     */
     fun updateFullName(fullName: String) {
         _state.update {
-            it.copy(fullName = fullName, error = null)
+            it.copy(fullName = fullName.limitedTo(maxLength = maxFullNameLength, previous = it.fullName), error = null)
         }
     }
 

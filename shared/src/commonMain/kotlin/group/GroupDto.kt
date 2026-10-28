@@ -209,10 +209,18 @@ data class PostGroupMessageResponse(
     val uuid: String,
 )
 
-/** Body of `GET /groups/{group_uuid}/messages`: the caller's pending messages there, oldest first. */
+/**
+ * Body of `GET /groups/{group_uuid}/messages`: a page of the caller's pending messages there,
+ * oldest first, and [nextCursor] to ask for the next page with, null when this is the last, see
+ * [GroupApi.getGroupMessagesPage]. Every page read, see [GroupApi.getGroupMessages], it holds them
+ * all, with no next cursor.
+ */
 @Serializable
 data class ListGroupMessagesResponse(
     val messages: List<GroupMessageDto>,
+
+    @SerialName("next_cursor")
+    val nextCursor: String? = null,
 )
 
 /** Body of `POST /groups/{group_uuid}/messages/acknowledgements`. */

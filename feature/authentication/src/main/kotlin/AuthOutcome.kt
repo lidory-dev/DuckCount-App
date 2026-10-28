@@ -18,6 +18,9 @@ enum class AuthError {
     TIMEOUT,
     SERVER_ERROR,
     CRYPTO_ERROR,
+
+    /** The full name is longer than the server takes, which the form keeps it from being. */
+    FULL_NAME_TOO_LONG,
     UNKNOWN,
 }
 
@@ -36,5 +39,6 @@ fun AuthError.messageRes(): Int = when (this) {
     AuthError.TIMEOUT -> R.string.error_timeout
     AuthError.SERVER_ERROR -> R.string.error_server
     AuthError.CRYPTO_ERROR -> R.string.error_crypto
+    AuthError.FULL_NAME_TOO_LONG -> R.string.error_full_name_too_long
     AuthError.UNKNOWN -> R.string.error_unknown
 }

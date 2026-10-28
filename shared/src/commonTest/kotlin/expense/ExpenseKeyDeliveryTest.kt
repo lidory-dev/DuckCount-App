@@ -33,6 +33,9 @@ class ExpenseKeyDeliveryTest {
     private val sends = KeySends()
     private val resends = ResendsBooked()
 
+    /** The expenses whose records name a hundred beneficiaries, as many as one may have, the three of them among them. */
+    private val crowded = mutableSetOf<String>()
+
     private val delivery = ExpenseKeyDelivery(
         owedExpenseKeyDao = owed,
         record = { expenseUuid -> recordOf(expenseUuid) },
@@ -136,6 +139,54 @@ class ExpenseKeyDeliveryTest {
         assertTrue(resends.seconds.isEmpty())
     }
 
+    /**
+     * Bob is owed the keys to a hundred expenses of a hundred beneficiaries each, more than the
+     * server takes in one message: they go out in as many shares as it takes, every key in one.
+     */
+    @Test
+    fun `keys past what one message holds go out in as many shares as they take`() = runBlocking<Unit> {
+        val expenseUuids = crowdedExpenses(count = ExpenseKeyShare.MAX_KEYS)
+
+        expenseUuids.forEach { owed.add(it, BOB) }
+
+        assertIs<Result.Success<Unit>>(delivery.handOver(ownUserUuid = USER))
+
+        assertEquals(List(5) { BOB }, sends.recipients)
+        sends.payloads.forEach { assertTrue(it.size <= ExpenseKeyShare.MAX_PLAINTEXT_BYTES) }
+        assertEquals(expenseUuids, sends.payloads.flatMap { keysIn(it) })
+        assertTrue(owed.rows.isEmpty())
+    }
+
+    /**
+     * Past what the user may send Bob at his third share: it and the two after it wait for the
+     * limit to reopen, the two before it handed over, and Carol is handed hers meanwhile.
+     */
+    @Test
+    fun `a share refused for a limit leaves it and the ones after it owed`() = runBlocking<Unit> {
+        val expenseUuids = crowdedExpenses(count = ExpenseKeyShare.MAX_KEYS)
+
+        expenseUuids.forEach { owed.add(it, BOB) }
+        owed.add(LUNCH, CAROL)
+        sends.inTurn[BOB to 2] =
+            Result.Error(DirectSendError.RateLimited(retryAfterSeconds = 20, scope = MessageLimitScope.RECIPIENT))
+
+        assertIs<Result.Success<Unit>>(delivery.handOver(ownUserUuid = USER))
+
+        assertEquals(listOf(BOB, BOB, BOB, CAROL), sends.recipients)
+
+        val handedOver = sends.payloads.take(2).flatMap { keysIn(it) }
+
+        assertEquals(expenseUuids.drop(handedOver.size).map { it to BOB }, owed.rows)
+        assertEquals(listOf(20L), resends.seconds)
+
+        sends.inTurn.clear()
+
+        assertIs<Result.Success<Unit>>(delivery.handOver(ownUserUuid = USER))
+
+        assertEquals(expenseUuids.drop(handedOver.size), sends.payloads.drop(4).flatMap { keysIn(it) })
+        assertTrue(owed.rows.isEmpty())
+    }
+
     /** A failure met before the limit ran out is still the pass's to report. */
     @Test
     fun `a failure before the limit ran out is reported`() = runBlocking<Unit> {
@@ -191,22 +242,39 @@ class ExpenseKeyDeliveryTest {
             creditorUuid = USER,
             nonce = ByteArray(16) { 2 },
             creditorSignatureKey = ByteArray(32) { 3 },
-            beneficiaryUuids = listOf(ALICE, BOB, CAROL, USER).sorted(),
+            beneficiaryUuids = (listOf(ALICE, BOB, CAROL, USER) + if (expenseUuid in crowded) others else emptyList()).sorted(),
         )
+
+    /** [count] expenses of the user's naming a hundred beneficiaries each, see [crowded]. */
+    private fun crowdedExpenses(count: Int): List<String> =
+        List(count) { "${it.toString().padStart(8, '0')}-0000-4000-8000-000000000000" }.also { crowded += it }
+
+    /** The expenses whose keys [payload], a share, hands over. */
+    private fun keysIn(payload: ByteArray): List<String> =
+        assertNotNull(ExpenseKeyShare.parse(plaintext = payload)).keys.map { it.expenseUuid }
 }
 
-/** Sends nothing anywhere, answering each recipient as told and every other one with success. */
+/** Ninety-six people besides the user and the three of them, a hundred beneficiaries in all. */
+private val others = List(96) { "99999999-0000-4000-8000-${it.toString().padStart(12, '0')}" }
+
+/**
+ * Sends nothing anywhere, answering each recipient as told, or their nth message as told in
+ * [inTurn], counting from zero, and every other one with success.
+ */
 private class KeySends {
     val outcomes = mutableMapOf<String, EmptyResult<DirectSendError>>()
+    val inTurn = mutableMapOf<Pair<String, Int>, EmptyResult<DirectSendError>>()
 
     val recipients = mutableListOf<String>()
     val payloads = mutableListOf<ByteArray>()
 
     suspend fun send(recipientUserUuid: String, payload: ByteArray): EmptyResult<DirectSendError> {
+        val turn = recipients.count { it == recipientUserUuid }
+
         recipients += recipientUserUuid
         payloads += payload
 
-        return outcomes[recipientUserUuid] ?: Result.Success(Unit)
+        return inTurn[recipientUserUuid to turn] ?: outcomes[recipientUserUuid] ?: Result.Success(Unit)
     }
 }
 

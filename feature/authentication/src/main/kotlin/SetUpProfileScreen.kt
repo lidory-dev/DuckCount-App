@@ -136,6 +136,11 @@ fun SetUpProfileScreen(
                         ),
                         isInError = state.fullName.isBlank(),
                         error = stringResource(androidUiR.string.required),
+                        counter = stringResource(
+                            androidUiR.string.character_count,
+                            state.fullName.length,
+                            viewModel.maxFullNameLength,
+                        ),
                     )
 
                     state.error?.let { error ->

@@ -150,6 +150,35 @@ class ExpenseKeyPullTest {
     }
 
     /**
+     * Alice answered a request for a hundred keys with the two shares her budget of replies
+     * covered, see `replyInShares`, and the sync dropped the expenses they opened. The rest were
+     * tried together, so they are due again together, and the next request names every one.
+     */
+    @Test
+    fun `a request answered in part is asked again for every key still missing`() = runBlocking<Unit> {
+        val expenseUuids = List(ExpenseKeyRequest.MAX_EXPENSES) {
+            "${it.toString().padStart(8, '0')}-0000-4000-8000-000000000000"
+        }
+
+        expenseUuids.forEach { pending.add(it, creditorUuid = ALICE) }
+
+        pull.requestMissingKeys(ownUserUuid = USER)
+
+        assertEquals(expenseUuids, assertNotNull(ExpenseKeyRequest.parse(plaintext = requests.payloads.last())).expenseUuids)
+
+        val missing = expenseUuids.drop(48)
+
+        pending.rows.keys.retainAll(missing.toSet())
+        pending.requestedAgo(millis = 2 * HOUR)
+        pending.budgets.clear()
+
+        assertIs<Result.Success<Unit>>(pull.requestMissingKeys(ownUserUuid = USER))
+
+        assertEquals(listOf(ALICE, ALICE), requests.recipients)
+        assertEquals(missing, assertNotNull(ExpenseKeyRequest.parse(plaintext = requests.payloads.last())).expenseUuids)
+    }
+
+    /**
      * Nobody holds Alice's keys any more, the ones this request named and every other: none is
      * asked for again, and that is no failure.
      */
@@ -216,6 +245,21 @@ private class PendingKeys : PendingExpenseKeyDao {
             firstSeenAt = rows.size.toLong(),
             lastRequestedAt = null,
         )
+    }
+
+    /** Has every key asked for been last asked for [millis] ago. */
+    fun requestedAgo(millis: Long) {
+        rows.values.filter { it.lastRequestedAt != null }.forEach { row ->
+            rows[row.expenseUuid] = PendingExpenseKeyEntity(
+                expenseUuid = row.expenseUuid,
+                creditorUuid = row.creditorUuid,
+                firstSeenAt = row.firstSeenAt,
+                lastRequestedAt = nowEpochMilliseconds() - millis,
+                requestCount = row.requestCount,
+                state = row.state,
+                isAwaitedAtRemoval = row.isAwaitedAtRemoval,
+            )
+        }
     }
 
     override suspend fun getInState(state: PendingExpenseKeyState): List<PendingExpenseKeyEntity> =

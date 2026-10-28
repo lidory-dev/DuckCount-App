@@ -7,6 +7,7 @@ import PendingProfile
 import UsernameInputError
 import android.util.Log
 import app.lidory.duckcount.PasswordRequirements
+import app.lidory.duckcount.ProfileLimits
 import app.lidory.duckcount.hashLoginUsername
 import app.lidory.duckcount.networking.NetworkConnectivity
 import app.lidory.duckcount.usernameMaximumLength
@@ -63,6 +64,8 @@ class AuthenticationCallBacksImpl(
 ) : AuthenticationCallBacks {
 
     override val maxUsernameLength: Int = usernameMaximumLength()
+
+    override val maxFullNameLength: Int = ProfileLimits.MAX_FULL_NAME_LENGTH
 
     override val passwordStrength: Int = PasswordRequirements.MINIMUM_PASSWORD_STRENGTH
 
@@ -402,6 +405,8 @@ class AuthenticationCallBacksImpl(
         is ProfileError.Network -> error.toAuthError()
 
         is ProfileError.Vault -> error.toAuthError()
+
+        ProfileError.FullNameTooLong -> AuthError.FULL_NAME_TOO_LONG
 
         // Neither can happen on the way out: NotStored is a read outcome, and a field
         // this device just sealed is one it can seal.

@@ -8,6 +8,7 @@ import app.lidory.duckcount.BuildConfig
 import app.lidory.duckcount.ExternalLinks.LIDORY_WEBSITE
 import app.lidory.duckcount.LICENCES_LIST
 import app.lidory.duckcount.PasswordRequirements
+import app.lidory.duckcount.ProfileLimits
 import app.lidory.duckcount.RestartNotice
 import app.lidory.duckcount.networking.NetworkConnectivity
 import app.lidory.duckcount.settings.model.AccountDeletionError
@@ -47,6 +48,8 @@ class SettingsCallBacksImpl(
 ) : SettingsCallBacks {
 
     override val maxUsernameLength: Int = usernameMaximumLength()
+
+    override val maxFullNameLength: Int = ProfileLimits.MAX_FULL_NAME_LENGTH
 
     override val minimumPasswordStrength: Int = PasswordRequirements.MINIMUM_PASSWORD_STRENGTH
 

@@ -1,5 +1,6 @@
 package profile
 
+import app.lidory.duckcount.ProfileLimits
 import database.data.local.dao.UserDao
 import database.data.mappers.toUserEntity
 import database.domain.User
@@ -75,12 +76,17 @@ class ProfileRepository(
      * as [rotateProfileKey] does, and the version under the old key stays as it stood at the
      * removal. When that fails, the edit is refused rather than sealed where the contact removed
      * would read it.
+     *
+     * A full name longer than [ProfileLimits.MAX_FULL_NAME_LENGTH] is refused before anything is
+     * sealed, see [ProfileError.FullNameTooLong]: the server would refuse what it seals to.
      */
     suspend fun uploadProfile(
         userUuid: String,
         username: String,
         fullName: String,
     ): EmptyResult<ProfileError> {
+        if (fullName.length > ProfileLimits.MAX_FULL_NAME_LENGTH) return Result.Error(ProfileError.FullNameTooLong)
+
         val fields = ProfileFields(
             fullName = fullName.encodeToByteArray(),
             phoneNumber = UNSET_FIELD,

@@ -80,14 +80,40 @@ class ExpenseKeyShareReceiptTest {
         assertTrue(kept.isEmpty())
     }
 
-    private fun shareOf(vararg ids: OneTimeExpenseId) = ExpenseKeyShare(
+    /**
+     * Keys to more expenses of a hundred beneficiaries than one message holds come in several
+     * shares, see [ExpenseKeyShare.chunked], each read as it arrives: together they keep what the
+     * one share would have.
+     */
+    @Test
+    fun `the shares one answer is cut into keep what it would have kept whole`() {
+        val ids = List(30) { assertNotNull(newOneTimeExpenseId(creditorUuid = ALICE)) }
+        val whole = shareOf(*ids.toTypedArray(), beneficiaryUuids = crowd)
+
+        val shares = whole.chunked().map { assertNotNull(ExpenseKeyShare.parse(plaintext = it.serialize())) }
+
+        assertEquals(2, shares.size)
+        assertEquals(
+            whole.recordsFrom(senderUuid = ALICE, senderSignatureKey = signatureKey, expected = contact)
+                .map { it.expenseUuid to it.beneficiaryUuids },
+            shares.flatMap { share ->
+                share.recordsFrom(senderUuid = ALICE, senderSignatureKey = signatureKey, expected = contact)
+                    .map { it.expenseUuid to it.beneficiaryUuids }
+            },
+        )
+    }
+
+    private fun shareOf(vararg ids: OneTimeExpenseId, beneficiaryUuids: List<String> = listOf(BOB)) = ExpenseKeyShare(
         keys = ids.map {
             ExpenseKey(
                 expenseUuid = it.uuid,
                 key = generateSymmetricEncryptionKey(),
                 nonce = it.nonce,
-                beneficiaryUuids = listOf(BOB),
+                beneficiaryUuids = beneficiaryUuids,
             )
         },
     )
 }
+
+/** Bob and ninety-nine others, as many beneficiaries as an expense may have, in the order a share carries them. */
+private val crowd = (listOf(BOB) + List(99) { "22222222-0000-4000-8000-${it.toString().padStart(12, '0')}" }).sorted()

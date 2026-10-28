@@ -48,6 +48,17 @@ import util.Result
 private const val REQUEST_TIMEOUT_MILLIS = 5_000L
 
 /**
+ * How long a request moving one of the largest bodies is given in place of the 5 s every other
+ * request gets, which a slow connection takes far longer than that to move them in: a group's
+ * Welcome, which carries its whole ratchet tree, some 370 KB at a hundred members, and the Commits
+ * changing who is in a group, up to some 440 KB, see [group.GroupApi]; a long direct message, see
+ * [database.data.remote.LARGE_DIRECT_MESSAGE_LENGTH], which the server takes up to 256 KiB of; and a
+ * page of either listing of messages, which holds up to 1 MiB, see [readWholeListing]. One that
+ * runs out of time is sent again all the same, by the pass that sent it.
+ */
+internal const val LARGE_BODY_TIMEOUT_MILLIS = 60_000L
+
+/**
  * How long a pair a password authentication issued waits to be stored again once the vault has
  * turned it down, see [storeUntilTaken]: what it waits for is the user unlocking the device.
  */

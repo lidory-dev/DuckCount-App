@@ -19,7 +19,7 @@ import vault.VaultRepository
 /**
  * How soon a creation the server was not heard to answer is sent again: soon enough that its
  * members are not kept waiting long for a group that may be theirs already, and no sooner, each
- * resend being a whole sync and up to some 400 KB of Welcome.
+ * resend being a whole sync and up to some 370 KB of Welcome.
  */
 private const val UNANSWERED_RESEND_SECONDS = 60L
 
