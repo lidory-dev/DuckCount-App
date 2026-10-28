@@ -1,5 +1,8 @@
 package app.lidory.duckcount.settings.viewmodel
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.settings.SettingsCallBacks
@@ -8,7 +11,6 @@ import app.lidory.duckcount.settings.model.PasswordChangeError
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -19,10 +21,12 @@ class PasswordChangeViewModel(
     private val settingsCallBacks: SettingsCallBacks,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(
+    // Snapshot state rather than a flow: the fields have to get their text back in the same frame
+    // as the edit, which a collected flow only delivers a frame later.
+    var state by mutableStateOf(
         PasswordChangeScreenState(minimumLength = settingsCallBacks.minimumPasswordStrength),
     )
-    val state: StateFlow<PasswordChangeScreenState> = _state.asStateFlow()
+        private set
 
     // True once the password is changed, the only thing this screen is for. A state rather than
     // an event: the change is seen through with the app in the background, where the screen
@@ -31,20 +35,20 @@ class PasswordChangeViewModel(
     val isChanged: StateFlow<Boolean> = _isChanged.asStateFlow()
 
     fun onCurrentPasswordChanged(password: String) {
-        _state.update { it.withCurrentPassword(password = password) }
+        state = state.withCurrentPassword(password = password)
     }
 
     fun onNewPasswordChanged(password: String) {
-        _state.update { it.withNewPassword(password = password) }
+        state = state.withNewPassword(password = password)
     }
 
     fun onNewPasswordConfirmationChanged(password: String) {
-        _state.update { it.withNewPasswordConfirmation(password = password) }
+        state = state.withNewPasswordConfirmation(password = password)
     }
 
     /** Drops [error] once the snackbar has shown it, unless something replaced it meanwhile. */
     fun onErrorShown(error: PasswordChangeError) {
-        _state.update { if (it.error == error) it.copy(error = null) else it }
+        if (state.error == error) state = state.copy(error = null)
     }
 
     fun onConfirmClicked() {
@@ -52,26 +56,26 @@ class PasswordChangeViewModel(
         // current password, which no longer is.
         if (_isChanged.value) return
 
-        val state = _state.value
+        val form = state
 
         // Only a change the form holds, and not while one is under way, which a second tap landing
         // before the button is disabled would start again, its handshakes replacing the first
         // one's on the server.
-        if (!state.canConfirm) return
+        if (!form.canConfirm) return
 
-        _state.update { it.copy(isChanging = true, error = null) }
+        state = form.copy(isChanging = true, error = null)
 
         viewModelScope.launch {
             val changeError = settingsCallBacks.changePassword(
-                currentPassword = state.currentPassword,
-                newPassword = state.newPassword,
+                currentPassword = form.currentPassword,
+                newPassword = form.newPassword,
             )
 
             // The change is the only thing this screen is for, so a successful one hands the
             // user back to the account screen.
             if (changeError == null) _isChanged.value = true
 
-            _state.update { it.copy(isChanging = false, error = changeError) }
+            state = state.copy(isChanging = false, error = changeError)
         }
     }
 }

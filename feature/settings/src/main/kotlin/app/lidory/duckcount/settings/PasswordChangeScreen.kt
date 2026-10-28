@@ -65,7 +65,7 @@ fun PasswordChangeScreen(
     onPasswordChanged: () -> Unit,
 ) {
     val viewModel: PasswordChangeViewModel = koinViewModel()
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val state = viewModel.state
     val isChanged by viewModel.isChanged.collectAsStateWithLifecycle()
 
     val focusManager = LocalFocusManager.current

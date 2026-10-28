@@ -119,6 +119,11 @@ fun UserProfileScreen(
             }
 
             is UserProfileScreenState.Content -> {
+                // Read from the ViewModel, not the state, which reaches the screen a frame after the
+                // edit. While nothing is typed the field holds the saved name, which the state
+                // carries.
+                val fullName = viewModel.draftFullName ?: state.fullName
+
                 BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxHeight()
@@ -169,7 +174,7 @@ fun UserProfileScreen(
                                     contentType = ContentType.PersonFullName
                                 }
                                 .fillMaxWidth(),
-                            value = state.draftFullName,
+                            value = fullName,
                             onValueChange = { viewModel.onFullNameChanged(it) },
                             focusManager = focusManager,
                             singleLine = true,
@@ -178,11 +183,11 @@ fun UserProfileScreen(
                                 imeAction = ImeAction.Next,
                             ),
                             enabled = !isSaving,
-                            isInError = state.draftFullName.isBlank(),
+                            isInError = fullName.isBlank(),
                             error = stringResource(androidUiR.string.required),
                             counter = stringResource(
                                 androidUiR.string.character_count,
-                                state.draftFullName.length,
+                                fullName.length,
                                 viewModel.maxFullNameLength,
                             ),
                             maxLength = viewModel.maxFullNameLength,

@@ -59,7 +59,7 @@ fun AccountDeletionScreen(
     onBack: () -> Unit,
 ) {
     val viewModel: AccountDeletionViewModel = koinViewModel()
-    val password by viewModel.password.collectAsStateWithLifecycle()
+    val password = viewModel.password
     val isDeleting by viewModel.isDeleting.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
 

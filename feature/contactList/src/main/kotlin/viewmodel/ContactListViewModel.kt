@@ -4,11 +4,11 @@ import ContactCallBacks
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -23,17 +23,16 @@ import model.User
 class ContactListViewModel(
     val contactCallBacks: ContactCallBacks,
 ) : ViewModel() {
-    private var _searchQuery = MutableStateFlow("")
-
+    // Snapshot state rather than a flow: what the user types has to come back to the search bar in
+    // the same frame as the edit, which a flow collected by the screen would hand back a frame late.
     var searchQuery by mutableStateOf("")
         private set
 
     fun onSearchQueryChange(query: String) {
         searchQuery = query
-        _searchQuery.value = query
     }
 
-    private val users: Flow<List<User>> = _searchQuery
+    private val users: Flow<List<User>> = snapshotFlow { searchQuery }
         .flatMapLatest { query ->
             contactCallBacks.getFilteredUsers(filter = query).map {
                 it.filterNot { user -> user.uuid == contactCallBacks.getAuthenticatedUserUuid() }

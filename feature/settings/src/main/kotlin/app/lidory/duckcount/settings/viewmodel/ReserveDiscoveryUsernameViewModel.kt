@@ -1,5 +1,9 @@
 package app.lidory.duckcount.settings.viewmodel
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.settings.SettingsCallBacks
@@ -30,8 +34,14 @@ class ReserveDiscoveryUsernameViewModel(
     private val _isReserved = MutableStateFlow(false)
     val isReserved: StateFlow<Boolean> = _isReserved.asStateFlow()
 
-    /** What the user typed, or null while the field still holds the reserved username. */
-    private val draftUsername = MutableStateFlow<String?>(null)
+    /**
+     * What the user typed, or null while the field still holds the reserved username.
+     *
+     * Snapshot state rather than a flow: the field has to get its text back in the same frame as
+     * the edit, which a collected flow only delivers a frame later.
+     */
+    var draftUsername by mutableStateOf<String?>(null)
+        private set
 
     private val isReserving = MutableStateFlow(false)
 
@@ -43,7 +53,7 @@ class ReserveDiscoveryUsernameViewModel(
             // has produced a value, which keeps the screen on [Loading] until we know
             // whether a username is already reserved.
             settingsCallBacks.getReservedUsername(),
-            draftUsername,
+            snapshotFlow { draftUsername },
             isReserving,
             error,
         ) { reserved, draft, isReserving, error ->
@@ -74,7 +84,7 @@ class ReserveDiscoveryUsernameViewModel(
     }
 
     fun onUsernameChanged(username: String) {
-        draftUsername.value = username.lowercase()
+        draftUsername = username.lowercase()
         error.value = null
     }
 

@@ -1,5 +1,9 @@
 package app.lidory.duckcount.settings.viewmodel
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.settings.SettingsCallBacks
@@ -20,7 +24,14 @@ class UserProfileViewModel(
     /** The longest full name the form takes, which its field stops at. */
     val maxFullNameLength = settingsCallBacks.maxFullNameLength
 
-    val draftFullName = MutableStateFlow<String?>(null)
+    /**
+     * What the user typed, or null while the field still holds the saved name.
+     *
+     * Snapshot state rather than a flow: the field has to get its text back in the same frame as
+     * the edit, which a collected flow only delivers a frame later.
+     */
+    var draftFullName by mutableStateOf<String?>(null)
+        private set
 
     private val isSaving = MutableStateFlow(false)
 
@@ -40,7 +51,7 @@ class UserProfileViewModel(
 
         else -> combine(
             settingsCallBacks.getUserFullName(uuid = authenticatedUserUuid),
-            draftFullName,
+            snapshotFlow { draftFullName },
             isSaving,
             error,
         ) { savedName, draft, saving, saveError ->
@@ -61,13 +72,13 @@ class UserProfileViewModel(
     }
 
     fun onFullNameChanged(fullName: String) {
-        draftFullName.value = fullName
+        draftFullName = fullName
         error.value = null
     }
 
     fun onConfirmClicked() {
         val uuid = authenticatedUserUuid ?: return
-        val nameToSave = draftFullName.value ?: return
+        val nameToSave = draftFullName ?: return
 
         viewModelScope.launch {
             isSaving.value = true
@@ -83,7 +94,7 @@ class UserProfileViewModel(
 
             // Only a save the server took is worth dropping the draft for; otherwise
             // the user keeps what they typed and can try again.
-            if (saveError == null) draftFullName.value = null
+            if (saveError == null) draftFullName = null
         }
     }
 }

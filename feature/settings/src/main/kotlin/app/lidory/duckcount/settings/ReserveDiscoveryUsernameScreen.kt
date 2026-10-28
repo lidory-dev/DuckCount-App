@@ -81,6 +81,10 @@ fun ReserveDiscoveryUsernameScreen(
             ReserveDiscoveryUsernameContent(
                 modifier = modifier,
                 state = state,
+                // Read from the ViewModel, not the state, which reaches the screen a frame after the
+                // edit. Until the first edit the field holds the reserved username, which the state
+                // carries.
+                username = viewModel.draftUsername ?: state.username,
                 isReserved = isReserved,
                 maxUsernameLength = viewModel.maxUsernameLength,
                 onBack = onBack,
@@ -96,6 +100,7 @@ fun ReserveDiscoveryUsernameScreen(
 private fun ReserveDiscoveryUsernameContent(
     modifier: Modifier,
     state: DiscoveryUsernameScreenState.Content,
+    username: String,
     isReserved: Boolean,
     maxUsernameLength: Int,
     onBack: () -> Unit,
@@ -185,7 +190,7 @@ private fun ReserveDiscoveryUsernameContent(
 
                 DuckCountTextField(
                     modifier = Modifier.fillMaxWidth(),
-                    value = state.username,
+                    value = username,
                     onValueChange = onUsernameChanged,
                     focusManager = focusManager,
                     singleLine = true,

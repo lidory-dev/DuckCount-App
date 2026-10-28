@@ -1,12 +1,11 @@
 package viewmodel
 
 import ContactCallBacks
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import model.AddContactError
 import model.UsernameInputError
@@ -17,12 +16,11 @@ class NewContactViewModel(
 
     val maxUsernameLength = contactCallBacks.maxUsernameLength
 
-    private val _state = MutableStateFlow(NewContactState())
-    val state = _state.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000L),
-        initialValue = NewContactState(),
-    )
+    // Snapshot state rather than a flow: the username has to come back to its field in the same
+    // frame as the edit. A flow collected by the screen hands it back a frame late, the field
+    // meanwhile taking back the text it had, and its cursor with it.
+    var state by mutableStateOf(NewContactState())
+        private set
 
     fun updateUsername(username: String) {
         // Lowercased like the usernames are reserved, but not trimmed: trimming what is being
@@ -30,37 +28,31 @@ class NewContactViewModel(
         // start. What is checked and sent is trimmed instead (see NewContactState.trimmedUsername).
         val typed = username.lowercase()
 
-        _state.update {
-            it.copy(
-                username = typed,
-                inputError = contactCallBacks.validateUsername(username = typed.trim()),
-                error = null,
-            )
-        }
+        state = state.copy(
+            username = typed,
+            inputError = contactCallBacks.validateUsername(username = typed.trim()),
+            error = null,
+        )
     }
 
     fun sendContactRequest() {
         // Only what the button would send: the keyboard's send action calls this too.
-        if (!_state.value.canSend) return
+        if (!state.canSend) return
 
-        val username = _state.value.trimmedUsername
+        val username = state.trimmedUsername
 
         viewModelScope.launch {
-            _state.update {
-                it.copy(isSending = true, error = null)
-            }
+            state = state.copy(isSending = true, error = null)
 
             val error = contactCallBacks.sendContactRequest(username = username)
 
-            _state.update {
-                it.copy(
-                    // A sent request empties the field, ready for the next contact.
-                    username = if (error == null) "" else it.username,
-                    isSending = false,
-                    error = error,
-                    sentTo = if (error == null) username else it.sentTo,
-                )
-            }
+            state = state.copy(
+                // A sent request empties the field, ready for the next contact.
+                username = if (error == null) "" else state.username,
+                isSending = false,
+                error = error,
+                sentTo = if (error == null) username else state.sentTo,
+            )
         }
     }
 
@@ -69,9 +61,7 @@ class NewContactViewModel(
      * the next request can be sent before the confirmation of this one is over.
      */
     fun onSentConfirmed(username: String) {
-        _state.update {
-            if (it.sentTo == username) it.copy(sentTo = null) else it
-        }
+        if (state.sentTo == username) state = state.copy(sentTo = null)
     }
 }
 

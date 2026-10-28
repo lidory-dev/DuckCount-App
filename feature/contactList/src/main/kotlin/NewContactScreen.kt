@@ -43,7 +43,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.contactList.R
 import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
@@ -66,7 +65,7 @@ fun NewContactScreen(
     val focusRequester = remember { FocusRequester() }
 
     val viewModel = koinViewModel<NewContactViewModel>()
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val state = viewModel.state
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -193,7 +192,8 @@ fun NewContactScreen(
                         keyboardActions = KeyboardActions(
                             onSend = {
                                 // Nothing to send yet, so the keyboard stays up to finish typing.
-                                if (!state.canSend) return@KeyboardActions
+                                // As typed by now, which the screen may not have recomposed with.
+                                if (!viewModel.state.canSend) return@KeyboardActions
 
                                 focusManager.clearFocus()
                                 viewModel.sendContactRequest()

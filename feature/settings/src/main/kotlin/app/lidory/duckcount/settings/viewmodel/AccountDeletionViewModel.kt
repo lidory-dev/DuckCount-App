@@ -1,5 +1,8 @@
 package app.lidory.duckcount.settings.viewmodel
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.settings.SettingsCallBacks
@@ -17,8 +20,10 @@ class AccountDeletionViewModel(
     private val settingsCallBacks: SettingsCallBacks,
 ) : ViewModel() {
 
-    private val _password = MutableStateFlow("")
-    val password: StateFlow<String> = _password.asStateFlow()
+    // Snapshot state rather than a flow: the field has to get its text back in the same frame as
+    // the edit, which a collected flow only delivers a frame later.
+    var password by mutableStateOf("")
+        private set
 
     private val _isDeleting = MutableStateFlow(false)
     val isDeleting: StateFlow<Boolean> = _isDeleting.asStateFlow()
@@ -27,7 +32,7 @@ class AccountDeletionViewModel(
     val error: StateFlow<AccountDeletionError?> = _error.asStateFlow()
 
     fun onPasswordChanged(password: String) {
-        _password.value = password
+        this.password = password
         _error.value = null
     }
 
@@ -36,7 +41,7 @@ class AccountDeletionViewModel(
         // disabled would start again, its re-authentication replacing the first one's.
         if (_isDeleting.value) return
 
-        val password = _password.value
+        val password = this.password
 
         if (password.isBlank()) return
 

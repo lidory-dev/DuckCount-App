@@ -64,7 +64,6 @@ fun GroupSettingsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val userListState by viewModel.usersState.collectAsStateWithLifecycle()
     val selectedUuids by viewModel.selectedUuids.collectAsStateWithLifecycle()
-    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isChanging by viewModel.isChanging.collectAsStateWithLifecycle()
     val memberSheet by viewModel.memberSheet.collectAsStateWithLifecycle()
 
@@ -117,7 +116,7 @@ fun GroupSettingsScreen(
         onSelectUsers = { viewModel.addMembers() },
         onDismissRequest = { viewModel.hideMemberDialog() },
         userList = userListState.users,
-        searchQuery = searchQuery,
+        searchQuery = viewModel.searchQuery,
         // Cleared with the selection once the picker closes, and only then: not while the members
         // picked are being added, see GroupSettingsViewModel.hideMemberDialog.
         clearSearchQuery = {},

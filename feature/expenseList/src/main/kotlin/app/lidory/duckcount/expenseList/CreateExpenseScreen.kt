@@ -58,15 +58,13 @@ fun CreateExpenseScreen(
     viewModel: CreateExpenseViewModel = koinViewModel(),
     onBack: () -> Unit,
 ) {
-    val expenseState by viewModel.state.collectAsStateWithLifecycle()
-
     val focusManager = LocalFocusManager.current
     val interactionSource = remember { MutableInteractionSource() }
 
     val userState by viewModel.usersState.collectAsStateWithLifecycle()
     val selectedUuids by viewModel.selectedUuids.collectAsStateWithLifecycle()
     val selectionToggleState by viewModel.selectionToggleState.collectAsStateWithLifecycle()
-    val beneficiaries by viewModel.displayedBeneficiaries.collectAsStateWithLifecycle()
+    val beneficiaryNames by viewModel.beneficiaryNames.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val isSaved by viewModel.isSaved.collectAsStateWithLifecycle()
     val hasChanges by viewModel.hasChanges.collectAsStateWithLifecycle()
@@ -168,10 +166,10 @@ fun CreateExpenseScreen(
                 enabled = !isSaving
                         && !isSaved
                         && (viewModel.isNewExpense() || hasChanges)
-                        && expenseState.error == null
-                        && expenseState.amount.isNotBlank()
-                        && expenseState.title.length in (1..viewModel.maxTitleLength)
-                        && expenseState.description.length in (0..viewModel.maxDescriptionLength),
+                        && viewModel.state.error == null
+                        && viewModel.state.amount.isNotBlank()
+                        && viewModel.state.title.length in (1..viewModel.maxTitleLength)
+                        && viewModel.state.description.length in (0..viewModel.maxDescriptionLength),
                 colors = ButtonDefaults.buttonColors()
                     .copy(containerColor = MaterialTheme.colorScheme.primary),
                 onClick = {
@@ -220,29 +218,29 @@ fun CreateExpenseScreen(
             ) {
                 item {
                     DuckCountTextField(
-                        value = expenseState.title,
+                        value = viewModel.state.title,
                         labelName = stringResource(R.string.expense_title),
                         enabled = !isSaving,
                         onValueChange = { viewModel.updateTitle(title = it) },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         focusManager = focusManager,
                         error =
-                            if (expenseState.title.isBlank())
+                            if (viewModel.state.title.isBlank())
                                 stringResource(androidUiR.string.title_mandatory)
                             else
                                 stringResource(
                                     R.string.title_too_long,
-                                    expenseState.title.length,
+                                    viewModel.state.title.length,
                                     viewModel.maxTitleLength,
                                 ),
-                        isInError = expenseState.title.length !in (1..viewModel.maxTitleLength),
+                        isInError = viewModel.state.title.length !in (1..viewModel.maxTitleLength),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
 
                 item {
                     CreditorSelector(
-                        creditorName = expenseState.creditorFullName,
+                        creditorName = viewModel.state.creditorFullName,
                         label = stringResource(R.string.paid_by),
                         enabled = !isSaving && !viewModel.isOneTimeExpense(),
                         onClick = {
@@ -255,8 +253,8 @@ fun CreateExpenseScreen(
                 item {
                     // TODO: readOnly = isSaving,
                     AmountTextField(
-                        amountValue = expenseState.amount,
-                        currencyValue = expenseState.currency.symbol,
+                        amountValue = viewModel.state.amount,
+                        currencyValue = viewModel.state.currency.symbol,
                         currencies = viewModel.currencies,
                         currencyDisplayName = viewModel::currencyDisplayName,
                         enabled = !isSaving,
@@ -275,26 +273,26 @@ fun CreateExpenseScreen(
 
                 item {
                     DuckCountTextField(
-                        value = expenseState.description,
+                        value = viewModel.state.description,
                         labelName = stringResource(R.string.label_description),
                         enabled = !isSaving,
                         onValueChange = { viewModel.updateDescription(description = it) },
                         singleLine = false,
                         maxLines = 5,
                         error = stringResource(
-                            R.string.description_too_long, expenseState.description.length,
+                            R.string.description_too_long, viewModel.state.description.length,
                             viewModel.maxDescriptionLength,
                         ),
-                        isInError = expenseState.description.length > viewModel.maxDescriptionLength,
+                        isInError = viewModel.state.description.length > viewModel.maxDescriptionLength,
                         focusManager = focusManager,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
 
                 beneficiaryList(
-                    beneficiaries = beneficiaries,
+                    beneficiaries = viewModel.displayedBeneficiaries(names = beneficiaryNames),
                     maxBeneficiaries = viewModel.maxBeneficiaries,
-                    currencySymbol = expenseState.currency.symbol,
+                    currencySymbol = viewModel.state.currency.symbol,
                     enabled = !isSaving,
                     onBeneficiaryAmountChange = { userUuid, share ->
                         viewModel.updateBeneficiaryShare(
@@ -308,7 +306,7 @@ fun CreateExpenseScreen(
                         viewModel.showBeneficiariesDialog()
                         focusManager.clearFocus()
                     },
-                    expenseError = expenseState.error,
+                    expenseError = viewModel.state.error,
                     focusManager = focusManager,
                     removeBeneficiaryFixedShare = { userUuid ->
                         viewModel.removeBeneficiaryFixedShare(userUuid = userUuid)

@@ -49,7 +49,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.button.PasswordVisibilityButton
 import app.lidory.duckcount.android.ui.composable.text.DuckCountErrorText
@@ -69,7 +68,7 @@ fun RegisterScreen(
     navigateToSetUpProfileScreen: (String, String, Boolean) -> Unit,
 ) {
     val viewModel = koinViewModel<RegisterViewModel>()
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val state = viewModel.state
 
     val focusManager: FocusManager = LocalFocusManager.current
     val interactionSource = remember { MutableInteractionSource() }

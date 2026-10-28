@@ -42,7 +42,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.button.PasswordVisibilityButton
 import app.lidory.duckcount.android.ui.composable.text.DuckCountErrorText
@@ -61,7 +60,7 @@ fun LoginScreen(
     navigateToDashboard: () -> Unit,
 ) {
     val viewModel = koinViewModel<LoginViewModel>()
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val state = viewModel.state
 
     val focusManager: FocusManager = LocalFocusManager.current
     val interactionSource = remember { MutableInteractionSource() }

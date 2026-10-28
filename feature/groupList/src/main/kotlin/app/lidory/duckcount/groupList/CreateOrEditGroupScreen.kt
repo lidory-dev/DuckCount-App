@@ -64,10 +64,8 @@ fun CreateOrEditGroupScreen(
     modifier: Modifier = Modifier,
     viewModel: CreateGroupViewModel = koinViewModel(),
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
     val userListState by viewModel.usersState.collectAsStateWithLifecycle()
     val selectedUuids by viewModel.selectedUuids.collectAsStateWithLifecycle()
-    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isCreating by viewModel.isCreating.collectAsStateWithLifecycle()
     val isSaved by viewModel.isSaved.collectAsStateWithLifecycle()
     val isGone by viewModel.isGone.collectAsStateWithLifecycle()
@@ -113,7 +111,7 @@ fun CreateOrEditGroupScreen(
         },
         onDismissRequest = { viewModel.hideMemberDialog() },
         userList = userListState.users,
-        searchQuery = searchQuery,
+        searchQuery = viewModel.searchQuery,
         clearSearchQuery = { viewModel.clearSearchQuery() },
         onSearchQueryChange = { viewModel.updateSearchQuery(it) },
         toggleSelectedUser = { viewModel.toggleSelectedUser(it.uuid) },
@@ -147,7 +145,7 @@ fun CreateOrEditGroupScreen(
             )
         },
         bottomBar = {
-            (state as? CreateGroupState.Content)?.let { content ->
+            (viewModel.state as? CreateGroupState.Content)?.let { content ->
                 // The snackbars above the button, in the bar rather than over the screen: the list
                 // running under the bar leaves room at its end for the bar's height, so its last
                 // rows can be scrolled clear of a snackbar as well as of the button, see
@@ -199,7 +197,7 @@ fun CreateOrEditGroupScreen(
                 .imePadding()
                 .fillMaxSize(),
         ) {
-            when (val state = state) {
+            when (val state = viewModel.state) {
                 CreateGroupState.Loading -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),

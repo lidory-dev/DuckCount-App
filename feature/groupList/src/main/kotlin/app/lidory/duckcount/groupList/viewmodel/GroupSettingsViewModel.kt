@@ -3,6 +3,7 @@ package app.lidory.duckcount.groupList.viewmodel
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.groupList.callBacks.GroupSettingsCallBacks
@@ -77,8 +78,11 @@ class GroupSettingsViewModel(
     var isMemberDialogShown by mutableStateOf(false)
         private set
 
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+    // Snapshot state rather than a flow: what the user types has to come back to the search bar in
+    // the same frame as the edit. A flow collected by the screen hands it back a frame late, the
+    // field meanwhile taking back the text it had, and its cursor with it.
+    var searchQuery by mutableStateOf("")
+        private set
 
     private val memberUuids: Flow<Set<String>> = state
         .map { state -> state.membersWithFullName.mapTo(HashSet()) { it.member.userUuid } }
@@ -86,7 +90,9 @@ class GroupSettingsViewModel(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val usersState: StateFlow<UserListState> = combine(
-        _searchQuery.flatMapLatest { query -> groupSettingsCallBacks.getInvitableUsersFiltered(filter = query) },
+        snapshotFlow { searchQuery }.flatMapLatest { query ->
+            groupSettingsCallBacks.getInvitableUsersFiltered(filter = query)
+        },
         memberUuids,
     ) { users, memberUuids ->
         UserListState(invitableUsers(users = users, memberUuids = memberUuids))
@@ -207,11 +213,11 @@ class GroupSettingsViewModel(
     private fun closeMemberDialog() {
         isMemberDialogShown = false
         _selectedUuids.value = emptySet()
-        _searchQuery.value = ""
+        searchQuery = ""
     }
 
     fun updateSearchQuery(query: String) {
-        _searchQuery.value = query
+        searchQuery = query
     }
 
     fun toggleSelectedUser(uuid: String) {

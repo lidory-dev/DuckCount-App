@@ -3,6 +3,7 @@ package app.lidory.duckcount.expenseList.viewmodel
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.state.ToggleableState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -87,7 +88,7 @@ class CreateExpenseViewModel(
         val formatted = raw.formatAmountWithSubunits()
         if (!formatted.matches(Regex("""^\d*\.?\d*$"""))) return null
 
-        val hasSubunits = _state.value.currency.hasSubunits
+        val hasSubunits = state.currency.hasSubunits
         val rounded = when {
             formatted.isBlank() -> formatted
             hasSubunits -> formatted.roundAmountWithSubunits()
@@ -119,7 +120,10 @@ class CreateExpenseViewModel(
         isBeneficiariesDialogShown = false
     }
 
-    private val _state = MutableStateFlow(
+    // Snapshot state the screen reads as it is, rather than a flow: the text each field of the form
+    // edits has to come back to it in the same frame as the edit. What is worked out from the form
+    // as a flow reads it with snapshotFlow, and may follow a frame later.
+    var state by mutableStateOf(
         CreateExpenseState(
             currency = createExpenseCallBacks.getDefaultCurrency(),
             validateExpenseCallBack = { amount, currency, beneficiaries ->
@@ -131,7 +135,7 @@ class CreateExpenseViewModel(
             },
         ),
     )
-    val state: StateFlow<CreateExpenseState> = _state.asStateFlow()
+        private set
 
     /**
      * The form as it stood once the expense being edited was read into it: what an edit has to
@@ -145,8 +149,8 @@ class CreateExpenseViewModel(
      * history that says nothing new.
      */
     val hasChanges: StateFlow<Boolean> =
-        combine(_state, loadedState) { state, loaded ->
-            loaded != null && state.savedContent() != loaded.savedContent()
+        combine(snapshotFlow { state }, loadedState) { current, loaded ->
+            loaded != null && current.savedContent() != loaded.savedContent()
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000L),
@@ -188,10 +192,9 @@ class CreateExpenseViewModel(
         initialValue = ToggleableState.Off,
     )
 
-    private val beneficiaryNames: Flow<Map<String, String>> =
-        _state
-            .map { state -> state.beneficiaries.map { it.userUuid } }
-            .distinctUntilChanged()
+    /** The name the form shows for each of its beneficiaries, by their user uuid, as it is read. */
+    val beneficiaryNames: StateFlow<Map<String, String>> =
+        snapshotFlow { state.beneficiaries.map { it.userUuid } }
             .flatMapLatest { userUuids ->
                 if (userUuids.isEmpty()) {
                     flowOf(emptyMap())
@@ -206,30 +209,30 @@ class CreateExpenseViewModel(
                     ) { pairs -> pairs.toMap() }
                 }
             }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000L),
+                initialValue = emptyMap(),
+            )
 
-    val displayedBeneficiaries: StateFlow<List<BeneficiaryUi>> =
-        combine(
-            _state.map { it.beneficiaries }.distinctUntilChanged(),
-            beneficiaryNames,
-        ) { beneficiaries, names ->
-            beneficiaries.map { beneficiary ->
-                BeneficiaryUi(
-                    uuid = beneficiary.uuid,
-                    userUuid = beneficiary.userUuid,
-                    share = beneficiary.share,
-                    fullName = names[beneficiary.userUuid] ?: beneficiary.userUuid,
-                    isShareFixed = beneficiary.isShareFixed,
-                )
-            }
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000L),
-            initialValue = emptyList(),
-        )
+    /**
+     * The beneficiaries as the form lists them, named as [names] has them, see [beneficiaryNames].
+     * Taken from [state] as it is, and not through a flow, since each row's share is a field's text.
+     */
+    fun displayedBeneficiaries(names: Map<String, String>): List<BeneficiaryUi> =
+        state.beneficiaries.map { beneficiary ->
+            BeneficiaryUi(
+                uuid = beneficiary.uuid,
+                userUuid = beneficiary.userUuid,
+                share = beneficiary.share,
+                fullName = names[beneficiary.userUuid] ?: beneficiary.userUuid,
+                isShareFixed = beneficiary.isShareFixed,
+            )
+        }
 
     init {
         creditorNames(
-            creditorUuids = _state.map { it.creditorUuid },
+            creditorUuids = snapshotFlow { state.creditorUuid },
             nameOf = createExpenseCallBacks::getUserFullName,
         ).onEach { updateCreditorFullName(it) }.launchIn(viewModelScope)
 
@@ -252,13 +255,13 @@ class CreateExpenseViewModel(
                 updateCreditor(expense.creditorUuid)
                 updateAmount(expense.amount)
                 updateDescription(expense.description)
-                _state.update { it.copy(timestamp = expense.timestamp) }
+                state = state.copy(timestamp = expense.timestamp)
                 updateBeneficiaries(expense.beneficiaries)
                 expense.beneficiaries.forEach {
                     updateBeneficiaryShare(it.userUuid, it.share)
                 }
 
-                loadedState.value = _state.value
+                loadedState.value = state
             }
         }
     }
@@ -308,17 +311,17 @@ class CreateExpenseViewModel(
                     // TODO: get uuid from server
                     uuid = expenseUuid,
                     timestamp = getCurrentTimestamp(),
-                    title = _state.value.title,
-                    description = _state.value.description,
-                    amount = _state.value.amount,
-                    creditorUuid = _state.value.creditorUuid,
-                    isSettlement = _state.value.isSettlement,
-                    currency = _state.value.currency,
+                    title = state.title,
+                    description = state.description,
+                    amount = state.amount,
+                    creditorUuid = state.creditorUuid,
+                    isSettlement = state.isSettlement,
+                    currency = state.currency,
                     groupUuid = groupUuid,
-                    beneficiaries = _state.value.beneficiaries.map {
+                    beneficiaries = state.beneficiaries.map {
                         it.copy(expenseUuid = expenseUuid)
                     },
-                    isDeleted = _state.value.isDeleted,
+                    isDeleted = state.isDeleted,
                 ),
             )
 
@@ -342,7 +345,7 @@ class CreateExpenseViewModel(
 
         _isSaving.value = true
 
-        val saved = _state.value
+        val saved = state
 
         try {
             val error = createExpenseCallBacks.updateExpenseWithBeneficiaries(
@@ -380,7 +383,7 @@ class CreateExpenseViewModel(
         if (error is ExpenseSaveError.BeneficiariesDeleted) {
             onBeneficiariesSelected(
                 uuids = withoutDeletedAccounts(
-                    beneficiaryUuids = _state.value.beneficiaries.map { it.userUuid },
+                    beneficiaryUuids = state.beneficiaries.map { it.userUuid },
                     deletedUserUuids = error.beneficiaries.map { it.userUuid },
                 ),
             )
@@ -390,87 +393,71 @@ class CreateExpenseViewModel(
     }
 
     fun updateTitle(title: String) {
-        _state.update {
-            it.copy(title = title)
-        }
+        state = state.copy(title = title)
     }
 
     fun updateAmount(amount: String) {
-        val newAmount = normalizeAmountInput(raw = amount, previous = _state.value.amount) ?: return
-        _state.update { it.copy(amount = newAmount) }
+        val newAmount = normalizeAmountInput(raw = amount, previous = state.amount) ?: return
+        state = state.copy(amount = newAmount)
     }
 
     fun updateCurrency(currency: Currency) {
-        _state.update { state ->
-            val reformat: (String) -> String = { value ->
-                when {
-                    value.isBlank() -> value
-                    currency.hasSubunits -> value.roundAmountWithSubunits()
-                    else -> value.roundAmountWithoutSubunits()
-                }
+        val reformat: (String) -> String = { value ->
+            when {
+                value.isBlank() -> value
+                currency.hasSubunits -> value.roundAmountWithSubunits()
+                else -> value.roundAmountWithoutSubunits()
             }
-
-            state.copy(
-                currency = currency,
-                amount = reformat(state.amount),
-                beneficiaries = state.beneficiaries.map { it.copy(share = reformat(it.share)) },
-            )
         }
+
+        state = state.copy(
+            currency = currency,
+            amount = reformat(state.amount),
+            beneficiaries = state.beneficiaries.map { it.copy(share = reformat(it.share)) },
+        )
     }
 
     fun updateDescription(description: String) {
-        _state.update {
-            it.copy(description = description)
-        }
+        state = state.copy(description = description)
     }
 
     /** Makes [creditorUuid] the creditor, whose name follows, see [creditorNames]. */
     fun updateCreditor(creditorUuid: String) {
-        _state.update {
-            it.copy(creditorUuid = creditorUuid)
-        }
+        state = state.copy(creditorUuid = creditorUuid)
     }
 
     fun updateCreditorFullName(creditorFullName: String) {
-        _state.update {
-            it.copy(creditorFullName = creditorFullName)
-        }
+        state = state.copy(creditorFullName = creditorFullName)
     }
 
     fun updateBeneficiaries(beneficiaries: List<Beneficiary>) {
-        _state.update { state ->
-            state.copy(
-                beneficiaries = beneficiaries,
-            )
-        }
-        _selectedUuids.update { _state.value.beneficiaries.map { it.userUuid }.toSet() }
+        state = state.copy(beneficiaries = beneficiaries)
+        _selectedUuids.update { state.beneficiaries.map { it.userUuid }.toSet() }
     }
 
     fun updateBeneficiaryShare(userUuid: String, share: String) {
-        val previous = _state.value.beneficiaries
+        val previous = state.beneficiaries
             .firstOrNull { it.userUuid == userUuid }
             ?.share
             ?: return
         val newShare = normalizeAmountInput(share, previous) ?: return
 
-        _state.update { state ->
-            state.copy(
-                beneficiaries = state.beneficiaries.map { beneficiary ->
-                    if (beneficiary.userUuid == userUuid) {
-                        beneficiary.copy(share = newShare)
-                    } else {
-                        beneficiary
-                    }
-                },
-            )
-        }
+        state = state.copy(
+            beneficiaries = state.beneficiaries.map { beneficiary ->
+                if (beneficiary.userUuid == userUuid) {
+                    beneficiary.copy(share = newShare)
+                } else {
+                    beneficiary
+                }
+            },
+        )
     }
 
     fun isNewExpense() = _expenseUuid.value == null
 
     fun removeBeneficiaryFixedShare(userUuid: String) {
         updateBeneficiaries(
-            _state.value.beneficiaries.map { beneficiary ->
+            state.beneficiaries.map { beneficiary ->
                 if (beneficiary.userUuid == userUuid) {
                     beneficiary.copy(isShareFixed = false)
                 } else {
@@ -483,12 +470,12 @@ class CreateExpenseViewModel(
     }
 
     fun onBeneficiariesSelected(uuids: Set<String>) {
-        val fixedBeneficiaries = _state.value.beneficiaries.filter { it.isShareFixed }
+        val fixedBeneficiaries = state.beneficiaries.filter { it.isShareFixed }
         val fixedShareUuids = fixedBeneficiaries.mapTo(mutableSetOf()) { it.userUuid }
 
         val beneficiaries = computeBeneficiaries(
-            amount = _state.value.amount.ifBlank { "0" },
-            currency = _state.value.currency,
+            amount = state.amount.ifBlank { "0" },
+            currency = state.currency,
             beneficiaryUserUuids = uuids.toList(),
             fixedUuid = fixedBeneficiaries
                 .filter { it.userUuid in uuids }
@@ -524,10 +511,10 @@ class CreateExpenseViewModel(
 
     fun calculateShares() {
         val beneficiaries = computeBeneficiaries(
-            amount = _state.value.amount.toValidNumber(),
-            currency = _state.value.currency,
-            beneficiaryUserUuids = _state.value.beneficiaries.map { it.userUuid },
-            fixedUuid = _state.value.beneficiaries
+            amount = state.amount.toValidNumber(),
+            currency = state.currency,
+            beneficiaryUserUuids = state.beneficiaries.map { it.userUuid },
+            fixedUuid = state.beneficiaries
                 .filter { it.isShareFixed }
                 .associate { it.userUuid to (it.share.toValidNumber()) },
         )
@@ -538,16 +525,14 @@ class CreateExpenseViewModel(
     }
 
     fun setBeneficiaryFixedShare(userUuid: String) {
-        _state.update {
-            it.copy(
-                beneficiaries = it.beneficiaries.map { beneficiary ->
-                    if (beneficiary.userUuid == userUuid)
-                        beneficiary.copy(isShareFixed = true)
-                    else
-                        beneficiary
-                },
-            )
-        }
+        state = state.copy(
+            beneficiaries = state.beneficiaries.map { beneficiary ->
+                if (beneficiary.userUuid == userUuid)
+                    beneficiary.copy(isShareFixed = true)
+                else
+                    beneficiary
+            },
+        )
     }
 
     fun getExpenseGroupUuid() = groupUuid

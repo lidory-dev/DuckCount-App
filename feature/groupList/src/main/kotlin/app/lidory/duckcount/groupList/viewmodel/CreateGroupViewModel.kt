@@ -3,6 +3,7 @@ package app.lidory.duckcount.groupList.viewmodel
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
@@ -39,16 +40,17 @@ class CreateGroupViewModel(
     /** Localized display name for an ISO 4217 currency code (e.g. "USD" -> "US Dollar"). */
     fun currencyDisplayName(code: String): String = groupListCallBacks.getCurrencyDisplayName(code)
 
-    private val _state = MutableStateFlow<CreateGroupState>(CreateGroupState.Loading)
-    val state: StateFlow<CreateGroupState> = _state.asStateFlow()
+    // Snapshot state rather than a flow, as the search is: what the user types has to come back to
+    // its field in the same frame as the edit. A flow collected by the screen hands it back a frame
+    // late, the field meanwhile taking back the text it had, and its cursor with it.
+    var state by mutableStateOf<CreateGroupState>(CreateGroupState.Loading)
+        private set
 
     private val content: CreateGroupState.Content?
-        get() = _state.value as? CreateGroupState.Content
+        get() = state as? CreateGroupState.Content
 
     private fun updateContent(transform: (CreateGroupState.Content) -> CreateGroupState.Content) {
-        _state.update { current ->
-            if (current is CreateGroupState.Content) transform(current) else current
-        }
+        content?.let { state = transform(it) }
     }
 
     val maxTitleLength: Int = groupListCallBacks.maxTitleLength
@@ -82,8 +84,8 @@ class CreateGroupViewModel(
     private val _showError = Channel<GroupCreationError>(Channel.BUFFERED)
     val showError: Flow<GroupCreationError> = _showError.receiveAsFlow()
 
-    private var _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+    var searchQuery by mutableStateOf("")
+        private set
 
     var isMemberDialogShown by mutableStateOf(false)
 
@@ -94,7 +96,7 @@ class CreateGroupViewModel(
     val selectedUuids: StateFlow<Set<String>> = _selectedUuids
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val usersState: StateFlow<UserListState> = _searchQuery
+    val usersState: StateFlow<UserListState> = snapshotFlow { searchQuery }
         .flatMapLatest { query ->
             groupListCallBacks.getInvitableUsersFiltered(filter = query)
         }
@@ -113,7 +115,7 @@ class CreateGroupViewModel(
         viewModelScope.launch {
             val authenticatedUserUuid = getAuthenticatedUserUuid() ?: ""
 
-            _state.value = groupUuid?.let { uuid ->
+            state = groupUuid?.let { uuid ->
                 // Gone already, the screen opened from one still showing it.
                 val group = groupListCallBacks.getGroupWithMembers(uuid).first() ?: run {
                     _isGone.value = true
@@ -172,11 +174,11 @@ class CreateGroupViewModel(
     }
 
     fun clearSearchQuery() {
-        _searchQuery.value = ""
+        searchQuery = ""
     }
 
     fun updateSearchQuery(query: String) {
-        _searchQuery.value = query
+        searchQuery = query
     }
 
     fun toggleSelectedUser(uuid: String) {

@@ -4,12 +4,11 @@ import AuthError
 import AuthOutcome
 import AuthenticationCallBacks
 import UsernameInputError
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class LoginViewModel(
@@ -18,36 +17,29 @@ class LoginViewModel(
 
     val maxUsernameLength = authenticationCallBacks.maxUsernameLength
 
-    private val _state = MutableStateFlow(LoginScreenState())
-
-    val state = _state.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000L),
-        initialValue = _state.value,
-    )
+    // Snapshot state rather than a flow: the fields have to get their text back in the same frame
+    // as the edit, which a collected flow only delivers a frame later.
+    var state by mutableStateOf(LoginScreenState())
+        private set
 
     fun updateUsername(username: String) {
         val lowercased = username.lowercase()
 
-        _state.update {
-            it.copy(
-                username = lowercased,
-                // Nothing typed yet isn't a mistake worth pointing out, the button
-                // stays disabled anyway.
-                usernameError = if (lowercased.isBlank()) {
-                    null
-                } else {
-                    authenticationCallBacks.validateUsername(username = lowercased)
-                },
-                error = null,
-            )
-        }
+        state = state.copy(
+            username = lowercased,
+            // Nothing typed yet isn't a mistake worth pointing out, the button
+            // stays disabled anyway.
+            usernameError = if (lowercased.isBlank()) {
+                null
+            } else {
+                authenticationCallBacks.validateUsername(username = lowercased)
+            },
+            error = null,
+        )
     }
 
     fun updatePassword(password: String) {
-        _state.update {
-            it.copy(password = password, error = null)
-        }
+        state = state.copy(password = password, error = null)
     }
 
     fun processLogin(
@@ -60,14 +52,14 @@ class LoginViewModel(
         if (authenticationCallBacks.validateUsername(username = username) != null) return
 
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null) }
+            state = state.copy(isLoading = true, error = null)
 
             when (val outcome = authenticationCallBacks.login(username = username, password = password)) {
                 is AuthOutcome.Success -> navigateToExpenseListScreen()
-                is AuthOutcome.Failure -> _state.update { it.copy(error = outcome.error) }
+                is AuthOutcome.Failure -> state = state.copy(error = outcome.error)
             }
 
-            _state.update { it.copy(isLoading = false) }
+            state = state.copy(isLoading = false)
         }
     }
 }
