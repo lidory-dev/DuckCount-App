@@ -185,6 +185,7 @@ fun UserProfileScreen(
                                 state.draftFullName.length,
                                 viewModel.maxFullNameLength,
                             ),
+                            maxLength = viewModel.maxFullNameLength,
                         )
 
                         state.error?.let { error ->

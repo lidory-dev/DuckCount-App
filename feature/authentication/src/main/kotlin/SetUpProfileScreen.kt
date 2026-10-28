@@ -141,6 +141,7 @@ fun SetUpProfileScreen(
                             state.fullName.length,
                             viewModel.maxFullNameLength,
                         ),
+                        maxLength = viewModel.maxFullNameLength,
                     )
 
                     state.error?.let { error ->

@@ -1,5 +1,31 @@
 package app.lidory.duckcount.android.ui.text
 
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+
+/**
+ * [this], a field's value right after an edit of [previous], its text held to [maxLength] as
+ * [String.limitedTo] holds it, and its cursor where that leaves it: [previous] whole, cursor and
+ * all, when nothing the edit inserted fits, as though the key had not been pressed, and right
+ * after what is kept of the insertion when only part of it does.
+ *
+ * The text alone would not do: the field would keep the cursor the edit moved, one place past
+ * the letter it refused, and the next deletion would take the letter after the one meant.
+ */
+internal fun TextFieldValue.limitedTo(maxLength: Int, previous: TextFieldValue): TextFieldValue {
+    val limited = text.limitedTo(maxLength = maxLength, previous = previous.text)
+
+    return when (limited) {
+        text -> this
+        previous.text -> previous
+        // The edit leaves the cursor after what it inserted, of which only the end is dropped.
+        else -> TextFieldValue(
+            text = limited,
+            selection = TextRange((selection.end - (text.length - limited.length)).coerceIn(0, limited.length)),
+        )
+    }
+}
+
 /**
  * [this], a field's text right after an edit of [previous], held to at most [maxLength] UTF-16
  * units, the unit every text limit of the app is counted in, for a field that stops at its limit:
@@ -13,7 +39,7 @@ package app.lidory.duckcount.android.ui.text
  * Never between the two halves of a surrogate pair, which would leave half a character: a
  * character whose second half does not fit is dropped whole.
  */
-fun String.limitedTo(maxLength: Int, previous: String): String {
+internal fun String.limitedTo(maxLength: Int, previous: String): String {
     if (length <= maxLength) return this
 
     val shorter = minOf(length, previous.length)

@@ -1,5 +1,7 @@
 package app.lidory.duckcount.android.ui.text
 
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -56,5 +58,47 @@ class LengthLimitTest {
     @Test
     fun `an edit is told apart on the edges of characters`() {
         assertEquals("x", "x🨀".limitedTo(maxLength = 2, previous = "😀"))
+    }
+
+    @Test
+    fun `an edit within the limit keeps its cursor`() {
+        val edited = TextFieldValue(text = "Jean-", selection = TextRange(5))
+
+        assertEquals(edited, edited.limitedTo(maxLength = 11, previous = TextFieldValue("Jean", TextRange(4))))
+    }
+
+    /**
+     * The field as it was, cursor and composition included: the cursor the refused edit moved
+     * past the hyphen would have the next deletion take the space instead of the "n".
+     */
+    @Test
+    fun `a letter refused in the middle of a full field leaves the cursor where it was`() {
+        val previous = TextFieldValue(text = "Jean Dupont", selection = TextRange(4), composition = TextRange(0, 4))
+        val edited = TextFieldValue(text = "Jean- Dupont", selection = TextRange(5))
+
+        assertEquals(previous, edited.limitedTo(maxLength = 11, previous = previous))
+    }
+
+    @Test
+    fun `a cut paste leaves the cursor after what is kept of it`() {
+        val previous = TextFieldValue(text = "Ana Lima", selection = TextRange(4))
+        val edited = TextFieldValue(text = "Ana Maria Lima", selection = TextRange(10))
+
+        assertEquals(
+            TextFieldValue(text = "Ana MaLima", selection = TextRange(6)),
+            edited.limitedTo(maxLength = 10, previous = previous),
+        )
+    }
+
+    /**
+     * A text already past the limit can still be shortened: the server holds a name to what 50
+     * units of three bytes seal to, which more units of one byte fit in, as another client may
+     * have saved.
+     */
+    @Test
+    fun `a deletion from a text past the limit is kept`() {
+        val edited = TextFieldValue(text = "Jean Dupont", selection = TextRange(4))
+
+        assertEquals(edited, edited.limitedTo(maxLength = 5, previous = TextFieldValue("Jean- Dupont", TextRange(5))))
     }
 }

@@ -23,9 +23,12 @@ import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
@@ -38,12 +41,21 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.android.ui.text.limitedTo
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
+/**
+ * A text field of the app, holding [value] and telling [onValueChange] of each edit.
+ *
+ * With a [maxLength], it stops there: of what an edit inserts past it only what fits is kept,
+ * see [limitedTo], and an edit nothing of which fits is refused with the cursor left where it
+ * was. [counter] shows how much of it is used.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DuckCountTextField(
@@ -54,6 +66,7 @@ fun DuckCountTextField(
     isInError: Boolean = false,
     error: String? = "",
     counter: String? = null,
+    maxLength: Int? = null,
     placeholder: @Composable (() -> Unit)? = null,
     enabled: Boolean = true,
     textStyle: TextStyle = MaterialTheme.typography.bodyLarge.copy(
@@ -141,6 +154,21 @@ fun DuckCountTextField(
         ),
     )
 
+    // The field's whole value, its cursor and composition along with its text, kept here as
+    // BasicTextField keeps it for a String, but so that an edit [maxLength] refuses is undone
+    // cursor and all: the text alone would come back with the cursor where the refused edit moved
+    // it. Its text follows [value] whenever that changes from outside the field.
+    var fieldValue by remember { mutableStateOf(TextFieldValue(text = value)) }
+    val shownValue = fieldValue.copy(text = value)
+
+    SideEffect {
+        if (shownValue != fieldValue) fieldValue = shownValue
+    }
+
+    // The text [onValueChange] was last told of, or [value] last held, so that several edits in
+    // one frame tell it of each text once.
+    var lastText by remember(value) { mutableStateOf(value) }
+
     BasicTextField(
         modifier = modifier
             // Focusing brings the field into view only as it is then: brought in again as it grows
@@ -152,9 +180,19 @@ fun DuckCountTextField(
             }
             .border(width = borderWidth, color = borderColor, shape = RoundedCornerShape(Padding.large))
             .background(color = containerColor, shape = RoundedCornerShape(Padding.large)),
-        value = value,
+        value = shownValue,
         enabled = enabled,
-        onValueChange = onValueChange,
+        onValueChange = { edited ->
+            // Against what the field last kept, which an edit earlier in the frame may have moved
+            // on from what it shows.
+            val kept = maxLength?.let { edited.limitedTo(maxLength = it, previous = fieldValue) } ?: edited
+            fieldValue = kept
+
+            if (kept.text != lastText) {
+                lastText = kept.text
+                onValueChange(kept.text)
+            }
+        },
         interactionSource = interactionSource,
         visualTransformation = visualTransformation,
         onTextLayout = onTextLayout,
