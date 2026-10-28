@@ -80,6 +80,26 @@ sealed interface GroupSettleUpState {
     ) : GroupSettleUpState
 }
 
+/** Whose a debt is, as the user sees it, see [sideFor]: what the settle-up list says of it, and whether they can settle it. */
+enum class DebtSide {
+    /** Owed to the user, who alone records it paid back. */
+    OWED_TO_USER,
+
+    /** Owed by the user, to another member. */
+    OWED_BY_USER,
+
+    /** Owed by one other member to another: the list shows every debt in the group, not only the user's. */
+    BETWEEN_OTHERS,
+}
+
+/** Whose [this] debt is for the user [userUuid], see [DebtSide]. */
+fun TransactionWithFullName.sideFor(userUuid: String): DebtSide =
+    when (userUuid) {
+        creditorUuid -> DebtSide.OWED_TO_USER
+        debtorUuid -> DebtSide.OWED_BY_USER
+        else -> DebtSide.BETWEEN_OTHERS
+    }
+
 /**
  * Emits [transactions] with the names of their debtors and creditors, as [nameOf] tells them, see
  * [displayNames], each time one changes. A former member of the group, whom the expenses still name,

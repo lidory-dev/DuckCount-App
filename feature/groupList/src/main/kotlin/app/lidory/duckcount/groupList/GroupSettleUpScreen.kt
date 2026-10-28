@@ -16,8 +16,10 @@ import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.component.DebtCard
 import app.lidory.duckcount.groupList.component.SettlementCard
+import app.lidory.duckcount.groupList.viewmodel.DebtSide
 import app.lidory.duckcount.groupList.viewmodel.GroupSettleUpState
 import app.lidory.duckcount.groupList.viewmodel.GroupSettleUpViewModel
+import app.lidory.duckcount.groupList.viewmodel.sideFor
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -51,10 +53,13 @@ fun GroupSettleUpScreen(
                         items = state.transactions,
                         key = { "${it.debtorUuid}-${it.creditorUuid}-${it.amount}" },
                     ) { transaction ->
-                        if (transaction.creditorUuid == state.authenticatedUserUuid) {
-                            SettlementCard(
+                        val debtorFullName = transaction.debtorFullName ?: stringResource(R.string.unknown_member)
+                        val creditorFullName = transaction.creditorFullName ?: stringResource(R.string.unknown_member)
+
+                        when (transaction.sideFor(userUuid = state.authenticatedUserUuid)) {
+                            DebtSide.OWED_TO_USER -> SettlementCard(
                                 modifier = Modifier.padding(Padding.medium),
-                                debtorFullName = transaction.debtorFullName ?: stringResource(R.string.unknown_member),
+                                debtorFullName = debtorFullName,
                                 amount = transaction.amount,
                                 onValidateSettlement = if (state.canSettle) {
                                     {
@@ -68,11 +73,20 @@ fun GroupSettleUpScreen(
                                     null
                                 },
                             )
-                        } else {
-                            DebtCard(
+
+                            DebtSide.OWED_BY_USER -> DebtCard(
                                 modifier = Modifier.padding(Padding.medium),
-                                creditorFullName = transaction.creditorFullName ?: stringResource(R.string.unknown_member),
-                                amount = transaction.amount,
+                                text = stringResource(R.string.you_owe, creditorFullName, transaction.amount),
+                            )
+
+                            DebtSide.BETWEEN_OTHERS -> DebtCard(
+                                modifier = Modifier.padding(Padding.medium),
+                                text = stringResource(
+                                    R.string.member_owes_member,
+                                    debtorFullName,
+                                    creditorFullName,
+                                    transaction.amount,
+                                ),
                             )
                         }
                     }

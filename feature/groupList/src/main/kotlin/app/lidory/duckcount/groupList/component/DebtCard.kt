@@ -8,15 +8,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import app.lidory.duckcount.android.ui.constant.Padding
-import app.lidory.duckcount.groupList.R
 
+/**
+ * A debt the user cannot record paid back, worded as [text]: what they owe another member, or what
+ * one other member owes another. Only its creditor settles a debt, see [SettlementCard].
+ */
 @Composable
 fun DebtCard(
     modifier: Modifier = Modifier,
-    creditorFullName: String,
-    amount: String,
+    text: String,
 ) {
     ElevatedCard(
         modifier = modifier,
@@ -27,7 +28,7 @@ fun DebtCard(
                 .padding(all = Padding.medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = stringResource(R.string.you_owe, creditorFullName, amount))
+            Text(text = text)
         }
     }
 }
