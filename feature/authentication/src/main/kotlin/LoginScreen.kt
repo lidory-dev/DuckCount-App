@@ -48,6 +48,7 @@ import app.lidory.duckcount.android.ui.composable.text.DuckCountErrorText
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.FontSize
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.android.ui.text.LowercaseVisualTransformation
 import app.lidory.duckcount.authentication.R
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.LoginViewModel
@@ -142,6 +143,7 @@ fun LoginScreen(
                         },
                         labelName = stringResource(R.string.username),
                         focusManager = focusManager,
+                        visualTransformation = LowercaseVisualTransformation,
                         isInError = state.usernameError != null,
                         error = state.usernameError?.let {
                             stringResource(it.messageRes(), state.username.length, viewModel.maxUsernameLength)
@@ -183,7 +185,7 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {
                             viewModel.processLogin(
-                                username = state.username,
+                                username = state.lowercasedUsername,
                                 password = state.password,
                                 navigateToExpenseListScreen = navigateToDashboard,
                             )

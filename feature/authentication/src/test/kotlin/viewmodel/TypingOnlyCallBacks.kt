@@ -5,7 +5,10 @@ import AuthenticationCallBacks
 import PendingProfile
 import UsernameInputError
 
-/** Answers only what a form asks while it is typed in, every username passing the rules. */
+/**
+ * Answers only what a form asks while it is typed in, every username passing the rules but one
+ * holding a capital, which the library refuses as an invalid character.
+ */
 class TypingOnlyCallBacks : AuthenticationCallBacks {
     override val passwordStrength = 15
     override val maxUsernameLength = 32
@@ -14,7 +17,8 @@ class TypingOnlyCallBacks : AuthenticationCallBacks {
     override suspend fun passwordLeakAmount(password: String): AuthOutcome<Int> = TODO()
     override suspend fun registration(username: String, password: String): AuthOutcome<String> = TODO()
     override suspend fun login(username: String, password: String): AuthOutcome<Unit> = TODO()
-    override fun validateUsername(username: String): UsernameInputError? = null
+    override fun validateUsername(username: String): UsernameInputError? =
+        if (username != username.lowercase()) UsernameInputError.INVALID_CHARACTER else null
 
     override suspend fun insertUser(
         uuid: String,

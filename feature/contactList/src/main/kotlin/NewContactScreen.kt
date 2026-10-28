@@ -49,6 +49,7 @@ import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.text.DuckCountErrorText
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.android.ui.text.LowercaseVisualTransformation
 import model.messageRes
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.NewContactViewModel
@@ -182,6 +183,7 @@ fun NewContactScreen(
                         onValueChange = viewModel::updateUsername,
                         focusManager = focusManager,
                         singleLine = true,
+                        visualTransformation = LowercaseVisualTransformation,
                         labelName = stringResource(R.string.contact_username),
                         keyboardOptions = KeyboardOptions(
                             // Usernames are ASCII letters and digits.

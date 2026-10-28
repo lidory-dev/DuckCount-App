@@ -54,6 +54,7 @@ import app.lidory.duckcount.android.ui.composable.button.PasswordVisibilityButto
 import app.lidory.duckcount.android.ui.composable.text.DuckCountErrorText
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.android.ui.text.LowercaseVisualTransformation
 import app.lidory.duckcount.authentication.R
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.RegisterViewModel
@@ -157,6 +158,7 @@ fun RegisterScreen(
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         labelName = stringResource(R.string.username),
                         focusManager = focusManager,
+                        visualTransformation = LowercaseVisualTransformation,
                         isInError = state.usernameError != null,
                         error = state.usernameError?.let {
                             stringResource(it.messageRes(), state.username.length, viewModel.maxUsernameLength)
@@ -221,7 +223,7 @@ fun RegisterScreen(
                                 focusManager.clearFocus()
 
                                 viewModel.processRegistration(
-                                    username = state.username,
+                                    username = state.lowercasedUsername,
                                     password = state.password,
                                     navigateToPasswordLeakScreen = navigateToLeakPasswordScreen,
                                     navigateToUserInformationScreen = navigateToSetUpProfileScreen,
@@ -252,7 +254,7 @@ fun RegisterScreen(
                         onClick = {
                             autofillManager?.commit()
                             viewModel.processRegistration(
-                                username = state.username,
+                                username = state.lowercasedUsername,
                                 password = state.password,
                                 navigateToPasswordLeakScreen = navigateToLeakPasswordScreen,
                                 navigateToUserInformationScreen = navigateToSetUpProfileScreen,

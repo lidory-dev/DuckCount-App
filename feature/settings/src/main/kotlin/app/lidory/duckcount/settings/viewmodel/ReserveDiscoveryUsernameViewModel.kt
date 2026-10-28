@@ -35,7 +35,10 @@ class ReserveDiscoveryUsernameViewModel(
     val isReserved: StateFlow<Boolean> = _isReserved.asStateFlow()
 
     /**
-     * What the user typed, or null while the field still holds the reserved username.
+     * What the user typed, as typed, or null while the field still holds the reserved username.
+     * Not lowercased here: rewriting what is being typed would hand the keyboard a new text at
+     * every capital, and drop the keys already on their way to it. The field shows it lowercased,
+     * and [DiscoveryUsernameScreenState.Content.username], what is checked and reserved, is.
      *
      * Snapshot state rather than a flow: the field has to get its text back in the same frame as
      * the edit, which a collected flow only delivers a frame later.
@@ -57,7 +60,7 @@ class ReserveDiscoveryUsernameViewModel(
             isReserving,
             error,
         ) { reserved, draft, isReserving, error ->
-            val username = draft ?: reserved.orEmpty()
+            val username = draft?.lowercase() ?: reserved.orEmpty()
 
             DiscoveryUsernameScreenState.Content(
                 username = username,
@@ -84,7 +87,7 @@ class ReserveDiscoveryUsernameViewModel(
     }
 
     fun onUsernameChanged(username: String) {
-        draftUsername = username.lowercase()
+        draftUsername = username
         error.value = null
     }
 
@@ -121,6 +124,7 @@ sealed interface DiscoveryUsernameScreenState {
     data object Loading : DiscoveryUsernameScreenState
 
     data class Content(
+        /** The username as it is checked and reserved: lowercased, as every username is. */
         val username: String,
         val inputError: UsernameInputError?,
         val isReserving: Boolean,

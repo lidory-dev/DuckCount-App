@@ -23,14 +23,15 @@ class NewContactViewModel(
         private set
 
     fun updateUsername(username: String) {
-        // Lowercased like the usernames are reserved, but not trimmed: trimming what is being
-        // typed would swallow a space typed at the end and move the cursor past one typed at the
-        // start. What is checked and sent is trimmed instead (see NewContactState.trimmedUsername).
-        val typed = username.lowercase()
+        // Held as typed, neither lowercased nor trimmed: rewriting what is being typed would hand
+        // the keyboard a new text at every capital, dropping the keys already on their way to it,
+        // and trimming it would swallow a space typed at the end. The field shows it lowercased,
+        // and what is checked and sent is lowercased and trimmed, see
+        // NewContactState.trimmedUsername.
+        val typed = state.copy(username = username)
 
-        state = state.copy(
-            username = typed,
-            inputError = contactCallBacks.validateUsername(username = typed.trim()),
+        state = typed.copy(
+            inputError = contactCallBacks.validateUsername(username = typed.trimmedUsername),
             error = null,
         )
     }
@@ -66,7 +67,7 @@ class NewContactViewModel(
 }
 
 data class NewContactState(
-    /** What the user typed, lowercased, emptied once a request is sent. */
+    /** What the user typed, as typed, emptied once a request is sent. */
     val username: String = "",
 
     /** Why [trimmedUsername] cannot be anybody's, null while nothing is typed. */
@@ -86,10 +87,11 @@ data class NewContactState(
     val sentTo: String? = null,
 ) {
     /**
-     * [username] without the whitespace around it, which is what is checked and sent: one pasted
-     * with a stray space still goes through, a space never being valid.
+     * [username] lowercased, as every username is, and without the whitespace around it, which is
+     * what is checked and sent: one pasted with a stray space still goes through, a space never
+     * being valid.
      */
-    val trimmedUsername: String = username.trim()
+    val trimmedUsername: String = username.trim().lowercase()
 
     val canSend: Boolean = username.isNotBlank() && inputError == null && !isSending
 }

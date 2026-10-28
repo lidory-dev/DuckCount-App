@@ -24,17 +24,21 @@ class RegisterViewModel(
     var state by mutableStateOf(RegisterScreenState())
         private set
 
+    /**
+     * Takes [username] as typed: the field shows it lowercased, see
+     * [app.lidory.duckcount.android.ui.text.LowercaseVisualTransformation], and it is checked and
+     * registered lowercased, see [RegisterScreenState.lowercasedUsername].
+     */
     fun updateUsername(username: String) {
-        val lowercased = username.lowercase()
+        val typed = state.copy(username = username)
 
-        state = state.copy(
-            username = lowercased,
+        state = typed.copy(
             // Nothing typed yet isn't a mistake worth pointing out, the button
             // stays disabled anyway.
-            usernameError = if (lowercased.isBlank()) {
+            usernameError = if (username.isBlank()) {
                 null
             } else {
-                authenticationCallBacks.validateUsername(username = lowercased)
+                authenticationCallBacks.validateUsername(username = typed.lowercasedUsername)
             },
             error = null,
         )
@@ -107,9 +111,14 @@ class RegisterViewModel(
 
 data class RegisterScreenState(
     val isLoading: Boolean = false,
+
+    /** The username field's text, as typed. */
     val username: String = "",
     val password: String = "",
     val passwordConfirmation: String = "",
     val usernameError: UsernameInputError? = null,
     val error: AuthError? = null,
-)
+) {
+    /** [username] as it is checked and registered: lowercased, as every username is. */
+    val lowercasedUsername: String = username.lowercase()
+}

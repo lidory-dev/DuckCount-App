@@ -43,6 +43,7 @@ import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.text.DuckCountErrorText
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.android.ui.text.LowercaseVisualTransformation
 import app.lidory.duckcount.settings.model.messageRes
 import app.lidory.duckcount.settings.viewmodel.DiscoveryUsernameScreenState
 import app.lidory.duckcount.settings.viewmodel.ReserveDiscoveryUsernameViewModel
@@ -194,6 +195,7 @@ private fun ReserveDiscoveryUsernameContent(
                     onValueChange = onUsernameChanged,
                     focusManager = focusManager,
                     singleLine = true,
+                    visualTransformation = LowercaseVisualTransformation,
                     labelName = stringResource(R.string.discovery_username),
                     keyboardOptions = KeyboardOptions(
                         imeAction = ImeAction.Done,
