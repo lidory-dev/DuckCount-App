@@ -6,13 +6,13 @@ import kotlinx.coroutines.sync.withLock
 /**
  * Runs [block] as the only thing changing which groups this device holds: creating one, see
  * [GroupCreator], leaving one, see [GroupLeaver], and the group sync, which sends the creations
- * still pending, backs the keys up and joins the groups the user was invited to.
+ * still pending, joins the groups the user was invited to and puts up the copies of their keys.
  *
  * Each reads what is stored, talks to the server and writes back what it heard, and two at once
  * would each act on what the other is halfway through: a creation still waiting on its answer
- * sent again alongside it, or the key of a group backed up to the vault while the creation that
- * made it forgets it for a refusal: written after the refusal took the vault's copy out, it would
- * stay there, a key to a group that never existed.
+ * sent again alongside it, or the copy of a group's key put up just after a leave took it down,
+ * see [GroupLeaver]: a log-out before the server hears the leave would bring the group back with
+ * it, as one the user is still in.
  *
  * Process-wide, like the store the groups live in: one MLS client is opened per process, see
  * [mls.MlsIdentityRepository]. Not reentrant, so nothing called under it may take it again,

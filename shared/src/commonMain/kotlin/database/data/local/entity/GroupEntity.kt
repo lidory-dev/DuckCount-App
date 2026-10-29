@@ -38,8 +38,9 @@ class GroupEntity(
 
     /**
      * The MLS group the members talk in, or null for a group brought back after a log-out, which
-     * takes every MLS group with it: its fields open with [groupKey] from the vault, but nothing
-     * the members send in it can be read any more.
+     * takes every MLS group with it: its fields open with [groupKey] from the user's copy the
+     * server kept, see `group.GroupKeyCopies`, but nothing the members send in it can be read any
+     * more.
      *
      * Kept once the user is no longer in the group, see [isLeft], although its MLS state is gone:
      * a direct message naming it is still one never to be read, see `message.DirectMessageSync`.
@@ -48,13 +49,19 @@ class GroupEntity(
 
     /**
      * The key the group's fields are sealed under on the server, 32 random bytes, one per group:
-     * handed to the invitees inside the Welcome that lets them in, and backed up in the vault,
-     * see `vault.VaultRepository.setGroupKey`. Replaced by the creator once they remove somebody,
-     * see `group.GroupMembershipSender`, the members who remain being handed the new one over MLS.
+     * handed to the invitees inside the Welcome that lets them in, and backed up as the user's own
+     * copy, which the server keeps with the group, see `group.GroupKeyCopies`. Replaced by the
+     * creator once they remove somebody, see `group.GroupMembershipSender`, the members who remain
+     * being handed the new one over MLS.
      */
     val groupKey: ByteArray,
 
-    /** Whether the vault holds [groupKey] yet. A back-up that failed is tried again by the sync. */
+    /**
+     * Whether the server holds the user's copy of [groupKey], this key and not one it replaced:
+     * false from the moment the key changes, see
+     * [database.data.local.dao.GroupDao.updateGroupKey], until the copy of the new one went up,
+     * which the sync sees to, see `group.GroupKeyCopies.putUp`.
+     */
     val isBackedUp: Boolean,
 
     /**

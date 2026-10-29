@@ -13,8 +13,6 @@ import uniffi.lib_duckcount.MlsClient
 import util.EmptyResult
 import util.NetworkError
 import util.Result
-import vault.VaultError
-import vault.VaultRepository
 
 /**
  * How soon a creation the server was not heard to answer is sent again: soon enough that its
@@ -32,10 +30,11 @@ private const val UNANSWERED_RESEND_SECONDS = 60L
  * [GroupDao.insertCreated], so that whatever the answer, or none, the device holds what the
  * server may hold:
  * - The server holds the group, now or from an earlier send, see [GroupCreationAnswer.Created] and
- *   [GroupCreationAnswer.AlreadyExists]: the pending creation goes, and the group stays.
+ *   [GroupCreationAnswer.AlreadyExists]: the pending creation goes, and the group stays, backed up,
+ *   the creation having carried the creator's copy of its key, see [CreateGroupBody.keyCopy].
  * - The server refused it, writing nothing, see [GroupCreationAnswer.DeletedInvitees] and
- *   [GroupCreationAnswer.Refused]: the group goes, with its members, its pending creation, its
- *   key in the vault and the MLS group, which nobody else will ever join. Contacts named as deleted are acted on as any
+ *   [GroupCreationAnswer.Refused]: the group goes, with its members, its pending creation and the
+ *   MLS group, which nobody else will ever join. Contacts named as deleted are acted on as any
  *   other answer naming them is, see [DirectMessageSender.receiveAccountDeletions].
  * - The server has not taken it yet, see [GroupCreationAnswer.RateLimited] and
  *   [GroupCreationAnswer.Failed]: everything stays, and the next sync is booked for when it may
@@ -44,17 +43,16 @@ private const val UNANSWERED_RESEND_SECONDS = 60L
  * To be called under [withGroupsLock], which it does not take itself: the creation sends while
  * holding it already.
  *
- * [post] is [GroupApi.createGroup], [dropPending] is [GroupDao.deletePendingCreation],
- * [deleteRefused] is [GroupDao.deleteRefusedCreation], [deleteKey] is
- * [VaultRepository.deleteGroupKey], [listPending] is [GroupDao.getPendingCreations], [client] is
- * [MlsIdentityRepository.client], [receiveAccountDeletions] is
- * [DirectMessageSender.receiveAccountDeletions], or what a test stands in for any of them.
+ * [post] is [GroupApi.createGroup], [dropTaken] is [GroupDao.deleteTakenCreation],
+ * [deleteRefused] is [GroupDao.deleteRefusedCreation], [listPending] is
+ * [GroupDao.getPendingCreations], [client] is [MlsIdentityRepository.client],
+ * [receiveAccountDeletions] is [DirectMessageSender.receiveAccountDeletions], or what a test
+ * stands in for any of them.
  */
 class GroupCreationSender internal constructor(
     private val post: suspend (body: CreateGroupBody) -> GroupCreationAnswer,
-    private val dropPending: suspend (groupUuid: String) -> Unit,
+    private val dropTaken: suspend (groupUuid: String) -> Unit,
     private val deleteRefused: suspend (groupUuid: String) -> GroupEntity?,
-    private val deleteKey: suspend (groupUuid: String) -> EmptyResult<VaultError>,
     private val listPending: suspend () -> List<PendingGroupCreationEntity>,
     private val client: suspend () -> Result<MlsClient, MlsIdentityError>,
     private val receiveAccountDeletions: suspend (userUuids: Collection<String>) -> Unit,
@@ -63,15 +61,13 @@ class GroupCreationSender internal constructor(
     constructor(
         groupApi: GroupApi,
         groupDao: GroupDao,
-        vaultRepository: VaultRepository,
         mlsIdentityRepository: MlsIdentityRepository,
         directMessageSender: DirectMessageSender,
         resendScheduler: ResendScheduler,
     ) : this(
         post = groupApi::createGroup,
-        dropPending = groupDao::deletePendingCreation,
+        dropTaken = groupDao::deleteTakenCreation,
         deleteRefused = groupDao::deleteRefusedCreation,
-        deleteKey = vaultRepository::deleteGroupKey,
         listPending = groupDao::getPendingCreations,
         client = mlsIdentityRepository::client,
         receiveAccountDeletions = directMessageSender::receiveAccountDeletions,
@@ -86,7 +82,7 @@ class GroupCreationSender internal constructor(
 
         when (answer) {
             GroupCreationAnswer.Created, GroupCreationAnswer.AlreadyExists ->
-                dropPending(pendingCreation.groupUuid)
+                dropTaken(pendingCreation.groupUuid)
 
             is GroupCreationAnswer.DeletedInvitees -> {
                 discard(groupUuid = pendingCreation.groupUuid)
@@ -132,19 +128,13 @@ class GroupCreationSender internal constructor(
     }
 
     /**
-     * Forgets the group [groupUuid], refused by the server: its rows first, then its key in the
-     * vault and its MLS group, so that a deletion that fails leaves a key or a group nothing names,
-     * never a name for a group that is gone.
+     * Forgets the group [groupUuid], refused by the server: its rows first, then its MLS group, so
+     * that a deletion that fails leaves a group nothing names, never a name for a group that is
+     * gone. The server stores nothing of a creation it refuses, the creator's copy of the group's
+     * key included, so there is no copy to drop.
      */
     private suspend fun discard(groupUuid: String) {
         val group = deleteRefused(groupUuid) ?: return
-
-        // Whether or not the group is recorded as backed up: a backup can reach the vault without
-        // its answer being heard, or be cut short once sent, and deleting a key the vault does not
-        // hold does no harm. Once, whatever comes of it: a key left in the vault opens nothing, no
-        // group being listed under its UUID, and trying again would mean sending the refused
-        // creation until it went.
-        deleteKey(groupUuid)
 
         val mlsGroupId = group.mlsGroupId ?: return
 

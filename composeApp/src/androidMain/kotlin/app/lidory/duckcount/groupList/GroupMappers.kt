@@ -129,6 +129,8 @@ suspend fun SharedGroupCreationError.toGroupCreationError(
 
         is SharedGroupCreationError.Identity -> GroupCreationError.Failure(error.toGroupCreationFailure(isOnline = isOnline))
 
+        is SharedGroupCreationError.Vault -> GroupCreationError.Failure(error.toGroupCreationFailure(isOnline = isOnline))
+
         SharedGroupCreationError.NoSession,
         SharedGroupCreationError.Storage,
         SharedGroupCreationError.Crypto,

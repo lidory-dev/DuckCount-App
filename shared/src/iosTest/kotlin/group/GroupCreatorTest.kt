@@ -20,6 +20,7 @@ import uniffi.lib_duckcount.isOneTimeExpenseCreditor
 import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
 import util.NetworkError
 import util.Result
+import vault.VaultError
 import kotlin.io.encoding.Base64
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -85,8 +86,9 @@ class GroupCreatorTest {
 
     private val resends = ResendsBooked()
 
-    /** The keys the vault holds, by group. */
-    private val backedUp = mutableMapOf<String, ByteArray>()
+    /** The key ring the creator's copy of each group's key is sealed with, see [GroupKeyCopies]. */
+    private val server = ServerKeyCopies()
+    private val keyCopies = server.groupKeyCopies(groups)
 
     /**
      * The key to Alice's own profile, null as the vault not answering leaves it, the one each
@@ -98,9 +100,6 @@ class GroupCreatorTest {
         CAROL to generateSymmetricEncryptionKey(),
     )
     private val learnedProfileKeys = mutableMapOf<String, ByteArray>()
-
-    /** Whether the vault takes a key without its answer coming back, as a request timing out once sent would. */
-    private var isBackUpAnswerLost = false
 
     private val sender = GroupCreationSender(
         post = { body ->
@@ -117,15 +116,14 @@ class GroupCreatorTest {
 
             answer
         },
-        dropPending = { groupUuid -> pending.remove(groupUuid) },
+        dropTaken = { groupUuid ->
+            pending.remove(groupUuid)
+            groups[groupUuid] = groups.getValue(groupUuid).markedBackedUp()
+        },
         deleteRefused = { groupUuid ->
             pending.remove(groupUuid)
             members.remove(groupUuid)
             groups.remove(groupUuid)
-        },
-        deleteKey = { groupUuid ->
-            backedUp.remove(groupUuid)
-            Result.Success(Unit)
         },
         listPending = { pending.values.toList() },
         client = { Result.Success(alice) },
@@ -154,10 +152,7 @@ class GroupCreatorTest {
         save = { group, groupMembers, pendingCreation -> saveRows(group, groupMembers, pendingCreation) },
         bookResend = sender::bookResend,
         send = sender::send,
-        backUp = { groupUuid, groupKey ->
-            backedUp[groupUuid] = groupKey
-            if (!isBackUpAnswerLost) groups[groupUuid] = groups.getValue(groupUuid).backedUp()
-        },
+        sealKeyCopy = keyCopies::seal,
         ownProfileKey = { aliceProfileKey },
         contactProfileKey = { contactProfileKeys[it] },
         learnedProfileKey = { learnedProfileKeys[it] },
@@ -198,7 +193,33 @@ class GroupCreatorTest {
         assertEquals(setOf(BOB, CAROL), body.invitedMemberUuids.toSet())
 
         assertTrue(pending.isEmpty())
-        assertContentEquals(group.groupKey, backedUp[groupUuid])
+    }
+
+    /** Stored by the server with the group, so that its key outlives a log-out from the start. */
+    @Test
+    fun `the creation carries the creator's copy of the group's key`() = runBlocking<Unit> {
+        val groupUuid = assertIs<Result.Success<String>>(create()).data
+
+        val keyCopy = posted.single().body.keyCopy
+
+        assertContentEquals(
+            groups.getValue(groupUuid).groupKey,
+            keyCopy.openKeyCopy(sealingKey = server.sealingKey, groupUuid = groupUuid),
+        )
+    }
+
+    /** Sealing it reads the key ring, before any key package is asked for, which would be spent for nothing. */
+    @Test
+    fun `a key ring that does not answer creates nothing and asks for no key package`() = runBlocking<Unit> {
+        server.isKeyRingAnswering = false
+
+        assertEquals(
+            Result.Error(GroupCreationError.Vault(VaultError.Network(NetworkError.UNREACHABLE))),
+            create(),
+        )
+
+        assertTrue(fetched.isEmpty())
+        assertNothingCreated()
     }
 
     /** One the process does not live to hear answered would otherwise wait for whatever syncs next. */
@@ -302,7 +323,7 @@ class GroupCreatorTest {
             assertNull(groups.getValue(groupUuid).handedProfileKeyHash)
         }
 
-    /** An earlier send of the same creation was stored, and its answer lost. */
+    /** An earlier send of the same creation was stored, and its answer lost, the creator's copy with it. */
     @Test
     fun `a 409 counts as created`() = runBlocking<Unit> {
         answer = GroupCreationAnswer.AlreadyExists
@@ -311,7 +332,7 @@ class GroupCreatorTest {
 
         assertTrue(groupUuid in groups)
         assertTrue(pending.isEmpty())
-        assertTrue(groupUuid in backedUp)
+        assertTrue(groups.getValue(groupUuid).isBackedUp)
     }
 
     @Test
@@ -325,7 +346,6 @@ class GroupCreatorTest {
         assertTrue(pending.isEmpty())
         assertTrue(holdsNoGroup())
         assertEquals(listOf(CAROL), deletedAccounts)
-        assertTrue(backedUp.isEmpty())
     }
 
     @Test
@@ -337,9 +357,9 @@ class GroupCreatorTest {
         assertTrue(groups.isEmpty())
         assertTrue(pending.isEmpty())
         assertTrue(holdsNoGroup())
-        assertTrue(backedUp.isEmpty())
     }
 
+    /** Not backed up until the server takes the creation, its copy with it. */
     @Test
     fun `a 429 keeps everything and books a resend after its Retry-After`() = runBlocking<Unit> {
         answer = GroupCreationAnswer.RateLimited(retryAfterSeconds = 42)
@@ -348,7 +368,7 @@ class GroupCreatorTest {
 
         assertTrue(groupUuid in groups)
         assertTrue(groupUuid in pending)
-        assertTrue(groupUuid in backedUp)
+        assertFalse(groups.getValue(groupUuid).isBackedUp)
         assertEquals(listOf(60L, 42L), resends.seconds)
     }
 
@@ -360,7 +380,7 @@ class GroupCreatorTest {
 
         assertTrue(groupUuid in groups)
         assertTrue(groupUuid in pending)
-        assertTrue(groupUuid in backedUp)
+        assertFalse(groups.getValue(groupUuid).isBackedUp)
         assertEquals(listOf(60L, 60L), resends.seconds)
     }
 
@@ -379,6 +399,7 @@ class GroupCreatorTest {
         assertEquals(posted[0].body, posted[1].body)
         assertTrue(pending.isEmpty())
         assertTrue(groupUuid in groups)
+        assertTrue(groups.getValue(groupUuid).isBackedUp)
     }
 
     /**
@@ -440,14 +461,12 @@ class GroupCreatorTest {
         assertEquals(2, pending.size)
     }
 
-    /** A key left there would open nothing ever: no group is listed under its UUID. */
+    /** The server stored nothing of it, the creator's copy of its key included. */
     @Test
-    fun `a creation refused at a resend takes its key out of the vault`() = runBlocking<Unit> {
+    fun `a creation refused at a resend goes with its MLS group`() = runBlocking<Unit> {
         answer = GroupCreationAnswer.RateLimited(retryAfterSeconds = 42)
 
-        val groupUuid = assertIs<Result.Success<String>>(create()).data
-
-        assertTrue(groupUuid in backedUp)
+        create()
 
         answer = GroupCreationAnswer.DeletedInvitees(userUuids = listOf(CAROL))
 
@@ -455,27 +474,7 @@ class GroupCreatorTest {
 
         assertTrue(groups.isEmpty())
         assertTrue(pending.isEmpty())
-        assertTrue(backedUp.isEmpty())
         assertTrue(holdsNoGroup())
-    }
-
-    /** The vault took the key and its answer was lost, so the group was never recorded as backed up. */
-    @Test
-    fun `a creation refused at a resend takes out a key the vault took unheard`() = runBlocking<Unit> {
-        answer = GroupCreationAnswer.RateLimited(retryAfterSeconds = 42)
-        isBackUpAnswerLost = true
-
-        val groupUuid = assertIs<Result.Success<String>>(create()).data
-
-        assertTrue(groupUuid in backedUp)
-        assertFalse(groups.getValue(groupUuid).isBackedUp)
-
-        answer = GroupCreationAnswer.DeletedInvitees(userUuids = listOf(CAROL))
-
-        assertEquals(Result.Success(Unit), sender.resendPending())
-
-        assertTrue(groups.isEmpty())
-        assertTrue(backedUp.isEmpty())
     }
 
     @Test
@@ -634,20 +633,6 @@ class GroupCreatorTest {
 
     /** Whether Alice's store holds no group at all. */
     private fun holdsNoGroup() = aliceStore.keys(namespace_ = MlsNamespace.GROUP_STATE).isEmpty()
-
-    /** [this] as `GroupDao.markBackedUp` leaves it. */
-    private fun GroupEntity.backedUp() = GroupEntity(
-        uuid = uuid,
-        title = title,
-        description = description,
-        currency = currency,
-        ownerUuid = ownerUuid,
-        mlsGroupId = mlsGroupId,
-        groupKey = groupKey,
-        isBackedUp = true,
-        isLeft = isLeft,
-        handedProfileKeyHash = handedProfileKeyHash,
-    )
 
     private fun assertNothingCreated() {
         assertTrue(groups.isEmpty())

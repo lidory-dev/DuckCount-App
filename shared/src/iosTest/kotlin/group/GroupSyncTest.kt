@@ -34,6 +34,7 @@ import uniffi.lib_duckcount.MlsNamespace
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import util.NetworkError
 import util.Result
+import vault.VaultError
 import kotlin.io.encoding.Base64
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -71,8 +72,9 @@ private val DAVES_FIELDS = GroupFields(
 /**
  * What Bob's group sync makes of the groups the server lists for him: groups somebody created
  * with him and Carol in them, through the library itself as [GroupCreator] creates them, and his
- * own creations still waiting for an answer. The database, the vault and the server are stood in
- * for.
+ * own creations still waiting for an answer. The database, the key ring and the server are stood
+ * in for, the server listing each group with the copy of its key it holds for Bob, see
+ * [ServerKeyCopies].
  *
  * Every group Bob declines he leaves on the server, which then lists it to him no more and drops
  * what waited for him there, unless a test has it answer otherwise.
@@ -154,9 +156,9 @@ class GroupSyncTest {
     private var onMemberNamesRead: suspend () -> Unit = {}
     private var onMemberProfilesBackedUp: suspend () -> Unit = {}
 
-    /** The group keys the vault holds, and those the sync backed up. */
-    private val vault = mutableMapOf<String, ByteArray>()
-    private val backedUp = mutableMapOf<String, ByteArray>()
+    /** The copies of Bob's group keys the server holds, and the key ring they are sealed with. */
+    private val server = ServerKeyCopies()
+    private val keyCopies = server.groupKeyCopies(groups)
 
     /** The Welcome of the last group [invite] had created, its MLS group, and who created it. */
     private var welcome: ByteArray? = null
@@ -170,15 +172,14 @@ class GroupSyncTest {
 
     private val sender = GroupCreationSender(
         post = { answer },
-        dropPending = { groupUuid -> pending.remove(groupUuid) },
+        dropTaken = { groupUuid ->
+            pending.remove(groupUuid)
+            groups[groupUuid] = groups.getValue(groupUuid).markedBackedUp()
+        },
         deleteRefused = { groupUuid ->
             pending.remove(groupUuid)
             members.remove(groupUuid)
             groups.remove(groupUuid)
-        },
-        deleteKey = { groupUuid ->
-            vault.remove(groupUuid)
-            Result.Success(Unit)
         },
         listPending = { pending.values.toList() },
         client = { Result.Success(bob) },
@@ -190,14 +191,18 @@ class GroupSyncTest {
         userUuid = { BOB },
         resendPending = sender::resendPending,
         resendMembershipChanges = { Result.Success(Unit) },
-        backUpPending = { Result.Success(Unit) },
+        openKeyCopies = keyCopies::open,
+        putUpKeyCopies = keyCopies::putUp,
         restoreContacts = { Result.Success(Unit) },
         listGroups = {
-            if (isServerReachable) Result.Success(listed.toList()) else Result.Error(NetworkError.NO_INTERNET)
+            if (isServerReachable) {
+                Result.Success(listed.map { it.copy(keyCopy = server.copies[it.uuid]) })
+            } else {
+                Result.Error(NetworkError.NO_INTERNET)
+            }
         },
         storedGroups = { groups.values.toList() },
         declinedGroups = { declined.toList() },
-        vaultKeys = { Result.Success(vault.toMap()) },
         listMessages = { groupUuid ->
             fetched += groupUuid
             if (groupUuid in unreachableMessages) {
@@ -242,10 +247,6 @@ class GroupSyncTest {
         recordDeclined = { groupUuid -> declined += groupUuid },
         forgetDeclined = { groupUuid -> declined -= groupUuid },
         removeDeparted = { _, _ -> error("No group Bob created is listed here.") },
-        backUp = { groupUuid, groupKey ->
-            backedUp[groupUuid] = groupKey
-            Result.Success(Unit)
-        },
         fullName = { names[it] },
         hasPendingChange = { it in pending || it in pendingChanges },
         isBlocked = { it in blocked },
@@ -304,7 +305,8 @@ class GroupSyncTest {
             members.getValue(GROUP).toSet(),
         )
 
-        assertContentEquals(groupKey, backedUp[GROUP])
+        assertContentEquals(groupKey, server.keyOf(GROUP))
+        assertTrue(group.isBackedUp)
         assertEquals(listOf(welcomeOf(GROUP)), acknowledged[GROUP]?.toList())
         assertTrue(declined.isEmpty())
     }
@@ -501,6 +503,56 @@ class GroupSyncTest {
     fun `a Welcome that is not Base64 is declined and left`() = runBlocking<Unit> {
         invite(creator = alice)
         waiting[GROUP] = waiting.getValue(GROUP).mapTo(mutableListOf()) { it.copy(ciphertext = "not base64!") }
+
+        assertDeclinedStoringNothing()
+    }
+
+    /**
+     * Alice removed Bob while he was logged out and added him back: the Commit removing him waits
+     * before her Welcome, unread, and the server dropped his copy of the group's key with the
+     * removal. Her Welcome is joined from, the creator being the owner the server lists.
+     */
+    @Test
+    fun `a Welcome of the owner's behind what waited from an earlier membership is joined from`() =
+        runBlocking<Unit> {
+            val groupKey = invite(creator = alice)
+
+            waiting.getValue(GROUP).add(0, unreadable(uuid = "removal"))
+
+            val pass = groupSync.sync(contactsTakenIn = true)
+
+            assertNull(pass.failure)
+            assertEquals(listOf(GROUP), pass.joined.map { it.groupUuid })
+            assertContentEquals(groupKey, groups.getValue(GROUP).groupKey)
+            assertEquals(listOf("removal", welcomeOf(GROUP)), acknowledged[GROUP]?.toList())
+        }
+
+    /**
+     * Dave, a contact of Bob's, posting the Welcome of a group of his own under the UUID of
+     * Alice's, behind something that is no way in: the owner the server lists is Alice, so his is
+     * never joined from, and with none of hers the group is declined.
+     */
+    @Test
+    fun `a Welcome of a member's own group behind what is no way in is not joined from`() = runBlocking<Unit> {
+        bob.pinIdentity(userUuid = DAVE, signatureKey = dave.signaturePublicKey())
+        list(owner = ALICE, groupKey = generateSymmetricEncryptionKey())
+
+        val davesGroupKey = generateSymmetricEncryptionKey()
+        val davesGroup = dave.createGroup(
+            groupUuid = GROUP,
+            invitees = listOf(bob.inviteeKeyPackage()),
+            welcomePayload = welcomePayloadOf(groupKey = davesGroupKey, profileKeys = emptyMap()),
+        )
+
+        waiting[GROUP] = mutableListOf(
+            unreadable(uuid = "earlier"),
+            GroupMessageDto(
+                uuid = "daves-welcome",
+                senderUserUuid = DAVE,
+                ciphertext = Base64.Default.encode(davesGroup.welcome),
+                createdAt = "2026-10-23T12:05:00Z",
+            ),
+        )
 
         assertDeclinedStoringNothing()
     }
@@ -795,37 +847,101 @@ class GroupSyncTest {
             assertTrue(declined.isEmpty())
         }
 
-    /** As a log-out leaves Bob: the Welcome long acknowledged, the key in the vault, no MLS state. */
+    /** As a log-out leaves Bob: the Welcome long acknowledged, the copy of the key listed, no MLS state. */
     @Test
-    fun `a group whose key the vault holds is brought back without a Welcome or MLS state`() = runBlocking<Unit> {
-        val groupKey = generateSymmetricEncryptionKey()
+    fun `a group listed with the user's copy of its key is brought back without a Welcome or MLS state`() =
+        runBlocking<Unit> {
+            val groupKey = generateSymmetricEncryptionKey()
 
-        list(owner = ALICE, groupKey = groupKey)
-        vault[GROUP] = groupKey
+            list(owner = ALICE, groupKey = groupKey)
+            server.copies[GROUP] = server.copyOf(groupKey = groupKey, sealedFor = GROUP)
 
-        val pass = groupSync.sync(contactsTakenIn = true)
+            val pass = groupSync.sync(contactsTakenIn = true)
 
-        assertNull(pass.failure)
-        assertTrue(pass.joined.isEmpty())
+            assertNull(pass.failure)
+            assertTrue(pass.joined.isEmpty())
 
-        val group = assertNotNull(groups[GROUP])
+            val group = assertNotNull(groups[GROUP])
 
-        assertEquals("Ski trip", group.title)
-        assertNull(group.mlsGroupId)
-        assertTrue(group.isBackedUp)
-        assertContentEquals(groupKey, group.groupKey)
-        assertEquals(setOf(ALICE, BOB, CAROL), members.getValue(GROUP).mapTo(HashSet()) { it.userUuid })
+            assertEquals("Ski trip", group.title)
+            assertNull(group.mlsGroupId)
+            assertTrue(group.isBackedUp)
+            assertContentEquals(groupKey, group.groupKey)
+            assertEquals(setOf(ALICE, BOB, CAROL), members.getValue(GROUP).mapTo(HashSet()) { it.userUuid })
 
-        assertTrue(fetched.isEmpty())
-        assertTrue(backedUp.isEmpty())
+            assertTrue(fetched.isEmpty())
+            assertTrue(server.putUp.isEmpty())
+        }
+
+    /**
+     * The server listing one group's copy with another, which opens as the key of no group but the
+     * one it was sealed for: taken for no copy at all, the group is declined, as below.
+     */
+    @Test
+    fun `a group listed with a copy sealed for another group is declined as one with no copy`() =
+        runBlocking<Unit> {
+            val groupKey = generateSymmetricEncryptionKey()
+
+            list(owner = ALICE, groupKey = groupKey)
+            server.copies[GROUP] = server.copyOf(groupKey = groupKey, sealedFor = OTHER_GROUP)
+
+            val pass = groupSync.sync(contactsTakenIn = true)
+
+            assertNull(pass.failure)
+            assertTrue(groups.isEmpty())
+            assertEquals(listOf(GROUP), left)
+            assertEquals(1, server.keyRingReads)
+        }
+
+    /**
+     * The key ring not answering as the copies are opened is not the server holding none: taken for
+     * that, the group would be declined and left, and Bob would lose a group that is his.
+     */
+    @Test
+    fun `a group listed with a copy of its key is neither declined nor left while the key ring does not answer`() =
+        runBlocking<Unit> {
+            val groupKey = generateSymmetricEncryptionKey()
+
+            list(owner = ALICE, groupKey = groupKey)
+            server.copies[GROUP] = server.copyOf(groupKey = groupKey, sealedFor = GROUP)
+            server.isKeyRingAnswering = false
+
+            val pass = groupSync.sync(contactsTakenIn = true)
+
+            assertEquals(GroupSyncError.Vault(VaultError.Network(NetworkError.UNREACHABLE)), pass.failure)
+            assertTrue(groups.isEmpty())
+            assertTrue(declined.isEmpty())
+            assertTrue(left.isEmpty())
+            assertTrue(fetched.isEmpty())
+
+            server.isKeyRingAnswering = true
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            val group = assertNotNull(groups[GROUP])
+
+            assertContentEquals(groupKey, group.groupKey)
+            assertTrue(group.isBackedUp)
+            assertTrue(left.isEmpty())
+        }
+
+    /** Most syncs find nothing to bring back, and reading the key ring is a request. */
+    @Test
+    fun `a group joined from its Welcome reads the key ring only to put its copy up`() = runBlocking<Unit> {
+        invite(creator = alice)
+
+        groupSync.sync(contactsTakenIn = true)
+
+        assertEquals(1, server.keyRingReads)
+        assertEquals(listOf(GROUP), server.putUp)
     }
 
     /**
-     * As a log-out leaves a group joined before it whose key was never backed up: the Welcome
-     * acknowledged, no key in the vault.
+     * As a log-out leaves a group joined before it whose key's copy never went up: the Welcome
+     * acknowledged, no copy listed.
      */
     @Test
-    fun `a group with no Welcome waiting and no key in the vault is declined and left and never asked about again`() =
+    fun `a group with no Welcome waiting and no copy of its key is declined and left and never asked about again`() =
         runBlocking<Unit> {
             list(owner = ALICE, groupKey = generateSymmetricEncryptionKey())
 
@@ -1035,18 +1151,20 @@ class GroupSyncTest {
     }
 
     @Test
-    fun `a creation the server takes at the next sync keeps its group and nothing pending`() = runBlocking<Unit> {
-        createPending()
+    fun `a creation the server takes at the next sync keeps its group backed up and nothing pending`() =
+        runBlocking<Unit> {
+            createPending()
 
-        assertNull(groupSync.sync(contactsTakenIn = true).failure)
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
 
-        assertTrue(GROUP in groups)
-        assertTrue(pending.isEmpty())
-        assertTrue(resends.seconds.isEmpty())
-    }
+            assertTrue(GROUP in groups)
+            assertTrue(groups.getValue(GROUP).isBackedUp)
+            assertTrue(pending.isEmpty())
+            assertTrue(resends.seconds.isEmpty())
+        }
 
     @Test
-    fun `a creation the server refuses at the next sync goes with its key and its MLS group`() = runBlocking<Unit> {
+    fun `a creation the server refuses at the next sync goes with its MLS group`() = runBlocking<Unit> {
         val mlsGroupId = createPending()
         answer = GroupCreationAnswer.Refused(error = NetworkError.BAD_REQUEST)
 
@@ -1054,7 +1172,6 @@ class GroupSyncTest {
 
         assertTrue(groups.isEmpty())
         assertTrue(pending.isEmpty())
-        assertTrue(vault.isEmpty())
         assertFalse(bob.holdsGroup(mlsGroupId = mlsGroupId))
     }
 
@@ -1219,7 +1336,8 @@ class GroupSyncTest {
 
     /**
      * Has the server list [groupUuid], owned by [owner], with [members], its [fields] sealed under
-     * [groupKey] for the group [sealedFor].
+     * [groupKey] for the group [sealedFor], and whatever copy of its key it holds for Bob, see
+     * [ServerKeyCopies].
      */
     private fun list(
         owner: String,
@@ -1238,6 +1356,7 @@ class GroupSyncTest {
             description = sealed.description,
             currency = sealed.currency,
             members = members.map { GroupMemberDto(userUuid = it) },
+            keyCopy = null,
         )
     }
 
@@ -1303,8 +1422,9 @@ class GroupSyncTest {
 
     /**
      * Has Bob create [GROUP] with Alice, saved with its creation as [GroupCreator] saves it, which
-     * the server has not been heard to take, its key backed up, and returns its MLS group. The
-     * server reads nothing of the creation here, so its nonce need not be the one deriving [GROUP].
+     * the server has not been heard to take, its key not backed up until it is, and returns its MLS
+     * group. The server reads nothing of the creation here, so its nonce need not be the one
+     * deriving [GROUP].
      */
     private fun createPending(): ByteArray {
         val groupKey = generateSymmetricEncryptionKey()
@@ -1323,12 +1443,10 @@ class GroupSyncTest {
             ownerUuid = BOB,
             mlsGroupId = creation.mlsGroupId,
             groupKey = groupKey,
-            isBackedUp = true,
+            isBackedUp = false,
             isLeft = false,
             handedProfileKeyHash = null,
         )
-
-        vault[GROUP] = groupKey
 
         pending[GROUP] = pendingCreationOf(
             groupUuid = GROUP,
@@ -1339,6 +1457,7 @@ class GroupSyncTest {
                 currency = sealed.currency,
                 welcomeMessage = Base64.Default.encode(creation.welcome),
                 invitedMemberUuids = listOf(ALICE),
+                keyCopy = server.copyOf(groupKey = groupKey, sealedFor = GROUP),
             ),
         )
 
@@ -1383,6 +1502,14 @@ class GroupSyncTest {
     }
 
     private fun welcomeOf(groupUuid: String) = "welcome-$groupUuid"
+
+    /** A message waiting for Bob in [GROUP] that is no way in, as a Commit of an earlier membership of his is. */
+    private fun unreadable(uuid: String) = GroupMessageDto(
+        uuid = uuid,
+        senderUserUuid = ALICE,
+        ciphertext = Base64.Default.encode(ByteArray(64) { 5 }),
+        createdAt = "2026-10-23T11:00:00Z",
+    )
 
     /**
      * Bob's sync of his direct messages, with [message] waiting for him from Alice naming the group
@@ -1501,7 +1628,7 @@ class GroupSyncTest {
         assertTrue(pass.joined.isEmpty())
         assertTrue(groups.isEmpty())
         assertTrue(members.isEmpty())
-        assertTrue(backedUp.isEmpty())
+        assertTrue(server.putUp.isEmpty())
         assertNull(acknowledged[GROUP])
         assertEquals(listOf(GROUP), left)
         assertTrue(declined.isEmpty())

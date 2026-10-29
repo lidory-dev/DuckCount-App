@@ -68,6 +68,23 @@ class GroupCreationErrorMappingTest {
         )
     }
 
+    /** Sealing the creator's copy of the group's key reads the key ring, see `group.GroupKeyCopies`. */
+    @Test
+    fun `the key ring unreachable while offline is no internet`() {
+        assertEquals(
+            GroupCreationError.Failure(GroupCreationFailure.NO_INTERNET),
+            SharedGroupCreationError.Vault(VaultError.Network(NetworkError.UNREACHABLE)).mapped(isOnline = false),
+        )
+    }
+
+    @Test
+    fun `a key ring that does not open is unknown`() {
+        assertEquals(
+            GroupCreationError.Failure(GroupCreationFailure.UNKNOWN),
+            SharedGroupCreationError.Vault(VaultError.MalformedKeyRing).mapped(),
+        )
+    }
+
     @Test
     fun `the server refusing the group is unknown`() {
         assertEquals(

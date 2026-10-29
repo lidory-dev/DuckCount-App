@@ -174,12 +174,13 @@ class GroupSyncProfileKeysTest {
         userUuid = { BOB },
         resendPending = { Result.Success(Unit) },
         resendMembershipChanges = { Result.Success(Unit) },
-        backUpPending = { Result.Success(Unit) },
+        // What becomes of the copies of the group keys is GroupKeyCopiesTest's.
+        openKeyCopies = { Result.Success(emptyMap()) },
+        putUpKeyCopies = { Result.Success(Unit) },
         restoreContacts = { Result.Success(Unit) },
         listGroups = { Result.Success(listOfNotNull(listedGroup())) },
         storedGroups = { groups.values.toList() },
         declinedGroups = { emptyList() },
-        vaultKeys = { Result.Success(emptyMap()) },
         listMessages = { Result.Success(ListGroupMessagesResponse(messages = waiting.toList())) },
         acknowledge = { _, messageUuids ->
             acknowledged += messageUuids
@@ -200,7 +201,6 @@ class GroupSyncProfileKeysTest {
         recordDeclined = { error("Nothing is declined here.") },
         forgetDeclined = { error("Nothing is declined here.") },
         removeDeparted = { _, _ -> error("Nobody leaves a group here.") },
-        backUp = { _, _ -> Result.Success(Unit) },
         fullName = { null },
         hasPendingChange = { it in pending },
         isBlocked = { it in blocked },
@@ -755,6 +755,7 @@ class GroupSyncProfileKeysTest {
             description = fields.description,
             currency = fields.currency,
             members = serverMembers.map { GroupMemberDto(userUuid = it) },
+            keyCopy = null,
         )
     }
 

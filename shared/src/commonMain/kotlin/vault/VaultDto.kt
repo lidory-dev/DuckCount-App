@@ -19,9 +19,6 @@ data class VaultEntryDto(
     @SerialName("entry_key")
     val entryKey: String,
 
-    @SerialName("item_id")
-    val itemId: String = SINGLETON_ITEM_ID,
-
     val content: EncryptedFieldDto,
 
     val version: Long,
@@ -39,18 +36,12 @@ data class ListVaultEntriesResponse(
 /**
  * Body of `PUT /vault/{entry_key}`.
  *
- * The item id travels here rather than in the path because it is optional, and the
- * empty string a singleton uses is not something a path segment can express.
- *
  * [expectedVersion] is the version the caller last read: sending it has the write
  * refused with a `409` when another device changed the part since, omitting it
  * writes unconditionally.
  */
 @Serializable
 data class SaveVaultEntryRequestBody(
-    @SerialName("item_id")
-    val itemId: String = SINGLETON_ITEM_ID,
-
     val content: EncryptedFieldDto,
 
     @SerialName("expected_version")
@@ -76,9 +67,6 @@ data class VaultEntryUploadDto(
     @SerialName("entry_key")
     val entryKey: String,
 
-    @SerialName("item_id")
-    val itemId: String = SINGLETON_ITEM_ID,
-
     val content: EncryptedFieldDto,
 )
 
@@ -87,16 +75,13 @@ data class VaultEntryUploadDto(
 data class VaultEntryRefDto(
     @SerialName("entry_key")
     val entryKey: String,
-
-    @SerialName("item_id")
-    val itemId: String = SINGLETON_ITEM_ID,
 )
 
 /**
  * Body of `PATCH /vault`, several changes applied in one transaction.
  *
- * Either list may be empty, but not both, and no `(entry_key, item_id)` may appear
- * twice across the two. Nothing is persisted unless every change succeeds.
+ * Either list may be empty, but not both, and no `entry_key` may appear twice across
+ * the two. Nothing is persisted unless every change succeeds.
  */
 @Serializable
 data class VaultPatchBody(

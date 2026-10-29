@@ -12,9 +12,8 @@ import mls.MlsIdentityRepository
 import mls.deleteGroupQuietly
 import uniffi.lib_duckcount.MlsClient
 import util.EmptyResult
+import util.NetworkError
 import util.Result
-import vault.VaultError
-import vault.VaultRepository
 
 /**
  * Takes the user out of a group they did not create, as they ask from its settings: on this device
@@ -42,12 +41,13 @@ import vault.VaultRepository
  *    leaves the state to be deleted before the user is let back in, see [GroupSync]. The row
  *    keeps the group's id, so that a direct message naming it is still never read, see
  *    [GroupEntity.mlsGroupId].
- * 4. Its key is taken out of the vault, as best it can be. A log-out while the leave is owed
- *    forgets that it is, and the next session, finding the group listed and the key the vault
- *    holds still opening it, would bring it back as a group the user is in. With no key there, it
- *    is declined and left again instead. Nothing else needs that key: a group the user is no
- *    longer in is never brought back after a log-out, and the creator adding them back hands over
- *    the key the group has then, backed up as they rejoin.
+ * 4. The user's copy of its key is dropped from the server, see [GroupApi.deleteKeyCopy], as best
+ *    it can be. The server drops it as it takes the leave, but a log-out while the leave is owed
+ *    forgets that it is, and the next session, finding the group listed with the copy still
+ *    opening it, would bring it back as a group the user is in. With no copy there, it is declined
+ *    and left again instead. Nothing else needs that copy: a group the user is no longer in is
+ *    never brought back after a log-out, and the creator adding them back hands over the key the
+ *    group has then, whose copy goes up as they rejoin, see [GroupKeyCopies.putUp].
  * 5. The leave is sent, see [GroupApi.leave], and forgotten once the server took it. One the
  *    server was not heard to take is booked to go out again, see
  *    [UNANSWERED_LEAVE_RESEND_SECONDS]: the sync sends every leave owed, see
@@ -87,8 +87,8 @@ import vault.VaultRepository
  *
  * [userUuid] is [getAuthenticatedUserUuid], [group] is [GroupDao.get], [markLeftAndOweLeave] and
  * [forgetOwedLeave] are [GroupDao.markLeftAndOweLeave] and [GroupDao.deleteDeclined], [client] is
- * [MlsIdentityRepository.client], [deleteKey] is [VaultRepository.deleteGroupKey] and [sendLeave]
- * is [GroupApi.leave], or what a test stands in for any of them, as [resendScheduler] is for the
+ * [MlsIdentityRepository.client], [deleteKeyCopy] is [GroupApi.deleteKeyCopy] and [sendLeave] is
+ * [GroupApi.leave], or what a test stands in for any of them, as [resendScheduler] is for the
  * scheduler bound on this platform.
  */
 class GroupLeaver internal constructor(
@@ -96,7 +96,7 @@ class GroupLeaver internal constructor(
     private val group: suspend (groupUuid: String) -> GroupEntity?,
     private val markLeftAndOweLeave: suspend (groupUuid: String) -> Unit,
     private val client: suspend () -> Result<MlsClient, MlsIdentityError>,
-    private val deleteKey: suspend (groupUuid: String) -> EmptyResult<VaultError>,
+    private val deleteKeyCopy: suspend (groupUuid: String) -> EmptyResult<NetworkError>,
     private val sendLeave: suspend (groupUuid: String) -> GroupLeaveAnswer,
     private val forgetOwedLeave: suspend (groupUuid: String) -> Unit,
     private val resendScheduler: ResendScheduler,
@@ -104,7 +104,6 @@ class GroupLeaver internal constructor(
     constructor(
         groupApi: GroupApi,
         groupDao: GroupDao,
-        vaultRepository: VaultRepository,
         mlsIdentityRepository: MlsIdentityRepository,
         resendScheduler: ResendScheduler,
     ) : this(
@@ -112,7 +111,7 @@ class GroupLeaver internal constructor(
         group = groupDao::get,
         markLeftAndOweLeave = groupDao::markLeftAndOweLeave,
         client = mlsIdentityRepository::client,
-        deleteKey = vaultRepository::deleteGroupKey,
+        deleteKeyCopy = groupApi::deleteKeyCopy,
         sendLeave = groupApi::leave,
         forgetOwedLeave = groupDao::deleteDeclined,
         resendScheduler = resendScheduler,
@@ -150,7 +149,7 @@ class GroupLeaver internal constructor(
         }
 
         // Best effort, see above: only a log-out before the server hears the leave needs it gone.
-        deleteKey(held.uuid)
+        deleteKeyCopy(held.uuid)
 
         when (sendLeave(held.uuid)) {
             GroupLeaveAnswer.Left -> forgetOwedLeave(held.uuid)

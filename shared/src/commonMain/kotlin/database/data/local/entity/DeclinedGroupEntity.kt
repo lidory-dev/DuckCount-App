@@ -7,8 +7,8 @@ import androidx.room.PrimaryKey
  * A leave owed to the server: for a group the user was invited to and that this device declined,
  * without ever joining it, or for one the user left, see `group.GroupLeaver`. Declined when its
  * Welcome came from somebody who may not add the user to a group, or could not be joined, or
- * handed over no key that opens the group the server lists, or was not waiting at all, with no key
- * to the group in the vault either, see `group.GroupSync`. Left from the group's settings, the
+ * handed over no key that opens the group the server lists, or was not waiting at all, with no copy
+ * of the group's key listed with it that opens either, see `group.GroupSync`. Left from the group's settings, the
  * group then kept on this device, read-only, see [GroupEntity.isLeft], marked so in the same
  * transaction, see `GroupDao.markLeftAndOweLeave`.
  *
@@ -28,8 +28,8 @@ import androidx.room.PrimaryKey
  *
  * Kept on this device alone, and gone with a log-out: the next session declines again every group
  * the server still lists, finding no Welcome it can open there, and leaves it then. A group the
- * user left has its key taken out of the vault as they leave it for that, see `group.GroupLeaver`,
- * or the next session would bring it back as one they are still in.
+ * user left has their copy of its key dropped from the server as they leave it for that, see
+ * `group.GroupLeaver`, or the next session would bring it back as one they are still in.
  */
 @Entity
 class DeclinedGroupEntity(

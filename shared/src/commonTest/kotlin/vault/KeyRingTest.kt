@@ -48,13 +48,13 @@ class KeyRingTest {
 
     @Test
     fun `keys of other parts are left alone`() {
-        val groupKey = byteArrayOf(7, 7)
+        val otherKey = byteArrayOf(7, 7)
 
         val keyRing = KeyRing.EMPTY
-            .with(part = VaultEntryKey.GROUP_MASTER_KEY, key = groupKey)
+            .with(part = VaultEntryKey.GROUP_MASTER_KEY, key = otherKey)
             .with(part = VaultEntryKey.PROFILE_ENCRYPTION_KEY, key = key)
 
-        assertContentEquals(groupKey, keyRing.keyFor(part = VaultEntryKey.GROUP_MASTER_KEY))
+        assertContentEquals(otherKey, keyRing.keyFor(part = VaultEntryKey.GROUP_MASTER_KEY))
     }
 
     /**
@@ -94,8 +94,9 @@ class KeyRingTest {
         assertNull(KeyRing.parse(plaintext = byteArrayOf()))
     }
 
+    /** The server's for every part a vault entry carries, the key ring's alone for the other two. */
     @Test
-    fun `every part is named the way the server names it`() {
+    fun `every part is named the way the server and the key ring name it`() {
         assertEquals(
             listOf(
                 "root_key",

@@ -81,9 +81,21 @@ interface GroupDao {
     @Query("SELECT * FROM PendingGroupCreationEntity")
     suspend fun getPendingCreations(): List<PendingGroupCreationEntity>
 
-    /** Drops the creation of the group [groupUuid] once the server holds the group. */
+    /** Drops the creation of the group [groupUuid], see [deleteTakenCreation] and [deleteRefusedCreation]. */
     @Query("DELETE FROM PendingGroupCreationEntity WHERE groupUuid = :groupUuid")
     suspend fun deletePendingCreation(groupUuid: String)
+
+    /**
+     * Drops the creation of the group [groupUuid] once the server holds the group, and records the
+     * group as backed up, see [markBackedUp], in one transaction: the server took the creator's copy
+     * of its key with the creation, see `group.CreateGroupBody.keyCopy`. Its key is still the one it
+     * was created with, nothing changing a group whose creation is pending, see [hasPendingChange].
+     */
+    @Transaction
+    suspend fun deleteTakenCreation(groupUuid: String) {
+        deletePendingCreation(groupUuid = groupUuid)
+        markBackedUp(uuid = groupUuid)
+    }
 
     @Query("SELECT * FROM GroupEntity WHERE uuid = :uuid")
     suspend fun get(uuid: String): GroupEntity?
@@ -107,8 +119,8 @@ interface GroupDao {
     /**
      * Forgets the group [groupUuid] whose creation the server refused, with its members and its
      * pending creation, in one transaction, and returns the group as it was: what the caller is
-     * left to delete, its MLS group and the vault's copy of its key, once the rows no longer name
-     * them.
+     * left to delete, its MLS group, once the rows no longer name it. The server stored no copy of
+     * its key, refusing the creation whole.
      */
     @Transaction
     suspend fun deleteRefusedCreation(groupUuid: String): GroupEntity? {
@@ -122,13 +134,10 @@ interface GroupDao {
     }
 
     /**
-     * The groups the user is still in whose key the vault does not hold yet, see
-     * [GroupEntity.isBackedUp]: the key of one they are no longer in, removed or left, is of no
-     * further use, the creator adding them back handing over the one the group has then.
+     * Records that the server holds the user's copy of the key of the group [uuid], see
+     * [GroupEntity.isBackedUp]. Under `group.withGroupsLock`, as every write of a group's key is,
+     * so no other key can have replaced it while its copy was on its way.
      */
-    @Query("SELECT * FROM GroupEntity WHERE isBackedUp = false AND isLeft = false")
-    suspend fun getNotBackedUp(): List<GroupEntity>
-
     @Query("UPDATE GroupEntity SET isBackedUp = true WHERE uuid = :uuid")
     suspend fun markBackedUp(uuid: String)
 
@@ -227,19 +236,25 @@ interface GroupDao {
     @Query(HAS_PENDING_CHANGE)
     fun hasPendingChangeAsFlow(groupUuid: String): Flow<Boolean>
 
+    /**
+     * Takes [groupKey] as the key of the group [uuid], recorded as not backed up until the user's
+     * copy of it goes up, see [GroupEntity.isBackedUp].
+     */
     @Query("UPDATE GroupEntity SET groupKey = :groupKey, isBackedUp = false WHERE uuid = :uuid")
     suspend fun updateGroupKey(uuid: String, groupKey: ByteArray)
 
     /**
      * Takes [groupKey] as the key of the group [groupUuid], once the server took the key rotation
-     * handing it over, and drops that rotation, in one transaction: a rotation dropped without its
-     * key taken would lose the key the members now read the group with, while one whose key is
-     * taken and that is sent again only hears it was taken already. The vault does not hold the
-     * new key yet, see [GroupEntity.isBackedUp].
+     * handing it over, records the group as backed up, the rotation having carried the creator's
+     * copy of it, see `group.RotateGroupKeyBody.keyCopy`, and drops that rotation, in one
+     * transaction: a rotation dropped without its key taken would lose the key the members now read
+     * the group with, while one whose key is taken and that is sent again only hears it was taken
+     * already.
      */
     @Transaction
     suspend fun adoptRotatedKey(groupUuid: String, groupKey: ByteArray) {
         updateGroupKey(uuid = groupUuid, groupKey = groupKey)
+        markBackedUp(uuid = groupUuid)
         deleteMembershipChange(groupUuid = groupUuid)
     }
 

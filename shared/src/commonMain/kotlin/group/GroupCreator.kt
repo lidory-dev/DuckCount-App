@@ -9,6 +9,7 @@ import database.data.local.dao.IdentityConflictDao
 import database.data.local.entity.GroupEntity
 import database.data.local.entity.GroupMemberEntity
 import database.data.local.entity.PendingGroupCreationEntity
+import database.data.remote.EncryptedFieldDto
 import database.data.repository.ContactRepository
 import database.domain.Currency
 import kotlinx.coroutines.NonCancellable
@@ -30,6 +31,7 @@ import util.EmptyResult
 import util.NetworkError
 import util.Result
 import vault.ProfileKeyVault
+import vault.VaultError
 import kotlin.io.encoding.Base64
 
 /**
@@ -42,20 +44,23 @@ import kotlin.io.encoding.Base64
  *    session is read and before any key package is asked for, and then, under [withGroupsLock]
  *    like everything after, every one of them a contact this device pinned an identity for, none
  *    of them blocked, see [refusalOf].
- * 2. A key package is asked for each of them, a few at a time, see [fetchKeyPackages]. Any of them
- *    without one stops everything here, every one of them named, with nothing saved.
+ * 2. The group's key is drawn, and the creator's copy of it sealed for the server to keep, see
+ *    [GroupKeyCopies.seal], which reads the key ring: a key ring not answering stops everything
+ *    here, with no key package spent. Then a key package is asked for each of them, a few at a
+ *    time, see [fetchKeyPackages]. Any of them without one stops everything here, every one of
+ *    them named, with nothing saved.
  * 3. The group is built with the library, its key travelling in the Welcome with the key to every
  *    member's profile this device holds, see [build] and [profileKeysToHandOut], and saved with its
- *    members and the request that will create it, in one transaction, before anything is sent.
- *    Its UUID is derived from the user's own and a nonce this device draws, as the server derives
- *    it, see `group_uuid` in lib-duckcount, so nobody else's request can create a group under it,
- *    and the group is the creator's from then on, whatever the server answers.
+ *    members and the request that will create it, the creator's copy of its key in it, see
+ *    [CreateGroupBody.keyCopy], in one transaction, before anything is sent. Its UUID is derived
+ *    from the user's own and a nonce this device draws, as the server derives it, see
+ *    `group_uuid` in lib-duckcount, so nobody else's request can create a group under it, and the
+ *    group is the creator's from then on, whatever the server answers.
  * 4. It is sent, see [GroupCreationSender.send], its resend booked first, see
  *    [GroupCreationSender.bookResend]. Only a refusal undoes it; the server not answering, or
  *    answering that it cannot take it yet, leaves it to go out again, and the user is told it is
- *    created: it will reach its members once sent.
- * 5. Its key is backed up to the vault, see [GroupKeyBackUp]. One that cannot be now is by the next
- *    sync.
+ *    created: it will reach its members once sent, and the server will keep the creator's copy of
+ *    its key from then on.
  *
  * Everything that can fail without leaving anything behind comes before the group is built. From
  * there to its being saved is not cancellable: a group built and never saved would be MLS state
@@ -66,8 +71,8 @@ import kotlin.io.encoding.Base64
  * [contacts] and [blocked] are [ContactDao.getUserUuids] and [IdentityConflictDao.getBlocked],
  * [client] is [MlsIdentityRepository.client], [consumeKeyPackage] is
  * [KeyPackageApi.consumeKeyPackage], [save] is [GroupDao.insertCreated], [bookResend] and [send]
- * are [GroupCreationSender.bookResend] and [GroupCreationSender.send], [backUp] is
- * [GroupKeyBackUp.backUp], [ownProfileKey] is [ProfileKeyVault.getOrCreateProfileEncryptionKey],
+ * are [GroupCreationSender.bookResend] and [GroupCreationSender.send], [sealKeyCopy] is
+ * [GroupKeyCopies.seal], [ownProfileKey] is [ProfileKeyVault.getOrCreateProfileEncryptionKey],
  * null when it fails, [contactProfileKey] is the key [ContactDao.get] holds and
  * [learnedProfileKey] is [MemberProfileRepository.keyFor], or what a test stands in for any of
  * them.
@@ -86,7 +91,7 @@ class GroupCreator internal constructor(
     ) -> Unit,
     private val bookResend: suspend () -> Unit,
     private val send: suspend (pendingCreation: PendingGroupCreationEntity) -> GroupCreationAnswer,
-    private val backUp: suspend (groupUuid: String, groupKey: ByteArray) -> Unit,
+    private val sealKeyCopy: suspend (groupUuid: String, groupKey: ByteArray) -> Result<EncryptedFieldDto, VaultError>,
     private val ownProfileKey: suspend () -> ByteArray?,
     private val contactProfileKey: suspend (userUuid: String) -> ByteArray?,
     private val learnedProfileKey: suspend (userUuid: String) -> ByteArray?,
@@ -99,7 +104,7 @@ class GroupCreator internal constructor(
         keyPackageApi: KeyPackageApi,
         groupDao: GroupDao,
         groupCreationSender: GroupCreationSender,
-        groupKeyBackUp: GroupKeyBackUp,
+        groupKeyCopies: GroupKeyCopies,
         profileKeyVault: ProfileKeyVault,
         memberProfileRepository: MemberProfileRepository,
     ) : this(
@@ -112,7 +117,7 @@ class GroupCreator internal constructor(
         save = groupDao::insertCreated,
         bookResend = groupCreationSender::bookResend,
         send = groupCreationSender::send,
-        backUp = { groupUuid, groupKey -> groupKeyBackUp.backUp(groupUuid = groupUuid, groupKey = groupKey) },
+        sealKeyCopy = groupKeyCopies::seal,
         ownProfileKey = { (profileKeyVault.getOrCreateProfileEncryptionKey() as? Result.Success)?.data },
         contactProfileKey = { userUuid -> contactDao.get(userUuid = userUuid)?.profileEncryptionKey },
         learnedProfileKey = memberProfileRepository::keyFor,
@@ -175,6 +180,14 @@ class GroupCreator internal constructor(
         val sealedFields = fields.seal(groupKey = groupKey, groupUuid = groupUuid)
             ?: return Result.Error(GroupCreationError.Crypto)
 
+        // The creator's copy of the key, which the creation carries, see CreateGroupBody.keyCopy:
+        // sealed before any key package is asked for, which a key ring not answering would spend
+        // for nothing.
+        val keyCopy = when (val sealed = sealKeyCopy(groupUuid, groupKey)) {
+            is Result.Success -> sealed.data
+            is Result.Error -> return Result.Error(GroupCreationError.Vault(sealed.error))
+        }
+
         val keyPackages = when (
             val fetched = fetchKeyPackages(inviteeUuids = inviteeUuids, consumeKeyPackage = consumeKeyPackage)
         ) {
@@ -207,6 +220,7 @@ class GroupCreator internal constructor(
                     fields = fields,
                     groupKey = groupKey,
                     sealedFields = sealedFields,
+                    keyCopy = keyCopy,
                     keyPackages = keyPackages,
                     profileKeys = profileKeys,
                 ).also { saved ->
@@ -233,8 +247,6 @@ class GroupCreator internal constructor(
             -> Unit
         }
 
-        backUp(groupUuid, groupKey)
-
         return Result.Success(groupUuid)
     }
 
@@ -260,7 +272,7 @@ class GroupCreator internal constructor(
      * saves it as that group, see [GroupDao.insertCreated], holding the user's own key among
      * [profileKeys] for them, see [GroupEntity.handedProfileKeyHash], with the request that creates
      * it on the server, which it returns: sending [nonce], from which the server derives
-     * [groupUuid] as this device did.
+     * [groupUuid] as this device did, and [keyCopy], the user's copy of [groupKey].
      *
      * Those of [keyPackages] the library cannot use, an expired one say, are named as having none,
      * as [fetchKeyPackages] names those who have none at all.
@@ -275,6 +287,7 @@ class GroupCreator internal constructor(
         fields: GroupFields,
         groupKey: ByteArray,
         sealedFields: SealedGroupFields,
+        keyCopy: EncryptedFieldDto,
         keyPackages: List<InviteeKeyPackage>,
         profileKeys: Map<String, ByteArray>,
     ): Result<PendingGroupCreationEntity, GroupCreationError> {
@@ -308,6 +321,7 @@ class GroupCreator internal constructor(
                 currency = sealedFields.currency,
                 welcomeMessage = Base64.Default.encode(creation.welcome),
                 invitedMemberUuids = keyPackages.map { it.userUuid },
+                keyCopy = keyCopy,
             ),
         )
 

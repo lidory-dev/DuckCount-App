@@ -36,6 +36,15 @@ data class CreateGroupBody(
     /** Everybody the Welcome lets in: every member but the creator, whom the server adds itself. */
     @SerialName("invited_member_uuids")
     val invitedMemberUuids: List<String>,
+
+    /**
+     * The creator's copy of the group's key, sealed under their key ring, see
+     * [GroupKeyCopies.seal], which the server stores with the group as it takes it: the key
+     * outlives a log-out from the moment the group exists. Sealed once, as the group is built, and
+     * sent again with the rest of the body as it was.
+     */
+    @SerialName("key_copy")
+    val keyCopy: EncryptedFieldDto,
 )
 
 /**
@@ -118,6 +127,26 @@ data class RotateGroupKeyBody(
     val description: EncryptedFieldDto,
 
     val currency: EncryptedFieldDto,
+
+    /**
+     * The creator's copy of the new key, sealed under their key ring, see [GroupKeyCopies.seal],
+     * which replaces theirs as the server takes the rotation. The other members' copies stay as
+     * they are: each member puts up its own once it reads the new key in the group, see
+     * [GroupKeyCopies.putUp].
+     */
+    @SerialName("key_copy")
+    val keyCopy: EncryptedFieldDto,
+)
+
+/**
+ * Body of `PUT /groups/{group_uuid}/key-copy`, which any current member sends of their own copy of
+ * the group's key, see [GroupApi.saveKeyCopy].
+ */
+@Serializable
+data class SaveGroupKeyCopyBody(
+    /** Sealed under the caller's key ring, see [GroupKeyCopies.seal]: opaque to the server. */
+    @SerialName("key_copy")
+    val keyCopy: EncryptedFieldDto,
 )
 
 /**
@@ -134,7 +163,8 @@ data class DeletedInviteesResponse(
  * Mirrors the server's `Group`: one group the caller is a member of, as `GET /groups` lists it.
  *
  * The three fields are sealed under the group's key, which the server never holds, see
- * [SealedGroupFields.unseal]. [ownerUuid] and [members] are the server's word, see [GroupSync]. Of a
+ * [SealedGroupFields.unseal], and the caller's copy of that key under their key ring, see
+ * [keyCopy]. [ownerUuid] and [members] are the server's word, see [GroupSync]. Of a
  * group whose MLS state this device holds, they decide one thing alone: who is no longer a member,
  * whom its creator's device removes. A group brought back after a log-out, with no tree to tell
  * them, takes both as they are listed. And a group this device declined is not left while the
@@ -159,6 +189,14 @@ data class GroupDto(
      * in its tree until its creator's device removes them, see [GroupSync], nor those it removed.
      */
     val members: List<GroupMemberDto>,
+
+    /**
+     * The caller's own copy of the group's key, see [GroupKeyCopies], or null when the server holds
+     * none for them: one that never went up, or that it dropped as its creator removed them, or as
+     * they left. Nobody else's is ever listed to them.
+     */
+    @SerialName("key_copy")
+    val keyCopy: EncryptedFieldDto?,
 )
 
 /** One member of a [GroupDto]. */

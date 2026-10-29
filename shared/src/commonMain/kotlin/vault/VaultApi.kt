@@ -27,8 +27,8 @@ class VaultApi(
      * none are. A vault that was never written comes back empty either way.
      *
      * Naming parts matters because opening anything takes the key ring plus the part it
-     * seals, two entries, while [VaultEntryKey.GROUP_MASTER_KEY] is a collection: a
-     * caller that could only read in full would carry one entry per group behind every
+     * seals, two entries: a caller that could only read in full would carry every other
+     * part, the contacts and the keys to every member's profile among them, behind every
      * such read. The server narrows in one request, so this stays a single round trip.
      */
     suspend fun getVault(
@@ -43,10 +43,8 @@ class VaultApi(
         )
 
     /**
-     * The entries of one part.
-     *
-     * One for a singleton, one per item for a collection, none for a part the caller
-     * has never written.
+     * The entries of one part: its one entry, or none for a part the caller has never
+     * written.
      */
     suspend fun getVaultPart(
         entryKey: VaultEntryKey,
@@ -76,9 +74,9 @@ class VaultApi(
      * Applies several changes in one transaction, for a client that holds the whole
      * picture (setting a vault up, or restoring one).
      *
-     * `PATCH` rather than `PUT` on the collection is the server's own choice, and it
-     * matters, `PUT /vault` would mean *replace the whole vault*, so a client that
-     * forgot an entry would silently destroy it.
+     * `PATCH` rather than `PUT` on `/vault` is the server's own choice, and it matters,
+     * `PUT /vault` would mean *replace the whole vault*, so a client that forgot an entry
+     * would silently destroy it.
      */
     suspend fun patchVault(body: VaultPatchBody): Result<Unit, NetworkError> =
         client.patch<Unit, VaultPatchBody>(
@@ -86,20 +84,10 @@ class VaultApi(
             body = body,
         )
 
-    /** Drops every item of a part. The root key is refused with a `400`. */
+    /** Drops the entry of a part. The root key is refused with a `400`. */
     suspend fun deleteVaultPart(entryKey: VaultEntryKey): Result<Unit, NetworkError> =
         client.delete<Unit>(
             route = DuckCountRoutes.Vault.VAULT_PART,
             pathParams = mapOf("entry_key" to entryKey.wireName),
-        )
-
-    /**
-     * Drops the item [itemId] of a part. One the part does not hold is no error, so dropping it
-     * twice does no harm.
-     */
-    suspend fun deleteVaultEntry(entryKey: VaultEntryKey, itemId: String): Result<Unit, NetworkError> =
-        client.delete<Unit>(
-            route = DuckCountRoutes.Vault.VAULT_ITEM,
-            pathParams = mapOf("entry_key" to entryKey.wireName, "item_id" to itemId),
         )
 }

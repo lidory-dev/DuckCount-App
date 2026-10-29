@@ -96,6 +96,9 @@ class GroupSyncDepartedMembersTest {
 
     private val resends = ResendsBooked()
 
+    /** What seals Alice's copy of each new key a rotation carries, see [ServerKeyCopies]. */
+    private val keyCopies = ServerKeyCopies().groupKeyCopies(groups)
+
     private val sender = GroupMembershipSender(
         addMembers = { _, _ -> error("Alice adds nobody here.") },
         removeMembers = { _, body ->
@@ -127,7 +130,7 @@ class GroupSyncDepartedMembersTest {
         },
         client = { Result.Success(alice) },
         receiveAccountDeletions = {},
-        backUp = { _, _ -> },
+        sealKeyCopy = keyCopies::seal,
         resendScheduler = resends,
     )
 
@@ -153,12 +156,13 @@ class GroupSyncDepartedMembersTest {
         userUuid = { ALICE },
         resendPending = { Result.Success(Unit) },
         resendMembershipChanges = sender::resendPending,
-        backUpPending = { Result.Success(Unit) },
+        // What becomes of the copies of the group keys is GroupKeyCopiesTest's.
+        openKeyCopies = { Result.Success(emptyMap()) },
+        putUpKeyCopies = { Result.Success(Unit) },
         restoreContacts = { Result.Success(Unit) },
         listGroups = { Result.Success(listed()) },
         storedGroups = { groups.values.toList() },
         declinedGroups = { emptyList() },
-        vaultKeys = { Result.Success(emptyMap()) },
         listMessages = { groupUuid ->
             if (groupUuid in unreachableMessages) {
                 Result.Error(NetworkError.NO_INTERNET)
@@ -183,7 +187,6 @@ class GroupSyncDepartedMembersTest {
         recordDeclined = { error("Alice declines nothing here.") },
         forgetDeclined = { error("Alice declines nothing here.") },
         removeDeparted = changer::removeUnderGroupsLock,
-        backUp = { _, _ -> Result.Success(Unit) },
         fullName = { null },
         hasPendingChange = { it in pending || it in pendingCreations },
         isBlocked = { false },
@@ -465,6 +468,7 @@ class GroupSyncDepartedMembersTest {
         description = serverFields.description,
         currency = serverFields.currency,
         members = memberUuids.map { GroupMemberDto(userUuid = it) },
+        keyCopy = null,
     )
 
     /** [groupUuid] as this device holds it, created by [ownerUuid], in the MLS group [mlsGroupId]. */

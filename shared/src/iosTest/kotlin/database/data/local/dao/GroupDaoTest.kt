@@ -11,6 +11,7 @@ import database.domain.CurrencyCatalog
 import database.withInMemoryDatabase
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import kotlin.test.assertFalse
@@ -23,6 +24,10 @@ private const val MALLORY = "77777777-7777-7777-7777-777777777777"
 private const val GROUP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 private const val OTHER_GROUP = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 
+/** A group's key, and the one its creator handed over in its place. */
+private val OLD_KEY = ByteArray(32) { 1 }
+private val NEW_KEY = ByteArray(32) { 2 }
+
 /** The partial hash of the key to the user's profile as it is now, and of the one it replaced. */
 private const val CURRENT_HASH = "current"
 private const val OLDER_HASH = "older"
@@ -31,7 +36,9 @@ private const val OLDER_HASH = "older"
  * Which groups the key to the user's own profile is posted into, see
  * [GroupDao.getOwedProfileKey], run on the database itself: `group.GroupProfileKeyDelivery`
  * takes its word for it. And how a group the user leaves is recorded, see
- * [GroupDao.markLeftAndOweLeave], which `group.GroupLeaver` takes for done once it returns.
+ * [GroupDao.markLeftAndOweLeave], which `group.GroupLeaver` takes for done once it returns, and
+ * when a group is recorded as backed up, see [GroupEntity.isBackedUp], which
+ * `group.GroupKeyCopies` puts up no copy again for while the server lists one.
  */
 class GroupDaoTest {
 
@@ -141,7 +148,62 @@ class GroupDaoTest {
             assertTrue(database.groupDao.getDeclinedUuids().isEmpty())
         }
     }
+
+    @Test
+    fun `a key handed over in the group is not backed up until its own copy goes up`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.groupDao.insert(groupOf(GROUP, groupKey = OLD_KEY, isBackedUp = true))
+
+            database.groupDao.updateGroupKey(uuid = GROUP, groupKey = NEW_KEY)
+
+            assertFalse(database.groupDao.isBackedUp())
+            assertContentEquals(NEW_KEY, assertNotNull(database.groupDao.get(uuid = GROUP)).groupKey)
+        }
+    }
+
+    /** The rotation carried the creator's copy of the key it hands over. */
+    @Test
+    fun `a key rotation taken backs the group up and is dropped`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.groupDao.insert(groupOf(GROUP, groupKey = OLD_KEY, isBackedUp = true))
+            database.groupDao.upsertMembershipChange(
+                PendingMembershipChangeEntity(
+                    groupUuid = GROUP,
+                    kind = MembershipChangeKind.KEY_ROTATION,
+                    body = "{}",
+                    commitEpoch = null,
+                    groupKey = NEW_KEY,
+                ),
+            )
+
+            database.groupDao.adoptRotatedKey(groupUuid = GROUP, groupKey = NEW_KEY)
+
+            assertTrue(database.groupDao.isBackedUp())
+            assertContentEquals(NEW_KEY, assertNotNull(database.groupDao.get(uuid = GROUP)).groupKey)
+            assertTrue(database.groupDao.getMembershipChanges().isEmpty())
+        }
+    }
+
+    /** The creation carried the creator's copy of the key the group was created with. */
+    @Test
+    fun `a creation taken backs the group up and is dropped`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.groupDao.insertCreated(
+                group = groupOf(GROUP, groupKey = OLD_KEY, isBackedUp = false),
+                members = emptyList(),
+                pendingCreation = PendingGroupCreationEntity(groupUuid = GROUP, body = "{}"),
+            )
+
+            database.groupDao.deleteTakenCreation(groupUuid = GROUP)
+
+            assertTrue(database.groupDao.isBackedUp())
+            assertTrue(database.groupDao.getPendingCreations().isEmpty())
+        }
+    }
 }
+
+/** Whether the group [GROUP] is recorded as backed up. */
+private suspend fun GroupDao.isBackedUp(): Boolean = assertNotNull(get(uuid = GROUP)).isBackedUp
 
 /** The UUIDs of the groups owed the key whose partial hash is [CURRENT_HASH]. */
 private suspend fun GroupDao.owed(): Set<String> =
@@ -152,6 +214,8 @@ private fun groupOf(
     uuid: String,
     ownerUuid: String = ALICE,
     mlsGroupId: ByteArray? = uuid.encodeToByteArray(),
+    groupKey: ByteArray = ByteArray(32),
+    isBackedUp: Boolean = true,
     isLeft: Boolean = false,
     handedProfileKeyHash: String? = null,
 ) = GroupEntity(
@@ -161,8 +225,8 @@ private fun groupOf(
     currency = CurrencyCatalog.defaultCurrency,
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
-    groupKey = ByteArray(32),
-    isBackedUp = true,
+    groupKey = groupKey,
+    isBackedUp = isBackedUp,
     isLeft = isLeft,
     handedProfileKeyHash = handedProfileKeyHash,
 )

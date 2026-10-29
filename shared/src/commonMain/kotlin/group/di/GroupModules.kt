@@ -3,7 +3,7 @@ package group.di
 import group.GroupApi
 import group.GroupCreationSender
 import group.GroupCreator
-import group.GroupKeyBackUp
+import group.GroupKeyCopies
 import group.GroupLeaver
 import group.GroupMembershipChanger
 import group.GroupMembershipSender
@@ -15,7 +15,7 @@ import org.koin.dsl.module
 val groupModule = module {
     single { GroupApi(client = get()) }
 
-    single { GroupKeyBackUp(groupDao = get(), vaultRepository = get()) }
+    single { GroupKeyCopies(vaultRepository = get(), groupApi = get(), groupDao = get()) }
 
     single {
         MemberProfileRepository(
@@ -39,7 +39,6 @@ val groupModule = module {
         GroupCreationSender(
             groupApi = get(),
             groupDao = get(),
-            vaultRepository = get(),
             mlsIdentityRepository = get(),
             directMessageSender = get(),
             resendScheduler = get(),
@@ -55,7 +54,7 @@ val groupModule = module {
             keyPackageApi = get(),
             groupDao = get(),
             groupCreationSender = get(),
-            groupKeyBackUp = get(),
+            groupKeyCopies = get(),
             profileKeyVault = get(),
             memberProfileRepository = get(),
         )
@@ -65,7 +64,7 @@ val groupModule = module {
         GroupMembershipSender(
             groupApi = get(),
             groupDao = get(),
-            groupKeyBackUp = get(),
+            groupKeyCopies = get(),
             mlsIdentityRepository = get(),
             directMessageSender = get(),
             resendScheduler = get(),
@@ -90,7 +89,6 @@ val groupModule = module {
         GroupLeaver(
             groupApi = get(),
             groupDao = get(),
-            vaultRepository = get(),
             mlsIdentityRepository = get(),
             resendScheduler = get(),
         )
@@ -103,10 +101,9 @@ val groupModule = module {
             groupCreationSender = get(),
             groupMembershipSender = get(),
             groupMembershipChanger = get(),
-            groupKeyBackUp = get(),
+            groupKeyCopies = get(),
             groupProfileKeyDelivery = get(),
             memberProfileRepository = get(),
-            vaultRepository = get(),
             contactRepository = get(),
             contactDao = get(),
             identityConflictDao = get(),

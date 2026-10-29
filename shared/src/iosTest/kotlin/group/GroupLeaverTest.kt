@@ -68,8 +68,10 @@ private enum class ServerLeave {
  * changes it as [GroupMembershipChanger] and [GroupMembershipSender] do on her device, every MLS
  * client the library's own. The server takes a leave as the API does: a current member is taken
  * out, a former member's leave changes nothing, and what waited for either is dropped, unless a
- * test has it go otherwise. It lists the group to its current members alone, and hands a Commit to
- * every current member but Alice. The database and the vault are stood in for.
+ * test has it go otherwise. It lists the group to its current members alone, with the copy of its
+ * key it holds for Bob, which it drops as it takes his leave, or as Alice removes him, see
+ * [ServerKeyCopies], and hands a Commit to every current member but Alice. The database and the
+ * key ring are stood in for.
  *
  * Alice and Dave are Bob's contacts, both pinned. Carol is nobody to Bob.
  */
@@ -116,8 +118,12 @@ class GroupLeaverTest {
     private var isDeviceLocked = false
     private var onRecorded: () -> Unit = {}
 
-    /** The group keys the vault holds, written as the sync backs them up. */
-    private val vault = mutableMapOf<String, ByteArray>()
+    /** The copies of Bob's group keys the server holds, and the key ring they are sealed with. */
+    private val server = ServerKeyCopies()
+    private val keyCopies = server.groupKeyCopies(groups)
+
+    /** The groups the leave dropped Bob's copy of the key of, in order. */
+    private val keyCopyDeletions = mutableListOf<String>()
 
     /**
      * The groups Bob sent a leave for, in order, what the server makes of each one in turn, taken
@@ -136,7 +142,8 @@ class GroupLeaverTest {
         userUuid = { selfUuid },
         resendPending = { Result.Success(Unit) },
         resendMembershipChanges = { Result.Success(Unit) },
-        backUpPending = { Result.Success(Unit) },
+        openKeyCopies = keyCopies::open,
+        putUpKeyCopies = keyCopies::putUp,
         restoreContacts = { Result.Success(Unit) },
         listGroups = {
             onListing()
@@ -144,7 +151,6 @@ class GroupLeaverTest {
         },
         storedGroups = { groups.values.toList() },
         declinedGroups = { declined.toList() },
-        vaultKeys = { Result.Success(vault.toMap()) },
         listMessages = { groupUuid ->
             fetched += groupUuid
             Result.Success(ListGroupMessagesResponse(messages = waiting[groupUuid].orEmpty().toList()))
@@ -170,11 +176,6 @@ class GroupLeaverTest {
         recordDeclined = { groupUuid -> declined += groupUuid },
         forgetDeclined = { groupUuid -> declined -= groupUuid },
         removeDeparted = { _, _ -> error("Bob created no group the server lists here.") },
-        backUp = { groupUuid, key ->
-            vault[groupUuid] = key
-            groups[groupUuid] = groups.getValue(groupUuid).with(isBackedUp = true)
-            Result.Success(Unit)
-        },
         fullName = { names[it] },
         // What becomes of the keys to the members' profiles is GroupSyncProfileKeysTest's.
         hasPendingChange = { false },
@@ -205,8 +206,9 @@ class GroupLeaverTest {
             check(!isDeviceLocked) { DEVICE_LOCKED }
             Result.Success(bob)
         },
-        deleteKey = { groupUuid ->
-            vault.remove(groupUuid)
+        deleteKeyCopy = { groupUuid ->
+            keyCopyDeletions += groupUuid
+            server.copies.remove(groupUuid)
             Result.Success(Unit)
         },
         sendLeave = ::serverLeave,
@@ -220,7 +222,7 @@ class GroupLeaverTest {
     }
 
     @Test
-    fun `a member leaving marks the group left and deletes its state and key before the leave is sent`() =
+    fun `a member leaving marks the group left and deletes its state and its key's copy before the leave is sent`() =
         runBlocking<Unit> {
             joined()
 
@@ -232,7 +234,7 @@ class GroupLeaverTest {
                     groups.getValue(GROUP).isLeft,
                     GROUP in declined,
                     bob.holdsGroup(mlsGroupId = mlsGroupId),
-                    GROUP in vault,
+                    GROUP in server.copies,
                 )
             }
 
@@ -246,7 +248,8 @@ class GroupLeaverTest {
             assertContentEquals(mlsGroupId, group.mlsGroupId)
             assertEquals(rowsOf(ALICE, BOB, CAROL), members.getValue(GROUP).toSet())
             assertFalse(bob.holdsGroup(mlsGroupId = mlsGroupId))
-            assertTrue(GROUP !in vault)
+            assertEquals(listOf(GROUP), keyCopyDeletions)
+            assertTrue(GROUP !in server.copies)
             assertEquals(listOf(GROUP), left)
             assertTrue(declined.isEmpty())
             assertTrue(BOB !in serverMembers)
@@ -386,13 +389,14 @@ class GroupLeaverTest {
     @Test
     fun `the creator leaving is refused and writes nothing`() = runBlocking<Unit> {
         groups[OWN_GROUP] = groupOf(uuid = OWN_GROUP, ownerUuid = BOB, mlsGroupId = OWN_GROUP.encodeToByteArray())
-        vault[OWN_GROUP] = groupKey
+        server.copies[OWN_GROUP] = server.copyOf(groupKey = groupKey, sealedFor = OWN_GROUP)
 
         assertEquals(Result.Error(GroupLeaveError.IsCreator), leaver.leave(OWN_GROUP))
 
         assertFalse(groups.getValue(OWN_GROUP).isLeft)
         assertTrue(declined.isEmpty())
-        assertTrue(OWN_GROUP in vault)
+        assertTrue(keyCopyDeletions.isEmpty())
+        assertTrue(OWN_GROUP in server.copies)
         assertTrue(left.isEmpty())
     }
 
@@ -409,7 +413,7 @@ class GroupLeaverTest {
         assertFalse(groups.getValue(GROUP).isLeft)
         assertTrue(declined.isEmpty())
         assertTrue(bob.holdsGroup(mlsGroupId = mlsGroupId))
-        assertTrue(GROUP in vault)
+        assertTrue(keyCopyDeletions.isEmpty())
         assertTrue(left.isEmpty())
     }
 
@@ -446,7 +450,7 @@ class GroupLeaverTest {
         assertFalse(groups.getValue(GROUP).isLeft)
         assertTrue(declined.isEmpty())
         assertTrue(bob.holdsGroup(mlsGroupId = mlsGroupId))
-        assertTrue(GROUP in vault)
+        assertTrue(keyCopyDeletions.isEmpty())
         assertTrue(left.isEmpty())
     }
 
@@ -519,7 +523,7 @@ class GroupLeaverTest {
 
         assertTrue(left.isEmpty())
         assertTrue(declined.isEmpty())
-        assertTrue(GROUP in vault)
+        assertTrue(keyCopyDeletions.isEmpty())
     }
 
     /**
@@ -562,8 +566,8 @@ class GroupLeaverTest {
     }
 
     /**
-     * As a log-out leaves Bob: the key in the vault, no MLS state. Unlisted once he left, it would
-     * otherwise be taken for a group Alice removed him from.
+     * As a log-out leaves Bob: the copy of the key listed, no MLS state. Unlisted once he left, it
+     * would otherwise be taken for a group Alice removed him from.
      */
     @Test
     fun `a group brought back after a log-out can be left and is never reported as a removal`() =
@@ -573,7 +577,7 @@ class GroupLeaverTest {
             assertEquals(Result.Success(Unit), leaver.leave(GROUP))
 
             assertTrue(groups.getValue(GROUP).isLeft)
-            assertTrue(GROUP !in vault)
+            assertTrue(GROUP !in server.copies)
             assertEquals(listOf(GROUP), left)
             assertTrue(declined.isEmpty())
 
@@ -609,7 +613,7 @@ class GroupLeaverTest {
 
         assertFalse(group.isLeft)
         assertContentEquals(groupKey, group.groupKey)
-        assertContentEquals(groupKey, vault[GROUP])
+        assertContentEquals(groupKey, server.keyOf(GROUP))
         assertTrue(bob.holdsGroup(mlsGroupId = assertNotNull(group.mlsGroupId)))
         assertEquals(listOf(welcome), acknowledged[GROUP]?.toList())
     }
@@ -645,9 +649,9 @@ class GroupLeaverTest {
     }
 
     /**
-     * A log-out forgets the leave owed with everything else this device holds: with no key in the
-     * vault to bring the group back with, and no Welcome waiting, the next session declines it,
-     * and leaves it again.
+     * A log-out forgets the leave owed with everything else this device holds: with no copy of the
+     * key listed to bring the group back with, and no Welcome waiting, the next session declines
+     * it, and leaves it again.
      */
     @Test
     fun `a leave owed through a log-out is declined and sent by the next session`() = runBlocking<Unit> {
@@ -657,7 +661,7 @@ class GroupLeaverTest {
 
         leaver.leave(GROUP)
 
-        assertTrue(GROUP !in vault)
+        assertTrue(GROUP !in server.copies)
 
         loggedOut()
 
@@ -689,6 +693,7 @@ class GroupLeaverTest {
 
         serverMembers -= BOB
         waiting.remove(groupUuid)
+        server.copies.remove(groupUuid)
 
         return if (outcome == ServerLeave.ANSWER_LOST) {
             GroupLeaveAnswer.Failed(NetworkError.REQUEST_TIMEOUT)
@@ -697,12 +702,12 @@ class GroupLeaverTest {
         }
     }
 
-    /** Has the sync join Alice's group from its Welcome, backing its key up, and forgets what it fetched. */
+    /** Has the sync join Alice's group from its Welcome, putting its key's copy up, and forgets what it fetched. */
     private suspend fun joined() {
         aliceCreates()
 
         assertEquals(listOf(GROUP), groupSync.sync(contactsTakenIn = true).joined.map { it.groupUuid })
-        assertContentEquals(groupKey, vault[GROUP])
+        assertContentEquals(groupKey, server.keyOf(GROUP))
 
         fetched.clear()
         acknowledged.clear()
@@ -710,13 +715,13 @@ class GroupLeaverTest {
 
     /**
      * Has Bob hold [GROUP] as the sync brings it back after a log-out: no MLS state, the Welcome
-     * long acknowledged, and its key in the vault.
+     * long acknowledged, and the copy of its key on the server.
      */
     private fun broughtBack() {
         aliceCreates()
 
         waiting.getValue(GROUP).clear()
-        vault[GROUP] = groupKey
+        server.copies[GROUP] = server.copyOf(groupKey = groupKey, sealedFor = GROUP)
         groups[GROUP] = groupOf(uuid = GROUP, ownerUuid = ALICE, mlsGroupId = null)
         members[GROUP] = rowsOf(ALICE, BOB, CAROL).toList()
     }
@@ -771,7 +776,8 @@ class GroupLeaverTest {
 
     /**
      * Has Alice remove [userUuid], as her sync does once the server lists them no more, and the
-     * server deliver the Commit to every current member but her, then take them off the group.
+     * server deliver the Commit to every current member but her, then take them off the group,
+     * dropping Bob's copy of its key with him.
      */
     private suspend fun aliceRemoves(userUuid: String) {
         val commit = alice.removeMembersFrom(mlsGroupId = aliceGroup(), userUuids = listOf(userUuid))
@@ -781,6 +787,8 @@ class GroupLeaverTest {
         deliver(commit)
 
         serverMembers -= userUuid
+
+        if (userUuid == BOB) server.copies.remove(GROUP)
     }
 
     /**
@@ -827,6 +835,7 @@ class GroupLeaverTest {
             description = fields.description,
             currency = fields.currency,
             members = serverMembers.map { GroupMemberDto(userUuid = it) },
+            keyCopy = server.copies[GROUP],
         )
     }
 

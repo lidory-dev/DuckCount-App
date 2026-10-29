@@ -22,11 +22,8 @@ object DuckCountRoutes {
         /** The whole vault: `GET` to sync it, `PATCH` to write several parts at once. */
         val VAULT = VAULT_BASE_URL
 
-        /** One part of the vault: `GET` its items, `PUT` one, `DELETE` them all. */
+        /** One part of the vault: `GET` its entry, `PUT` it, `DELETE` it. */
         val VAULT_PART = "$VAULT_BASE_URL/:entry_key"
-
-        /** One item of a part: `DELETE` it. */
-        val VAULT_ITEM = "$VAULT_BASE_URL/:entry_key/:item_id"
     }
 
     object User {
@@ -115,6 +112,12 @@ object DuckCountRoutes {
 
         /** `PUT` rotates the key of one group after a removal, its creator alone. */
         val KEY = "$GROUP_BASE_URL/:group_uuid/key"
+
+        /**
+         * The caller's own copy of the key of one group: `PUT` stores it, any current member,
+         * `DELETE` drops it. `GET /groups` lists it.
+         */
+        val KEY_COPY = "$GROUP_BASE_URL/:group_uuid/key-copy"
 
         /** `DELETE` takes the caller out of one group, any member but its owner. */
         val MEMBERSHIP = "$GROUP_BASE_URL/:group_uuid/membership"

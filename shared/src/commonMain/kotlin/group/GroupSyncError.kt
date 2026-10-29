@@ -24,7 +24,10 @@ sealed interface GroupSyncError : Error {
     /** The user's own MLS client could not be opened. */
     data class Identity(val error: MlsIdentityError) : GroupSyncError
 
-    /** The vault could not be read, or would not take a group's key. */
+    /**
+     * The vault could not be read, or written: the key ring the user's copies of their groups'
+     * keys are sealed under among it, see [GroupKeyCopies].
+     */
     data class Vault(val error: VaultError) : GroupSyncError
 
     /** The user's own storage failed, so the same Welcome, or message, can be tried again later. */

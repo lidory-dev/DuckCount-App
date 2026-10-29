@@ -46,7 +46,7 @@ private const val GROUP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 private const val DEVICE_LOCKED = "KSafe: Cannot access Keystore key - device is locked"
 
 /** What a change reads from the vault, which a locked device refuses, each on its own in a test. */
-private enum class VaultRead { SESSION, IDENTITY, CONTACTS, PROFILE_KEY, BACKUP }
+private enum class VaultRead { SESSION, IDENTITY, CONTACTS, PROFILE_KEY, KEY_RING }
 
 /** What the group is created with. */
 private val FIELDS = GroupFields(
@@ -59,8 +59,9 @@ private val FIELDS = GroupFields(
  * What becomes of the changes Alice makes to the members of the group she created with Bob and
  * Carol, whatever the server answers, and what the members make of them: with every MLS client
  * made through the library itself, Bob and Carol joined from the Welcome Alice built, as
- * [GroupCreator] builds it, and the database and the server stood in for. Dave is a contact of
- * Alice's she pinned, to be added.
+ * [GroupCreator] builds it, and the database, the key ring and the server stood in for, the server
+ * keeping the copy of the group's key each rotation carries, see [ServerKeyCopies]. Dave is a
+ * contact of Alice's she pinned, to be added.
  */
 class GroupMembershipChangerTest {
 
@@ -126,8 +127,9 @@ class GroupMembershipChangerTest {
     private val pending = mutableMapOf<String, PendingMembershipChangeEntity>()
     private val pendingCreations = mutableSetOf<String>()
 
-    /** The keys the vault holds, by group. */
-    private val backedUp = mutableMapOf<String, ByteArray>()
+    /** Alice's copy of the group's key as the server keeps it, and the key ring it is sealed with. */
+    private val server = ServerKeyCopies()
+    private val keyCopies = server.groupKeyCopies(groups)
 
     /**
      * The key to Alice's own profile, the one each contact of hers handed her, and those her device
@@ -200,6 +202,7 @@ class GroupMembershipChangerTest {
             if (rotateAnswer == GroupMembershipAnswer.Made) {
                 serverFields =
                     SealedGroupFields(title = body.title, description = body.description, currency = body.currency)
+                server.copies[GROUP] = body.keyCopy
             }
 
             rotateAnswer
@@ -214,15 +217,14 @@ class GroupMembershipChangerTest {
         replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
         adoptKey = { groupUuid, key ->
             onAdoptKey()
-            groups[groupUuid] = groups.getValue(groupUuid).withKey(groupKey = key, isBackedUp = false)
+            groups[groupUuid] = groups.getValue(groupUuid).withKey(groupKey = key)
             pending.remove(groupUuid)
         },
         client = { Result.Success(alice) },
         receiveAccountDeletions = { userUuids -> deletedAccounts += userUuids },
-        backUp = { groupUuid, key ->
-            readable(VaultRead.BACKUP)
-            backedUp[groupUuid] = key
-            groups[groupUuid] = groups.getValue(groupUuid).withKey(groupKey = key, isBackedUp = true)
+        sealKeyCopy = { groupUuid, key ->
+            readable(VaultRead.KEY_RING)
+            keyCopies.seal(groupUuid = groupUuid, groupKey = key)
         },
         resendScheduler = resends,
     )
@@ -586,7 +588,7 @@ class GroupMembershipChangerTest {
         val rotated = groups.getValue(GROUP).groupKey
 
         assertFalse(rotated.contentEquals(groupKey))
-        assertContentEquals(rotated, backedUp[GROUP])
+        assertContentEquals(rotated, server.keyOf(GROUP))
         assertTrue(groups.getValue(GROUP).isBackedUp)
 
         // Re-sealed under the new key alone, as they were.
@@ -596,6 +598,19 @@ class GroupMembershipChangerTest {
         assertEquals(FIELDS.description, fields.description)
         assertEquals(FIELDS.currency, fields.currency)
         assertNull(serverFields.unseal(groupKey = groupKey, groupUuid = GROUP))
+    }
+
+    /** Replacing the creator's copy on the server as it takes the rotation, see [RotateGroupKeyBody.keyCopy]. */
+    @Test
+    fun `a key rotation carries the creator's copy of the new key`() = runBlocking<Unit> {
+        remove(CAROL)
+
+        val rotation = rotations.single()
+
+        assertContentEquals(
+            groups.getValue(GROUP).groupKey,
+            rotation.keyCopy.openKeyCopy(sealingKey = server.sealingKey, groupUuid = GROUP),
+        )
     }
 
     @Test
@@ -747,7 +762,11 @@ class GroupMembershipChangerTest {
         assertEquals(rotations[0], rotations[1])
         assertTrue(pending.isEmpty())
         assertContentEquals(rotatedKey, groups.getValue(GROUP).groupKey)
-        assertContentEquals(rotatedKey, backedUp[GROUP])
+        assertContentEquals(
+            rotatedKey,
+            rotations.first().keyCopy.openKeyCopy(sealingKey = server.sealingKey, groupUuid = GROUP),
+        )
+        assertTrue(groups.getValue(GROUP).isBackedUp)
     }
 
     /** The fields re-sealed are those the server holds, which it has to be asked for. */
@@ -1061,18 +1080,50 @@ class GroupMembershipChangerTest {
             assertNothingChanged()
         }
 
-    /** The removal was made all the same, and the new key is backed up by the next sync, see GroupKeyBackUp. */
+    /**
+     * The removal was made all the same, and its key rotation, which carries the creator's copy of
+     * the new key, is left to the next sync, as when its fields could not be asked for.
+     */
     @Test
-    fun `a removal taken whose new key a locked vault cannot back up is made`() = runBlocking<Unit> {
-        locked += VaultRead.BACKUP
+    fun `a removal taken whose new key's copy a locked device cannot seal is made and rotated by the next sync`() =
+        runBlocking<Unit> {
+            locked += VaultRead.KEY_RING
+
+            assertEquals(Result.Success(MembershipChangeOutcome.MADE), remove(CAROL))
+
+            assertEquals(MembershipChangeKind.REMOVAL, pending[GROUP]?.kind)
+            assertTrue(rotations.isEmpty())
+            assertContentEquals(groupKey, groups.getValue(GROUP).groupKey)
+            assertEquals(listOf(60L, 60L), resends.seconds)
+
+            locked.clear()
+
+            assertEquals(Result.Success(Unit), sender.resendPending())
+
+            assertEquals(1, removals.size)
+            assertEquals(1, rotations.size)
+            assertTrue(pending.isEmpty())
+            assertContentEquals(groups.getValue(GROUP).groupKey, server.keyOf(GROUP))
+            assertTrue(groups.getValue(GROUP).isBackedUp)
+        }
+
+    @Test
+    fun `a removal whose new key's copy the key ring cannot seal is rotated by the next sync`() = runBlocking<Unit> {
+        server.isKeyRingAnswering = false
 
         assertEquals(Result.Success(MembershipChangeOutcome.MADE), remove(CAROL))
 
+        assertEquals(MembershipChangeKind.REMOVAL, pending[GROUP]?.kind)
+        assertTrue(rotations.isEmpty())
+        assertEquals(listOf(60L, 60L), resends.seconds)
+
+        server.isKeyRingAnswering = true
+
+        assertEquals(Result.Success(Unit), sender.resendPending())
+
         assertEquals(1, rotations.size)
         assertTrue(pending.isEmpty())
-        assertFalse(groups.getValue(GROUP).groupKey.contentEquals(groupKey))
-        assertFalse(groups.getValue(GROUP).isBackedUp)
-        assertNull(backedUp[GROUP])
+        assertContentEquals(groups.getValue(GROUP).groupKey, server.keyOf(GROUP))
     }
 
     /** The sync stops its pass at the first read a locked device refuses, see GroupSyncError.DeviceLocked. */
@@ -1126,6 +1177,7 @@ class GroupMembershipChangerTest {
         description = serverFields.description,
         currency = serverFields.currency,
         members = members.getValue(GROUP).map { GroupMemberDto(userUuid = it.userUuid) },
+        keyCopy = server.copies[GROUP],
     )
 
     private fun memberUuids() = members.getValue(GROUP).mapTo(HashSet()) { it.userUuid }
@@ -1193,9 +1245,8 @@ private fun GroupEntity.copy(
     handedProfileKeyHash = handedProfileKeyHash,
 )
 
-/** [this] as `GroupDao.adoptRotatedKey` and `GroupDao.markBackedUp` leave it. */
-private fun GroupEntity.withKey(groupKey: ByteArray, isBackedUp: Boolean) =
-    copy(groupKey = groupKey, isBackedUp = isBackedUp)
+/** [this] as `GroupDao.adoptRotatedKey` leaves it: the rotation carried the creator's copy of [groupKey]. */
+private fun GroupEntity.withKey(groupKey: ByteArray) = copy(groupKey = groupKey, isBackedUp = true)
 
 /** [this] with its title edited on this device. */
 private fun GroupEntity.withTitle(title: String) = copy(title = title)

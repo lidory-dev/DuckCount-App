@@ -259,12 +259,13 @@ class GroupSyncProfileKeyOrderTest {
             userUuid = { CAROL },
             resendPending = { Result.Success(Unit) },
             resendMembershipChanges = { Result.Success(Unit) },
-            backUpPending = { Result.Success(Unit) },
+            // What becomes of the copies of the group keys is GroupKeyCopiesTest's.
+            openKeyCopies = { Result.Success(emptyMap()) },
+            putUpKeyCopies = { Result.Success(Unit) },
             restoreContacts = { Result.Success(Unit) },
             listGroups = { Result.Success(DATABASE_ORDER.mapNotNull(::listedGroup)) },
             storedGroups = { DATABASE_ORDER.mapNotNull { groups[it] } },
             declinedGroups = { emptyList() },
-            vaultKeys = { Result.Success(emptyMap()) },
             listMessages = { groupUuid ->
                 if (groupUuid in unlistable) {
                     Result.Error(NetworkError.NO_INTERNET)
@@ -290,7 +291,6 @@ class GroupSyncProfileKeyOrderTest {
             recordDeclined = { error("Nothing is declined here.") },
             forgetDeclined = { error("Nothing is declined here.") },
             removeDeparted = { _, _ -> error("Nobody leaves a group here.") },
-            backUp = { _, _ -> Result.Success(Unit) },
             fullName = { null },
             hasPendingChange = { false },
             isBlocked = { false },
@@ -425,6 +425,7 @@ class GroupSyncProfileKeyOrderTest {
             description = fields.description,
             currency = fields.currency,
             members = serverMembers.getValue(groupUuid).map { GroupMemberDto(userUuid = it) },
+            keyCopy = null,
         )
     }
 

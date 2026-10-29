@@ -4,6 +4,7 @@ import contact.ContactSyncError
 import mls.MlsIdentityError
 import util.Error
 import util.NetworkError
+import vault.VaultError
 
 /**
  * Why a group could not be created. Nothing is left behind by any of them: neither the group nor
@@ -53,6 +54,13 @@ sealed interface GroupCreationError : Error {
 
     /** The user's own MLS client could not be opened. */
     data class Identity(val error: MlsIdentityError) : GroupCreationError
+
+    /**
+     * The key ring could not be read, which the creator's copy of the group's key is sealed under,
+     * see [GroupKeyCopies.seal]: the group is not created without it, the copy going with its
+     * creation.
+     */
+    data class Vault(val error: VaultError) : GroupCreationError
 
     /** The user's own storage failed, so the same creation can be tried again later. */
     data object Storage : GroupCreationError

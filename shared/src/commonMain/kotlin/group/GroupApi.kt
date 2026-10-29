@@ -1,5 +1,6 @@
 package group
 
+import database.data.remote.EncryptedFieldDto
 import io.ktor.client.call.body
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.delete
@@ -34,12 +35,13 @@ const val MAX_GROUP_ACKNOWLEDGEMENT_BATCH = 100
 
 /**
  * Remote data source for the caller's groups: creating one, listing them, changing the members of
- * one, leaving one, and the messages waiting in each, the Welcome that lets an invitee in among
- * them.
+ * one, leaving one, the caller's own copy of each one's key, and the messages waiting in each, the
+ * Welcome that lets an invitee in among them.
  *
  * Every field of a group is sealed on the creator's device under a key the server never holds,
- * see [GroupFields.seal], and every message is MLS, so the server learns who is in which group
- * and nothing of what they share.
+ * see [GroupFields.seal], each member's copy of that key under a key only they hold, see
+ * [GroupKeyCopies], and every message is MLS, so the server learns who is in which group and
+ * nothing of what they share.
  */
 class GroupApi(
     private val client: DuckCountClient,
@@ -143,7 +145,8 @@ class GroupApi(
 
     /**
      * Hands the members of the group [groupUuid], which the caller created, the key [body] carries,
-     * and replaces the group's fields with those sealed under it, see [GroupMembershipAnswer].
+     * and replaces the group's fields with those sealed under it, and the caller's copy of its key
+     * with the one [body] carries, see [GroupMembershipAnswer].
      */
     suspend fun rotateKey(groupUuid: String, body: RotateGroupKeyBody): GroupMembershipAnswer =
         changeMembers {
@@ -154,9 +157,34 @@ class GroupApi(
         }
 
     /**
+     * Stores [keyCopy] as the caller's own copy of the key of the group [groupUuid], in place of any
+     * they had, see [GroupKeyCopies.putUp]. A `404` means the caller is no current member of the
+     * group, removed since it was listed say, or the proxy in front of the server answering as it
+     * is redeployed: either way the next listing decides again.
+     */
+    suspend fun saveKeyCopy(groupUuid: String, keyCopy: EncryptedFieldDto): EmptyResult<NetworkError> =
+        client.put<Unit, SaveGroupKeyCopyBody>(
+            route = DuckCountRoutes.Group.KEY_COPY,
+            pathParams = mapOf("group_uuid" to groupUuid),
+            body = SaveGroupKeyCopyBody(keyCopy = keyCopy),
+        )
+
+    /**
+     * Drops the caller's own copy of the key of the group [groupUuid], as they leave it, see
+     * [GroupLeaver]. A copy the server does not hold, or a group it does not, is no error, so
+     * dropping it twice does no harm.
+     */
+    suspend fun deleteKeyCopy(groupUuid: String): EmptyResult<NetworkError> =
+        client.delete<Unit>(
+            route = DuckCountRoutes.Group.KEY_COPY,
+            pathParams = mapOf("group_uuid" to groupUuid),
+        )
+
+    /**
      * Takes the caller out of the group [groupUuid], see [GroupLeaveAnswer] for what the server can
      * answer: it no longer lists the group to them, nor them to its members, and drops whatever
-     * waits for them there, the Welcome among it, which they would otherwise never acknowledge.
+     * waits for them there, the Welcome among it, which they would otherwise never acknowledge,
+     * and their copy of its key.
      * Any member may leave but its owner, whom the server refuses. Their leaf stays in the group's
      * tree until its creator's device removes it, see [GroupSync], which the server wakes for it as
      * it takes a current member's leave, see [push.PushSignal.Kind.GROUP_MEMBER_LEFT].

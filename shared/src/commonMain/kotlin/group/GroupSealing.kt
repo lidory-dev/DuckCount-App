@@ -50,8 +50,8 @@ internal class SealedGroupFields(
  * catalogue gives it, and nothing else.
  *
  * Returns null only when [groupKey] is not a 32-byte key, a caller bug rather than a state: every
- * group key comes from `generateSymmetricEncryptionKey`, or out of the Welcome or the vault entry
- * one was handed over in.
+ * group key comes from `generateSymmetricEncryptionKey`, or out of the Welcome or the message that
+ * handed it over, or out of the user's copy the server kept of it, see [GroupKeyCopies].
  */
 internal fun GroupFields.seal(groupKey: ByteArray, groupUuid: String): SealedGroupFields? =
     SealedGroupFields(

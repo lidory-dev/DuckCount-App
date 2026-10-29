@@ -96,8 +96,9 @@ enum class MembershipChangeOutcome {
  * see [GroupMembershipError.DeviceLocked], and an addition reads all of it before it asks for any
  * key package, which would be spent for nothing. The sync's own removals read the vault as is
  * instead, and its pass stops at the first read that throws, see [removeUnderGroupsLock]. After the
- * Commit is built, nothing reads the vault but the backup of a rotated key, which the next sync
- * makes when the vault would not take it, see [GroupMembershipSender].
+ * Commit is built, nothing reads the vault but the sealing of the creator's copy of a rotated key,
+ * which leaves the rotation to the next sync when the key ring cannot be read, see
+ * [GroupMembershipSender].
  *
  * [userUuid] is [getAuthenticatedUserUuid], [restoreContacts] is [ContactRepository.restore],
  * [contacts] and [blocked] are [ContactDao.getUserUuids] and [IdentityConflictDao.getBlocked],

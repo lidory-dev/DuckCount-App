@@ -55,8 +55,9 @@ private val FIELDS = GroupFields(
  * MLS client made through the library itself, and every change built as [GroupMembershipChanger]
  * and [GroupMembershipSender] build them on her device. The server delivers each one as the API
  * does: a Commit to every current member but her, those it removes included, a Welcome to those it
- * adds, a key message to the members who remain, and the group listed to its current members alone.
- * The database and the vault are stood in for.
+ * adds, a key message to the members who remain, and the group listed to its current members alone,
+ * with the copy of its key it holds for Bob, which it drops as Alice removes him, or as he leaves,
+ * see [ServerKeyCopies]. The database and the key ring are stood in for.
  *
  * Alice and Dave are Bob's contacts, both pinned. Carol is nobody to Bob, and Mallory a stranger.
  */
@@ -102,12 +103,12 @@ class GroupSyncMembershipTest {
     /** The groups Bob left on the server, in order. */
     private val left = mutableListOf<String>()
 
-    /** The group keys the vault held before the sync ran, and those it backed up. */
-    private val vault = mutableMapOf<String, ByteArray>()
-    private val backedUp = mutableMapOf<String, ByteArray>()
-
-    /** Whether the device is locked, which has every vault write throw, as `KSafe` does. */
-    private var isDeviceLocked = false
+    /**
+     * The copies of Bob's group keys the server holds, and the key ring they are sealed with,
+     * which a locked device cannot read, see [ServerKeyCopies.isDeviceLocked].
+     */
+    private val server = ServerKeyCopies()
+    private val keyCopies = server.groupKeyCopies(groups)
 
     /** What runs as the sync posts the user's own key, once every group is caught up. */
     private var onHandOut: suspend () -> Unit = {}
@@ -132,9 +133,10 @@ class GroupSyncMembershipTest {
             steps += "membership changes"
             membershipResend
         },
-        backUpPending = {
-            steps += "back-ups"
-            Result.Success(Unit)
+        openKeyCopies = keyCopies::open,
+        putUpKeyCopies = { listed ->
+            steps += "key copies"
+            keyCopies.putUp(listed)
         },
         restoreContacts = { Result.Success(Unit) },
         listGroups = {
@@ -149,7 +151,6 @@ class GroupSyncMembershipTest {
         },
         storedGroups = { groups.values.toList() },
         declinedGroups = { declined.toList() },
-        vaultKeys = { Result.Success(vault.toMap()) },
         listMessages = { groupUuid ->
             fetched += groupUuid
             val listed = waiting[groupUuid].orEmpty().toList()
@@ -170,9 +171,10 @@ class GroupSyncMembershipTest {
             left += groupUuid
 
             // As the server takes it: Bob is no current member any more, and what waited for him
-            // there is dropped.
+            // there is dropped, with his copy of its key.
             serverMembers -= BOB
             waiting.remove(groupUuid)
+            server.copies.remove(groupUuid)
 
             GroupLeaveAnswer.Left
         },
@@ -191,12 +193,6 @@ class GroupSyncMembershipTest {
         recordDeclined = { groupUuid -> declined += groupUuid },
         forgetDeclined = { groupUuid -> declined -= groupUuid },
         removeDeparted = { _, _ -> error("Bob created no group here.") },
-        backUp = { groupUuid, key ->
-            check(!isDeviceLocked) { "Cannot access Keystore key - device is locked" }
-            backedUp[groupUuid] = key
-            groups[groupUuid] = groups.getValue(groupUuid).with(isBackedUp = true)
-            Result.Success(Unit)
-        },
         fullName = { names[it] },
         // What becomes of the keys to the members' profiles is GroupSyncProfileKeysTest's.
         hasPendingChange = { false },
@@ -219,14 +215,15 @@ class GroupSyncMembershipTest {
         bob.pinIdentity(userUuid = DAVE, signatureKey = dave.signaturePublicKey())
     }
 
+    /** Last of all: every key a group handed over in the pass has its copy put up by the pass. */
     @Test
-    fun `the membership changes still pending are sent again before the keys are backed up`() =
+    fun `the membership changes still pending are sent again before anything and the key copies put up last`() =
         runBlocking<Unit> {
             membershipResend = Result.Error(GroupSyncError.Network(NetworkError.SERVER_ERROR))
 
             val pass = groupSync.sync(contactsTakenIn = true)
 
-            assertEquals(listOf("creations", "membership changes", "back-ups"), steps)
+            assertEquals(listOf("creations", "membership changes", "key copies"), steps)
             assertEquals(GroupSyncError.Network(NetworkError.SERVER_ERROR), pass.failure)
         }
 
@@ -246,9 +243,12 @@ class GroupSyncMembershipTest {
         assertEquals(bobRoster().epoch, alice.rosterOf(mlsGroupId = aliceGroup()).epoch)
     }
 
-    /** As [GroupMembershipSender] has her: the removal, then the new key in the epoch after it. */
+    /**
+     * As [GroupMembershipSender] has her: the removal, then the new key in the epoch after it. The
+     * server lists the copy of the key it replaced, which the new one's replaces.
+     */
     @Test
-    fun `a member the creator removes goes and the key she hands over next is taken and backed up`() =
+    fun `a member the creator removes goes and the key she hands over next is taken and its copy put up`() =
         runBlocking<Unit> {
             joined()
 
@@ -264,7 +264,7 @@ class GroupSyncMembershipTest {
             val group = groups.getValue(GROUP)
 
             assertContentEquals(groupKey, group.groupKey)
-            assertContentEquals(groupKey, backedUp[GROUP])
+            assertContentEquals(groupKey, server.keyOf(GROUP))
             assertTrue(group.isBackedUp)
             assertEquals(listOf(removal, rotation), acknowledged[GROUP]?.toList())
         }
@@ -330,11 +330,12 @@ class GroupSyncMembershipTest {
 
     /**
      * Alice removes Carol, hands Bob the new key, and removes him too, all before his sync, which
-     * reads them at once: backing that key up is a vault write, which throws once the device
-     * locks, and would lose the removal, read once only.
+     * reads them at once: putting that key's copy up reads the key ring, which throws once the
+     * device locks, and would lose the removal, read once only. Nor does the server take a copy
+     * from a member it removed.
      */
     @Test
-    fun `a removal read behind a key handed over is recorded without the key being backed up`() =
+    fun `a removal read behind a key handed over is recorded without the key's copy being put up`() =
         runBlocking<Unit> {
             joined()
 
@@ -342,7 +343,7 @@ class GroupSyncMembershipTest {
             val rotation = aliceRotates()
             val removal = aliceRemoves(BOB)
 
-            isDeviceLocked = true
+            server.isDeviceLocked = true
 
             val pass = groupSync.sync(contactsTakenIn = true)
 
@@ -358,6 +359,37 @@ class GroupSyncMembershipTest {
             assertNull(next.failure)
             assertTrue(next.removed.isEmpty())
             assertTrue(fetched.isEmpty())
+        }
+
+    /**
+     * The device locking once the key message is read, as the pass reads the key ring to put that
+     * key's copy up, the one thing in it that does here: the key was taken and the message
+     * acknowledged before, the message being read once only, and the next pass puts the copy up.
+     */
+    @Test
+    fun `a key handed over is taken even when the device locks as its copy is put up`() =
+        runBlocking<Unit> {
+            joined()
+
+            val removal = aliceRemoves(CAROL)
+            val rotation = aliceRotates()
+
+            server.isDeviceLocked = true
+
+            val pass = groupSync.sync(contactsTakenIn = true)
+
+            assertEquals(GroupSyncError.DeviceLocked, pass.failure)
+            assertEquals(listOf(removal, rotation), acknowledged[GROUP]?.toList())
+            assertContentEquals(groupKey, groups.getValue(GROUP).groupKey)
+            assertFalse(groups.getValue(GROUP).isBackedUp)
+            assertFalse(groupKey contentEquals server.keyOf(GROUP))
+
+            server.isDeviceLocked = false
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            assertContentEquals(groupKey, server.keyOf(GROUP))
+            assertTrue(groups.getValue(GROUP).isBackedUp)
         }
 
     /**
@@ -483,7 +515,7 @@ class GroupSyncMembershipTest {
 
             assertNull(pass.failure)
             assertContentEquals(groupKey, groups.getValue(GROUP).groupKey)
-            assertContentEquals(groupKey, backedUp[GROUP])
+            assertContentEquals(groupKey, server.keyOf(GROUP))
             assertEquals(listOf(messageUuid), acknowledged[GROUP]?.toList())
         }
 
@@ -609,7 +641,7 @@ class GroupSyncMembershipTest {
         val group = groups.getValue(GROUP)
 
         assertContentEquals(groupKey, group.groupKey)
-        assertContentEquals(groupKey, backedUp[GROUP])
+        assertContentEquals(groupKey, server.keyOf(GROUP))
         assertEquals(ALICE, group.ownerUuid)
         assertFalse(group.isLeft)
         assertEquals(rowsOf(ALICE, BOB), members.getValue(GROUP).toSet())
@@ -668,7 +700,7 @@ class GroupSyncMembershipTest {
 
             assertFalse(group.isLeft)
             assertContentEquals(groupKey, group.groupKey)
-            assertContentEquals(groupKey, backedUp[GROUP])
+            assertContentEquals(groupKey, server.keyOf(GROUP))
             assertTrue(bob.holdsGroup(mlsGroupId = assertNotNull(group.mlsGroupId)))
             assertEquals(rowsOf(ALICE, BOB, CAROL), members.getValue(GROUP).toSet())
             assertEquals(listOf(welcome), acknowledged[GROUP]?.toList())
@@ -779,12 +811,15 @@ class GroupSyncMembershipTest {
 
             assertTrue(group.isLeft)
             assertNotNull(group.mlsGroupId)
-            assertNull(backedUp[GROUP])
+            assertTrue(server.putUp.isEmpty())
             assertTrue(bobStore.keys(namespace_ = MlsNamespace.GROUP_STATE).isEmpty())
             assertEquals(listOf(welcome, removal), acknowledged[GROUP]?.toList())
         }
 
-    /** Backing the key up is a vault write, which throws once the device locks, and would lose the removal. */
+    /**
+     * Putting the key's copy up reads the key ring, which throws once the device locks, and would
+     * lose the removal.
+     */
     @Test
     fun `a group the user is removed from as they join it is reported on a locked device`() =
         runBlocking<Unit> {
@@ -792,7 +827,7 @@ class GroupSyncMembershipTest {
             val removal = aliceRemoves(BOB)
 
             isListedRegardless = true
-            isDeviceLocked = true
+            server.isDeviceLocked = true
 
             val pass = groupSync.sync(contactsTakenIn = true)
 
@@ -920,7 +955,7 @@ class GroupSyncMembershipTest {
             assertTrue(groupSync.hasNoWelcomeWaiting())
         }
 
-    /** As a log-out leaves Bob: the key in the vault, no MLS state to read anything with. */
+    /** As a log-out leaves Bob: the copy of the key listed, no MLS state to read anything with. */
     @Test
     fun `a group brought back after a log-out takes the server's members and acknowledges what waits unread`() =
         runBlocking<Unit> {
@@ -984,7 +1019,7 @@ class GroupSyncMembershipTest {
 
             assertFalse(group.isLeft)
             assertContentEquals(groupKey, group.groupKey)
-            assertContentEquals(groupKey, backedUp[GROUP])
+            assertContentEquals(groupKey, server.keyOf(GROUP))
             assertTrue(bob.holdsGroup(mlsGroupId = assertNotNull(group.mlsGroupId)))
             assertEquals(rowsOf(ALICE, BOB, CAROL), members.getValue(GROUP).toSet())
             assertEquals(listOf(removal, welcome), acknowledged[GROUP]?.toList())
@@ -1062,11 +1097,11 @@ class GroupSyncMembershipTest {
         }
 
     /**
-     * As a log-out leaves Bob while Alice removes Carol: the key the vault kept is the one the
+     * As a log-out leaves Bob while Alice removes Carol: the key his copy holds is the one the
      * fields were sealed under before she rotated it, in a message he can never read.
      */
     @Test
-    fun `a group whose key the vault kept was rotated since is not brought back and what waits is acknowledged`() =
+    fun `a group whose copied key was rotated since is not brought back and what waits is acknowledged`() =
         runBlocking<Unit> {
             loggedOut()
 
@@ -1086,8 +1121,12 @@ class GroupSyncMembershipTest {
             assertTrue(groupSync.hasNoWelcomeWaiting())
         }
 
+    /**
+     * The server dropped Bob's copy as Alice removed him, so nothing tells his device the group was
+     * his: the Commit removing him waits before the Welcome adding him back, unread.
+     */
     @Test
-    fun `a group whose key the vault kept was rotated since is joined once its creator adds the user back`() =
+    fun `a group whose copied key was rotated since is joined once its creator adds the user back`() =
         runBlocking<Unit> {
             loggedOut()
             aliceRemoves(CAROL)
@@ -1114,7 +1153,7 @@ class GroupSyncMembershipTest {
             assertFalse(group.isLeft)
             assertEquals(ALICE, group.ownerUuid)
             assertContentEquals(groupKey, group.groupKey)
-            assertContentEquals(groupKey, backedUp[GROUP])
+            assertContentEquals(groupKey, server.keyOf(GROUP))
             assertTrue(bob.holdsGroup(mlsGroupId = assertNotNull(group.mlsGroupId)))
             assertEquals(rowsOf(ALICE, BOB), members.getValue(GROUP).toSet())
             assertEquals(listOf(removal, welcome), acknowledged[GROUP]?.toList())
@@ -1122,12 +1161,12 @@ class GroupSyncMembershipTest {
 
     /**
      * Has Alice create [GROUP] with Bob and Carol, and Bob hold it as a log-out leaves him once the
-     * vault kept its key: no MLS state, and the Welcome long acknowledged.
+     * server kept his copy of its key: no MLS state, and the Welcome long acknowledged.
      */
     private fun loggedOut() {
         aliceCreates()
 
-        vault[GROUP] = groupKey
+        server.copies[GROUP] = server.copyOf(groupKey = groupKey, sealedFor = GROUP)
         waiting.getValue(GROUP).clear()
     }
 
@@ -1201,7 +1240,8 @@ class GroupSyncMembershipTest {
 
     /**
      * Has Alice remove [userUuid], and the server deliver the Commit to every current member but her,
-     * [userUuid] included, then take them off the group: returns the UUID of the Commit Bob got.
+     * [userUuid] included, then take them off the group, dropping Bob's copy of its key with him:
+     * returns the UUID of the Commit Bob got.
      */
     private suspend fun aliceRemoves(userUuid: String): String {
         val commit = alice.removeMembersFrom(mlsGroupId = aliceGroup(), userUuids = listOf(userUuid))
@@ -1211,6 +1251,8 @@ class GroupSyncMembershipTest {
         val delivered = assertNotNull(deliver(commit))
 
         serverMembers -= userUuid
+
+        if (userUuid == BOB) server.copies.remove(GROUP)
 
         return delivered
     }
@@ -1266,6 +1308,7 @@ class GroupSyncMembershipTest {
             description = fields.description,
             currency = fields.currency,
             members = serverMembers.map { GroupMemberDto(userUuid = it) },
+            keyCopy = server.copies[GROUP],
         )
     }
 
