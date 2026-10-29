@@ -22,18 +22,20 @@ val ButtonBottomPadding: Dp = Padding.large
 
 /**
  * The height the window has to keep above the keyboard, or above the navigation bar while the
- * keyboard is closed, for a form to keep its button pinned there, see [isButtonPinned]: room for
+ * keyboard is closed, for a screen to keep its button pinned there, see [isButtonPinned]: room for
  * the top bar, the button and the field being filled.
  */
 val MinHeightForPinnedButton: Dp = 320.dp
 
 /**
- * Whether a form whose list can hold more than fits keeps its button pinned at the bottom of the
+ * Whether a screen whose list can hold more than fits keeps its button pinned at the bottom of the
  * window, pushed up by the keyboard as it opens, so that the button stays in reach as on every
  * form: while the window keeps [MinHeightForPinnedButton] above the keyboard, see
  * [isRoomForPinnedButton]. With less, as on a phone in landscape with the keyboard open, a pinned
- * button would leave no room for the field being filled, and the button goes at the end of the
- * form instead, reached by scrolling, as on the forms that scroll theirs with them.
+ * button would leave no room for the field being filled. A form's button then goes at the end of
+ * the form instead, reached by scrolling, as on the forms that scroll theirs with them, and a
+ * button floating over a list, the dashboard's add button, stays where it is with the keyboard
+ * closed, behind the keyboard until it closes.
  */
 @Composable
 fun isButtonPinned(): Boolean {
