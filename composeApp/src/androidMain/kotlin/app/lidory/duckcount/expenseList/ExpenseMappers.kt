@@ -23,6 +23,7 @@ import uniffi.lib_duckcount.Currency as CurrencyUniffi
 import expense.OneTimeExpenseHistoryError
 import expense.OneTimeExpenseVersion
 import expense.OneTimeExpenseWriteError
+import mls.MlsIdentityError
 import vault.VaultError
 
 /**
@@ -30,10 +31,11 @@ import vault.VaultError
  *
  * Only [OneTimeExpenseWriteError.KeyMissing] earns wording of its own: it is a state the
  * user can wait out, and it says something true about their own device. A vault that could
- * not be reached is told apart like the server itself, and a missing root key like a session
- * that is gone. The other vault, identity and sealing failures are folded into `UNKNOWN` the
- * way the contact mappers fold theirs, since there is nothing a user can do differently about
- * any of them. Who deleted their account is told by name instead, see [toExpenseSaveError].
+ * not be reached is told apart like the server itself, whether it was read for the expense or
+ * to open the user's identity, and a missing root key like a session that is gone. The other
+ * vault, identity and sealing failures are folded into `UNKNOWN` the way the contact mappers
+ * fold theirs, since there is nothing a user can do differently about any of them. Who deleted
+ * their account is told by name instead, see [toExpenseSaveError].
  */
 fun OneTimeExpenseWriteError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError =
     when (this) {
@@ -43,32 +45,48 @@ fun OneTimeExpenseWriteError.toExpenseWriteError(isOnline: Boolean): ExpenseWrit
 
         OneTimeExpenseWriteError.NoSession -> ExpenseWriteError.UNAUTHORIZED
 
-        is OneTimeExpenseWriteError.Vault -> when (val vaultError = error) {
-            // Creating or editing reads the key ring from the server before the expense is
-            // sent, so this is usually where being offline shows.
-            is VaultError.Network -> vaultError.error.toExpenseWriteError(isOnline = isOnline)
+        // Creating or editing reads the key ring from the server before the expense is sent, so
+        // this is usually where being offline shows.
+        is OneTimeExpenseWriteError.Vault -> error.toExpenseWriteError(isOnline = isOnline)
 
-            // Only ever unsealed during a registration or a login, so logging in again is
-            // the only way back.
-            VaultError.MissingRootKey -> ExpenseWriteError.UNAUTHORIZED
+        is OneTimeExpenseWriteError.Identity -> when (val identityError = error) {
+            // Opening the user's identity reads the vault from the server, every time until it
+            // first opens in the process: a write made while the server has been out of reach
+            // since the app opened fails here, before any request of its own is sent.
+            is MlsIdentityError.Vault -> identityError.error.toExpenseWriteError(isOnline = isOnline)
 
-            VaultError.Contended,
-            VaultError.Crypto,
-            VaultError.MalformedKeyRing,
-            VaultError.MalformedContactBook,
-            VaultError.MalformedMemberProfileBook,
-            VaultError.OrphanedEntry,
-                -> ExpenseWriteError.UNKNOWN
+            // Nobody signed in, or their root key gone, like NoSession and a missing root key.
+            MlsIdentityError.MissingSession -> ExpenseWriteError.UNAUTHORIZED
+
+            MlsIdentityError.Crypto -> ExpenseWriteError.UNKNOWN
         }
 
         // Told apart by toExpenseSaveError, for the form, the one place it comes up: nothing but
         // creating or editing an expense names anybody.
         is OneTimeExpenseWriteError.BeneficiariesDeleted -> ExpenseWriteError.INVALID_DATA
 
-        is OneTimeExpenseWriteError.Identity,
-        OneTimeExpenseWriteError.Crypto,
-            -> ExpenseWriteError.UNKNOWN
+        OneTimeExpenseWriteError.Crypto -> ExpenseWriteError.UNKNOWN
     }
+
+/**
+ * Why the vault could not be read or written for a one-time expense write, see
+ * [toExpenseWriteError].
+ */
+private fun VaultError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError = when (this) {
+    is VaultError.Network -> error.toExpenseWriteError(isOnline = isOnline)
+
+    // Only ever unsealed during a registration or a login, so logging in again is the only way
+    // back.
+    VaultError.MissingRootKey -> ExpenseWriteError.UNAUTHORIZED
+
+    VaultError.Contended,
+    VaultError.Crypto,
+    VaultError.MalformedKeyRing,
+    VaultError.MalformedContactBook,
+    VaultError.MalformedMemberProfileBook,
+    VaultError.OrphanedEntry,
+        -> ExpenseWriteError.UNKNOWN
+}
 
 /**
  * Why saving the expense form failed, as the form explains it: who deleted their account, by the
