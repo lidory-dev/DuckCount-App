@@ -27,12 +27,13 @@ interface UserDao {
     @Query("SELECT * FROM UserEntity WHERE isDeleted = false")
     fun getAllAsFlow(): Flow<List<UserEntity>>
 
-    @Query("SELECT * FROM UserEntity WHERE fullName LIKE '%' ||:filter|| '%' AND isDeleted = false")
+    /** The users whose name contains [filter], escaped for it, see [escapedForLike], hidden ones aside. */
+    @Query("SELECT * FROM UserEntity WHERE fullName LIKE '%' ||:filter|| '%' ESCAPE '\\' AND isDeleted = false")
     fun getAllFiltered(filter: String): Flow<List<UserEntity>>
 
     /**
-     * Who the user can put in a group they create, whose name contains [filter]: their contacts,
-     * removed and blocked ones aside, see
+     * Who the user can put in a group they create, whose name contains [filter], escaped for it,
+     * see [escapedForLike]: their contacts, removed and blocked ones aside, see
      * [IdentityConflictEntity][database.data.local.entity.IdentityConflictEntity], with a name to
      * show for them. Never the user themself, who is nobody's contact.
      *
@@ -42,7 +43,7 @@ interface UserDao {
     @Query(
         """SELECT UserEntity.* FROM UserEntity
         INNER JOIN ContactEntity ON ContactEntity.userUuid = UserEntity.uuid
-        WHERE UserEntity.fullName LIKE '%' ||:filter|| '%'
+        WHERE UserEntity.fullName LIKE '%' ||:filter|| '%' ESCAPE '\'
         AND UserEntity.isDeleted = false
         AND ContactEntity.isRemoved = false
         AND UserEntity.uuid NOT IN (SELECT peerUuid FROM IdentityConflictEntity)""",
@@ -90,8 +91,8 @@ interface UserDao {
     /**
      * Emits who a group expense of the group [groupUuid] can name, as payer or beneficiary, as they
      * change: each of its members this device has a name for, see [getDisplayNameAsFlow], once,
-     * under that name, whose name contains [filter]. A member it has none for is left out, there
-     * being nothing to show for them.
+     * under that name, whose name contains [filter], escaped for it, see [escapedForLike]. A
+     * member it has none for is left out, there being nothing to show for them.
      *
      * A member who is a contact, or the user, comes with the row the contact list shows. Anybody
      * else comes as nobody's contact, hidden from the contact list, see [remove], with no username,
@@ -112,10 +113,19 @@ interface UserDao {
             LEFT JOIN MemberProfileEntity ON MemberProfileEntity.userUuid = GroupMemberEntity.userUuid
             WHERE GroupMemberEntity.groupUuid = :groupUuid
         )
-        WHERE fullName LIKE '%' ||:filter|| '%'""",
+        WHERE fullName LIKE '%' ||:filter|| '%' ESCAPE '\'""",
     )
     fun getAllFromGroupFiltered(filter: String, groupUuid: String): Flow<List<UserEntity>>
 
     @Query("UPDATE UserEntity SET fullName = :fullName WHERE uuid = :userUuid")
     suspend fun updateFullName(userUuid: String, fullName: String)
 }
+
+/**
+ * [this] as a search filter of [UserDao] matches it, as typed: a `%` or an `_` would otherwise
+ * stand for any text or any one character in its `LIKE`, and a search of one alone list everybody.
+ * Each is put after a backslash, the escape character every such query names, and so is a
+ * backslash itself.
+ */
+internal fun String.escapedForLike(): String =
+    replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")

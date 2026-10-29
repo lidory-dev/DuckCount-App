@@ -2,6 +2,7 @@ package database.data.repository
 
 import app.lidory.duckcount.hashDiscoveryUsername
 import database.data.local.dao.UserDao
+import database.data.local.dao.escapedForLike
 import database.data.mappers.toUser
 import database.data.mappers.toUserEntity
 import database.data.remote.ReserveDiscoveryUsernameRequestBody
@@ -45,20 +46,21 @@ class UserRepository(
     /**
      * The users whose name contains [filter], hidden ones aside, see [UserDao.remove]. The filter
      * is taken without the whitespace around it, as every search here takes it: the search field
-     * holds it as typed, and a space typed after a name would otherwise find nobody.
+     * holds it as typed, and a space typed after a name would otherwise find nobody. It is matched
+     * as typed, a `%` or an `_` in it included, see [escapedForLike].
      */
     fun getAllFiltered(filter: String): Flow<List<User>> {
-        return userDao.getAllFiltered(filter = filter.trim()).map { userEntities ->
+        return userDao.getAllFiltered(filter = filter.trim().escapedForLike()).map { userEntities ->
             userEntities.map { it.toUser() }
         }
     }
 
     /**
      * Who the user can put in a group they create, see [UserDao.getInvitableFiltered], whose name
-     * contains [filter], taken without the whitespace around it, see [getAllFiltered].
+     * contains [filter], taken as [getAllFiltered] takes it.
      */
     fun getInvitableFiltered(filter: String): Flow<List<User>> {
-        return userDao.getInvitableFiltered(filter = filter.trim()).map { userEntities ->
+        return userDao.getInvitableFiltered(filter = filter.trim().escapedForLike()).map { userEntities ->
             userEntities.map { it.toUser() }
         }
     }
@@ -88,10 +90,10 @@ class UserRepository(
 
     /**
      * Who a group expense of the group [groupUuid] can name, see [UserDao.getAllFromGroupFiltered],
-     * whose name contains [filter], taken without the whitespace around it, see [getAllFiltered].
+     * whose name contains [filter], taken as [getAllFiltered] takes it.
      */
     fun getAllFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> {
-        return userDao.getAllFromGroupFiltered(filter.trim(), groupUuid).map { userEntities ->
+        return userDao.getAllFromGroupFiltered(filter.trim().escapedForLike(), groupUuid).map { userEntities ->
             userEntities.map { it.toUser() }
         }
     }
