@@ -42,6 +42,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.composable.button.ButtonBottomPadding
 import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.text.DuckCountErrorText
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
@@ -215,6 +216,8 @@ fun UserProfileScreen(
                         ) {
                             Text(text = stringResource(R.string.save))
                         }
+                        // Off the keyboard, or the navigation bar, see ButtonBottomPadding.
+                        Spacer(modifier = Modifier.height(ButtonBottomPadding))
                     }
                 }
             }

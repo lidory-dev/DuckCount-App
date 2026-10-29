@@ -3,13 +3,18 @@ package app.lidory.duckcount.expenseList.component
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -30,7 +35,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
+import app.lidory.duckcount.android.ui.composable.button.ButtonBottomPadding
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedButton
+import app.lidory.duckcount.android.ui.composable.button.isButtonPinned
 import app.lidory.duckcount.android.ui.composable.checkbox.SelectAllPill
 import app.lidory.duckcount.android.ui.composable.checkbox.UserSelectableCard
 import app.lidory.duckcount.android.ui.composable.fullscreendialog.FullScreenDialog
@@ -65,6 +72,25 @@ fun BeneficiariesDialog(
 ) {
 
     val listState = rememberLazyListState()
+
+    val isButtonPinned = isButtonPinned()
+
+    val confirmButton: @Composable (Modifier) -> Unit = { modifier ->
+        DuckCountElevatedButton(
+            modifier = modifier.fillMaxWidth(),
+            onClick = {
+                onSelectUsers(selectedUuids)
+                onDismissRequest()
+            },
+            colors = ButtonDefaults.buttonColors()
+                .copy(containerColor = MaterialTheme.colorScheme.primary),
+        ) {
+            Text(
+                modifier = Modifier.padding(Padding.small),
+                text = stringResource(androidUiR.string.confirm),
+            )
+        }
+    }
 
     LaunchedEffect(searchQuery) {
         listState.animateScrollToItem(0)
@@ -101,34 +127,27 @@ fun BeneficiariesDialog(
                 )
             },
             bottomBar = {
-                DuckCountElevatedButton(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = Padding.medium)
-                        .padding(bottom = Padding.extraLarge),
-                    onClick = {
-                        onSelectUsers(selectedUuids)
-                        onDismissRequest()
-                    },
-                    colors = ButtonDefaults.buttonColors()
-                        .copy(containerColor = MaterialTheme.colorScheme.primary),
-                ) {
-                    Text(
-                        modifier = Modifier.padding(Padding.small),
-                        text = stringResource(androidUiR.string.confirm),
-                    )
+                // As on the expense form, see CreateExpenseScreen: the bar above the keyboard, which
+                // pushes it up, the button in it only while the window has room for it there, see
+                // isButtonPinned, at the end of the list otherwise.
+                Box(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))) {
+                    if (isButtonPinned) {
+                        confirmButton(
+                            Modifier
+                                .padding(horizontal = Padding.medium)
+                                .padding(bottom = ButtonBottomPadding),
+                        )
+                    }
                 }
             },
         ) { innerPadding ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(
-                        top = innerPadding.calculateTopPadding(),
-                        start = Padding.medium,
-                        end = Padding.medium,
-                    ),
+                    // Above the bar, and so above the keyboard, read as the column is laid out, as
+                    // on the expense form.
+                    .padding(innerPadding)
+                    .padding(horizontal = Padding.medium),
                 verticalArrangement = Arrangement.spacedBy(Padding.large),
             ) {
                 DuckCountSearchBar(
@@ -172,15 +191,18 @@ fun BeneficiariesDialog(
                     ) {
                         Text(text = stringResource(R.string.no_result))
                     }
+
+                    // Out of the bar while the window is too short for it there, see isButtonPinned.
+                    if (!isButtonPinned) confirmButton(Modifier)
                 } else {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier
                             .fillMaxSize(),
-                        // The list scrolls under the button, which floats over its end: past
-                        // the last card, room enough for it to be scrolled clear of the button.
+                        // The last card clear of the button below, or, while the button ends the
+                        // list, it ButtonBottomPadding off the keyboard, as everywhere.
                         contentPadding = PaddingValues(
-                            bottom = innerPadding.calculateBottomPadding() + Padding.medium,
+                            bottom = if (isButtonPinned) Padding.medium else ButtonBottomPadding,
                         ),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
@@ -205,6 +227,12 @@ fun BeneficiariesDialog(
                                 // unselected once the selection is full.
                                 enabled = isChecked || selectedUuids.size < maxBeneficiaries,
                             )
+                        }
+
+                        // Out of the bar while the window is too short for it there, see
+                        // isButtonPinned.
+                        if (!isButtonPinned) {
+                            item { confirmButton(Modifier.padding(top = Padding.medium)) }
                         }
                     }
                 }

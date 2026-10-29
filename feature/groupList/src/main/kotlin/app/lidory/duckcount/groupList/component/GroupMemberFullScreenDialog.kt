@@ -5,10 +5,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -30,7 +34,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
+import app.lidory.duckcount.android.ui.composable.button.ButtonBottomPadding
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
+import app.lidory.duckcount.android.ui.composable.button.isButtonPinned
 import app.lidory.duckcount.android.ui.composable.checkbox.UserSelectableCard
 import app.lidory.duckcount.android.ui.composable.fullscreendialog.FullScreenDialog
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
@@ -77,6 +83,24 @@ fun GroupMemberFullScreenDialog(
 
     val listState = rememberLazyListState()
 
+    val isButtonPinned = isButtonPinned()
+
+    val confirmButton: @Composable (Modifier) -> Unit = { modifier ->
+        DuckCountElevatedLoadingButton(
+            modifier = modifier.fillMaxWidth(),
+            enabled = isConfirmEnabled && !isConfirming,
+            onClick = { onSelectUsers(selectedUuids) },
+            colors = ButtonDefaults.buttonColors()
+                .copy(containerColor = MaterialTheme.colorScheme.primary),
+            isLoading = isConfirming,
+        ) {
+            Text(
+                modifier = Modifier.padding(Padding.small),
+                text = stringResource(androidUiR.string.confirm),
+            )
+        }
+    }
+
     LaunchedEffect(searchQuery) {
         listState.animateScrollToItem(0)
     }
@@ -112,25 +136,22 @@ fun GroupMemberFullScreenDialog(
                 )
             },
             bottomBar = {
-                // The snackbars above the button, as on the group form, see CreateOrEditGroupScreen.
-                Column {
+                // As on the group form, see CreateOrEditGroupScreen: the snackbars above the button,
+                // and the bar above the keyboard, which pushes it up, the button in it only while
+                // the window has room for it there, see isButtonPinned, at the end of the list
+                // otherwise.
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
+                ) {
                     snackbarHostState?.let { DuckCountSnackbarHost(hostState = it) }
 
-                    DuckCountElevatedLoadingButton(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(horizontal = Padding.medium)
-                            .padding(bottom = Padding.extraLarge),
-                        enabled = isConfirmEnabled && !isConfirming,
-                        onClick = { onSelectUsers(selectedUuids) },
-                        colors = ButtonDefaults.buttonColors()
-                            .copy(containerColor = MaterialTheme.colorScheme.primary),
-                        isLoading = isConfirming,
-                    ) {
-                        Text(
-                            modifier = Modifier.padding(Padding.small),
-                            text = stringResource(androidUiR.string.confirm),
+                    if (isButtonPinned) {
+                        confirmButton(
+                            Modifier
+                                .padding(horizontal = Padding.medium)
+                                .padding(bottom = ButtonBottomPadding),
                         )
                     }
                 }
@@ -139,11 +160,10 @@ fun GroupMemberFullScreenDialog(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(
-                        top = innerPadding.calculateTopPadding(),
-                        start = Padding.medium,
-                        end = Padding.medium,
-                    ),
+                    // Above the bar, and so above the keyboard, read as the column is laid out, as
+                    // on the group form.
+                    .padding(innerPadding)
+                    .padding(horizontal = Padding.medium),
                 verticalArrangement = Arrangement.spacedBy(Padding.large),
             ) {
                 DuckCountSearchBar(
@@ -177,15 +197,18 @@ fun GroupMemberFullScreenDialog(
                     ) {
                         Text(text = stringResource(androidUiR.string.no_result))
                     }
+
+                    // Out of the bar while the window is too short for it there, see isButtonPinned.
+                    if (!isButtonPinned) confirmButton(Modifier)
                 } else {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier
                             .fillMaxSize(),
-                        // The list scrolls under the button, which floats over its end: past
-                        // the last card, room enough for it to be scrolled clear of the button.
+                        // The last card clear of the button below, or, while the button ends the
+                        // list, it ButtonBottomPadding off the keyboard, as everywhere.
                         contentPadding = PaddingValues(
-                            bottom = innerPadding.calculateBottomPadding() + Padding.medium,
+                            bottom = if (isButtonPinned) Padding.medium else ButtonBottomPadding,
                         ),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
@@ -211,6 +234,12 @@ fun GroupMemberFullScreenDialog(
                                     currentMemberCount = currentMemberCount,
                                 ),
                             )
+                        }
+
+                        // Out of the bar while the window is too short for it there, see
+                        // isButtonPinned.
+                        if (!isButtonPinned) {
+                            item { confirmButton(Modifier.padding(top = Padding.medium)) }
                         }
                     }
                 }

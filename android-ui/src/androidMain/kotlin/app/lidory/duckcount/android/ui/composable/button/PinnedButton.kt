@@ -11,6 +11,14 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.lidory.duckcount.android.ui.constant.Padding
+
+/**
+ * The room every form leaves under its button, above the keyboard while it is open and above the
+ * navigation bar otherwise, whether the button is pinned at the bottom of the window, see
+ * [isButtonPinned], or scrolls with the form: never right on either.
+ */
+val ButtonBottomPadding: Dp = Padding.large
 
 /**
  * The height the window has to keep above the keyboard, or above the navigation bar while the

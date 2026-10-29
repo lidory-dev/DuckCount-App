@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
+import app.lidory.duckcount.android.ui.composable.button.ButtonBottomPadding
 import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.button.PasswordVisibilityButton
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
@@ -291,6 +292,8 @@ fun PasswordChangeScreen(
                     ) {
                         Text(stringResource(androidUiR.string.confirm))
                     }
+                    // Off the keyboard, or the navigation bar, see ButtonBottomPadding.
+                    Spacer(modifier = Modifier.height(ButtonBottomPadding))
                 }
             }
 

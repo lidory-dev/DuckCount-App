@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import app.lidory.duckcount.android.ui.composable.button.ButtonBottomPadding
 import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.button.PasswordVisibilityButton
 import app.lidory.duckcount.android.ui.composable.text.DuckCountErrorText
@@ -198,6 +199,10 @@ fun LoginScreen(
                             fontWeight = FontWeight.Bold,
                         )
                     }
+
+                    // Off the keyboard, or the navigation bar, even once the form has no room to spare,
+                    // see ButtonBottomPadding.
+                    Spacer(modifier = Modifier.height(ButtonBottomPadding))
 
                     Spacer(modifier = Modifier.weight(1.5f))
                 }

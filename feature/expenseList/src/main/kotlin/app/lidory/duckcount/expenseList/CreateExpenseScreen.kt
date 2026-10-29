@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
+import app.lidory.duckcount.android.ui.composable.button.ButtonBottomPadding
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
 import app.lidory.duckcount.android.ui.composable.button.isButtonPinned
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
@@ -202,7 +203,7 @@ fun CreateExpenseScreen(
                     confirmButton(
                         Modifier
                             .padding(horizontal = Padding.medium)
-                            .padding(bottom = Padding.extraLarge),
+                            .padding(bottom = ButtonBottomPadding),
                     )
                 }
             }
@@ -227,9 +228,12 @@ fun CreateExpenseScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                // The last row as far from what is below it, the button, or the keyboard while
-                // the button is that row, as the rows are from each other.
-                contentPadding = PaddingValues(bottom = Padding.medium),
+                // The last row as far from the button below as the rows are from each other, or,
+                // while the button is that row, it ButtonBottomPadding off the keyboard, as
+                // everywhere.
+                contentPadding = PaddingValues(
+                    bottom = if (isButtonPinned) Padding.medium else ButtonBottomPadding,
+                ),
                 verticalArrangement = Arrangement.spacedBy(Padding.medium),
             ) {
                 item {

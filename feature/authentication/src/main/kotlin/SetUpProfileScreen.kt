@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import app.lidory.duckcount.android.ui.composable.button.ButtonBottomPadding
 import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.text.DuckCountErrorText
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
@@ -167,6 +168,10 @@ fun SetUpProfileScreen(
                         Text(text = stringResource(R.string.done))
                     }
                 }
+
+                // Off the keyboard, or the navigation bar, even once the form has no room to spare,
+                // see ButtonBottomPadding.
+                Spacer(modifier = Modifier.height(ButtonBottomPadding))
 
                 Spacer(modifier = Modifier.weight(1.5f))
             }

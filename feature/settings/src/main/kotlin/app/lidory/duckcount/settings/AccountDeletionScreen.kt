@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.composable.button.ButtonBottomPadding
 import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.button.PasswordVisibilityButton
 import app.lidory.duckcount.android.ui.composable.text.DuckCountErrorText
@@ -192,6 +193,8 @@ fun AccountDeletionScreen(
                 ) {
                     Text(stringResource(androidUiR.string.confirm))
                 }
+                // Off the keyboard, or the navigation bar, see ButtonBottomPadding.
+                Spacer(modifier = Modifier.height(ButtonBottomPadding))
             }
         }
     }
