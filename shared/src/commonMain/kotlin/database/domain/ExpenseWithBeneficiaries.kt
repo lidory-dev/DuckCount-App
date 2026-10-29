@@ -35,3 +35,11 @@ data class ExpenseWithBeneficiaries(
      */
     val settledAt: LocalDateTime? = null,
 )
+
+/**
+ * [this] with its title and description without the whitespace around them, as the user's own
+ * writes take them, see `ExpenseRepository`, and as a group's are taken, see `GroupCreator`: the
+ * form holds them as typed. Nothing inside them is collapsed.
+ */
+internal fun ExpenseWithBeneficiaries.trimmed(): ExpenseWithBeneficiaries =
+    copy(title = title.trim(), description = description.trim())

@@ -23,7 +23,10 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
-/** What [ReserveDiscoveryUsernameViewModel.onUsernameChanged] makes of a username typed with capitals. */
+/**
+ * What [ReserveDiscoveryUsernameViewModel.onUsernameChanged] makes of a username typed with
+ * capitals, or with whitespace around it.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReserveDiscoveryUsernameViewModelTest {
 
@@ -69,10 +72,44 @@ class ReserveDiscoveryUsernameViewModelTest {
         assertEquals("ada4", content.username)
         assertNull(content.inputError)
     }
+
+    /**
+     * Held as typed, so that a space typed after a word is not swallowed, and checked and reserved
+     * without the whitespace around it, which the rules refuse as they refuse a space anywhere.
+     */
+    @Test
+    fun `the username typed is checked and reserved without the whitespace around it`() =
+        runTest(mainDispatcher) {
+            val callBacks = NothingReservedCallBacks()
+            val viewModel = ReserveDiscoveryUsernameViewModel(settingsCallBacks = callBacks)
+            backgroundScope.launch { viewModel.state.collect {} }
+
+            viewModel.onUsernameChanged(username = " Ada4 ")
+            Snapshot.sendApplyNotifications()
+            advanceUntilIdle()
+
+            assertEquals(" Ada4 ", viewModel.draftUsername)
+            val content = viewModel.state.value as DiscoveryUsernameScreenState.Content
+            assertEquals("ada4", content.username)
+            assertNull(content.inputError)
+
+            viewModel.onReserveClicked()
+            advanceUntilIdle()
+
+            assertEquals("ada4", callBacks.reservedUsername)
+        }
 }
 
-/** A user with no username reserved yet, answering only what the screen asks while it is typed in. */
+/**
+ * A user with no username reserved yet, answering only what the screen asks while it is typed in,
+ * a capital or whitespace around the username refused as the library refuses them, and taking the
+ * reservation it is then asked for.
+ */
 private class NothingReservedCallBacks : SettingsCallBacks {
+    /** The username [reserveDiscoveryUsername] was last asked to reserve. */
+    var reservedUsername: String? = null
+        private set
+
     override val maxUsernameLength = 32
     override val maxFullNameLength: Int get() = TODO()
     override val minimumPasswordStrength: Int get() = TODO()
@@ -91,7 +128,14 @@ private class NothingReservedCallBacks : SettingsCallBacks {
     override fun getReservedUsername(): Flow<String?> = flowOf(null)
     override suspend fun refreshReservedDiscoveryUsername() = Unit
     override fun validateUsername(username: String): UsernameInputError? =
-        if (username != username.lowercase()) UsernameInputError.INVALID_CHARACTER else null
+        if (username != username.lowercase() || username != username.trim()) {
+            UsernameInputError.INVALID_CHARACTER
+        } else {
+            null
+        }
     override fun normalizeUsername(username: String): String = TODO()
-    override suspend fun reserveDiscoveryUsername(username: String): ReserveDiscoveryUsernameError? = TODO()
+    override suspend fun reserveDiscoveryUsername(username: String): ReserveDiscoveryUsernameError? {
+        reservedUsername = username
+        return null
+    }
 }

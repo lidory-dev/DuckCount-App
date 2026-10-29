@@ -27,7 +27,7 @@ public struct NewContactView: View {
                     // TODO: Search using the unique username to get user information.
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(username.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                 Spacer()
             }

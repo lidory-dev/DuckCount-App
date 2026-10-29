@@ -173,8 +173,8 @@ class CreateExpenseViewModel: ObservableObject, CreateExpenseFormState {
         let kotlinExpense = Shared.Expense(
             uuid: expenseUuid,
             timestamp: timestamp,
-            title: title,
-            description: description,
+            title: trimmedTitle,
+            description: trimmedDescription,
             amount: amount,
             creditorUuid: creditorUuid,
             isSettlement: false,

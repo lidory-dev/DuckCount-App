@@ -18,7 +18,7 @@ public struct ContactListView<ViewModel: ContactListState>: View {
     }
 
     private var isSearching: Bool {
-        !viewModel.searchQuery.trimmingCharacters(in: .whitespaces).isEmpty
+        !viewModel.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     public var body: some View {

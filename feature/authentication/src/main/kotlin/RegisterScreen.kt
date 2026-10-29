@@ -161,7 +161,7 @@ fun RegisterScreen(
                         visualTransformation = LowercaseVisualTransformation,
                         isInError = state.usernameError != null,
                         error = state.usernameError?.let {
-                            stringResource(it.messageRes(), state.username.length, viewModel.maxUsernameLength)
+                            stringResource(it.messageRes(), state.trimmedUsername.length, viewModel.maxUsernameLength)
                         },
                     )
 
@@ -223,7 +223,7 @@ fun RegisterScreen(
                                 focusManager.clearFocus()
 
                                 viewModel.processRegistration(
-                                    username = state.lowercasedUsername,
+                                    username = state.trimmedUsername,
                                     password = state.password,
                                     navigateToPasswordLeakScreen = navigateToLeakPasswordScreen,
                                     navigateToUserInformationScreen = navigateToSetUpProfileScreen,
@@ -254,7 +254,7 @@ fun RegisterScreen(
                         onClick = {
                             autofillManager?.commit()
                             viewModel.processRegistration(
-                                username = state.lowercasedUsername,
+                                username = state.trimmedUsername,
                                 password = state.password,
                                 navigateToPasswordLeakScreen = navigateToLeakPasswordScreen,
                                 navigateToUserInformationScreen = navigateToSetUpProfileScreen,

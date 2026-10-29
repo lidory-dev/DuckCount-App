@@ -77,18 +77,24 @@ class ProfileRepository(
      * removal. When that fails, the edit is refused rather than sealed where the contact removed
      * would read it.
      *
-     * A full name longer than [ProfileLimits.MAX_FULL_NAME_LENGTH] is refused before anything is
-     * sealed, see [ProfileError.FullNameTooLong]: the server would refuse what it seals to.
+     * The full name is taken without the whitespace around it, as a group's title is, see
+     * `GroupCreator`: held to its limit, sealed and saved so. One longer than
+     * [ProfileLimits.MAX_FULL_NAME_LENGTH] is refused before anything is sealed, see
+     * [ProfileError.FullNameTooLong]: the server would refuse what it seals to.
      */
     suspend fun uploadProfile(
         userUuid: String,
         username: String,
         fullName: String,
     ): EmptyResult<ProfileError> {
-        if (fullName.length > ProfileLimits.MAX_FULL_NAME_LENGTH) return Result.Error(ProfileError.FullNameTooLong)
+        val trimmedFullName = fullName.trim()
+
+        if (trimmedFullName.length > ProfileLimits.MAX_FULL_NAME_LENGTH) {
+            return Result.Error(ProfileError.FullNameTooLong)
+        }
 
         val fields = ProfileFields(
-            fullName = fullName.encodeToByteArray(),
+            fullName = trimmedFullName.encodeToByteArray(),
             phoneNumber = UNSET_FIELD,
             bankDetails = UNSET_FIELD,
         )
@@ -111,7 +117,7 @@ class ProfileRepository(
             User(
                 uuid = userUuid,
                 username = username,
-                fullName = fullName,
+                fullName = trimmedFullName,
             ).toUserEntity(),
         )
 

@@ -25,9 +25,10 @@ class RegisterViewModel(
         private set
 
     /**
-     * Takes [username] as typed: the field shows it lowercased, see
+     * Takes [username] as typed, neither lowercased nor trimmed: the field shows it lowercased, see
      * [app.lidory.duckcount.android.ui.text.LowercaseVisualTransformation], and it is checked and
-     * registered lowercased, see [RegisterScreenState.lowercasedUsername].
+     * registered lowercased and without the whitespace around it, see
+     * [RegisterScreenState.trimmedUsername].
      */
     fun updateUsername(username: String) {
         val typed = state.copy(username = username)
@@ -38,7 +39,7 @@ class RegisterViewModel(
             usernameError = if (username.isBlank()) {
                 null
             } else {
-                authenticationCallBacks.validateUsername(username = typed.lowercasedUsername)
+                authenticationCallBacks.validateUsername(username = typed.trimmedUsername)
             },
             error = null,
         )
@@ -119,6 +120,11 @@ data class RegisterScreenState(
     val usernameError: UsernameInputError? = null,
     val error: AuthError? = null,
 ) {
-    /** [username] as it is checked and registered: lowercased, as every username is. */
-    val lowercasedUsername: String = username.lowercase()
+    /**
+     * [username] lowercased, as every username is, and without the whitespace around it, which is
+     * what is checked and registered: one filled in with a stray space still goes through, a space
+     * never being valid. The field holds it as typed: trimmed as it is typed, a space typed at the
+     * end would be swallowed, and the cursor moved back over it.
+     */
+    val trimmedUsername: String = username.trim().lowercase()
 }

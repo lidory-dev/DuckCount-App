@@ -23,9 +23,10 @@ class LoginViewModel(
         private set
 
     /**
-     * Takes [username] as typed: the field shows it lowercased, see
+     * Takes [username] as typed, neither lowercased nor trimmed: the field shows it lowercased, see
      * [app.lidory.duckcount.android.ui.text.LowercaseVisualTransformation], and it is checked and
-     * logged in with lowercased, see [LoginScreenState.lowercasedUsername].
+     * logged in with lowercased and without the whitespace around it, see
+     * [LoginScreenState.trimmedUsername].
      */
     fun updateUsername(username: String) {
         val typed = state.copy(username = username)
@@ -36,7 +37,7 @@ class LoginViewModel(
             usernameError = if (username.isBlank()) {
                 null
             } else {
-                authenticationCallBacks.validateUsername(username = typed.lowercasedUsername)
+                authenticationCallBacks.validateUsername(username = typed.trimmedUsername)
             },
             error = null,
         )
@@ -77,8 +78,13 @@ data class LoginScreenState(
     val usernameError: UsernameInputError? = null,
     val error: AuthError? = null,
 ) {
-    /** [username] as it is checked and logged in with: lowercased, as every username is. */
-    val lowercasedUsername: String = username.lowercase()
+    /**
+     * [username] lowercased, as every username is, and without the whitespace around it, which is
+     * what is checked and logged in with: one filled in with a stray space still logs in, a space
+     * never being valid. The field holds it as typed: trimmed as it is typed, a space typed at the
+     * end would be swallowed, and the cursor moved back over it.
+     */
+    val trimmedUsername: String = username.trim().lowercase()
 
     val canLogIn = username.isNotBlank() &&
             usernameError == null &&

@@ -1,4 +1,5 @@
 import Combine
+import Foundation
 
 @MainActor
 public protocol CreateExpenseFormState: ObservableObject {
@@ -21,4 +22,14 @@ public protocol CreateExpenseFormState: ObservableObject {
     func updateBeneficiaries(selectedUserUuids: Set<String>)
     func updateBeneficiaryShare(userUuid: String, share: String)
     func clearSearchQuery()
+}
+
+public extension CreateExpenseFormState {
+    /// `title` without the whitespace around it, as the expense is saved with it, which the form
+    /// is checked by. The field holds it as typed: trimmed as it is typed, a space typed after a
+    /// word would be swallowed, and the cursor moved back over it.
+    var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// `description` without the whitespace around it, as `trimmedTitle` is `title`.
+    var trimmedDescription: String { description.trimmingCharacters(in: .whitespacesAndNewlines) }
 }

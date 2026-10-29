@@ -7,7 +7,7 @@ import UsernameInputError
 
 /**
  * Answers only what a form asks while it is typed in, every username passing the rules but one
- * holding a capital, which the library refuses as an invalid character.
+ * holding a capital or whitespace around it, which the library refuses as an invalid character.
  */
 class TypingOnlyCallBacks : AuthenticationCallBacks {
     override val passwordStrength = 15
@@ -18,7 +18,11 @@ class TypingOnlyCallBacks : AuthenticationCallBacks {
     override suspend fun registration(username: String, password: String): AuthOutcome<String> = TODO()
     override suspend fun login(username: String, password: String): AuthOutcome<Unit> = TODO()
     override fun validateUsername(username: String): UsernameInputError? =
-        if (username != username.lowercase()) UsernameInputError.INVALID_CHARACTER else null
+        if (username != username.lowercase() || username != username.trim()) {
+            UsernameInputError.INVALID_CHARACTER
+        } else {
+            null
+        }
 
     override suspend fun insertUser(
         uuid: String,

@@ -25,7 +25,7 @@ class UserProfileViewModel(
     val maxFullNameLength = settingsCallBacks.maxFullNameLength
 
     /**
-     * What the user typed, or null while the field still holds the saved name.
+     * What the user typed, as typed, or null while the field still holds the saved name.
      *
      * Snapshot state rather than a flow: the field has to get its text back in the same frame as
      * the edit, which a collected flow only delivers a frame later.
@@ -109,7 +109,15 @@ sealed interface UserProfileScreenState {
         val isSaving: Boolean,
         val error: ProfileSaveError?,
     ) : UserProfileScreenState {
+        /**
+         * [draftFullName] without the whitespace around it, as the profile is saved with it, which
+         * the form is checked by, see [canSave]: a space added to [fullName] alone is nothing to
+         * save. The field holds it as typed: trimmed as it is typed, a space typed after a word
+         * would be swallowed, and the cursor moved back over it.
+         */
+        val trimmedDraftFullName: String = draftFullName.trim()
+
         val canSave: Boolean =
-            draftFullName.isNotBlank() && draftFullName != fullName && !isSaving
+            trimmedDraftFullName.isNotEmpty() && trimmedDraftFullName != fullName && !isSaving
     }
 }

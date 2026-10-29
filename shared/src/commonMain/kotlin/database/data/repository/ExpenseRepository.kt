@@ -21,6 +21,7 @@ import database.domain.Beneficiary
 import database.domain.Currency
 import database.domain.Expense
 import database.domain.ExpenseWithBeneficiaries
+import database.domain.trimmed
 import expense.FIRST_REVISION
 import expense.OneTimeExpenseHistoryError
 import expense.OneTimeExpenseKeyRecord
@@ -84,6 +85,10 @@ class ExpenseRepository(
      * and notes that everyone the expense names is owed it, posts the expense with the
      * creditor's copy of that key, and hands the key over.
      *
+     * Its title and description are taken without the whitespace around them, as a group's are,
+     * see [trimmed], both into what is sealed and signed, which every beneficiary opens, and into
+     * the row the creditor's own list shows.
+     *
      * The key, and who is owed it, are kept before the post and not after it. The expense
      * exists from the moment the server stores it, which can be before an answer that never
      * arrives. Until the next sync brings the creditor's copy back, a creditor without the
@@ -105,6 +110,8 @@ class ExpenseRepository(
     suspend fun createOneTimeExpense(
         expenseWithBeneficiaries: ExpenseWithBeneficiaries,
     ): EmptyResult<OneTimeExpenseWriteError> {
+        val expense = expenseWithBeneficiaries.trimmed()
+
         val creditorUuid = getAuthenticatedUserUuid()
             ?: return Result.Error(OneTimeExpenseWriteError.NoSession)
 
@@ -118,7 +125,7 @@ class ExpenseRepository(
             ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
 
         val expenseKey = generateSymmetricEncryptionKey()
-        val beneficiaryUuids = expenseWithBeneficiaries.beneficiaries.map { it.userUuid }
+        val beneficiaryUuids = expense.beneficiaries.map { it.userUuid }
 
         val record = OneTimeExpenseKeyRecord(
             expenseUuid = id.uuid,
@@ -134,7 +141,7 @@ class ExpenseRepository(
             is Result.Error -> return Result.Error(OneTimeExpenseWriteError.Vault(sealed.error))
         }
 
-        val body = expenseWithBeneficiaries.sealOneTime(
+        val body = expense.sealOneTime(
             expenseKey = expenseKey,
             revision = FIRST_REVISION,
             client = client,
@@ -152,9 +159,9 @@ class ExpenseRepository(
             return Result.Error(refusalOf(error = created.error, beneficiaryUuids = beneficiaryUuids))
         }
 
-        val synced = expenseWithBeneficiaries.copy(
+        val synced = expense.copy(
             uuid = id.uuid,
-            beneficiaries = expenseWithBeneficiaries.beneficiaries.map {
+            beneficiaries = expense.beneficiaries.map {
                 it.copy(expenseUuid = id.uuid)
             },
         )
@@ -176,7 +183,9 @@ class ExpenseRepository(
 
     /**
      * Edits a one-time expense, re-sealing it under the key it already has and signing it as
-     * a newer version than any this device has shown or signed.
+     * a newer version than any this device has shown or signed. Its title and description are
+     * taken without the whitespace around them, as a creation takes them, see
+     * [createOneTimeExpense].
      *
      * Never under a new one: every participant holds the old key and nothing tells them to
      * expect another, so a re-keyed expense would go unreadable on every other phone while
@@ -212,10 +221,12 @@ class ExpenseRepository(
     suspend fun updateOneTimeExpense(
         expenseWithBeneficiaries: ExpenseWithBeneficiaries,
     ): EmptyResult<OneTimeExpenseWriteError> {
+        val expense = expenseWithBeneficiaries.trimmed()
+
         val creditorUuid = getAuthenticatedUserUuid()
             ?: return Result.Error(OneTimeExpenseWriteError.NoSession)
 
-        val expenseUuid = expenseWithBeneficiaries.uuid
+        val expenseUuid = expense.uuid
 
         val record = oneTimeExpenseKeyRepository.record(expenseUuid = expenseUuid)
             ?: return Result.Error(OneTimeExpenseWriteError.KeyMissing)
@@ -230,7 +241,7 @@ class ExpenseRepository(
             is Result.Error -> return Result.Error(OneTimeExpenseWriteError.Identity(opened.error))
         }
 
-        val beneficiaryUuids = expenseWithBeneficiaries.beneficiaries.map { it.userUuid }
+        val beneficiaryUuids = expense.beneficiaries.map { it.userUuid }
 
         val updated = record.withBeneficiaries(beneficiaryUuids = beneficiaryUuids)
 
@@ -239,7 +250,7 @@ class ExpenseRepository(
             is Result.Error -> return Result.Error(OneTimeExpenseWriteError.Vault(sealed.error))
         }
 
-        val body = expenseWithBeneficiaries.sealOneTime(
+        val body = expense.sealOneTime(
             expenseKey = record.key,
             revision = revision,
             client = client,
@@ -264,7 +275,7 @@ class ExpenseRepository(
         }
 
         expenseDao.upsertOneTimeExpense(
-            expense = expenseWithBeneficiaries.toExpenseWithBeneficiariesEntity(),
+            expense = expense.toExpenseWithBeneficiariesEntity(),
             revision = revision,
         )
 
@@ -422,16 +433,25 @@ class ExpenseRepository(
         expenseDao.insertBeneficiaries(beneficiaries = beneficiaries.map { it.toBeneficiaryEntity() })
     }
 
+    /**
+     * Saves a group expense, its title and description taken without the whitespace around them,
+     * as a one-time expense's are, see [trimmed].
+     */
     suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries) {
-        expenseDao.insertWithBeneficiaries(expenseWithBeneficiaries = expenseWithBeneficiaries.toExpenseWithBeneficiariesEntity())
+        expenseDao.insertWithBeneficiaries(
+            expenseWithBeneficiaries = expenseWithBeneficiaries.trimmed().toExpenseWithBeneficiariesEntity(),
+        )
     }
 
     suspend fun update(expense: Expense) {
         expenseDao.update(expenseEntity = expense.toExpenseEntity())
     }
 
+    /** Saves an edit of a group expense, taken as [insertWithBeneficiaries] takes one. */
     suspend fun updateWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries) {
-        expenseDao.updateWithBeneficiaries(expenseWithBeneficiaries = expenseWithBeneficiaries.toExpenseWithBeneficiariesEntity())
+        expenseDao.updateWithBeneficiaries(
+            expenseWithBeneficiaries = expenseWithBeneficiaries.trimmed().toExpenseWithBeneficiariesEntity(),
+        )
     }
 
     suspend fun delete(expense: Expense) {

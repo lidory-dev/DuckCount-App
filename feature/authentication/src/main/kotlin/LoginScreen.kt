@@ -146,7 +146,7 @@ fun LoginScreen(
                         visualTransformation = LowercaseVisualTransformation,
                         isInError = state.usernameError != null,
                         error = state.usernameError?.let {
-                            stringResource(it.messageRes(), state.username.length, viewModel.maxUsernameLength)
+                            stringResource(it.messageRes(), state.trimmedUsername.length, viewModel.maxUsernameLength)
                         },
                     )
 
@@ -185,7 +185,7 @@ fun LoginScreen(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {
                             viewModel.processLogin(
-                                username = state.lowercasedUsername,
+                                username = state.trimmedUsername,
                                 password = state.password,
                                 navigateToExpenseListScreen = navigateToDashboard,
                             )

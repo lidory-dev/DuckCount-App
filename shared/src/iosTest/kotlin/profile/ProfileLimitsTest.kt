@@ -18,8 +18,9 @@ private const val ALICE = "11111111-1111-1111-1111-111111111111"
 
 /**
  * The longest each field of a profile may be, see [ProfileLimits]: a full name past it refused
- * before anything is sealed, and the longest ciphertext a field at its limit seals to, which is
- * the cap the server holds that field to, with the sealing done by the library itself.
+ * before anything is sealed, counted as it is sealed, without the whitespace around it, and the
+ * longest ciphertext a field at its limit seals to, which is the cap the server holds that field
+ * to, with the sealing done by the library itself.
  */
 class ProfileLimitsTest {
 
@@ -68,6 +69,30 @@ class ProfileLimitsTest {
         assertEquals(224, sealed.ciphertext.length)
     }
 
+    /** A space typed at the end of the name would otherwise reach every contact. */
+    @Test
+    fun `a full name is sealed and saved without the whitespace around it`() = runBlocking<Unit> {
+        assertIs<Result.Success<Unit>>(
+            alice.uploadProfile(userUuid = ALICE, username = "alice", fullName = "  Ada  Lovelace \n"),
+        )
+
+        assertEquals("Ada  Lovelace", sealedFullName())
+        assertEquals(listOf("Ada  Lovelace"), users.written.map { it.fullName })
+    }
+
+    /** Held to its limit as it is sealed, without the whitespace around it. */
+    @Test
+    fun `a full name past the limit by the whitespace around it alone is sealed and saved`() = runBlocking<Unit> {
+        val fullName = "€".repeat(ProfileLimits.MAX_FULL_NAME_LENGTH)
+
+        assertIs<Result.Success<Unit>>(
+            alice.uploadProfile(userUuid = ALICE, username = "alice", fullName = " $fullName\n"),
+        )
+
+        assertEquals(fullName, sealedFullName())
+        assertEquals(listOf(fullName), users.written.map { it.fullName })
+    }
+
     /**
      * Three bytes of UTF-8 a unit is the most there is, a pair of surrogates taking four for its
      * two, and the 16-byte tag is all AES-GCM adds: the server's caps, 224, 152 and 192 characters
@@ -86,6 +111,13 @@ class ProfileLimitsTest {
             assertTrue(sealedLength(field = field, value = "😀".repeat(maxLength / 2)) <= cap, field)
             assertTrue(sealedLength(field = field, value = "a".repeat(maxLength)) <= cap, field)
         }
+    }
+
+    /** The full name Alice's profile holds under [key] on the server, opened. */
+    private fun sealedFullName(): String? {
+        val sealed = store.versionsOf(ALICE).getValue(profileEncryptionKeyPartialHash(key)).fullName
+
+        return unsealBound(key = key, context = "profile:$ALICE:full_name", content = sealed)?.decodeToString()
     }
 
     /** The Base64 length of [value] sealed as Alice's [field], as the profile goes up. */

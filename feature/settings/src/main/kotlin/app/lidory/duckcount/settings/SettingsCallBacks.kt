@@ -68,7 +68,8 @@ interface SettingsCallBacks {
     suspend fun refreshUserProfile(userUuid: String)
 
     /**
-     * Updates the user's profile, server first.
+     * Updates the user's profile, server first, with [fullName] taken without the whitespace
+     * around it.
      *
      * Nothing is kept locally when this fails, the profile lives on the server, so a
      * save that did not reach it did not happen.

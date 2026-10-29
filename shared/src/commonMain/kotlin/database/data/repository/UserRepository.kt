@@ -42,15 +42,23 @@ class UserRepository(
         }
     }
 
+    /**
+     * The users whose name contains [filter], hidden ones aside, see [UserDao.remove]. The filter
+     * is taken without the whitespace around it, as every search here takes it: the search field
+     * holds it as typed, and a space typed after a name would otherwise find nobody.
+     */
     fun getAllFiltered(filter: String): Flow<List<User>> {
-        return userDao.getAllFiltered(filter = filter).map { userEntities ->
+        return userDao.getAllFiltered(filter = filter.trim()).map { userEntities ->
             userEntities.map { it.toUser() }
         }
     }
 
-    /** Who the user can put in a group they create, see [UserDao.getInvitableFiltered]. */
+    /**
+     * Who the user can put in a group they create, see [UserDao.getInvitableFiltered], whose name
+     * contains [filter], taken without the whitespace around it, see [getAllFiltered].
+     */
     fun getInvitableFiltered(filter: String): Flow<List<User>> {
-        return userDao.getInvitableFiltered(filter = filter).map { userEntities ->
+        return userDao.getInvitableFiltered(filter = filter.trim()).map { userEntities ->
             userEntities.map { it.toUser() }
         }
     }
@@ -78,9 +86,12 @@ class UserRepository(
         return userDao.getFullNameEvenIfHidden(uuid = uuid)
     }
 
-    /** Who a group expense of the group [groupUuid] can name, see [UserDao.getAllFromGroupFiltered]. */
+    /**
+     * Who a group expense of the group [groupUuid] can name, see [UserDao.getAllFromGroupFiltered],
+     * whose name contains [filter], taken without the whitespace around it, see [getAllFiltered].
+     */
     fun getAllFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> {
-        return userDao.getAllFromGroupFiltered(filter, groupUuid).map { userEntities ->
+        return userDao.getAllFromGroupFiltered(filter.trim(), groupUuid).map { userEntities ->
             userEntities.map { it.toUser() }
         }
     }

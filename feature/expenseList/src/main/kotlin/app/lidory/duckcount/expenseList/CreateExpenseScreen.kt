@@ -49,6 +49,7 @@ import app.lidory.duckcount.expenseList.component.beneficiaryList.beneficiaryLis
 import app.lidory.duckcount.expenseList.model.ExpenseSaveError
 import app.lidory.duckcount.expenseList.model.message
 import app.lidory.duckcount.expenseList.viewmodel.CreateExpenseViewModel
+import app.lidory.duckcount.expenseList.viewmodel.canConfirmText
 import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
 
@@ -168,8 +169,10 @@ fun CreateExpenseScreen(
                         && (viewModel.isNewExpense() || hasChanges)
                         && viewModel.state.error == null
                         && viewModel.state.amount.isNotBlank()
-                        && viewModel.state.title.length in (1..viewModel.maxTitleLength)
-                        && viewModel.state.description.length in (0..viewModel.maxDescriptionLength),
+                        && viewModel.state.canConfirmText(
+                            maxTitleLength = viewModel.maxTitleLength,
+                            maxDescriptionLength = viewModel.maxDescriptionLength,
+                        ),
                 colors = ButtonDefaults.buttonColors()
                     .copy(containerColor = MaterialTheme.colorScheme.primary),
                 onClick = {
@@ -224,16 +227,18 @@ fun CreateExpenseScreen(
                         onValueChange = { viewModel.updateTitle(title = it) },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         focusManager = focusManager,
+                        // Counted as it is saved, without the whitespace around it, as the button
+                        // counts it, see canConfirmText.
                         error =
-                            if (viewModel.state.title.isBlank())
+                            if (viewModel.state.trimmedTitle.isEmpty())
                                 stringResource(androidUiR.string.title_mandatory)
                             else
                                 stringResource(
                                     R.string.title_too_long,
-                                    viewModel.state.title.length,
+                                    viewModel.state.trimmedTitle.length,
                                     viewModel.maxTitleLength,
                                 ),
-                        isInError = viewModel.state.title.length !in (1..viewModel.maxTitleLength),
+                        isInError = viewModel.state.trimmedTitle.length !in (1..viewModel.maxTitleLength),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -282,11 +287,13 @@ fun CreateExpenseScreen(
                         onValueChange = { viewModel.updateDescription(description = it) },
                         singleLine = false,
                         maxLines = 5,
+                        // Counted as the title is, without the whitespace around it.
                         error = stringResource(
-                            R.string.description_too_long, viewModel.state.description.length,
+                            R.string.description_too_long,
+                            viewModel.state.trimmedDescription.length,
                             viewModel.maxDescriptionLength,
                         ),
-                        isInError = viewModel.state.description.length > viewModel.maxDescriptionLength,
+                        isInError = viewModel.state.trimmedDescription.length > viewModel.maxDescriptionLength,
                         focusManager = focusManager,
                         modifier = Modifier.fillMaxWidth(),
                     )

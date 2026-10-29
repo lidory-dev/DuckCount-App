@@ -36,9 +36,11 @@ class ReserveDiscoveryUsernameViewModel(
 
     /**
      * What the user typed, as typed, or null while the field still holds the reserved username.
-     * Not lowercased here: rewriting what is being typed would hand the keyboard a new text at
-     * every capital, and drop the keys already on their way to it. The field shows it lowercased,
-     * and [DiscoveryUsernameScreenState.Content.username], what is checked and reserved, is.
+     * Neither lowercased nor trimmed here: rewriting what is being typed would hand the keyboard a
+     * new text at every capital, and drop the keys already on their way to it, and a space typed
+     * after a word would be swallowed, the cursor moved back over it. The field shows it
+     * lowercased, and [DiscoveryUsernameScreenState.Content.username], what is checked and
+     * reserved, is lowercased and without the whitespace around it.
      *
      * Snapshot state rather than a flow: the field has to get its text back in the same frame as
      * the edit, which a collected flow only delivers a frame later.
@@ -60,7 +62,7 @@ class ReserveDiscoveryUsernameViewModel(
             isReserving,
             error,
         ) { reserved, draft, isReserving, error ->
-            val username = draft?.lowercase() ?: reserved.orEmpty()
+            val username = draft?.trim()?.lowercase() ?: reserved.orEmpty()
 
             DiscoveryUsernameScreenState.Content(
                 username = username,
@@ -124,7 +126,11 @@ sealed interface DiscoveryUsernameScreenState {
     data object Loading : DiscoveryUsernameScreenState
 
     data class Content(
-        /** The username as it is checked and reserved: lowercased, as every username is. */
+        /**
+         * The username as it is checked and reserved: lowercased, as every username is, and
+         * without the whitespace around it, so that one pasted with a stray space still goes
+         * through, a space never being valid.
+         */
         val username: String,
         val inputError: UsernameInputError?,
         val isReserving: Boolean,

@@ -132,13 +132,13 @@ class CreateExpenseViewModel(
     private val loadedState = MutableStateFlow<CreateExpenseState?>(null)
 
     /**
-     * Whether the expense being edited has changed since it was read. Saved unchanged, it would
-     * spend one of the few edits the server allows a one-time expense, and add a version to its
-     * history that says nothing new.
+     * Whether the expense being edited has changed since it was read, see [isChangedFrom]. Saved
+     * unchanged, it would spend one of the few edits the server allows a one-time expense, and add
+     * a version to its history that says nothing new.
      */
     val hasChanges: StateFlow<Boolean> =
         combine(snapshotFlow { state }, loadedState) { current, loaded ->
-            loaded != null && current.savedContent() != loaded.savedContent()
+            loaded != null && current.isChangedFrom(loaded)
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000L),
@@ -600,6 +600,17 @@ data class CreateExpenseState(
     val isDeleted: Boolean = false,
     private val validateExpenseCallBack: (String, Currency, List<Beneficiary>) -> Int?,
 ) {
+    /**
+     * [title] without the whitespace around it, as the expense is saved with it, which the form is
+     * checked and compared by, see [canConfirmText] and [isChangedFrom]. The field holds it as
+     * typed: trimmed as it is typed, a space typed after a word would be swallowed, and the cursor
+     * moved back over it.
+     */
+    val trimmedTitle: String = title.trim()
+
+    /** [description] without the whitespace around it, as [trimmedTitle] is [title]. */
+    val trimmedDescription: String = description.trim()
+
     val error: Int? =
         when {
             // The amount field says so itself, and nothing is saved without one.
@@ -614,14 +625,34 @@ data class CreateExpenseState(
 }
 
 /**
- * What saving the form writes of the expense, and so what an edit has to change. Each share is
+ * Whether the title and description of [this] let the expense be confirmed, taken as they are
+ * saved, without the whitespace around them, see [CreateExpenseState.trimmedTitle]: a title of no
+ * more than [maxTitleLength], and a description of no more than [maxDescriptionLength]. The screen
+ * checks the rest besides: an amount the rules take, and for an expense being edited, a change,
+ * see [isChangedFrom].
+ */
+fun CreateExpenseState.canConfirmText(maxTitleLength: Int, maxDescriptionLength: Int): Boolean =
+    trimmedTitle.length in (1..maxTitleLength) &&
+        trimmedDescription.length in (0..maxDescriptionLength)
+
+/**
+ * Whether [this], the form of an expense being edited, differs from [loaded], the form as the
+ * expense was read into it, in what saving it writes, see [savedContent].
+ */
+fun CreateExpenseState.isChangedFrom(loaded: CreateExpenseState): Boolean =
+    savedContent() != loaded.savedContent()
+
+/**
+ * What saving the form writes of the expense, and so what an edit has to change. The title and
+ * description are taken as they are saved, without the whitespace around them, see
+ * [CreateExpenseState.trimmedTitle]: whitespace typed around them changes nothing. Each share is
  * taken by whose it is: working the shares out again gives every beneficiary a new identifier,
- * which changes nothing.
+ * which changes nothing either.
  */
 private fun CreateExpenseState.savedContent(): List<Any> =
     listOf(
-        title,
-        description,
+        trimmedTitle,
+        trimmedDescription,
         amount,
         currency,
         creditorUuid,
