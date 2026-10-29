@@ -222,6 +222,7 @@ fun BeneficiariesDialog(
                                     )
                                     .padding(vertical = Padding.medium),
                                 toggleSelectedUser = { toggleSelectedUser(user) },
+                                uuid = user.uuid,
                                 fullName = user.fullName,
                                 isChecked = isChecked,
                                 // A selected card stays enabled so that it can still be

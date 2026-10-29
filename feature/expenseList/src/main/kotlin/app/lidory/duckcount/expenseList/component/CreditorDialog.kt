@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,8 +30,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.composable.fullscreendialog.FullScreenDialog
+import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.R
@@ -136,16 +139,28 @@ fun CreditorDialog(
                                     onDismissRequest()
                                 },
                             ) {
+                                // Their picture on the left, as the contacts tab shows them.
                                 Row(
-                                    horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(TextFieldDefaults.MinHeight),
                                 ) {
+                                    ProfilePictureCard(
+                                        modifier = Modifier.fillMaxHeight(),
+                                        // TODO: use profile picture
+                                        profilePicture = null,
+                                        uuid = user.uuid,
+                                        fullName = user.fullName,
+                                    )
+
                                     Text(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(end = Padding.medium),
                                         text = user.fullName,
-                                        modifier = Modifier.padding(TextFieldDefaults.contentPaddingWithLabel()),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
                                 }
                             }

@@ -2,6 +2,7 @@ package app.lidory.duckcount.groupList.component.groupMemberList
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,7 +18,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.android.ui.R
+import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.component.OwnerLabel
 import app.lidory.duckcount.groupList.model.GroupMember
@@ -43,13 +46,24 @@ fun GroupMemberRow(
                 .fillMaxWidth()
                 .height(TextFieldDefaults.MinHeight),
         ) {
+            val displayName = memberFullName ?: stringResource(groupListR.string.unknown_member)
+
+            // Their picture on the left, as the contacts tab shows them.
+            ProfilePictureCard(
+                modifier = Modifier.fillMaxHeight(),
+                // TODO: use profile picture
+                profilePicture = null,
+                uuid = member.userUuid,
+                fullName = displayName,
+            )
+
             // On one line, cut short, as the row's height holds no more, the owner's label taking
             // some of its width.
             Text(
-                text = memberFullName ?: stringResource(groupListR.string.unknown_member),
+                text = displayName,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(TextFieldDefaults.contentPaddingWithLabel()),
+                    .padding(end = 16.dp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

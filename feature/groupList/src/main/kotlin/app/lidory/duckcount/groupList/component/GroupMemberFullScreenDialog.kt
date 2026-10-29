@@ -246,6 +246,7 @@ fun GroupMemberFullScreenDialog(
                                     )
                                     .padding(vertical = Padding.medium),
                                 toggleSelectedUser = { toggleSelectedUser(user) },
+                                uuid = user.uuid,
                                 fullName = user.fullName,
                                 isChecked = selectedUuids.contains(user.uuid),
                                 enabled = !isConfirming && isSelectable(
