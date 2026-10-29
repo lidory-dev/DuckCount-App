@@ -6,16 +6,15 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.add
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ButtonDefaults
@@ -44,6 +43,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
+import app.lidory.duckcount.android.ui.composable.button.isButtonPinned
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.component.CurrencyDropDownMenu
@@ -80,6 +80,34 @@ fun CreateOrEditGroupScreen(
 
     // Do not allow navigating back while creating the group, or saving what was edited of it.
     BackHandler(enabled = isSaving) {}
+
+    val isButtonPinned = isButtonPinned()
+
+    val confirmButton: @Composable (content: CreateGroupState.Content, modifier: Modifier) -> Unit =
+        { content, modifier ->
+            DuckCountElevatedLoadingButton(
+                modifier = modifier.fillMaxWidth(),
+                enabled = !isSaving
+                        && !isSaved
+                        && content.canConfirm(
+                            maxTitleLength = viewModel.maxTitleLength,
+                            maxDescriptionLength = viewModel.maxDescriptionLength,
+                        ),
+                colors = ButtonDefaults.buttonColors()
+                    .copy(containerColor = MaterialTheme.colorScheme.primary),
+                onClick = {
+                    // Navigation happens via viewModel.isSaved once the group is created or its
+                    // edits saved, otherwise popping this screen cancels the write under way.
+                    if (viewModel.groupUuid != null) viewModel.updateGroup() else viewModel.createGroup()
+                },
+                isLoading = isSaving,
+            ) {
+                Text(
+                    modifier = Modifier.padding(Padding.small),
+                    text = stringResource(androidUiR.string.confirm),
+                )
+            }
+        }
 
     // Navigate back only once the group is created or its edits saved (see
     // CreateGroupViewModel.isSaved), or the group being edited is gone (see
@@ -159,55 +187,42 @@ fun CreateOrEditGroupScreen(
             )
         },
         bottomBar = {
-            (viewModel.state as? CreateGroupState.Content)?.let { content ->
-                // The snackbars above the button, in the bar rather than over the screen: the list
-                // running under the bar leaves room at its end for the bar's height, so its last
-                // rows can be scrolled clear of a snackbar as well as of the button, see
-                // DuckCountSnackbarHost.
-                Column {
-                    DuckCountSnackbarHost(hostState = snackbarHostState)
+            // The snackbars above the button, in the bar rather than over the screen: the list
+            // ends above the bar, so that a snackbar hides none of its rows, see
+            // DuckCountSnackbarHost. The bar above the keyboard, which pushes it up, so that the
+            // button stays in reach as on every form: in the bar only while the window has room
+            // for it there, see isButtonPinned, at the end of the list otherwise. The keyboard's
+            // inset holds the navigation bar's while it is open. As wide as the window whether
+            // or not the button is in it, so that a snackbar stays centred, see
+            // DuckCountSnackbarHost.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
+            ) {
+                DuckCountSnackbarHost(hostState = snackbarHostState)
 
-                    DuckCountElevatedLoadingButton(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
+                val content = viewModel.state as? CreateGroupState.Content
+
+                if (content != null && isButtonPinned) {
+                    confirmButton(
+                        content,
+                        Modifier
                             .padding(horizontal = Padding.medium)
                             .padding(bottom = Padding.extraLarge),
-                        enabled = !isSaving
-                                && !isSaved
-                                && content.canConfirm(
-                                    maxTitleLength = viewModel.maxTitleLength,
-                                    maxDescriptionLength = viewModel.maxDescriptionLength,
-                                ),
-                        colors = ButtonDefaults.buttonColors()
-                            .copy(containerColor = MaterialTheme.colorScheme.primary),
-                        onClick = {
-                            // Navigation happens via viewModel.isSaved once the group is created or
-                            // its edits saved, otherwise popping this screen cancels the write under
-                            // way.
-                            if (viewModel.groupUuid != null) viewModel.updateGroup() else viewModel.createGroup()
-                        },
-                        isLoading = isSaving,
-                    ) {
-                        Text(
-                            modifier = Modifier.padding(Padding.small),
-                            text = stringResource(androidUiR.string.confirm),
-                        )
-                    }
+                    )
                 }
             }
         },
     ) { innerPadding ->
         Box(
             modifier = Modifier
-                .padding(
-                    top = innerPadding.calculateTopPadding(),
-                    start = Padding.medium,
-                    end = Padding.medium,
-                )
-                // The keyboard's inset taken whole: the padding above leaves out the Scaffold's
-                // bottom, the Box running under the button to the screen's bottom.
-                .imePadding()
+                // Above the bar, and so above the keyboard, which pushes it up: the field being
+                // filled is scrolled into the room left above the button, or above the keyboard
+                // while the button is at the end of the list, rather than under them. Read as the
+                // Box is laid out, so that the bar moving with the keyboard recomposes nothing.
+                .padding(innerPadding)
+                .padding(horizontal = Padding.medium)
                 .fillMaxSize(),
         ) {
             when (val state = viewModel.state) {
@@ -231,13 +246,9 @@ fun CreateOrEditGroupScreen(
                                 focusManager.clearFocus()
                             }
                             .fillMaxSize(),
-                        // The list scrolls under the button, which floats over its end: past the
-                        // last member, room enough for them to be scrolled clear of the button, or
-                        // of what of it the keyboard leaves uncovered.
-                        contentPadding = WindowInsets(bottom = innerPadding.calculateBottomPadding())
-                            .exclude(WindowInsets.ime)
-                            .add(WindowInsets(bottom = Padding.medium))
-                            .asPaddingValues(),
+                        // The last row as far from what is below it, the button, or the keyboard
+                        // while the button is that row, as the rows are from each other.
+                        contentPadding = PaddingValues(bottom = Padding.medium),
                         verticalArrangement = Arrangement.spacedBy(Padding.medium),
                     ) {
                         item {
@@ -302,6 +313,12 @@ fun CreateOrEditGroupScreen(
                                     viewModel.removeMember(member)
                                 },
                             )
+                        }
+
+                        // Out of the bar while the window is too short for it there, see
+                        // isButtonPinned.
+                        if (!isButtonPinned) {
+                            item { confirmButton(state, Modifier) }
                         }
                     }
                 }

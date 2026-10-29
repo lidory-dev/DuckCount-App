@@ -4,14 +4,17 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ButtonDefaults
@@ -39,6 +42,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
+import app.lidory.duckcount.android.ui.composable.button.isButtonPinned
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.component.AmountTextField
@@ -75,6 +79,39 @@ fun CreateExpenseScreen(
 
     // Do not allow navigating back while saving the expense.
     BackHandler(enabled = isSaving) {}
+
+    val isButtonPinned = isButtonPinned()
+
+    val confirmButton: @Composable (Modifier) -> Unit = { modifier ->
+        DuckCountElevatedLoadingButton(
+            modifier = modifier.fillMaxWidth(),
+            enabled = !isSaving
+                    && !isSaved
+                    && (viewModel.isNewExpense() || hasChanges)
+                    && viewModel.state.error == null
+                    && viewModel.state.amount.isNotBlank()
+                    && viewModel.state.canConfirmText(
+                        maxTitleLength = viewModel.maxTitleLength,
+                        maxDescriptionLength = viewModel.maxDescriptionLength,
+                    ),
+            colors = ButtonDefaults.buttonColors()
+                .copy(containerColor = MaterialTheme.colorScheme.primary),
+            onClick = {
+                if (viewModel.isNewExpense())
+                    viewModel.createExpense()
+                else
+                    viewModel.updateExpense()
+                // Navigation happens via viewModel.isSaved once write completes,
+                // otherwise popping this screen cancels the in-flight network write.
+            },
+            isLoading = isSaving,
+        ) {
+            Text(
+                modifier = Modifier.padding(Padding.small),
+                text = stringResource(androidUiR.string.confirm),
+            )
+        }
+    }
 
     // Navigate back only once write has completed (see CreateExpenseViewModel.isSaved), and
     // on resuming: onBack does nothing until the screen is resumed, so a write that completes
@@ -154,54 +191,29 @@ fun CreateExpenseScreen(
                 },
             )
         },
-        // Out of the column, which ends above the keyboard, so that the keyboard covers the button
-        // rather than pushing it up: in landscape, the height left above the keyboard would hardly
-        // hold both the button and the field being filled.
+        // Out of the column, which ends above the bar, and the bar above the keyboard, which
+        // pushes it up: the button stays in reach as on every form, and the column scrolls the
+        // field being filled into the room left above it. In the bar only while the window has
+        // room for it there, see isButtonPinned, at the end of the column otherwise.
         bottomBar = {
-            DuckCountElevatedLoadingButton(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(horizontal = Padding.medium)
-                    .padding(bottom = Padding.extraLarge),
-                enabled = !isSaving
-                        && !isSaved
-                        && (viewModel.isNewExpense() || hasChanges)
-                        && viewModel.state.error == null
-                        && viewModel.state.amount.isNotBlank()
-                        && viewModel.state.canConfirmText(
-                            maxTitleLength = viewModel.maxTitleLength,
-                            maxDescriptionLength = viewModel.maxDescriptionLength,
-                        ),
-                colors = ButtonDefaults.buttonColors()
-                    .copy(containerColor = MaterialTheme.colorScheme.primary),
-                onClick = {
-                    if (viewModel.isNewExpense())
-                        viewModel.createExpense()
-                    else
-                        viewModel.updateExpense()
-                    // Navigation happens via viewModel.isSaved once write completes,
-                    // otherwise popping this screen cancels the in-flight network write.
-                },
-                isLoading = isSaving,
-            ) {
-                Text(
-                    modifier = Modifier.padding(Padding.small),
-                    text = stringResource(androidUiR.string.confirm),
-                )
+            // The keyboard's inset holds the navigation bar's while it is open.
+            Box(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))) {
+                if (isButtonPinned) {
+                    confirmButton(
+                        Modifier
+                            .padding(horizontal = Padding.medium)
+                            .padding(bottom = Padding.extraLarge),
+                    )
+                }
             }
         },
     ) { innerPadding ->
         Column(
             modifier = Modifier
-                .padding(
-                    top = innerPadding.calculateTopPadding(),
-                    bottom = innerPadding.calculateBottomPadding(),
-                    start = Padding.medium,
-                    end = Padding.medium,
-                )
-                .consumeWindowInsets(innerPadding)
-                .imePadding()
+                // Read as the column is laid out, so that the bar moving with the keyboard
+                // recomposes nothing.
+                .padding(innerPadding)
+                .padding(horizontal = Padding.medium)
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,
@@ -215,7 +227,8 @@ fun CreateExpenseScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                // The last row as far from the button below as the rows are from each other.
+                // The last row as far from what is below it, the button, or the keyboard while
+                // the button is that row, as the rows are from each other.
                 contentPadding = PaddingValues(bottom = Padding.medium),
                 verticalArrangement = Arrangement.spacedBy(Padding.medium),
             ) {
@@ -324,6 +337,11 @@ fun CreateExpenseScreen(
                         viewModel.removeBeneficiaryFixedShare(userUuid = userUuid)
                     },
                 )
+
+                // Out of the bar while the window is too short for it there, see isButtonPinned.
+                if (!isButtonPinned) {
+                    item { confirmButton(Modifier) }
+                }
             }
 
             DuckCountSnackbarHost(hostState = snackbarHostState)
