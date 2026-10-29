@@ -29,6 +29,7 @@
         <item quantity="other">Membres (%1$d/%2$d)</item>
     </plurals>
     <string name="unknown_member">Quelqu’un d’autre</string>
+    <string name="group_owner">Propriétaire</string>
     <string name="group_creation_error_no_internet">Aucune connexion. Vérifiez votre connexion et réessayez</string>
     <string name="group_creation_error_timeout">Le serveur a mis trop de temps à répondre, réessayez plus tard</string>
     <string name="group_creation_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>

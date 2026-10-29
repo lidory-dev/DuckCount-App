@@ -18,9 +18,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.R
+import app.lidory.duckcount.groupList.component.OwnerLabel
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import app.lidory.duckcount.groupList.viewmodel.MemberActions
 
@@ -64,7 +67,9 @@ fun LazyListScope.groupMemberDetail(
     }
 }
 
-/** [member], tappable when [onClick] is not null. */
+/**
+ * [member], tappable when [onClick] is not null, marked when they own the group, see [OwnerLabel].
+ */
 @Composable
 fun LazyItemScope.MemberDetailCard(
     member: GroupMemberWithFullName,
@@ -96,9 +101,18 @@ fun LazyItemScope.MemberDetailCard(
                 fullName = displayName,
             )
 
+            // On one line, cut short, as the row's height holds no more, the owner's label taking
+            // some of its width.
             Text(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 16.dp),
                 text = displayName,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
+
+            if (member.member.isAdmin) OwnerLabel()
         }
     }
 

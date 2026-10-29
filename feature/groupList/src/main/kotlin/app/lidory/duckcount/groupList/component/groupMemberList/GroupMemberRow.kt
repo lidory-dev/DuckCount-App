@@ -16,8 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import app.lidory.duckcount.android.ui.R
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.groupList.component.OwnerLabel
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.R as groupListR
 
@@ -41,11 +43,19 @@ fun GroupMemberRow(
                 .fillMaxWidth()
                 .height(TextFieldDefaults.MinHeight),
         ) {
+            // On one line, cut short, as the row's height holds no more, the owner's label taking
+            // some of its width.
             Text(
                 text = memberFullName ?: stringResource(groupListR.string.unknown_member),
                 modifier = Modifier
+                    .weight(1f)
                     .padding(TextFieldDefaults.contentPaddingWithLabel()),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
+
+            // The user, who owns the group they create, see OwnerLabel.
+            if (member.isAdmin) OwnerLabel()
 
             if (isRemovable) {
                 IconButton(

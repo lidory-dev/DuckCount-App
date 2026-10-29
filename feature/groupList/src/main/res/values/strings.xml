@@ -29,6 +29,7 @@
         <item quantity="other">Members (%1$d/%2$d)</item>
     </plurals>
     <string name="unknown_member">Someone else</string>
+    <string name="group_owner">Owner</string>
     <string name="group_creation_error_no_internet">No connection, check your network and try again</string>
     <string name="group_creation_error_timeout">The server took too long to answer, please try again</string>
     <string name="group_creation_error_server_unreachable">Server is unreachable, please try again later</string>
