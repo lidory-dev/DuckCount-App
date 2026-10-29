@@ -151,7 +151,7 @@ class CreateExpenseFormTest {
 
     private companion object {
         const val MAX_TITLE_LENGTH = 50
-        const val MAX_DESCRIPTION_LENGTH = 2000
+        const val MAX_DESCRIPTION_LENGTH = 500
         const val TITLE = "Lunch"
         const val DESCRIPTION = "Pizza"
         val EURO = Currency(name = "Euro", symbol = "€", hasSubunits = true)

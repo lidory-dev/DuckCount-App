@@ -119,7 +119,7 @@ class AmountFieldTest {
      */
     private class SplittingCallBacks : CreateExpenseCallBacks {
         override val maxTitleLength = 50
-        override val maxDescriptionLength = 2000
+        override val maxDescriptionLength = 500
         override val maxBeneficiaries = 100
 
         override fun validateExpense(amount: String, currency: Currency, beneficiaries: List<Beneficiary>): Int? = null

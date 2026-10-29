@@ -5,7 +5,7 @@ import uniffi.lib_duckcount.maxBeneficiaries as maxBeneficiariesUniffi
 object ExpenseLimits {
     const val MAX_TITLE_LENGTH = 50
 
-    const val MAX_DESCRIPTION_LENGTH = 2000
+    const val MAX_DESCRIPTION_LENGTH = 500
 
     /**
      * The most beneficiaries an expense may list, its creditor included when listed, for a
