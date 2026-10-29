@@ -49,6 +49,8 @@
         <item quantity="one">%1$s deleted their account</item>
         <item quantity="other">%1$s deleted their accounts</item>
     </plurals>
+    <string name="group_edit_error_change_pending">The group can be edited once its last change reaches the server</string>
+    <string name="group_edit_error_outdated">The group was edited in the meantime, please save again</string>
 
     <!-- GroupSettingsScreen -->
     <plurals name="group_size">

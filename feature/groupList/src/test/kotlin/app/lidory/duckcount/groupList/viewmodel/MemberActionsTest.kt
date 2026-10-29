@@ -75,6 +75,7 @@ class MemberActionsTest {
         isLeft = false,
         hasPendingChange = hasPendingChange,
         canChangeMembers = canChangeMembers,
+        canEdit = canChangeMembers,
         canVouchForMembers = true,
         canLeave = !canChangeMembers,
     )

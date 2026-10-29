@@ -208,6 +208,37 @@ class GroupCreatorTest {
         )
     }
 
+    /**
+     * What every member's device holds the group to, checked against the key each pinned for Alice,
+     * see [GroupSync], and what a resend carries again as it was, see
+     * [CreateGroupBody.signature].
+     */
+    @Test
+    fun `the creation carries the creator's signature over the group's first version`() = runBlocking<Unit> {
+        val groupUuid = assertIs<Result.Success<String>>(create()).data
+        val body = posted.single().body
+
+        val version = assertNotNull(
+            SealedGroupVersion(
+                fields = SealedGroupFields(title = body.title, description = body.description, currency = body.currency),
+                revision = FIRST_GROUP_REVISION,
+                signature = body.signature,
+            ).unseal(groupKey = groups.getValue(groupUuid).groupKey, groupUuid = groupUuid),
+        )
+
+        assertEquals("Ski trip", version.fields.title)
+        assertEquals("Chalet and lift passes", version.fields.description)
+        assertEquals(CurrencyCatalog.defaultCurrency, version.fields.currency)
+        assertTrue(
+            version.isSignedBy(
+                ownerUuid = ALICE,
+                ownerSignatureKey = alice.signaturePublicKey(),
+                groupUuid = groupUuid,
+            ),
+        )
+        assertEquals(FIRST_GROUP_REVISION, groups.getValue(groupUuid).infoRevision)
+    }
+
     /** Sealing it reads the key ring, before any key package is asked for, which would be spent for nothing. */
     @Test
     fun `a key ring that does not answer creates nothing and asks for no key package`() = runBlocking<Unit> {

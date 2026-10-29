@@ -4,6 +4,7 @@ import app.lidory.duckcount.GroupLimits
 import database.domain.CurrencyCatalog
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -13,7 +14,8 @@ private const val OTHER_GROUP = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 
 /**
  * What a group's fields, sealed by its creator, open to: what was sealed, as that field of that
- * group under that key, and nothing else.
+ * group under that key, and nothing else. So does the signature over a version of them, sealed as
+ * one more field, see [GroupVersion.seal].
  */
 class GroupSealingTest {
 
@@ -105,4 +107,85 @@ class GroupSealingTest {
 
         assertNull(sealed.unseal(groupKey = groupKey, groupUuid = GROUP))
     }
+
+    @Test
+    fun `a version opens under the group it was sealed for with its revision and signature`() {
+        val opened = assertNotNull(sealedVersion().unseal(groupKey = groupKey, groupUuid = GROUP))
+
+        assertEquals("Ski trip", opened.fields.title)
+        assertEquals(currency, opened.fields.currency)
+        assertEquals(3L, opened.revision)
+        assertContentEquals(SIGNATURE, opened.signature)
+    }
+
+    /**
+     * As a server serving one group's signature with another's fields would leave a member, the
+     * two groups under one key: the fields open, as this group's, and the signature does not.
+     */
+    @Test
+    fun `a version whose signature was sealed for another group does not open`() {
+        val elsewhere = sealedVersion(groupUuid = OTHER_GROUP)
+        val mixed = SealedGroupVersion(
+            fields = sealedVersion().fields,
+            revision = 3,
+            signature = elsewhere.signature,
+        )
+
+        assertNotNull(mixed.fields.unseal(groupKey = groupKey, groupUuid = GROUP))
+        assertNull(mixed.unseal(groupKey = groupKey, groupUuid = GROUP))
+    }
+
+    @Test
+    fun `a field does not open as the signature`() {
+        val version = sealedVersion()
+        val swapped = SealedGroupVersion(fields = version.fields, revision = 3, signature = version.fields.title)
+
+        assertNull(swapped.unseal(groupKey = groupKey, groupUuid = GROUP))
+    }
+
+    @Test
+    fun `the signature does not open as a field`() {
+        val version = sealedVersion()
+        val swapped = SealedGroupVersion(
+            fields = SealedGroupFields(
+                title = version.signature,
+                description = version.fields.description,
+                currency = version.fields.currency,
+            ),
+            revision = 3,
+            signature = version.signature,
+        )
+
+        assertNull(swapped.unseal(groupKey = groupKey, groupUuid = GROUP))
+    }
+
+    /** All or nothing: fields that open with no signature that does are a version nobody can tell the writer of. */
+    @Test
+    fun `a version whose signature alone does not open does not open`() {
+        val mixed = SealedGroupVersion(
+            fields = sealedVersion().fields,
+            revision = 3,
+            signature = sealedVersion(groupKey = generateSymmetricEncryptionKey()).signature,
+        )
+
+        assertNotNull(mixed.fields.unseal(groupKey = groupKey, groupUuid = GROUP))
+        assertNull(mixed.unseal(groupKey = groupKey, groupUuid = GROUP))
+    }
+
+    /**
+     * The fields [sealed] holds, as revision 3 with [SIGNATURE], sealed under [groupKey] for
+     * [groupUuid]. Sealing takes the signature as it is, whoever made it, see [GroupVersion.seal].
+     */
+    private fun sealedVersion(groupKey: ByteArray = this.groupKey, groupUuid: String = GROUP): SealedGroupVersion {
+        val version = GroupVersion(
+            fields = GroupFields(title = "Ski trip", description = "Chalet and lift passes", currency = currency),
+            revision = 3,
+            signature = SIGNATURE,
+        )
+
+        return assertNotNull(version.seal(groupKey = groupKey, groupUuid = groupUuid))
+    }
 }
+
+/** What stands for a creator's signature: sealing reads nothing of it, see [GroupVersion.seal]. */
+private val SIGNATURE = ByteArray(64) { it.toByte() }

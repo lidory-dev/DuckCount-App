@@ -50,6 +50,7 @@ import app.lidory.duckcount.groupList.component.CurrencyDropDownMenu
 import app.lidory.duckcount.groupList.component.GroupMemberFullScreenDialog
 import app.lidory.duckcount.groupList.component.groupMemberList.groupMemberList
 import app.lidory.duckcount.groupList.model.GroupCreationError
+import app.lidory.duckcount.groupList.model.GroupEditError
 import app.lidory.duckcount.groupList.model.message
 import app.lidory.duckcount.groupList.viewmodel.CreateGroupState
 import app.lidory.duckcount.groupList.viewmodel.CreateGroupViewModel
@@ -66,7 +67,7 @@ fun CreateOrEditGroupScreen(
 ) {
     val userListState by viewModel.usersState.collectAsStateWithLifecycle()
     val selectedUuids by viewModel.selectedUuids.collectAsStateWithLifecycle()
-    val isCreating by viewModel.isCreating.collectAsStateWithLifecycle()
+    val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val isSaved by viewModel.isSaved.collectAsStateWithLifecycle()
     val isGone by viewModel.isGone.collectAsStateWithLifecycle()
 
@@ -75,9 +76,10 @@ fun CreateOrEditGroupScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     var pendingError by remember { mutableStateOf<GroupCreationError?>(null) }
+    var pendingEditError by remember { mutableStateOf<GroupEditError?>(null) }
 
-    // Do not allow navigating back while creating the group.
-    BackHandler(enabled = isCreating) {}
+    // Do not allow navigating back while creating the group, or saving what was edited of it.
+    BackHandler(enabled = isSaving) {}
 
     // Navigate back only once the group is created or its edits saved (see
     // CreateGroupViewModel.isSaved), or the group being edited is gone (see
@@ -90,9 +92,13 @@ fun CreateOrEditGroupScreen(
         onPauseOrDispose {}
     }
 
-    // Tell why the creation failed, and who it was about.
+    // Tell why the creation failed, and who it was about, or why the edit was not saved.
     LaunchedEffect(Unit) {
         viewModel.showError.collect { pendingError = it }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.showEditError.collect { pendingEditError = it }
     }
 
     pendingError?.let { error ->
@@ -100,6 +106,14 @@ fun CreateOrEditGroupScreen(
         LaunchedEffect(error) {
             snackbarHostState.showSnackbar(message)
             pendingError = null
+        }
+    }
+
+    pendingEditError?.let { error ->
+        val message = error.message()
+        LaunchedEffect(error) {
+            snackbarHostState.showSnackbar(message)
+            pendingEditError = null
         }
     }
 
@@ -133,7 +147,7 @@ fun CreateOrEditGroupScreen(
                 },
                 navigationIcon = {
                     IconButton(
-                        enabled = !isCreating,
+                        enabled = !isSaving,
                         onClick = onBack,
                     ) {
                         Icon(
@@ -159,7 +173,7 @@ fun CreateOrEditGroupScreen(
                             .navigationBarsPadding()
                             .padding(horizontal = Padding.medium)
                             .padding(bottom = Padding.extraLarge),
-                        enabled = !isCreating
+                        enabled = !isSaving
                                 && !isSaved
                                 && content.canConfirm(
                                     maxTitleLength = viewModel.maxTitleLength,
@@ -174,7 +188,7 @@ fun CreateOrEditGroupScreen(
                             // way.
                             if (viewModel.groupUuid != null) viewModel.updateGroup() else viewModel.createGroup()
                         },
-                        isLoading = isCreating,
+                        isLoading = isSaving,
                     ) {
                         Text(
                             modifier = Modifier.padding(Padding.small),
@@ -231,7 +245,7 @@ fun CreateOrEditGroupScreen(
                             DuckCountTextField(
                                 value = state.title,
                                 labelName = stringResource(androidUiR.string.title),
-                                enabled = !isCreating,
+                                enabled = !isSaving,
                                 onValueChange = { viewModel.updateTitle(title = it) },
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                                 focusManager = focusManager,
@@ -248,7 +262,7 @@ fun CreateOrEditGroupScreen(
                                     currencies = viewModel.currencies,
                                     currencyDisplayName = viewModel::currencyDisplayName,
                                     onValueChange = viewModel::updateCurrency,
-                                    enabled = !isCreating,
+                                    enabled = !isSaving,
                                 )
                             }
                         }
@@ -257,7 +271,7 @@ fun CreateOrEditGroupScreen(
                             DuckCountTextField(
                                 value = state.description,
                                 labelName = stringResource(androidUiR.string.description),
-                                enabled = !isCreating,
+                                enabled = !isSaving,
                                 onValueChange = { viewModel.updateDescription(description = it) },
                                 singleLine = false,
                                 maxLines = 5,
@@ -278,7 +292,7 @@ fun CreateOrEditGroupScreen(
                             groupMemberList(
                                 members = state.members,
                                 maxMembers = viewModel.maxMembers,
-                                enabled = !isCreating,
+                                enabled = !isSaving,
                                 authenticatedUserUuid = viewModel.getAuthenticatedUserUuid(),
                                 onModifyMemberList = {
                                     viewModel.showMemberDialog()

@@ -4,6 +4,7 @@ import database.data.local.entity.GroupEntity
 import database.data.local.entity.OutgoingContactRequestEntity
 import database.data.remote.SendContactRequestBody
 import database.domain.CurrencyCatalog
+import group.FIRST_GROUP_REVISION
 import kotlinx.coroutines.runBlocking
 import mls.ApplicationMessageReading
 import mls.ConsumeKeyPackageDto
@@ -499,6 +500,7 @@ class ContactRequestSenderTest {
         title = "Ski trip",
         description = "Chalet and lift passes",
         currency = CurrencyCatalog.defaultCurrency,
+        infoRevision = FIRST_GROUP_REVISION,
         ownerUuid = ALICE,
         mlsGroupId = mlsGroupId,
         groupKey = groupKey,

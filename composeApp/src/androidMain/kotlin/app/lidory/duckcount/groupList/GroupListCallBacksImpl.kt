@@ -8,6 +8,7 @@ import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
 import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupCreationError
+import app.lidory.duckcount.groupList.model.GroupEditError
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.User
@@ -21,6 +22,7 @@ import database.data.repository.UserRepository
 import database.domain.CurrencyCatalog
 import database.domain.currencyDisplayName
 import group.GroupCreator
+import group.GroupEditor
 import group.GroupSync
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -32,6 +34,7 @@ class GroupListCallBacksImpl(
     val groupRepository: GroupRepository,
     val userRepository: UserRepository,
     private val groupCreator: GroupCreator,
+    private val groupEditor: GroupEditor,
     private val groupSync: GroupSync,
     private val groupNotifier: GroupNotifier,
     private val contactSync: ContactSync,
@@ -136,9 +139,16 @@ class GroupListCallBacksImpl(
         return authenticationUtils.getAuthenticatedUserUuid()
     }
 
-    override suspend fun updateGroup(uuid: String, title: String, description: String) {
-        groupRepository.updateTitleAndDescription(uuid = uuid, title = title, description = description)
-    }
+    override suspend fun updateGroup(uuid: String, title: String, description: String): GroupEditError? =
+        when (val edit = groupEditor.edit(groupUuid = uuid, title = title, description = description)) {
+            is Result.Success -> null
+
+            is Result.Error -> {
+                Log.w(TAG, "updateGroup: could not edit the group: ${edit.error}")
+
+                edit.error.toGroupEditError(isOnline = networkConnectivity.isOnline())
+            }
+        }
 
     override suspend fun refreshGroups() {
         val contactsBefore = contactArrivals.snapshot()

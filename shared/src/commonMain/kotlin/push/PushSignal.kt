@@ -84,9 +84,9 @@ data class PushSignal(
         GROUP_WELCOME,
 
         /**
-         * The creator of a group the user is in, or was in until now, changed it: added members
-         * or removed some, the user perhaps, or handed its members a new key, see
-         * `group.GroupSync`.
+         * The creator of a group the user is in, or was in until now, changed it: edited its title
+         * or description, see `group.GroupEditor`, added members or removed some, the user
+         * perhaps, or handed its members a new key, see `group.GroupSync`.
          *
          * Silent: which group, and whether the change concerns the user at all, the device learns
          * only from its sync, which tells them once it has read that they were removed. Taken only

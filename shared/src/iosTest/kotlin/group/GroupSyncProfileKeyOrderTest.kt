@@ -80,7 +80,7 @@ class GroupSyncProfileKeyOrderTest {
         FIRST_GROUP to generateSymmetricEncryptionKey(),
         SECOND_GROUP to generateSymmetricEncryptionKey(),
     )
-    private val serverFields = mutableMapOf<String, SealedGroupFields>()
+    private val serverVersions = mutableMapOf<String, SealedGroupVersion>()
 
     /** Alice's and Bob's MLS group for each group. */
     private val aliceGroupIds = mutableMapOf<String, ByteArray>()
@@ -287,6 +287,7 @@ class GroupSyncProfileKeyOrderTest {
             memberUuidsOf = { groupUuid -> members[groupUuid].orEmpty().map { it.userUuid } },
             replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
             updateKey = { _, _ -> error("Alice rotates no group's key here.") },
+            updateInformation = { _, _ -> error("Alice edits nothing here.") },
             markLeft = { error("Carol stays in every group.") },
             recordDeclined = { error("Nothing is declined here.") },
             forgetDeclined = { error("Nothing is declined here.") },
@@ -323,7 +324,7 @@ class GroupSyncProfileKeyOrderTest {
 
         aliceGroupIds[groupUuid] = creation.mlsGroupId
         serverMembers[groupUuid] = mutableListOf(ALICE, BOB, CAROL)
-        serverFields[groupUuid] = checkNotNull(FIELDS.seal(groupKey = groupKey, groupUuid = groupUuid))
+        serverVersions[groupUuid] = FIELDS.sealedAs(creator = alice, groupKey = groupKey, groupUuid = groupUuid)
         bobGroupIds[groupUuid] = bob.joinGroup(
             welcome = creation.welcome,
             expectedGroupUuid = groupUuid,
@@ -416,15 +417,13 @@ class GroupSyncProfileKeyOrderTest {
 
     /** [groupUuid] as the server lists it to Carol, once created. */
     private fun listedGroup(groupUuid: String): GroupDto? {
-        val fields = serverFields[groupUuid] ?: return null
+        val version = serverVersions[groupUuid] ?: return null
 
-        return GroupDto(
+        return listedGroupOf(
             uuid = groupUuid,
             ownerUuid = ALICE,
-            title = fields.title,
-            description = fields.description,
-            currency = fields.currency,
-            members = serverMembers.getValue(groupUuid).map { GroupMemberDto(userUuid = it) },
+            version = version,
+            memberUuids = serverMembers.getValue(groupUuid).toList(),
             keyCopy = null,
         )
     }

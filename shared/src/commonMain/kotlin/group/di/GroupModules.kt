@@ -3,6 +3,7 @@ package group.di
 import group.GroupApi
 import group.GroupCreationSender
 import group.GroupCreator
+import group.GroupEditor
 import group.GroupKeyCopies
 import group.GroupLeaver
 import group.GroupMembershipChanger
@@ -82,6 +83,14 @@ val groupModule = module {
             groupMembershipSender = get(),
             profileKeyVault = get(),
             memberProfileRepository = get(),
+        )
+    }
+
+    single {
+        GroupEditor(
+            groupApi = get(),
+            groupDao = get(),
+            mlsIdentityRepository = get(),
         )
     }
 

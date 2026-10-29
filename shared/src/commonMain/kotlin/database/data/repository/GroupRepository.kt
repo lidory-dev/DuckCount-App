@@ -20,14 +20,6 @@ class GroupRepository(
         groupDao.insertMembers(groupMemberEntities = groupMembers.map { it.toGroupMemberEntity() })
     }
 
-    /**
-     * Takes the [title] and [description] the user gave the group [uuid], on this device only: what
-     * the server holds of it stays as it was, see [GroupDao.updateTitleAndDescription].
-     */
-    suspend fun updateTitleAndDescription(uuid: String, title: String, description: String) {
-        groupDao.updateTitleAndDescription(uuid = uuid, title = title, description = description)
-    }
-
     fun getAll(): Flow<List<Group>> {
         return groupDao.getAllAsFlow().map { groupEntities ->
             groupEntities.map { it.toGroup() }

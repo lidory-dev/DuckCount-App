@@ -4,6 +4,7 @@ import database.data.local.entity.GroupEntity
 import database.data.local.entity.GroupMemberEntity
 import database.data.local.entity.GroupWithMembersEntity
 import database.domain.CurrencyCatalog
+import group.FIRST_GROUP_REVISION
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -15,7 +16,8 @@ private const val GROUP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 
 /**
  * What a group tells the screens of whether its members can be changed, and by whom, of whether
- * it vouches for who they are, and of whether the user may leave it.
+ * its information can be edited, of whether it vouches for who they are, and of whether the user
+ * may leave it.
  */
 class GroupMappingTest {
 
@@ -115,6 +117,29 @@ class GroupMappingTest {
     }
 
     @Test
+    fun `the creator may edit the group`() {
+        assertTrue(groupOf(ownerUuid = ALICE).seenBy(selfUuid = ALICE).canEdit)
+    }
+
+    /** Its members show no version of it but those its creator signed. */
+    @Test
+    fun `a member who did not create the group may not edit it`() {
+        assertFalse(groupOf(ownerUuid = ALICE).seenBy(selfUuid = BOB).canEdit)
+    }
+
+    /** A version is signed with the user's identity, which a log-out does not take, unlike the group's MLS state. */
+    @Test
+    fun `the creator of a group brought back after a log-out may edit it`() {
+        assertTrue(groupOf(ownerUuid = ALICE, mlsGroupId = null).seenBy(selfUuid = ALICE).canEdit)
+    }
+
+    /** It is still theirs to edit once the change goes through, which the edit waits for. */
+    @Test
+    fun `the creator may edit the group whatever is pending`() {
+        assertTrue(groupOf(ownerUuid = ALICE).seenBy(selfUuid = ALICE, hasPendingChange = true).canEdit)
+    }
+
+    @Test
     fun `nobody signed in created no group`() {
         assertFalse(groupOf(ownerUuid = ALICE).seenBy(selfUuid = null).canChangeMembers)
     }
@@ -135,6 +160,7 @@ class GroupMappingTest {
             title = "Ski trip",
             description = "Chalet and lift passes",
             currency = CurrencyCatalog.defaultCurrency,
+            infoRevision = FIRST_GROUP_REVISION,
             ownerUuid = ownerUuid,
             mlsGroupId = mlsGroupId,
             groupKey = ByteArray(32),

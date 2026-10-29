@@ -90,10 +90,10 @@ class GroupLeaverTest {
     /** Who is signed in. */
     private var selfUuid: String? = BOB
 
-    /** Alice's MLS group, the key she last handed over, and the fields as the server holds them. */
+    /** Alice's MLS group, the key she last handed over, and the group's information as the server holds it. */
     private var aliceGroupId: ByteArray? = null
     private var groupKey = generateSymmetricEncryptionKey()
-    private var serverFields: SealedGroupFields? = null
+    private var serverVersion: SealedGroupVersion? = null
 
     /** Who the server holds as the group's current members. */
     private val serverMembers = mutableListOf<String>()
@@ -172,6 +172,7 @@ class GroupLeaverTest {
         updateKey = { groupUuid, key ->
             groups[groupUuid] = groups.getValue(groupUuid).with(groupKey = key, isBackedUp = false)
         },
+        updateInformation = { _, _ -> error("Alice edits nothing here.") },
         markLeft = { groupUuid -> groups[groupUuid] = groups.getValue(groupUuid).with(isLeft = true) },
         recordDeclined = { groupUuid -> declined += groupUuid },
         forgetDeclined = { groupUuid -> declined -= groupUuid },
@@ -749,7 +750,7 @@ class GroupLeaverTest {
 
         aliceGroupId = creation.mlsGroupId
         serverMembers += listOf(ALICE, BOB, CAROL)
-        serverFields = checkNotNull(FIELDS.seal(groupKey = groupKey, groupUuid = GROUP))
+        serverVersion = FIELDS.sealedAs(creator = alice, groupKey = groupKey, groupUuid = GROUP)
 
         post(ciphertext = creation.welcome)
     }
@@ -793,7 +794,7 @@ class GroupLeaverTest {
 
     /**
      * Has Alice hand the members a new key as [GroupMembershipSender] does once a removal is applied,
-     * and the server re-seal the group's fields under it.
+     * and the server hold the group's information sealed again under it.
      */
     private suspend fun aliceRotates() {
         val newKey = generateSymmetricEncryptionKey()
@@ -802,7 +803,7 @@ class GroupLeaverTest {
         deliver(message)
 
         groupKey = newKey
-        serverFields = checkNotNull(FIELDS.seal(groupKey = newKey, groupUuid = GROUP))
+        serverVersion = FIELDS.sealedAs(creator = alice, groupKey = newKey, groupUuid = GROUP)
     }
 
     /** Has the server hand [message] from Alice to Bob, provided he is a current member, and returns its UUID then. */
@@ -824,17 +825,15 @@ class GroupLeaverTest {
 
     /** The group as the server lists it to Bob: to its current members alone. */
     private fun listedGroup(): GroupDto? {
-        val fields = serverFields ?: return null
+        val version = serverVersion ?: return null
 
         if (BOB !in serverMembers) return null
 
-        return GroupDto(
+        return listedGroupOf(
             uuid = GROUP,
             ownerUuid = ALICE,
-            title = fields.title,
-            description = fields.description,
-            currency = fields.currency,
-            members = serverMembers.map { GroupMemberDto(userUuid = it) },
+            version = version,
+            memberUuids = serverMembers.toList(),
             keyCopy = server.copies[GROUP],
         )
     }
@@ -849,6 +848,7 @@ class GroupLeaverTest {
         title = FIELDS.title,
         description = FIELDS.description,
         currency = FIELDS.currency,
+        infoRevision = FIRST_GROUP_REVISION,
         ownerUuid = ownerUuid,
         mlsGroupId = mlsGroupId,
         groupKey = groupKey,
@@ -870,6 +870,7 @@ private fun GroupEntity.with(
     title = title,
     description = description,
     currency = currency,
+    infoRevision = infoRevision,
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,

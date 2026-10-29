@@ -49,6 +49,8 @@
         <item quantity="one" tools:ignore="ImpliedQuantity">%1$s a supprimé son compte</item>
         <item quantity="other">%1$s ont supprimé leur compte</item>
     </plurals>
+    <string name="group_edit_error_change_pending">Le groupe pourra être modifié dès que sa dernière modification sera parvenue au serveur</string>
+    <string name="group_edit_error_outdated">Le groupe a été modifié entre-temps, enregistrez à nouveau</string>
 
     <!-- GroupSettingsScreen -->
     <plurals name="group_size">

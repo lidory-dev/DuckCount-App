@@ -39,6 +39,7 @@ class PendingMembershipChangeTest {
         title = EncryptedFieldDto(ciphertext = "dGl0bGU=", nonce = "bm9uY2Ux"),
         description = EncryptedFieldDto(ciphertext = "ZGVzY3JpcHRpb24=", nonce = "bm9uY2Uy"),
         currency = EncryptedFieldDto(ciphertext = "Y3VycmVuY3k=", nonce = "bm9uY2Uz"),
+        signature = EncryptedFieldDto(ciphertext = "c2lnbmF0dXJl", nonce = "bm9uY2U1"),
         keyCopy = EncryptedFieldDto(ciphertext = "a2V5", nonce = "bm9uY2U0"),
     )
 
@@ -53,7 +54,7 @@ class PendingMembershipChangeTest {
             keysOf(PendingMembershipChange.Removal(groupUuid = GROUP, body = removal, commitEpoch = 1).toEntity()),
         )
         assertEquals(
-            setOf("nonce", "key_message", "title", "description", "currency", "key_copy"),
+            setOf("nonce", "key_message", "title", "description", "currency", "signature", "key_copy"),
             keysOf(
                 PendingMembershipChange.KeyRotation(groupUuid = GROUP, body = rotation, groupKey = ByteArray(32))
                     .toEntity(),

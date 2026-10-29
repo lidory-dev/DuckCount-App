@@ -9,6 +9,7 @@ import database.data.local.entity.PendingGroupCreationEntity
 import database.data.local.entity.PendingMembershipChangeEntity
 import database.domain.CurrencyCatalog
 import database.withInMemoryDatabase
+import group.FIRST_GROUP_REVISION
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -38,7 +39,8 @@ private const val OLDER_HASH = "older"
  * takes its word for it. And how a group the user leaves is recorded, see
  * [GroupDao.markLeftAndOweLeave], which `group.GroupLeaver` takes for done once it returns, and
  * when a group is recorded as backed up, see [GroupEntity.isBackedUp], which
- * `group.GroupKeyCopies` puts up no copy again for while the server lists one.
+ * `group.GroupKeyCopies` puts up no copy again for while the server lists one. And what a version
+ * of its information shown leaves of it, see [GroupDao.updateInformation].
  */
 class GroupDaoTest {
 
@@ -200,6 +202,31 @@ class GroupDaoTest {
             assertTrue(database.groupDao.getPendingCreations().isEmpty())
         }
     }
+
+    /** What an edit shown leaves of the group: the rest as it was, its currency among it. */
+    @Test
+    fun `a version shown replaces the title and the description and records its revision`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.groupDao.insert(groupOf(GROUP, groupKey = OLD_KEY))
+            database.groupDao.insert(groupOf(OTHER_GROUP))
+
+            database.groupDao.updateInformation(
+                uuid = GROUP,
+                title = "Ski trip 2027",
+                description = "Chalet, lift passes and the train",
+                infoRevision = 2,
+            )
+
+            val group = assertNotNull(database.groupDao.get(uuid = GROUP))
+
+            assertEquals("Ski trip 2027", group.title)
+            assertEquals("Chalet, lift passes and the train", group.description)
+            assertEquals(2L, group.infoRevision)
+            assertEquals(CurrencyCatalog.defaultCurrency, group.currency)
+            assertContentEquals(OLD_KEY, group.groupKey)
+            assertEquals(FIRST_GROUP_REVISION, assertNotNull(database.groupDao.get(uuid = OTHER_GROUP)).infoRevision)
+        }
+    }
 }
 
 /** Whether the group [GROUP] is recorded as backed up. */
@@ -223,6 +250,7 @@ private fun groupOf(
     title = "Ski trip",
     description = "",
     currency = CurrencyCatalog.defaultCurrency,
+    infoRevision = FIRST_GROUP_REVISION,
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,

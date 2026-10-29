@@ -95,6 +95,9 @@ object DuckCountRoutes {
         /** `GET` lists the groups the caller is a member of, `POST` creates one. */
         val GROUPS = GROUP_BASE_URL
 
+        /** `PUT` edits the information of one group, its owner alone. */
+        val GROUP = "$GROUP_BASE_URL/:group_uuid"
+
         /**
          * `GET` lists the messages waiting for the caller in one group, oldest first, `POST` posts
          * one to every other current member, any member.

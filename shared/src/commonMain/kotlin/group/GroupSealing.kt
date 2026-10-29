@@ -13,7 +13,8 @@ import vault.unsealBound
  *
  * Every field of one group is sealed under the same key, so without this they would be
  * interchangeable: the server could put the description where the title was, and both would open
- * perfectly. Naming the field binds that.
+ * perfectly. Naming the field binds that. The creator's signature over a version of the fields is
+ * sealed as one more field, see [GroupVersion], so that nothing else the group holds passes for it.
  *
  * Naming the group is a second check. A Welcome the server serves under another group's UUID is
  * refused for its id, which the library derives from the UUID of the group it was written for, see
@@ -27,6 +28,8 @@ private object Context {
     fun description(groupUuid: String) = "group:$groupUuid:description"
 
     fun currency(groupUuid: String) = "group:$groupUuid:currency"
+
+    fun signature(groupUuid: String) = "group:$groupUuid:signature"
 }
 
 /** A group's fields, as its members read them. */
@@ -41,6 +44,29 @@ internal class SealedGroupFields(
     val title: EncryptedFieldDto,
     val description: EncryptedFieldDto,
     val currency: EncryptedFieldDto,
+)
+
+/**
+ * One version of a group's information: its [fields], which [revision] of them they are, and the
+ * signature its creator made over both with their MLS identity, see [signedAs] and `group_information`
+ * in lib-duckcount. Every member holds the group's key, and could seal fields of their own, so the
+ * seal says nothing of who wrote a version: the signature does.
+ */
+internal class GroupVersion(
+    val fields: GroupFields,
+    val revision: Long,
+    val signature: ByteArray,
+)
+
+/**
+ * A [GroupVersion] as the server holds it: its fields and its signature sealed under the group's
+ * key, see [GroupVersion.seal], and its revision as it is, which the server reads to refuse an edit
+ * that does not come after the version it holds.
+ */
+internal class SealedGroupVersion(
+    val fields: SealedGroupFields,
+    val revision: Long,
+    val signature: EncryptedFieldDto,
 )
 
 /**
@@ -80,6 +106,37 @@ internal fun SealedGroupFields.unseal(groupKey: ByteArray, groupUuid: String): G
             ?.takeIf { it.length <= MAX_DESCRIPTION_LENGTH }
             ?: return null,
         currency = unsealBound(groupKey, Context.currency(groupUuid), currency)?.toCurrency() ?: return null,
+    )
+
+/**
+ * Seals this version under [groupKey] for the group [groupUuid]: its fields as [GroupFields.seal]
+ * does, and its signature as one more field, the raw bytes the library signed. Ready for `POST
+ * /groups`, an edit, see [EditGroupBody], and a key rotation, which seals the same version again
+ * under the new key, see [RotateGroupKeyBody].
+ *
+ * Returns null only when [groupKey] is not a 32-byte key, as for [GroupFields.seal].
+ */
+internal fun GroupVersion.seal(groupKey: ByteArray, groupUuid: String): SealedGroupVersion? =
+    SealedGroupVersion(
+        fields = fields.seal(groupKey = groupKey, groupUuid = groupUuid) ?: return null,
+        revision = revision,
+        signature = sealBound(groupKey, Context.signature(groupUuid), signature) ?: return null,
+    )
+
+/**
+ * Opens this version of the group [groupUuid] with [groupKey], or returns null when its fields do
+ * not open, see [SealedGroupFields.unseal], or its signature does not, as the signature of that
+ * group, under that key: all or nothing again, a version with no signature being one nobody can
+ * tell the writer of.
+ *
+ * Opened is not checked: whose signature it holds is for the caller to check against the group's
+ * creator, see [openSigned].
+ */
+internal fun SealedGroupVersion.unseal(groupKey: ByteArray, groupUuid: String): GroupVersion? =
+    GroupVersion(
+        fields = fields.unseal(groupKey = groupKey, groupUuid = groupUuid) ?: return null,
+        revision = revision,
+        signature = unsealBound(groupKey, Context.signature(groupUuid), signature) ?: return null,
     )
 
 /**

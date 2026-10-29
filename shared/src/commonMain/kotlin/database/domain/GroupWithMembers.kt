@@ -27,6 +27,15 @@ data class GroupWithMembers(
     val canChangeMembers: Boolean,
 
     /**
+     * Whether the user may edit the group's title and description, see `group.GroupEditor`: they
+     * created it, which makes them the one member whose versions of it the others show, and which
+     * they are never removed from. Whether or not this device holds its MLS state, each version
+     * being signed with the user's identity, which outlives a log-out, and whether or not
+     * [hasPendingChange], until which an edit is refused.
+     */
+    val canEdit: Boolean,
+
+    /**
      * Whether this device can tell who the group's members are on the group's word, which a
      * contact request to one of them is checked against, see `contact.ContactRequestSender`: the
      * user is still in it, this device holds its MLS state, which a log-out takes, and its

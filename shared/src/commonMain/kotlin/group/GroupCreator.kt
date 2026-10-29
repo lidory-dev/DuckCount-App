@@ -44,11 +44,12 @@ import kotlin.io.encoding.Base64
  *    session is read and before any key package is asked for, and then, under [withGroupsLock]
  *    like everything after, every one of them a contact this device pinned an identity for, none
  *    of them blocked, see [refusalOf].
- * 2. The group's key is drawn, and the creator's copy of it sealed for the server to keep, see
- *    [GroupKeyCopies.seal], which reads the key ring: a key ring not answering stops everything
- *    here, with no key package spent. Then a key package is asked for each of them, a few at a
- *    time, see [fetchKeyPackages]. Any of them without one stops everything here, every one of
- *    them named, with nothing saved.
+ * 2. The group's key is drawn, its fields signed by the user as its first version, see
+ *    [FIRST_GROUP_REVISION], and sealed under it, and the creator's copy of it sealed for the
+ *    server to keep, see [GroupKeyCopies.seal], which reads the key ring: a key ring not answering
+ *    stops everything here, with no key package spent. Then a key package is asked for each of
+ *    them, a few at a time, see [fetchKeyPackages]. Any of them without one stops everything here,
+ *    every one of them named, with nothing saved.
  * 3. The group is built with the library, its key travelling in the Welcome with the key to every
  *    member's profile this device holds, see [build] and [profileKeysToHandOut], and saved with its
  *    members and the request that will create it, the creator's copy of its key in it, see
@@ -177,7 +178,10 @@ class GroupCreator internal constructor(
         val groupUuid = groupId.uuid
         val groupKey = generateSymmetricEncryptionKey()
 
-        val sealedFields = fields.seal(groupKey = groupKey, groupUuid = groupUuid)
+        // Signed once and sealed with the fields, as the key copy is, so that every resend of the
+        // creation carries the same version, see CreateGroupBody.signature.
+        val sealedVersion = fields.signedAs(client = client, groupUuid = groupUuid, revision = FIRST_GROUP_REVISION)
+            ?.seal(groupKey = groupKey, groupUuid = groupUuid)
             ?: return Result.Error(GroupCreationError.Crypto)
 
         // The creator's copy of the key, which the creation carries, see CreateGroupBody.keyCopy:
@@ -219,7 +223,7 @@ class GroupCreator internal constructor(
                     selfUuid = selfUuid,
                     fields = fields,
                     groupKey = groupKey,
-                    sealedFields = sealedFields,
+                    sealedVersion = sealedVersion,
                     keyCopy = keyCopy,
                     keyPackages = keyPackages,
                     profileKeys = profileKeys,
@@ -272,7 +276,8 @@ class GroupCreator internal constructor(
      * saves it as that group, see [GroupDao.insertCreated], holding the user's own key among
      * [profileKeys] for them, see [GroupEntity.handedProfileKeyHash], with the request that creates
      * it on the server, which it returns: sending [nonce], from which the server derives
-     * [groupUuid] as this device did, and [keyCopy], the user's copy of [groupKey].
+     * [groupUuid] as this device did, [sealedVersion], [fields] as the group's first version, and
+     * [keyCopy], the user's copy of [groupKey].
      *
      * Those of [keyPackages] the library cannot use, an expired one say, are named as having none,
      * as [fetchKeyPackages] names those who have none at all.
@@ -286,7 +291,7 @@ class GroupCreator internal constructor(
         selfUuid: String,
         fields: GroupFields,
         groupKey: ByteArray,
-        sealedFields: SealedGroupFields,
+        sealedVersion: SealedGroupVersion,
         keyCopy: EncryptedFieldDto,
         keyPackages: List<InviteeKeyPackage>,
         profileKeys: Map<String, ByteArray>,
@@ -316,9 +321,10 @@ class GroupCreator internal constructor(
             groupUuid = groupUuid,
             body = CreateGroupBody(
                 nonce = Base64.Default.encode(nonce),
-                title = sealedFields.title,
-                description = sealedFields.description,
-                currency = sealedFields.currency,
+                title = sealedVersion.fields.title,
+                description = sealedVersion.fields.description,
+                currency = sealedVersion.fields.currency,
+                signature = sealedVersion.signature,
                 welcomeMessage = Base64.Default.encode(creation.welcome),
                 invitedMemberUuids = keyPackages.map { it.userUuid },
                 keyCopy = keyCopy,
@@ -330,6 +336,7 @@ class GroupCreator internal constructor(
             title = fields.title,
             description = fields.description,
             currency = fields.currency,
+            infoRevision = sealedVersion.revision,
             ownerUuid = selfUuid,
             mlsGroupId = creation.mlsGroupId,
             groupKey = groupKey,

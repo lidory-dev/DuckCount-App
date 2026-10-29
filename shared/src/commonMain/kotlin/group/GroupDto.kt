@@ -27,6 +27,14 @@ data class CreateGroupBody(
     val currency: EncryptedFieldDto,
 
     /**
+     * The creator's signature over the three as the group's first version, see
+     * [FIRST_GROUP_REVISION], sealed under its key, see [GroupVersion.seal], which the server stores
+     * the group at. Signed and sealed once, as the group is built, and sent again with the rest of
+     * the body as it was.
+     */
+    val signature: EncryptedFieldDto,
+
+    /**
      * The one MLS Welcome every invitee joins from, Base64 encoded, carrying the group's key and the
      * key to every member's profile, see [welcomePayloadOf].
      */
@@ -107,7 +115,8 @@ data class RemoveGroupMembersBody(
 /**
  * Body of `PUT /groups/{group_uuid}/key`, which the creator sends once a removal is applied,
  * named by its [nonce] as an addition is, see [AddGroupMembersBody]: the new key for the members
- * who remain, and the group's fields sealed under it in place of those a removed member can open.
+ * who remain, and the group's information sealed under it in place of what a removed member can
+ * open. The server keeps the revision it holds, which the rotation leaves as it was.
  */
 @Serializable
 data class RotateGroupKeyBody(
@@ -129,6 +138,13 @@ data class RotateGroupKeyBody(
     val currency: EncryptedFieldDto,
 
     /**
+     * The creator's signature over the fields as the revision the server holds, signed again and
+     * sealed under the new key, see [GroupVersion.seal], in place of the one sealed under the key
+     * it replaces.
+     */
+    val signature: EncryptedFieldDto,
+
+    /**
      * The creator's copy of the new key, sealed under their key ring, see [GroupKeyCopies.seal],
      * which replaces theirs as the server takes the rotation. The other members' copies stay as
      * they are: each member puts up its own once it reads the new key in the group, see
@@ -136,6 +152,31 @@ data class RotateGroupKeyBody(
      */
     @SerialName("key_copy")
     val keyCopy: EncryptedFieldDto,
+)
+
+/**
+ * Body of `PUT /groups/{group_uuid}`, which the creator alone sends to edit the group's information,
+ * see [GroupEditor]: its title and description, the currency staying the one it was created in.
+ *
+ * Nothing names the edit but its [revision]: the server takes it only when it comes after the
+ * revision it holds, and answers `409` otherwise, so the same edit sent again is never taken twice,
+ * nor one made over a version this device never saw.
+ */
+@Serializable
+data class EditGroupBody(
+    /** One more than the revision of the version edited, see [GroupVersion]. */
+    val revision: Long,
+
+    /** Sealed under the group's key as [CreateGroupBody]'s are, see [GroupFields.seal]. */
+    val title: EncryptedFieldDto,
+
+    val description: EncryptedFieldDto,
+
+    /**
+     * The creator's signature over the new title and description, with the group's currency, as
+     * [revision], sealed under the group's key, see [GroupVersion.seal].
+     */
+    val signature: EncryptedFieldDto,
 )
 
 /**
@@ -163,11 +204,12 @@ data class DeletedInviteesResponse(
  * Mirrors the server's `Group`: one group the caller is a member of, as `GET /groups` lists it.
  *
  * The three fields are sealed under the group's key, which the server never holds, see
- * [SealedGroupFields.unseal], and the caller's copy of that key under their key ring, see
- * [keyCopy]. [ownerUuid] and [members] are the server's word, see [GroupSync]. Of a
+ * [SealedGroupFields.unseal], with the creator's signature over them as [revision], see
+ * [GroupVersion], and the caller's copy of that key under their key ring, see [keyCopy].
+ * [ownerUuid], [creatorUuid] and [members] are the server's word, see [GroupSync]. Of a
  * group whose MLS state this device holds, they decide one thing alone: who is no longer a member,
  * whom its creator's device removes. A group brought back after a log-out, with no tree to tell
- * them, takes both as they are listed. And a group this device declined is not left while the
+ * them, takes its creator and its members as they are listed. And a group this device declined is not left while the
  * server lists the user as its owner.
  */
 @Serializable
@@ -177,11 +219,31 @@ data class GroupDto(
     @SerialName("owner_uuid")
     val ownerUuid: String,
 
+    /**
+     * Who created the group, and so signed every version of its information, see [GroupVersion]:
+     * [ownerUuid] but for a group a deletion of its creator's account handed over to another
+     * member, which the server lists under them, the versions staying the creator's. Whom a group
+     * brought back after a log-out is held to, there being no Welcome left to name them, see
+     * [GroupSync].
+     */
+    @SerialName("creator_uuid")
+    val creatorUuid: String,
+
     val title: EncryptedFieldDto,
 
     val description: EncryptedFieldDto,
 
     val currency: EncryptedFieldDto,
+
+    /**
+     * Which version of the group's information the three are, see [GroupVersion]: stored by the
+     * server as it takes its owner's edit coming after the one it holds, and covered by the
+     * creator's [signature], so the server's word for it is only as good as that signature.
+     */
+    val revision: Long,
+
+    /** The creator's signature over the three as [revision], sealed under the group's key, see [GroupVersion.seal]. */
+    val signature: EncryptedFieldDto,
 
     /**
      * Every current member, the caller and those invited who have not joined yet included: not

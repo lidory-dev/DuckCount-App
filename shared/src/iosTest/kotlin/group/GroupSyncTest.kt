@@ -243,6 +243,7 @@ class GroupSyncTest {
         memberUuidsOf = { groupUuid -> members[groupUuid].orEmpty().map { it.userUuid } },
         replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
         updateKey = { _, _ -> error("No group here is handed a new key.") },
+        updateInformation = { _, _ -> error("Alice edits nothing here.") },
         markLeft = { error("Nobody is removed from a group here.") },
         recordDeclined = { groupUuid -> declined += groupUuid },
         forgetDeclined = { groupUuid -> declined -= groupUuid },
@@ -597,6 +598,31 @@ class GroupSyncTest {
     }
 
     /**
+     * Carol holds the group's key, and seals a version of her own, which the server lists: nothing
+     * of the group is shown on Bob's device yet to keep instead, so it is refused as fields that do
+     * not open are.
+     */
+    @Test
+    fun `a version its creator did not sign is refused before anything is joined`() = runBlocking<Unit> {
+        invite(creator = alice, signer = carol)
+
+        assertDeclinedStoringNothing()
+    }
+
+    /** Signed by Alice as she wrote the Welcome, which is whose versions Bob's device shows from then on. */
+    @Test
+    fun `a group is joined at the revision of the version the server lists`() = runBlocking<Unit> {
+        invite(creator = alice, revision = 3)
+
+        assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+        val group = assertNotNull(groups[GROUP])
+
+        assertEquals("Ski trip", group.title)
+        assertEquals(3L, group.infoRevision)
+    }
+
+    /**
      * Dave, a member of Alice's group and a contact of Bob's, posting its Welcome again as a group
      * of his own, with fields he sealed for it under the key the Welcome handed him, listed before
      * Alice's: his is declined, and Alice's still joined.
@@ -871,6 +897,99 @@ class GroupSyncTest {
 
             assertTrue(fetched.isEmpty())
             assertTrue(server.putUp.isEmpty())
+        }
+
+    @Test
+    fun `a group brought back records the revision of the version the server lists`() = runBlocking<Unit> {
+        val groupKey = generateSymmetricEncryptionKey()
+
+        list(owner = ALICE, groupKey = groupKey, revision = 4)
+        server.copies[GROUP] = server.copyOf(groupKey = groupKey, sealedFor = GROUP)
+
+        assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+        assertEquals(4L, assertNotNull(groups[GROUP]).infoRevision)
+    }
+
+    /**
+     * Alice is pinned, as a contact's pin comes back with the vault after a log-out: Carol's version
+     * is not hers, and with nothing of the group shown to keep instead, it is not brought back,
+     * as a group whose fields do not open is not, its Welcome waited for.
+     */
+    @Test
+    fun `a group brought back whose version its creator did not sign is not brought back`() =
+        runBlocking<Unit> {
+            val groupKey = generateSymmetricEncryptionKey()
+
+            list(owner = ALICE, groupKey = groupKey, signer = carol)
+            server.copies[GROUP] = server.copyOf(groupKey = groupKey, sealedFor = GROUP)
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            assertTrue(groups.isEmpty())
+            assertTrue(declined.isEmpty())
+            assertTrue(left.isEmpty())
+        }
+
+    /**
+     * Mallory created the group, and is nobody to Bob, who holds no pin for her after a log-out:
+     * there is nothing to hold the version against, and it is taken at its word, whoever signed it.
+     */
+    @Test
+    fun `a group brought back whose creator this device holds no pin for is taken at its word`() =
+        runBlocking<Unit> {
+            val groupKey = generateSymmetricEncryptionKey()
+
+            list(owner = MALLORY, groupKey = groupKey, signer = carol, revision = 2)
+            server.copies[GROUP] = server.copyOf(groupKey = groupKey, sealedFor = GROUP)
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            val group = assertNotNull(groups[GROUP])
+
+            assertEquals("Ski trip", group.title)
+            assertEquals(MALLORY, group.ownerUuid)
+            assertEquals(2L, group.infoRevision)
+        }
+
+    /**
+     * Alice created the group and deleted her account, and the server handed it to Bob, whom it
+     * lists as its owner, still naming her as its creator: the version she signed holds up under
+     * the pin Bob's vault kept for her, and the group is brought back as hers. Held against his
+     * own key, it would be refused.
+     */
+    @Test
+    fun `a group handed over to the user as its creator deleted their account is brought back as hers`() =
+        runBlocking<Unit> {
+            val groupKey = generateSymmetricEncryptionKey()
+
+            list(owner = BOB, creator = ALICE, groupKey = groupKey, members = listOf(BOB, CAROL))
+            server.copies[GROUP] = server.copyOf(groupKey = groupKey, sealedFor = GROUP)
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            val group = assertNotNull(groups[GROUP])
+
+            assertEquals("Ski trip", group.title)
+            assertEquals(ALICE, group.ownerUuid)
+            assertTrue(declined.isEmpty())
+            assertTrue(left.isEmpty())
+        }
+
+    /** Listed with Alice as its creator, a version Carol signed is not hers, whoever owns the group. */
+    @Test
+    fun `a group handed over whose version its listed creator did not sign is not brought back`() =
+        runBlocking<Unit> {
+            val groupKey = generateSymmetricEncryptionKey()
+
+            list(owner = CAROL, creator = ALICE, groupKey = groupKey, members = listOf(BOB, CAROL), signer = carol)
+            server.copies[GROUP] = server.copyOf(groupKey = groupKey, sealedFor = GROUP)
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            assertTrue(groups.isEmpty())
+            assertTrue(declined.isEmpty())
+            assertTrue(left.isEmpty())
         }
 
     /**
@@ -1296,10 +1415,11 @@ class GroupSyncTest {
 
     /**
      * Has [creator] create the group [GROUP] with [invitees], handing [welcomePayload] in the
-     * Welcome, its fields sealed under [groupKey] for the group [sealedFor], and the server list it
-     * with [listedMembers] and the Welcome waiting for Bob, as sent by [creator]. The Welcome is
-     * sealed to Bob's last-resort key package when [sealedToLastResort], to a one-time one
-     * otherwise. Returns [groupKey].
+     * Welcome, its fields signed by [signer], [creator] unless a test says otherwise, as [revision]
+     * and sealed under [groupKey] for the group [sealedFor], and the server list it with
+     * [listedMembers] and the Welcome waiting for Bob, as sent by [creator]. The Welcome is sealed
+     * to Bob's last-resort key package when [sealedToLastResort], to a one-time one otherwise.
+     * Returns [groupKey].
      */
     private fun invite(
         creator: MlsClient,
@@ -1309,6 +1429,8 @@ class GroupSyncTest {
         sealedFor: String = GROUP,
         listedMembers: List<String> = (listOf(creator) + invitees).map { it.userUuid() },
         sealedToLastResort: Boolean = false,
+        signer: MlsClient = creator,
+        revision: Long = FIRST_GROUP_REVISION,
     ): ByteArray {
         val creation = creator.createGroup(
             groupUuid = GROUP,
@@ -1316,7 +1438,14 @@ class GroupSyncTest {
             welcomePayload = welcomePayload,
         )
 
-        list(owner = creator.userUuid(), groupKey = groupKey, sealedFor = sealedFor, members = listedMembers)
+        list(
+            owner = creator.userUuid(),
+            groupKey = groupKey,
+            sealedFor = sealedFor,
+            members = listedMembers,
+            signer = signer,
+            revision = revision,
+        )
 
         welcome = creation.welcome
         mlsGroupId = creation.mlsGroupId
@@ -1335,9 +1464,9 @@ class GroupSyncTest {
     }
 
     /**
-     * Has the server list [groupUuid], owned by [owner], with [members], its [fields] sealed under
-     * [groupKey] for the group [sealedFor], and whatever copy of its key it holds for Bob, see
-     * [ServerKeyCopies].
+     * Has the server list [groupUuid], owned by [owner], with [members], its [fields] as [revision],
+     * signed by [signer], [owner] unless a test says otherwise, and sealed under [groupKey] for the
+     * group [sealedFor], and whatever copy of its key it holds for Bob, see [ServerKeyCopies].
      */
     private fun list(
         owner: String,
@@ -1346,18 +1475,31 @@ class GroupSyncTest {
         sealedFor: String = groupUuid,
         members: List<String> = listOf(owner, BOB, CAROL),
         fields: GroupFields = FIELDS,
+        creator: String = owner,
+        signer: MlsClient = clientOf(creator),
+        revision: Long = FIRST_GROUP_REVISION,
     ) {
-        val sealed = assertNotNull(fields.seal(groupKey = groupKey, groupUuid = sealedFor))
-
-        listed += GroupDto(
+        listed += listedGroupOf(
             uuid = groupUuid,
             ownerUuid = owner,
-            title = sealed.title,
-            description = sealed.description,
-            currency = sealed.currency,
-            members = members.map { GroupMemberDto(userUuid = it) },
-            keyCopy = null,
+            creatorUuid = creator,
+            version = fields.sealedAs(
+                creator = signer,
+                groupKey = groupKey,
+                groupUuid = sealedFor,
+                revision = revision,
+            ),
+            memberUuids = members,
         )
+    }
+
+    private fun clientOf(userUuid: String) = when (userUuid) {
+        ALICE -> alice
+        BOB -> bob
+        CAROL -> carol
+        DAVE -> dave
+        MALLORY -> mallory
+        else -> error("No client for $userUuid")
     }
 
     /**
@@ -1433,13 +1575,14 @@ class GroupSyncTest {
             invitees = listOf(alice.inviteeKeyPackage()),
             welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
         )
-        val sealed = assertNotNull(FIELDS.seal(groupKey = groupKey, groupUuid = GROUP))
+        val sealed = FIELDS.sealedAs(creator = bob, groupKey = groupKey, groupUuid = GROUP)
 
         groups[GROUP] = GroupEntity(
             uuid = GROUP,
             title = FIELDS.title,
             description = FIELDS.description,
             currency = FIELDS.currency,
+            infoRevision = FIRST_GROUP_REVISION,
             ownerUuid = BOB,
             mlsGroupId = creation.mlsGroupId,
             groupKey = groupKey,
@@ -1452,9 +1595,10 @@ class GroupSyncTest {
             groupUuid = GROUP,
             body = CreateGroupBody(
                 nonce = Base64.Default.encode(ByteArray(16)),
-                title = sealed.title,
-                description = sealed.description,
-                currency = sealed.currency,
+                title = sealed.fields.title,
+                description = sealed.fields.description,
+                currency = sealed.fields.currency,
+                signature = sealed.signature,
                 welcomeMessage = Base64.Default.encode(creation.welcome),
                 invitedMemberUuids = listOf(ALICE),
                 keyCopy = server.copyOf(groupKey = groupKey, sealedFor = GROUP),
@@ -1481,6 +1625,7 @@ class GroupSyncTest {
             title = FIELDS.title,
             description = FIELDS.description,
             currency = FIELDS.currency,
+            infoRevision = FIRST_GROUP_REVISION,
             ownerUuid = BOB,
             mlsGroupId = creation.mlsGroupId,
             groupKey = groupKey,
@@ -1642,6 +1787,7 @@ private fun GroupEntity.withHanded(handedProfileKeyHash: String?) = GroupEntity(
     title = title,
     description = description,
     currency = currency,
+    infoRevision = infoRevision,
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,

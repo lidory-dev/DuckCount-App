@@ -235,9 +235,12 @@ class GroupKeyCopiesTest {
     private fun listingOf(uuid: String, keyCopy: EncryptedFieldDto?) = GroupDto(
         uuid = uuid,
         ownerUuid = ALICE,
+        creatorUuid = ALICE,
         title = SEALED,
         description = SEALED,
         currency = SEALED,
+        revision = FIRST_GROUP_REVISION,
+        signature = SEALED,
         members = listOf(GroupMemberDto(userUuid = ALICE)),
         keyCopy = keyCopy,
     )
@@ -248,6 +251,7 @@ class GroupKeyCopiesTest {
         title = "Ski trip",
         description = "",
         currency = CurrencyCatalog.defaultCurrency,
+        infoRevision = FIRST_GROUP_REVISION,
         ownerUuid = ALICE,
         mlsGroupId = uuid.encodeToByteArray(),
         groupKey = groupKey,

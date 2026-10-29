@@ -12,7 +12,8 @@ import kotlinx.coroutines.sync.withLock
  * would each act on what the other is halfway through: a creation still waiting on its answer
  * sent again alongside it, or the copy of a group's key put up just after a leave took it down,
  * see [GroupLeaver]: a log-out before the server hears the leave would bring the group back with
- * it, as one the user is still in.
+ * it, as one the user is still in. An edit of a group's information takes it as well, see
+ * [GroupEditor]: a key rotation built alongside it would put back the version it replaced.
  *
  * Process-wide, like the store the groups live in: one MLS client is opened per process, see
  * [mls.MlsIdentityRepository]. Not reentrant, so nothing called under it may take it again,

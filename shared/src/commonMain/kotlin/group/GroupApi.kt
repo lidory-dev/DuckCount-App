@@ -34,14 +34,14 @@ import kotlin.io.encoding.Base64
 const val MAX_GROUP_ACKNOWLEDGEMENT_BATCH = 100
 
 /**
- * Remote data source for the caller's groups: creating one, listing them, changing the members of
- * one, leaving one, the caller's own copy of each one's key, and the messages waiting in each, the
- * Welcome that lets an invitee in among them.
+ * Remote data source for the caller's groups: creating one, listing them, editing one, changing the
+ * members of one, leaving one, the caller's own copy of each one's key, and the messages waiting in
+ * each, the Welcome that lets an invitee in among them.
  *
  * Every field of a group is sealed on the creator's device under a key the server never holds,
- * see [GroupFields.seal], each member's copy of that key under a key only they hold, see
- * [GroupKeyCopies], and every message is MLS, so the server learns who is in which group and
- * nothing of what they share.
+ * see [GroupFields.seal], and signed by them, see [GroupVersion], each member's copy of that key
+ * under a key only they hold, see [GroupKeyCopies], and every message is MLS, so the server learns
+ * who is in which group and nothing of what they share.
  */
 class GroupApi(
     private val client: DuckCountClient,
@@ -80,6 +80,24 @@ class GroupApi(
     suspend fun getGroups(): Result<List<GroupDto>, NetworkError> =
         client.get<List<GroupDto>>(
             route = DuckCountRoutes.Group.GROUPS,
+        )
+
+    /**
+     * Replaces the information of the group [groupUuid], which the caller owns, with the version
+     * [body] carries, see [GroupEditor]. The server hands it to no member: each of their devices
+     * shows it once its next sync lists it, which the server wakes every other current member
+     * for, see [push.PushSignal.Kind.GROUP_CHANGED].
+     *
+     * A `409` is a [EditGroupBody.revision] that does not come after the one the server holds, a
+     * `403` a caller who is a member and not its owner, and a `404` one who is no member at all,
+     * or the proxy in front of the server answering as it is redeployed. Nothing is written but
+     * on the `204`.
+     */
+    suspend fun edit(groupUuid: String, body: EditGroupBody): EmptyResult<NetworkError> =
+        client.put<Unit, EditGroupBody>(
+            route = DuckCountRoutes.Group.GROUP,
+            pathParams = mapOf("group_uuid" to groupUuid),
+            body = body,
         )
 
     /**
@@ -145,8 +163,9 @@ class GroupApi(
 
     /**
      * Hands the members of the group [groupUuid], which the caller created, the key [body] carries,
-     * and replaces the group's fields with those sealed under it, and the caller's copy of its key
-     * with the one [body] carries, see [GroupMembershipAnswer].
+     * and replaces the group's fields and its creator's signature with those sealed under it, its
+     * revision as it was, and the caller's copy of its key with the one [body] carries, see
+     * [GroupMembershipAnswer].
      */
     suspend fun rotateKey(groupUuid: String, body: RotateGroupKeyBody): GroupMembershipAnswer =
         changeMembers {

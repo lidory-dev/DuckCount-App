@@ -31,6 +31,7 @@ class MemberNamesTest {
         isLeft = false,
         hasPendingChange = false,
         canChangeMembers = false,
+        canEdit = false,
         canVouchForMembers = true,
         canLeave = true,
     )

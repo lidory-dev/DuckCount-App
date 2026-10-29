@@ -98,6 +98,7 @@ internal fun GroupEntity.markedBackedUp() = GroupEntity(
     title = title,
     description = description,
     currency = currency,
+    infoRevision = infoRevision,
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,

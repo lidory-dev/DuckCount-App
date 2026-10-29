@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
 import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.GroupCreationError
+import app.lidory.duckcount.groupList.model.GroupEditError
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import app.lidory.duckcount.groupList.model.User
@@ -74,15 +75,20 @@ class CreateGroupViewModel(
     private val _isGone = MutableStateFlow(false)
     val isGone: StateFlow<Boolean> = _isGone.asStateFlow()
 
-    // True while the group is being created, so that the confirm button can show an in-place
-    // spinner and stay disabled until it is.
-    private val _isCreating = MutableStateFlow(false)
-    val isCreating: StateFlow<Boolean> = _isCreating.asStateFlow()
+    // True while the group is being created, or what the user edited of it saved, so that the
+    // confirm button can show an in-place spinner and stay disabled until it is.
+    private val _isSaving = MutableStateFlow(false)
+    val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 
     // Emitted with the reason when the creation failed, so that the screen can tell the user why,
     // and who it was about.
     private val _showError = Channel<GroupCreationError>(Channel.BUFFERED)
     val showError: Flow<GroupCreationError> = _showError.receiveAsFlow()
+
+    // Emitted with the reason when what the user edited was not saved, the form keeping what they
+    // typed for them to save again.
+    private val _showEditError = Channel<GroupEditError>(Channel.BUFFERED)
+    val showEditError: Flow<GroupEditError> = _showEditError.receiveAsFlow()
 
     var searchQuery by mutableStateOf("")
         private set
@@ -244,11 +250,11 @@ class CreateGroupViewModel(
     fun createGroup() = viewModelScope.launch {
         // Not once created either: each attempt is a group of its own, so a second one would
         // create the same group twice.
-        if (_isCreating.value || _isSaved.value) return@launch
+        if (_isSaving.value || _isSaved.value) return@launch
 
         val content = content ?: return@launch
 
-        _isCreating.value = true
+        _isSaving.value = true
 
         try {
             val error = groupListCallBacks.createGroup(
@@ -260,22 +266,34 @@ class CreateGroupViewModel(
 
             if (error == null) _isSaved.value = true else _showError.send(error)
         } finally {
-            _isCreating.value = false
+            _isSaving.value = false
         }
     }
 
-    /** Saves the title and the description the user gave the group being edited, see [isSaved]. */
+    /**
+     * Saves the title and the description the user gave the group being edited, see [isSaved], or
+     * tells why not, see [showEditError].
+     */
     fun updateGroup() = viewModelScope.launch {
+        // Not once saved either: a second one would be the next edit of the group, made over the
+        // one just saved.
+        if (_isSaving.value || _isSaved.value) return@launch
+
+        val uuid = groupUuid ?: return@launch
         val content = content ?: return@launch
 
-        groupUuid?.let {
-            groupListCallBacks.updateGroup(
-                uuid = groupUuid,
+        _isSaving.value = true
+
+        try {
+            val error = groupListCallBacks.updateGroup(
+                uuid = uuid,
                 title = content.title,
                 description = content.description,
             )
 
-            _isSaved.value = true
+            if (error == null) _isSaved.value = true else _showEditError.send(error)
+        } finally {
+            _isSaving.value = false
         }
     }
 

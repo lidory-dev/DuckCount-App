@@ -62,6 +62,7 @@ class LeaveActionTest {
         isLeft = isLeft,
         hasPendingChange = false,
         canChangeMembers = canChangeMembers,
+        canEdit = canChangeMembers,
         canVouchForMembers = !isLeft,
         canLeave = canLeave,
     )

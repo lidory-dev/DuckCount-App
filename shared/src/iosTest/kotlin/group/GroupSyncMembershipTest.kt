@@ -77,7 +77,7 @@ class GroupSyncMembershipTest {
     /** Alice's MLS group, the key she last handed over, and the fields as the server holds them. */
     private var aliceGroupId: ByteArray? = null
     private var groupKey = generateSymmetricEncryptionKey()
-    private var serverFields: SealedGroupFields? = null
+    private var serverVersion: SealedGroupVersion? = null
 
     /** Who the server holds as the group's current members, and whether it lists the group to Bob anyway. */
     private val serverMembers = mutableListOf<String>()
@@ -189,6 +189,7 @@ class GroupSyncMembershipTest {
         updateKey = { groupUuid, key ->
             groups[groupUuid] = groups.getValue(groupUuid).with(groupKey = key, isBackedUp = false)
         },
+        updateInformation = { _, _ -> error("Alice edits nothing here.") },
         markLeft = { groupUuid -> groups[groupUuid] = groups.getValue(groupUuid).with(isLeft = true) },
         recordDeclined = { groupUuid -> declined += groupUuid },
         forgetDeclined = { groupUuid -> declined -= groupUuid },
@@ -660,7 +661,11 @@ class GroupSyncMembershipTest {
             aliceRemoves(CAROL)
             aliceRotates()
 
-            serverFields = checkNotNull(FIELDS.seal(groupKey = generateSymmetricEncryptionKey(), groupUuid = GROUP))
+            serverVersion = FIELDS.sealedAs(
+                creator = alice,
+                groupKey = generateSymmetricEncryptionKey(),
+                groupUuid = GROUP,
+            )
 
             val pass = groupSync.sync(contactsTakenIn = true)
 
@@ -671,6 +676,29 @@ class GroupSyncMembershipTest {
             assertTrue(declined.isEmpty())
             assertNull(acknowledged[GROUP])
             assertTrue(GROUP !in waiting)
+            assertTrue(bobStore.keys(namespace_ = MlsNamespace.GROUP_STATE).isEmpty())
+        }
+
+    /**
+     * The server serving, under the key Alice handed over last, a version she did not sign: nothing
+     * of the group is shown on Bob's device yet to keep instead, so it is refused as one that does
+     * not open, once the join let him read that key.
+     */
+    @Test
+    fun `a group whose version its creator did not sign is declined and left once caught up`() =
+        runBlocking<Unit> {
+            aliceCreates()
+            aliceRemoves(CAROL)
+            aliceRotates()
+
+            serverVersion = FIELDS.sealedAs(creator = carol, groupKey = groupKey, groupUuid = GROUP)
+
+            val pass = groupSync.sync(contactsTakenIn = true)
+
+            assertNull(pass.failure)
+            assertTrue(pass.joined.isEmpty())
+            assertTrue(groups.isEmpty())
+            assertEquals(listOf(GROUP), left)
             assertTrue(bobStore.keys(namespace_ = MlsNamespace.GROUP_STATE).isEmpty())
         }
 
@@ -1179,6 +1207,7 @@ class GroupSyncMembershipTest {
             title = FIELDS.title,
             description = FIELDS.description,
             currency = FIELDS.currency,
+            infoRevision = FIRST_GROUP_REVISION,
             ownerUuid = ALICE,
             mlsGroupId = null,
             groupKey = groupKey,
@@ -1213,7 +1242,7 @@ class GroupSyncMembershipTest {
         aliceGroupId = creation.mlsGroupId
         carolsWelcome = creation.welcome
         serverMembers += listOf(ALICE, BOB, CAROL)
-        serverFields = checkNotNull(FIELDS.seal(groupKey = groupKey, groupUuid = GROUP))
+        serverVersion = FIELDS.sealedAs(creator = alice, groupKey = groupKey, groupUuid = GROUP)
 
         return post(sender = ALICE, ciphertext = creation.welcome)
     }
@@ -1269,7 +1298,7 @@ class GroupSyncMembershipTest {
         val delivered = deliver(message)
 
         groupKey = newKey
-        serverFields = checkNotNull(FIELDS.seal(groupKey = newKey, groupUuid = GROUP))
+        serverVersion = FIELDS.sealedAs(creator = alice, groupKey = newKey, groupUuid = GROUP)
 
         return delivered ?: ""
     }
@@ -1297,17 +1326,15 @@ class GroupSyncMembershipTest {
 
     /** The group as the server lists it to Bob: to its current members alone, unless a test says otherwise. */
     private fun listedGroup(): GroupDto? {
-        val fields = serverFields ?: return null
+        val version = serverVersion ?: return null
 
         if (BOB !in serverMembers && !isListedRegardless) return null
 
-        return GroupDto(
+        return listedGroupOf(
             uuid = GROUP,
             ownerUuid = ALICE,
-            title = fields.title,
-            description = fields.description,
-            currency = fields.currency,
-            members = serverMembers.map { GroupMemberDto(userUuid = it) },
+            version = version,
+            memberUuids = serverMembers.toList(),
             keyCopy = server.copies[GROUP],
         )
     }
@@ -1343,6 +1370,7 @@ private fun GroupEntity.with(
     title = title,
     description = description,
     currency = currency,
+    infoRevision = infoRevision,
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,

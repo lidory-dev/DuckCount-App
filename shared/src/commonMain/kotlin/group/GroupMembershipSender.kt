@@ -276,30 +276,46 @@ class GroupMembershipSender internal constructor(
     /**
      * Rotates the key of [group], whose removal was just applied: a new key, handed over in an MLS
      * application message the members it removed cannot read, sent in the epoch the removal took
-     * the group to, see [groupKeyMessageOf], and the group's fields sealed under it in place of
-     * those the removed members can open. Saved in place of the removal before it is sent, see
+     * the group to, see [groupKeyMessageOf], and the group's information sealed under it in place
+     * of what the removed members can open. Saved in place of the removal before it is sent, see
      * [send].
      *
-     * The fields re-sealed are those the server holds, opened with the key they are sealed under,
-     * so that the rotation changes nothing of them, as the server takes it, see
-     * [RotateGroupKeyBody]: what the user edited of them is edited on this device alone. Those it
-     * holds not opening, the user's own are sealed instead, as when the group was created.
+     * The version sealed again is the one the server holds, opened with the key it is sealed under,
+     * and signed again as the revision it is, so that the rotation changes nothing of it, as the
+     * server takes it, keeping its revision, see [RotateGroupKeyBody]: an edit of the user's whose
+     * answer was lost, which this device has yet to show, see [GroupSync], is the version the
+     * server holds. Only one the user signed, though: every member holds the key, and can seal
+     * fields of their own, which the server could list, and signed again here they would be the
+     * user's word to every member. Nor one older than the version this device shows, see
+     * [GroupEntity.infoRevision], which the user signed once and an edit of theirs replaced since:
+     * sealed under the new key, it is what a member holding that key alone, one added after the
+     * rotation say, would be shown, the group gone back to a version it left. One that does not
+     * open, that the user did not sign, or that is older, is replaced by the version this device
+     * shows, as when the group was created.
      *
      * The creator's copy of the new key goes with it, see [RotateGroupKeyBody.keyCopy], sealed
      * before anything is built in the group, see [keyCopyOf].
      *
-     * Not done when the server cannot be asked for the fields, the key ring cannot be read for the
-     * copy, or the user's storage fails: the removal stays, the group past its epoch, which the next
-     * sync takes for a removal applied, and rotates the key then. A key message the library refuses
-     * for good is a rotation that never can be, and the removal goes, the group keeping the key it
-     * had.
+     * Not done when the server cannot be asked for the version it holds, the key ring cannot be
+     * read for the copy, or the user's storage fails: the removal stays, the group past its epoch,
+     * which the next sync takes for a removal applied, and rotates the key then. A key message the
+     * library refuses for good is a rotation that never can be, and the removal goes, the group
+     * keeping the key it had.
      */
     private suspend fun rotate(group: GroupEntity, client: MlsClient) {
-        val opened = when (val listed = listGroups()) {
+        val serverVersion = when (val listed = listGroups()) {
             is Result.Success -> listed.data
                 .firstOrNull { it.uuid == group.uuid }
-                ?.let { SealedGroupFields(title = it.title, description = it.description, currency = it.currency) }
+                ?.sealedVersion()
                 ?.unseal(groupKey = group.groupKey, groupUuid = group.uuid)
+                ?.takeIf {
+                    it.revision >= group.infoRevision &&
+                        it.isSignedBy(
+                            ownerUuid = group.ownerUuid,
+                            ownerSignatureKey = client.signaturePublicKey(),
+                            groupUuid = group.uuid,
+                        )
+                }
 
             is Result.Error -> {
                 resendScheduler.resendAfter(seconds = UNANSWERED_RESEND_SECONDS)
@@ -308,13 +324,15 @@ class GroupMembershipSender internal constructor(
             }
         }
 
-        val fields = opened
+        val fields = serverVersion?.fields
             ?: GroupFields(title = group.title, description = group.description, currency = group.currency)
+        val revision = serverVersion?.revision ?: group.infoRevision
         val groupKey = generateSymmetricEncryptionKey()
 
-        val sealedFields = checkNotNull(fields.seal(groupKey = groupKey, groupUuid = group.uuid)) {
-            "A key from generateSymmetricEncryptionKey seals."
-        }
+        val sealedVersion = checkNotNull(
+            fields.signedAs(client = client, groupUuid = group.uuid, revision = revision)
+                ?.seal(groupKey = groupKey, groupUuid = group.uuid),
+        ) { "The library signs every version, and a key from generateSymmetricEncryptionKey seals." }
 
         val keyCopy = keyCopyOf(groupUuid = group.uuid, groupKey = groupKey) ?: run {
             resendScheduler.resendAfter(seconds = UNANSWERED_RESEND_SECONDS)
@@ -339,9 +357,10 @@ class GroupMembershipSender internal constructor(
             body = RotateGroupKeyBody(
                 nonce = newChangeNonce(),
                 keyMessage = Base64.Default.encode(keyMessage),
-                title = sealedFields.title,
-                description = sealedFields.description,
-                currency = sealedFields.currency,
+                title = sealedVersion.fields.title,
+                description = sealedVersion.fields.description,
+                currency = sealedVersion.fields.currency,
+                signature = sealedVersion.signature,
                 keyCopy = keyCopy,
             ),
             groupKey = groupKey,

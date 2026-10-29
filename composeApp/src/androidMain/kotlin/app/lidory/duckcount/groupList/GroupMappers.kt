@@ -5,6 +5,7 @@ import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupCreationError
 import app.lidory.duckcount.groupList.model.GroupCreationFailure
+import app.lidory.duckcount.groupList.model.GroupEditError
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.LeaveResult
@@ -26,6 +27,7 @@ import database.domain.GroupMember as GroupMemberDb
 import database.domain.GroupWithMembers as GroupWithMembersDb
 import database.domain.User as UserDb
 import group.GroupCreationError as SharedGroupCreationError
+import group.GroupEditError as SharedGroupEditError
 import group.GroupLeaveError as SharedGroupLeaveError
 import group.GroupMembershipError as SharedGroupMembershipError
 import group.MembershipChangeOutcome as SharedMembershipChangeOutcome
@@ -49,6 +51,7 @@ fun GroupWithMembersDb.toGroupListModel(): GroupWithMembers = GroupWithMembers(
     isLeft = isLeft,
     hasPendingChange = hasPendingChange,
     canChangeMembers = canChangeMembers,
+    canEdit = canEdit,
     canVouchForMembers = canVouchForMembers,
     canLeave = canLeave,
 )
@@ -202,6 +205,34 @@ suspend fun SharedGroupMembershipError.toMembershipChangeError(
 }
 
 /**
+ * Maps an edit of a group that was not saved to the reason the form surfaces: the group having a
+ * change on its way to the server, or the server holding an edit this device had yet to read, or
+ * else what kept it from going through, as for a creation, see [toGroupCreationError].
+ *
+ * What went wrong with the user's own storage or the library is folded into
+ * [GroupCreationFailure.UNKNOWN], as is nobody being signed in, and the device locking as the edit
+ * waited for a sync, as for a change to a group's members, see [toMembershipChangeError]. So is
+ * what the group's settings offer no edit of: a group the user did not create, see
+ * [GroupWithMembersDb.canEdit], or that this device no longer holds.
+ */
+fun SharedGroupEditError.toGroupEditError(isOnline: Boolean): GroupEditError = when (this) {
+    SharedGroupEditError.ChangePending -> GroupEditError.ChangePending
+
+    SharedGroupEditError.Outdated -> GroupEditError.Outdated
+
+    is SharedGroupEditError.Network -> GroupEditError.Failure(error.toGroupCreationFailure(isOnline = isOnline))
+
+    is SharedGroupEditError.Identity -> GroupEditError.Failure(error.toGroupCreationFailure(isOnline = isOnline))
+
+    SharedGroupEditError.NoSession,
+    SharedGroupEditError.DeviceLocked,
+    SharedGroupEditError.NotHeld,
+    SharedGroupEditError.NotCreator,
+    SharedGroupEditError.Crypto,
+        -> GroupEditError.Failure(GroupCreationFailure.UNKNOWN)
+}
+
+/**
  * What the group's settings are told of the user leaving it: left once this device recorded the
  * leave, whatever the server did, see `group.GroupLeaver`, or else nothing written, for a reason
  * folded into [GroupCreationFailure.UNKNOWN] whichever it was, nothing the user can act on: nobody
@@ -275,9 +306,10 @@ private fun VaultError.toGroupCreationFailure(isOnline: Boolean): GroupCreationF
 
 /**
  * The network failures of asking for the invitees' key packages, or the vault, along the way, or
- * of the server refusing the group, or the change to its members, which the app never sends it as
- * it would. An answer that never came is no failure at all: the group, or the change, is sent again
- * until one does, see `group.GroupCreator` and `group.GroupMembershipChanger`.
+ * of the server refusing the group, the change to its members, or the edit, which the app never
+ * sends it as it would. An answer that never came to a creation or a change is no failure at all:
+ * it is sent again until one does, see `group.GroupCreator` and `group.GroupMembershipChanger`.
+ * To an edit it is one, nothing sending it again, see `group.GroupEditor`.
  */
 private fun NetworkError.toGroupCreationFailure(isOnline: Boolean): GroupCreationFailure = when (this) {
     NetworkError.NO_INTERNET -> GroupCreationFailure.NO_INTERNET

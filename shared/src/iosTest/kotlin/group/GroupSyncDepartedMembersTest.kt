@@ -64,10 +64,13 @@ class GroupSyncDepartedMembersTest {
         welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
     )
 
-    /** Who the server holds as the group's current members, whether it lists the group at all, and its fields. */
+    /**
+     * Who the server holds as the group's current members, whether it lists the group at all, and
+     * its information, signed by Alice.
+     */
     private val serverMembers = mutableListOf(ALICE, BOB, CAROL, DAVE)
     private var isListed = true
-    private var serverFields = checkNotNull(FIELDS.seal(groupKey = groupKey, groupUuid = GROUP))
+    private var serverVersion = FIELDS.sealedAs(creator = alice, groupKey = groupKey, groupUuid = GROUP)
 
     /** The other groups the server lists to Alice, as a test has it. */
     private val otherListings = mutableListOf<GroupDto>()
@@ -111,10 +114,7 @@ class GroupSyncDepartedMembersTest {
             steps += "rotation"
             rotations += body
 
-            if (rotateAnswer == GroupMembershipAnswer.Made) {
-                serverFields =
-                    SealedGroupFields(title = body.title, description = body.description, currency = body.currency)
-            }
+            if (rotateAnswer == GroupMembershipAnswer.Made) serverVersion = serverVersion.rotatedBy(body)
 
             rotateAnswer
         },
@@ -183,6 +183,7 @@ class GroupSyncDepartedMembersTest {
         memberUuidsOf = { groupUuid -> members[groupUuid].orEmpty().map { it.userUuid } },
         replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
         updateKey = { _, _ -> error("Nobody hands Alice a key here.") },
+        updateInformation = { _, _ -> error("Alice edits nothing here.") },
         markLeft = { error("Nobody removes Alice here.") },
         recordDeclined = { error("Alice declines nothing here.") },
         forgetDeclined = { error("Alice declines nothing here.") },
@@ -461,15 +462,8 @@ class GroupSyncDepartedMembersTest {
         return listOfNotNull(own) + otherListings
     }
 
-    private fun listingOf(groupUuid: String, ownerUuid: String, memberUuids: List<String>) = GroupDto(
-        uuid = groupUuid,
-        ownerUuid = ownerUuid,
-        title = serverFields.title,
-        description = serverFields.description,
-        currency = serverFields.currency,
-        members = memberUuids.map { GroupMemberDto(userUuid = it) },
-        keyCopy = null,
-    )
+    private fun listingOf(groupUuid: String, ownerUuid: String, memberUuids: List<String>) =
+        listedGroupOf(uuid = groupUuid, ownerUuid = ownerUuid, version = serverVersion, memberUuids = memberUuids)
 
     /** [groupUuid] as this device holds it, created by [ownerUuid], in the MLS group [mlsGroupId]. */
     private fun createdGroup(
@@ -481,6 +475,7 @@ class GroupSyncDepartedMembersTest {
         title = FIELDS.title,
         description = FIELDS.description,
         currency = FIELDS.currency,
+        infoRevision = FIRST_GROUP_REVISION,
         ownerUuid = ownerUuid,
         mlsGroupId = mlsGroupId,
         groupKey = groupKey,
@@ -502,6 +497,7 @@ private fun GroupEntity.with(groupKey: ByteArray) = GroupEntity(
     title = title,
     description = description,
     currency = currency,
+    infoRevision = infoRevision,
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,

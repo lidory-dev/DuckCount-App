@@ -55,6 +55,13 @@ private val FIELDS = GroupFields(
     currency = CurrencyCatalog.defaultCurrency,
 )
 
+/** What the group shows once Alice edited it. */
+private val EDITED = GroupFields(
+    title = "Ski trip 2027",
+    description = "Chalet, lift passes and the train",
+    currency = CurrencyCatalog.defaultCurrency,
+)
+
 /**
  * What becomes of the changes Alice makes to the members of the group she created with Bob and
  * Carol, whatever the server answers, and what the members make of them: with every MLS client
@@ -114,6 +121,7 @@ class GroupMembershipChangerTest {
             title = FIELDS.title,
             description = FIELDS.description,
             currency = FIELDS.currency,
+            infoRevision = FIRST_GROUP_REVISION,
             ownerUuid = ALICE,
             mlsGroupId = creation.mlsGroupId,
             groupKey = groupKey,
@@ -152,8 +160,8 @@ class GroupMembershipChangerTest {
     /** Whom the server's refusals named as having deleted their account. */
     private val deletedAccounts = mutableListOf<String>()
 
-    /** The group's fields as the server holds them, sealed under the key it was last handed. */
-    private var serverFields = checkNotNull(FIELDS.seal(groupKey = groupKey, groupUuid = GROUP))
+    /** The group's information as the server holds it, signed by Alice, sealed under the key it was last handed. */
+    private var serverVersion = FIELDS.sealedAs(creator = alice, groupKey = groupKey, groupUuid = GROUP)
 
     /** Whether the server can be asked for the groups it lists. */
     private var isListingReachable = true
@@ -200,8 +208,7 @@ class GroupMembershipChangerTest {
             rotations += body
 
             if (rotateAnswer == GroupMembershipAnswer.Made) {
-                serverFields =
-                    SealedGroupFields(title = body.title, description = body.description, currency = body.currency)
+                serverVersion = serverVersion.rotatedBy(body)
                 server.copies[GROUP] = body.keyCopy
             }
 
@@ -320,7 +327,7 @@ class GroupMembershipChangerTest {
         val handedKey = assertNotNull(welcomeHandoverOf(payload = assertNotNull(inspection.welcomePayload))).groupKey
 
         assertContentEquals(groupKey, handedKey)
-        assertEquals(FIELDS.title, serverFields.unseal(groupKey = handedKey, groupUuid = GROUP)?.title)
+        assertEquals(FIELDS.title, serverVersion.fields.unseal(groupKey = handedKey, groupUuid = GROUP)?.title)
 
         val daveGroupId = dave.joinGroup(
             welcome = welcome,
@@ -592,12 +599,105 @@ class GroupMembershipChangerTest {
         assertTrue(groups.getValue(GROUP).isBackedUp)
 
         // Re-sealed under the new key alone, as they were.
-        val fields = assertNotNull(serverFields.unseal(groupKey = rotated, groupUuid = GROUP))
+        val fields = assertNotNull(serverVersion.fields.unseal(groupKey = rotated, groupUuid = GROUP))
 
         assertEquals(FIELDS.title, fields.title)
         assertEquals(FIELDS.description, fields.description)
         assertEquals(FIELDS.currency, fields.currency)
-        assertNull(serverFields.unseal(groupKey = groupKey, groupUuid = GROUP))
+        assertNull(serverVersion.fields.unseal(groupKey = groupKey, groupUuid = GROUP))
+    }
+
+    /**
+     * The server keeps the revision it holds, which the signature has to be over, see
+     * [RotateGroupKeyBody.signature].
+     */
+    @Test
+    fun `a key rotation signs the version the server holds again under the new key`() = runBlocking<Unit> {
+        remove(CAROL)
+
+        val rotated = groups.getValue(GROUP).groupKey
+        val version = assertNotNull(serverVersion.unseal(groupKey = rotated, groupUuid = GROUP))
+
+        assertEquals(FIRST_GROUP_REVISION, version.revision)
+        assertEquals(FIELDS.title, version.fields.title)
+        assertTrue(isAlices(version))
+        assertNull(serverVersion.unseal(groupKey = groupKey, groupUuid = GROUP))
+    }
+
+    /** An edit whose answer was lost: the server holds it, and Alice's device has yet to show it. */
+    @Test
+    fun `a key rotation signs again an edit the server holds that this device has yet to show`() =
+        runBlocking<Unit> {
+            serverVersion = EDITED.sealedAs(creator = alice, groupKey = groupKey, groupUuid = GROUP, revision = 2)
+
+            remove(CAROL)
+
+            val version = assertNotNull(
+                serverVersion.unseal(groupKey = groups.getValue(GROUP).groupKey, groupUuid = GROUP),
+            )
+
+            assertEquals(2L, version.revision)
+            assertEquals(EDITED.title, version.fields.title)
+            assertEquals(EDITED.description, version.fields.description)
+            assertTrue(isAlices(version))
+        }
+
+    /**
+     * Bob holds the group's key, and the server lists what he sealed: signed again, it would be
+     * Alice's word to every member. Hers is sealed instead, at the revision her device shows.
+     */
+    @Test
+    fun `a key rotation never signs a version another member sealed`() = runBlocking<Unit> {
+        serverVersion = EDITED.sealedAs(creator = bob, groupKey = groupKey, groupUuid = GROUP, revision = 2)
+
+        remove(CAROL)
+
+        val rotation = rotations.single()
+        val sealed = SealedGroupVersion(
+            fields = SealedGroupFields(
+                title = rotation.title,
+                description = rotation.description,
+                currency = rotation.currency,
+            ),
+            revision = FIRST_GROUP_REVISION,
+            signature = rotation.signature,
+        )
+        val version = assertNotNull(sealed.unseal(groupKey = groups.getValue(GROUP).groupKey, groupUuid = GROUP))
+
+        assertEquals(FIELDS.title, version.fields.title)
+        assertEquals(FIELDS.description, version.fields.description)
+        assertTrue(isAlices(version))
+    }
+
+    /**
+     * Alice's device shows her third revision, and the server lists her second, sealed under the
+     * same key as edits leave it: signed again under the new key, it would be what anybody handed
+     * that key alone is shown. Her third is sealed instead.
+     */
+    @Test
+    fun `a key rotation never signs again a version older than the one this device shows`() = runBlocking<Unit> {
+        val shown = assertNotNull(EDITED.signedAs(client = alice, groupUuid = GROUP, revision = 3))
+
+        groups[GROUP] = groups.getValue(GROUP).showing(shown)
+        serverVersion = FIELDS.sealedAs(creator = alice, groupKey = groupKey, groupUuid = GROUP, revision = 2)
+
+        remove(CAROL)
+
+        val rotation = rotations.single()
+        val sealed = SealedGroupVersion(
+            fields = SealedGroupFields(
+                title = rotation.title,
+                description = rotation.description,
+                currency = rotation.currency,
+            ),
+            revision = 3,
+            signature = rotation.signature,
+        )
+        val version = assertNotNull(sealed.unseal(groupKey = groups.getValue(GROUP).groupKey, groupUuid = GROUP))
+
+        assertEquals(EDITED.title, version.fields.title)
+        assertEquals(EDITED.description, version.fields.description)
+        assertTrue(isAlices(version))
     }
 
     /** Replacing the creator's copy on the server as it takes the rotation, see [RotateGroupKeyBody.keyCopy]. */
@@ -641,19 +741,6 @@ class GroupMembershipChangerTest {
         assertTrue(commit.removedSelf)
 
         assertFailsWith<MlsException> { carol.process(carolGroupId, rotations.single().keyMessage) }
-    }
-
-    /** What the user edited of the group is edited on this device alone. */
-    @Test
-    fun `a key rotation re-seals the fields the server holds and not those edited here`() = runBlocking<Unit> {
-        groups[GROUP] = groups.getValue(GROUP).withTitle("Edited here")
-
-        remove(CAROL)
-
-        val body = rotations.single()
-        val sealed = SealedGroupFields(title = body.title, description = body.description, currency = body.currency)
-
-        assertEquals(FIELDS.title, sealed.unseal(groupKey = groups.getValue(GROUP).groupKey, groupUuid = GROUP)?.title)
     }
 
     @Test
@@ -1170,17 +1257,19 @@ class GroupMembershipChangerTest {
     }
 
     /** The group as the server lists it. */
-    private fun listedGroup() = GroupDto(
+    private fun listedGroup() = listedGroupOf(
         uuid = GROUP,
         ownerUuid = ALICE,
-        title = serverFields.title,
-        description = serverFields.description,
-        currency = serverFields.currency,
-        members = members.getValue(GROUP).map { GroupMemberDto(userUuid = it.userUuid) },
+        version = serverVersion,
+        memberUuids = members.getValue(GROUP).map { it.userUuid },
         keyCopy = server.copies[GROUP],
     )
 
     private fun memberUuids() = members.getValue(GROUP).mapTo(HashSet()) { it.userUuid }
+
+    /** Whether Alice signed [version] of the group, as its members check it, see [GroupSync]. */
+    private fun isAlices(version: GroupVersion) =
+        version.isSignedBy(ownerUuid = ALICE, ownerSignatureKey = alice.signaturePublicKey(), groupUuid = GROUP)
 
     private fun clientOf(userUuid: String) = when (userUuid) {
         BOB -> bob
@@ -1237,6 +1326,7 @@ private fun GroupEntity.copy(
     title = title,
     description = description,
     currency = currency,
+    infoRevision = infoRevision,
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,
@@ -1247,9 +1337,6 @@ private fun GroupEntity.copy(
 
 /** [this] as `GroupDao.adoptRotatedKey` leaves it: the rotation carried the creator's copy of [groupKey]. */
 private fun GroupEntity.withKey(groupKey: ByteArray) = copy(groupKey = groupKey, isBackedUp = true)
-
-/** [this] with its title edited on this device. */
-private fun GroupEntity.withTitle(title: String) = copy(title = title)
 
 private fun GroupEntity.withOwner(ownerUuid: String) = copy(ownerUuid = ownerUuid)
 

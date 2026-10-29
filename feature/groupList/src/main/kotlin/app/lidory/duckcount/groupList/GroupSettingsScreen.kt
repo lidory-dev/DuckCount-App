@@ -146,8 +146,8 @@ fun GroupSettingsScreen(
                     }
                 },
                 actions = {
-                    // Read-only once the user is no longer in the group, removed or left.
-                    if (group?.isLeft == false) {
+                    // To its creator alone, whose versions of it are the ones its members show.
+                    if (group?.canEdit == true) {
                         IconButton(
                             onClick = navigateToEditGroup,
                         ) {

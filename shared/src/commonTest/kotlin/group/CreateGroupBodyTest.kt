@@ -20,6 +20,7 @@ class CreateGroupBodyTest {
         title = EncryptedFieldDto(ciphertext = "dGl0bGU=", nonce = "bm9uY2Ux"),
         description = EncryptedFieldDto(ciphertext = "ZGVzY3JpcHRpb24=", nonce = "bm9uY2Uy"),
         currency = EncryptedFieldDto(ciphertext = "Y3VycmVuY3k=", nonce = "bm9uY2Uz"),
+        signature = EncryptedFieldDto(ciphertext = "c2lnbmF0dXJl", nonce = "bm9uY2U1"),
         welcomeMessage = "d2VsY29tZQ==",
         invitedMemberUuids = listOf("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
         keyCopy = EncryptedFieldDto(ciphertext = "a2V5", nonce = "bm9uY2U0"),
@@ -30,7 +31,16 @@ class CreateGroupBodyTest {
         val written = Json.parseToJsonElement(pendingCreationOf(groupUuid = GROUP, body = body).body).jsonObject
 
         assertEquals(
-            setOf("nonce", "title", "description", "currency", "welcome_message", "invited_member_uuids", "key_copy"),
+            setOf(
+                "nonce",
+                "title",
+                "description",
+                "currency",
+                "signature",
+                "welcome_message",
+                "invited_member_uuids",
+                "key_copy",
+            ),
             written.keys,
         )
     }
@@ -56,12 +66,15 @@ class CreateGroupBodyTest {
         assertEquals(listOf("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), response.deletedUserUuids)
     }
 
+    /** Handed over to Bbbb as its creator, Dddd, deleted their account, who still signed it. */
     @Test
     fun `a group the server lists decodes with the caller's copy of its key`() {
         val groups = json.decodeFromString<List<GroupDto>>(
             """[{"uuid":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","owner_uuid":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "creator_uuid":"dddddddd-dddd-4ddd-8ddd-dddddddddddd",
             "title":{"ciphertext":"dA==","nonce":"bg=="},"description":{"ciphertext":"ZA==","nonce":"bg=="},
-            "currency":{"ciphertext":"Yw==","nonce":"bg=="},
+            "currency":{"ciphertext":"Yw==","nonce":"bg=="},"revision":3,
+            "signature":{"ciphertext":"cw==","nonce":"bg=="},
             "members":[{"user_uuid":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"},
             {"user_uuid":"cccccccc-cccc-4ccc-8ccc-cccccccccccc"}],
             "key_copy":{"ciphertext":"aw==","nonce":"bg=="}}]""",
@@ -70,7 +83,10 @@ class CreateGroupBodyTest {
         val group = groups.single()
 
         assertEquals("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", group.ownerUuid)
+        assertEquals("dddddddd-dddd-4ddd-8ddd-dddddddddddd", group.creatorUuid)
         assertEquals(EncryptedFieldDto(ciphertext = "Yw==", nonce = "bg=="), group.currency)
+        assertEquals(3L, group.revision)
+        assertEquals(EncryptedFieldDto(ciphertext = "cw==", nonce = "bg=="), group.signature)
         assertEquals(
             listOf("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
             group.members.map { it.userUuid },
@@ -83,12 +99,31 @@ class CreateGroupBodyTest {
     fun `a group the server lists with no copy of its key decodes`() {
         val groups = json.decodeFromString<List<GroupDto>>(
             """[{"uuid":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","owner_uuid":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "creator_uuid":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
             "title":{"ciphertext":"dA==","nonce":"bg=="},"description":{"ciphertext":"ZA==","nonce":"bg=="},
-            "currency":{"ciphertext":"Yw==","nonce":"bg=="},
+            "currency":{"ciphertext":"Yw==","nonce":"bg=="},"revision":1,
+            "signature":{"ciphertext":"cw==","nonce":"bg=="},
             "members":[{"user_uuid":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"}],"key_copy":null}]""",
         )
 
         assertNull(groups.single().keyCopy)
+    }
+
+    /** Nothing else is sent: the currency stays the one the group was created in, see [GroupEditor]. */
+    @Test
+    fun `an edit is written with the names the server reads`() {
+        val written = Json.encodeToJsonElement(
+            EditGroupBody.serializer(),
+            EditGroupBody(
+                revision = 2,
+                title = EncryptedFieldDto(ciphertext = "dA==", nonce = "bg=="),
+                description = EncryptedFieldDto(ciphertext = "ZA==", nonce = "bg=="),
+                signature = EncryptedFieldDto(ciphertext = "cw==", nonce = "bg=="),
+            ),
+        ).jsonObject
+
+        assertEquals(setOf("revision", "title", "description", "signature"), written.keys)
+        assertEquals("2", written.getValue("revision").toString())
     }
 
     @Test

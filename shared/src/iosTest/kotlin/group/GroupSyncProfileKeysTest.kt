@@ -120,7 +120,7 @@ class GroupSyncProfileKeysTest {
     /** Alice's MLS group, the key she last handed over, and the fields as the server holds them. */
     private var aliceGroupId: ByteArray? = null
     private var groupKey = generateSymmetricEncryptionKey()
-    private var serverFields: SealedGroupFields? = null
+    private var serverVersion: SealedGroupVersion? = null
 
     /** Who the server holds as the group's current members. */
     private val serverMembers = mutableListOf<String>()
@@ -197,6 +197,7 @@ class GroupSyncProfileKeysTest {
         memberUuidsOf = { groupUuid -> members[groupUuid].orEmpty().map { it.userUuid } },
         replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
         updateKey = { groupUuid, key -> groups[groupUuid] = groups.getValue(groupUuid).with(groupKey = key) },
+        updateInformation = { _, _ -> error("Alice edits nothing here.") },
         markLeft = { groupUuid -> groups[groupUuid] = groups.getValue(groupUuid).with(isLeft = true) },
         recordDeclined = { error("Nothing is declined here.") },
         forgetDeclined = { error("Nothing is declined here.") },
@@ -604,7 +605,7 @@ class GroupSyncProfileKeysTest {
         aliceGroupId = creation.mlsGroupId
         carolsWelcome = creation.welcome
         serverMembers += listOf(ALICE, BOB, CAROL)
-        serverFields = checkNotNull(FIELDS.seal(groupKey = groupKey, groupUuid = GROUP))
+        serverVersion = FIELDS.sealedAs(creator = alice, groupKey = groupKey, groupUuid = GROUP)
 
         post(sender = ALICE, ciphertext = creation.welcome)
 
@@ -744,17 +745,15 @@ class GroupSyncProfileKeysTest {
 
     /** The group as the server lists it to Bob: to its current members alone. */
     private fun listedGroup(): GroupDto? {
-        val fields = serverFields ?: return null
+        val version = serverVersion ?: return null
 
         if (BOB !in serverMembers) return null
 
-        return GroupDto(
+        return listedGroupOf(
             uuid = GROUP,
             ownerUuid = ALICE,
-            title = fields.title,
-            description = fields.description,
-            currency = fields.currency,
-            members = serverMembers.map { GroupMemberDto(userUuid = it) },
+            version = version,
+            memberUuids = serverMembers.toList(),
             keyCopy = null,
         )
     }
@@ -793,6 +792,7 @@ private fun GroupEntity.with(
     title = title,
     description = description,
     currency = currency,
+    infoRevision = infoRevision,
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,

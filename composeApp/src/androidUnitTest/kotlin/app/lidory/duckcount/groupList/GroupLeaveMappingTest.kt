@@ -51,6 +51,7 @@ class GroupLeaveMappingTest {
         isLeft = false,
         hasPendingChange = false,
         canChangeMembers = false,
+        canEdit = false,
         canVouchForMembers = true,
         canLeave = canLeave,
     )

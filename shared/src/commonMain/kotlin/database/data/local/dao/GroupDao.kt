@@ -47,12 +47,16 @@ interface GroupDao {
     }
 
     /**
-     * Takes the title and description the user gave the group [uuid], on this device only, or
-     * nothing once the group is gone: a creation the server refused deletes its group under
-     * whatever screen is open, see [deleteRefusedCreation].
+     * Shows [title] and [description] as the version [infoRevision] of the information of the
+     * group [uuid], see [GroupEntity.infoRevision]: one its creator signed, edited by the user, see
+     * `group.GroupEditor`, or listed by the server, see `group.GroupSync`. Its currency stays the
+     * one it was created in.
      */
-    @Query("UPDATE GroupEntity SET title = :title, description = :description WHERE uuid = :uuid")
-    suspend fun updateTitleAndDescription(uuid: String, title: String, description: String)
+    @Query(
+        """UPDATE GroupEntity SET title = :title, description = :description, infoRevision = :infoRevision
+        WHERE uuid = :uuid""",
+    )
+    suspend fun updateInformation(uuid: String, title: String, description: String, infoRevision: Long)
 
     @Query("SELECT count(*) FROM GroupEntity")
     suspend fun count(): Int

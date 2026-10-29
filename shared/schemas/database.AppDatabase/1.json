@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "8e15bf61817dd47eeddd4954ae4baa78",
+    "identityHash": "3065c976acd560576846074e07ba61c9",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -191,7 +191,7 @@
       },
       {
         "tableName": "GroupEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `currency` TEXT NOT NULL, `ownerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `groupKey` BLOB NOT NULL, `isBackedUp` INTEGER NOT NULL, `isLeft` INTEGER NOT NULL, `handedProfileKeyHash` TEXT, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `currency` TEXT NOT NULL, `infoRevision` INTEGER NOT NULL, `ownerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `groupKey` BLOB NOT NULL, `isBackedUp` INTEGER NOT NULL, `isLeft` INTEGER NOT NULL, `handedProfileKeyHash` TEXT, PRIMARY KEY(`uuid`))",
         "fields": [
           {
             "fieldPath": "uuid",
@@ -215,6 +215,12 @@
             "fieldPath": "currency",
             "columnName": "currency",
             "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "infoRevision",
+            "columnName": "infoRevision",
+            "affinity": "INTEGER",
             "notNull": true
           },
           {
@@ -990,7 +996,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8e15bf61817dd47eeddd4954ae4baa78')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3065c976acd560576846074e07ba61c9')"
     ]
   }
 }

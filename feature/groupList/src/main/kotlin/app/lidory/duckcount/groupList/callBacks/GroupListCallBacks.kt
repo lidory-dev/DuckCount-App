@@ -3,6 +3,7 @@ package app.lidory.duckcount.groupList.callBacks
 import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupCreationError
+import app.lidory.duckcount.groupList.model.GroupEditError
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.User
@@ -65,11 +66,16 @@ interface GroupListCallBacks {
     fun getAuthenticatedUserUuid(): String?
 
     /**
-     * Takes the [title] and [description] the user gave the group [uuid], on this device only. Its
-     * members are changed from its settings, by its creator alone, see
-     * [GroupSettingsCallBacks.addMembers].
+     * Gives the group [uuid], which the user created, [title] and [description], signed as theirs,
+     * and sends them to the server, from which every member's device takes them at its next sync.
+     * Its currency stays the one it was created in, and its members are changed from its settings,
+     * by its creator alone, see [GroupSettingsCallBacks.addMembers].
+     *
+     * Returns null once the server took them, which the group then shows, or why it did not, the
+     * group showing what it showed, or, refused as outdated, the newer version the server holds,
+     * see [GroupEditError.Outdated]: nothing is sent again.
      */
-    suspend fun updateGroup(uuid: String, title: String, description: String)
+    suspend fun updateGroup(uuid: String, title: String, description: String): GroupEditError?
 
     /**
      * Brings the groups up to date: joins the ones contacts added the user to, and sends again the
