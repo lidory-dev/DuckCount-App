@@ -14,6 +14,7 @@
     <string name="discovery_username">Nom d’utilisateur</string>
     <string name="error_new_password_confirmation">Les mots de passe ne correspondent pas</string>
     <string name="error_password_too_short">Le mot de passe doit contenir au moins %1$s caractères</string>
+    <string name="error_new_password_blank">Le mot de passe ne peut pas être composé uniquement d’espaces</string>
     <string name="licences">Licences</string>
     <string name="logout">Se déconnecter</string>
     <string name="learn_more">En savoir plus</string>

@@ -93,8 +93,10 @@ data class PasswordChangeScreenState(
     /** Why the last change failed, until an edit answers it or the snackbar has shown it. */
     val error: PasswordChangeError? = null,
 ) {
+    /** Why [newPassword] cannot be set, taken as typed, never trimmed, see [NewPasswordInputError]. */
     val newPasswordInputError: NewPasswordInputError? = when {
         newPassword.isEmpty() -> null
+        newPassword.isBlank() -> NewPasswordInputError.BLANK
         newPassword.length < minimumLength -> NewPasswordInputError.TOO_SHORT
         newPassword == currentPassword -> NewPasswordInputError.SAME_AS_CURRENT
         else -> null
@@ -105,10 +107,11 @@ data class PasswordChangeScreenState(
 
     /**
      * Whether the form holds a change to send: every field filled in and none in error, a failure
-     * shown on one of them included, since sending it again would fail the same way.
+     * shown on one of them included, since sending it again would fail the same way. A current
+     * password of nothing but whitespace is none, as on every form: no account holds one.
      */
     val canConfirm: Boolean =
-        currentPassword.isNotEmpty() &&
+        currentPassword.isNotBlank() &&
             newPassword.isNotEmpty() &&
             newPasswordInputError == null &&
             newPasswordConfirmation == newPassword &&

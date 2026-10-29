@@ -183,11 +183,10 @@ fun RegisterScreen(
                             imeAction = ImeAction.Next,
                         ),
                         visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        isInError = state.password.isNotEmpty() && viewModel.isPasswordTooShort(),
-                        error = stringResource(
-                            R.string.error_password_short,
-                            viewModel.passwordStrength,
-                        ),
+                        isInError = viewModel.passwordError() != null,
+                        error = viewModel.passwordError()?.let {
+                            stringResource(it.messageRes(), viewModel.passwordStrength)
+                        },
                         trailingIcon = {
                             PasswordVisibilityButton(
                                 onClick = { isPasswordVisible = !isPasswordVisible },
@@ -216,9 +215,9 @@ fun RegisterScreen(
                         visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         keyboardActions = KeyboardActions(
                             onDone = {
-                                if (!viewModel.isPasswordConfirmationValid()
-                                    || state.passwordConfirmation.isBlank()
-                                ) return@KeyboardActions
+                                // What the button takes, no less: from here, a password too short
+                                // once went through.
+                                if (!viewModel.canRegister()) return@KeyboardActions
 
                                 focusManager.clearFocus()
 
@@ -230,8 +229,7 @@ fun RegisterScreen(
                                 )
                             },
                         ),
-                        isInError = !viewModel.isPasswordConfirmationValid()
-                                && state.passwordConfirmation.isNotBlank(),
+                        isInError = viewModel.isPasswordConfirmationMismatched(),
                         error = stringResource(R.string.error_password_confirmation),
                         trailingIcon = {
                             PasswordVisibilityButton(
@@ -260,7 +258,7 @@ fun RegisterScreen(
                                 navigateToUserInformationScreen = navigateToSetUpProfileScreen,
                             )
                         },
-                        enabled = state.username.isNotBlank() && state.usernameError == null && !viewModel.isPasswordTooShort() && viewModel.isPasswordConfirmationValid() && !state.isLoading,
+                        enabled = viewModel.canRegister(),
                         isLoading = state.isLoading,
                     ) {
                         Text(

@@ -13,6 +13,7 @@
     <string name="delete_account">Delete account</string>
     <string name="error_new_password_confirmation">The passwords do not match</string>
     <string name="error_password_too_short">Your password must have at least %1$s characters</string>
+    <string name="error_new_password_blank">Your password can’t be only spaces</string>
     <string name="licences">Licences</string>
     <string name="logout">Log out</string>
     <string name="learn_more">Learn more</string>

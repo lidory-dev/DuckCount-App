@@ -43,6 +43,7 @@ class AccountDeletionViewModel(
 
         val password = this.password
 
+        // Nothing but whitespace is no password, as on every form: no account holds one.
         if (password.isBlank()) return
 
         viewModelScope.launch {

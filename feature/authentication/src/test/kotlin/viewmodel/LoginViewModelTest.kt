@@ -1,13 +1,14 @@
 package viewmodel
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * What [LoginViewModel.updateUsername] makes of a username typed with capitals, or with a space at
- * the end.
+ * the end, and which passwords the form logs in with, see [LoginScreenState.canLogIn].
  */
 class LoginViewModelTest {
 
@@ -42,5 +43,16 @@ class LoginViewModelTest {
         assertEquals("ada4", viewModel.state.trimmedUsername)
         assertNull(viewModel.state.usernameError)
         assertTrue(viewModel.state.canLogIn)
+    }
+
+    /** No account holds one: registration and a password change refuse it. */
+    @Test
+    fun `a password of nothing but spaces cannot log in`() {
+        val viewModel = LoginViewModel(authenticationCallBacks = TypingOnlyCallBacks())
+
+        viewModel.updateUsername(username = "ada4")
+        viewModel.updatePassword(password = " ".repeat(20))
+
+        assertFalse(viewModel.state.canLogIn)
     }
 }

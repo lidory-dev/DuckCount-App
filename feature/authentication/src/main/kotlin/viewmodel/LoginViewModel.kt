@@ -86,6 +86,10 @@ data class LoginScreenState(
      */
     val trimmedUsername: String = username.trim().lowercase()
 
+    /**
+     * Whether the form can log in: a username the rules take, and a password other than nothing
+     * but whitespace, which no account holds, registration and a password change refusing it.
+     */
     val canLogIn = username.isNotBlank() &&
             usernameError == null &&
             password.isNotBlank() &&

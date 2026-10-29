@@ -3,6 +3,7 @@ package viewmodel
 import AuthError
 import AuthOutcome
 import AuthenticationCallBacks
+import PasswordInputError
 import UsernameInputError
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +62,13 @@ class RegisterViewModel(
         return state.password == state.passwordConfirmation
     }
 
+    /**
+     * Whether the confirmation, once anything is typed in it, whitespace included, differs from
+     * the password, which the form points out, as the password change form does.
+     */
+    fun isPasswordConfirmationMismatched(): Boolean =
+        state.passwordConfirmation.isNotEmpty() && !isPasswordConfirmationValid()
+
     fun processRegistration(
         username: String,
         password: String,
@@ -105,9 +113,30 @@ class RegisterViewModel(
         state = state.copy(isLoading = false)
     }
 
-    fun isPasswordTooShort(): Boolean {
-        return state.password.length < passwordStrength
+    /**
+     * Why [RegisterScreenState.password] cannot be registered, see [PasswordInputError], or null
+     * while nothing is typed yet, which is no mistake worth pointing out: the button stays disabled
+     * anyway, see [canRegister]. The password is taken as typed, never trimmed.
+     */
+    fun passwordError(): PasswordInputError? = when {
+        state.password.isEmpty() -> null
+        state.password.isBlank() -> PasswordInputError.BLANK
+        state.password.length < passwordStrength -> PasswordInputError.TOO_SHORT
+        else -> null
     }
+
+    /**
+     * Whether the form holds a registration to send, from its button or the keyboard's Done
+     * alike: a username the rules take, a password with nothing wrong with it, typed again the
+     * same, and no registration under way.
+     */
+    fun canRegister(): Boolean =
+        state.username.isNotBlank() &&
+            state.usernameError == null &&
+            state.password.isNotEmpty() &&
+            passwordError() == null &&
+            isPasswordConfirmationValid() &&
+            !state.isLoading
 }
 
 data class RegisterScreenState(

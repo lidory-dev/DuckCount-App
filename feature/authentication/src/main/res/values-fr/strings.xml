@@ -8,7 +8,7 @@
     <string name="welcome_back">Bon retour !</string>
     <string name="sign_in">Se connecter</string>
     <string name="username_not_blank">L’identifiant ne peut pas être vide</string>
-    <string name="error_password_blank">Le mot de passe ne peut pas être vide</string>
+    <string name="error_password_blank">Le mot de passe ne peut pas être composé uniquement d’espaces</string>
     <string name="error_password_short">Le mot de passe doit contenir au moins %1$s caractères</string>
     <string name="error_password_leaked">Ce mot de passe est compromis</string>
     <string name="noted">Compris</string>

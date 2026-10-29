@@ -43,6 +43,32 @@ class PasswordChangeScreenStateTest {
         assertFalse(state.canConfirm)
     }
 
+    /** As long as the minimum or longer: no form would log in with it, registration refusing it too. */
+    @Test
+    fun `a new password of nothing but spaces is refused`() {
+        val blank = " ".repeat(20)
+        val state = filled.withNewPassword(blank).withNewPasswordConfirmation(blank)
+
+        assertEquals(NewPasswordInputError.BLANK, state.newPasswordInputError)
+        assertFalse(state.canConfirm)
+    }
+
+    /** A password is taken as typed, never trimmed: the spaces around it are part of it. */
+    @Test
+    fun `a new password with spaces around it can be set`() {
+        val spaced = " $NEW "
+        val state = filled.withNewPassword(spaced).withNewPasswordConfirmation(spaced)
+
+        assertNull(state.newPasswordInputError)
+        assertTrue(state.canConfirm)
+    }
+
+    /** No account holds one, so it is no current password to send. */
+    @Test
+    fun `a current password of nothing but spaces cannot be sent`() {
+        assertFalse(filled.withCurrentPassword(" ".repeat(20)).canConfirm)
+    }
+
     @Test
     fun `a new password that is the current one must differ`() {
         val state = filled.withNewPassword(CURRENT).withNewPasswordConfirmation(CURRENT)
