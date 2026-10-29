@@ -12,7 +12,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -39,12 +42,18 @@ class ContactListViewModel(
             }
         }
 
+    // Whatever is searched, to tell a search that found nobody from a user who has nobody to find.
+    private val hasContacts: Flow<Boolean> = flow { emitAll(contactCallBacks.getFilteredUsers(filter = "")) }
+        .map { users -> users.any { user -> user.uuid != contactCallBacks.getAuthenticatedUserUuid() } }
+        .distinctUntilChanged()
+
     val usersState: StateFlow<ContactListState> =
         combine(
             contactCallBacks.getReservedUsername(),
             users,
+            hasContacts,
             contactCallBacks.getContactRequestCount(),
-        ) { reservedUsername, users, contactRequestCount ->
+        ) { reservedUsername, users, hasContacts, contactRequestCount ->
             // Until a username is reserved nobody can reach this user, so the list would
             // stay empty whatever they do: ask for one instead of showing nothing.
             if (reservedUsername == null) {
@@ -52,6 +61,7 @@ class ContactListViewModel(
             } else {
                 ContactListState.Content(
                     users = users,
+                    hasContacts = hasContacts,
                     contactRequestCount = contactRequestCount,
                 )
             }
@@ -75,8 +85,14 @@ sealed interface ContactListState {
     /** The user has not reserved a username yet. */
     data object UsernameReservationRequired : ContactListState
 
+    /**
+     * The contacts whose name holds what is searched, [users], and whether the user has any at all,
+     * [hasContacts], whatever is searched: a search that finds nobody is told apart from a user
+     * with nobody to find.
+     */
     data class Content(
         val users: List<User>,
+        val hasContacts: Boolean,
         val contactRequestCount: Int,
     ) : ContactListState
 }

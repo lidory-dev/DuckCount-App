@@ -82,6 +82,7 @@ fun ContactListScreen(
         is ContactListState.Content -> {
             ContactList(
                 users = state.users,
+                hasContacts = state.hasContacts,
                 contactRequestCount = state.contactRequestCount,
                 searchQuery = viewModel.searchQuery,
                 onSearchQueryChange = { viewModel.onSearchQueryChange(query = it) },
@@ -141,6 +142,7 @@ private fun DiscoveryUsernameReservationPrompt(
 @Composable
 private fun ContactList(
     users: List<User>,
+    hasContacts: Boolean,
     contactRequestCount: Int,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
@@ -195,10 +197,18 @@ private fun ContactList(
         }
 
         if (groupedContactList.isEmpty()) {
-            EmptyContentContainer(
-                icon = R.drawable.ic_contacts_group,
-                text = R.string.no_contacts_yet,
-            )
+            // Nobody to find, whatever is searched, or nobody whose name holds what is.
+            if (hasContacts) {
+                EmptyContentContainer(
+                    icon = androidUiR.drawable.ic_search,
+                    text = androidUiR.string.no_result,
+                )
+            } else {
+                EmptyContentContainer(
+                    icon = R.drawable.ic_contacts_group,
+                    text = R.string.no_contacts_yet,
+                )
+            }
         } else {
             LazyColumn(
                 state = listState,
