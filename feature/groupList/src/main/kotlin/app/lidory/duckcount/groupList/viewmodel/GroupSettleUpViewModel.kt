@@ -40,6 +40,7 @@ class GroupSettleUpViewModel(
                 groupMembers = groupMembers,
                 groupExpenses = groupExpenses,
             )
+            val currencySymbol = groupSettleUpCallBacks.getCurrencySymbol(groupUuid)
 
             namedTransactions(
                 transactions = transactions,
@@ -48,6 +49,7 @@ class GroupSettleUpViewModel(
                 GroupSettleUpState.Content(
                     transactions = named,
                     authenticatedUserUuid = groupSettleUpCallBacks.getAuthenticatedUserUuid(),
+                    currencySymbol = currencySymbol,
                     // A settlement is an expense, which a group the user is no longer in takes no more of.
                     canSettle = !isLeft,
                 )
@@ -76,6 +78,9 @@ sealed interface GroupSettleUpState {
     data class Content(
         val transactions: List<TransactionWithFullName>,
         val authenticatedUserUuid: String,
+
+        /** The symbol of the group's currency, which every amount it owes is in. */
+        val currencySymbol: String,
         val canSettle: Boolean,
     ) : GroupSettleUpState
 }

@@ -55,12 +55,13 @@ fun GroupSettleUpScreen(
                     ) { transaction ->
                         val debtorFullName = transaction.debtorFullName ?: stringResource(R.string.unknown_member)
                         val creditorFullName = transaction.creditorFullName ?: stringResource(R.string.unknown_member)
+                        val amount = "${transaction.amount} ${state.currencySymbol}"
 
                         when (transaction.sideFor(userUuid = state.authenticatedUserUuid)) {
                             DebtSide.OWED_TO_USER -> SettlementCard(
                                 modifier = Modifier.padding(Padding.medium),
                                 debtorFullName = debtorFullName,
-                                amount = transaction.amount,
+                                amount = amount,
                                 onValidateSettlement = if (state.canSettle) {
                                     {
                                         viewModel.validateSettlement(
@@ -76,7 +77,7 @@ fun GroupSettleUpScreen(
 
                             DebtSide.OWED_BY_USER -> DebtCard(
                                 modifier = Modifier.padding(Padding.medium),
-                                text = stringResource(R.string.you_owe, creditorFullName, transaction.amount),
+                                text = stringResource(R.string.you_owe, creditorFullName, amount),
                             )
 
                             DebtSide.BETWEEN_OTHERS -> DebtCard(
@@ -85,7 +86,7 @@ fun GroupSettleUpScreen(
                                     R.string.member_owes_member,
                                     debtorFullName,
                                     creditorFullName,
-                                    transaction.amount,
+                                    amount,
                                 ),
                             )
                         }
