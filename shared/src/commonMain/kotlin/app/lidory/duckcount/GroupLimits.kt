@@ -5,7 +5,7 @@ import uniffi.lib_duckcount.maxGroupMembers as maxGroupMembersUniffi
 object GroupLimits {
     const val MAX_TITLE_LENGTH = 50
 
-    const val MAX_DESCRIPTION_LENGTH = 2000
+    const val MAX_DESCRIPTION_LENGTH = 1000
 
     /**
      * The most members a group may hold, its creator included. Read from the library, so the

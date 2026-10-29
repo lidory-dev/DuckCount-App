@@ -144,7 +144,7 @@ private fun groupShowing(title: String, description: String) = GroupWithMembers(
 private class EditCallBacks(private val group: Flow<GroupWithMembers?>) : GroupListCallBacks {
 
     override val maxTitleLength: Int = 50
-    override val maxDescriptionLength: Int = 2000
+    override val maxDescriptionLength: Int = 1000
     override val maxMembers: Int = 100
 
     override fun getGroupWithMembers(uuid: String): Flow<GroupWithMembers?> = group
