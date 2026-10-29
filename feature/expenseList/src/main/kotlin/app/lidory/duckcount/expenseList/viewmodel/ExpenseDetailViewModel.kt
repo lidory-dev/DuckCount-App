@@ -2,6 +2,7 @@ package app.lidory.duckcount.expenseList.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.lidory.duckcount.android.ui.text.sortedByName
 import app.lidory.duckcount.expenseList.callBacks.ExpenseDetailCallBacks
 import app.lidory.duckcount.expenseList.model.BeneficiaryUi
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
@@ -81,6 +82,7 @@ class ExpenseDetailViewModel(
                 ) { pairs -> pairs.toMap() }
             }
 
+    // The user first, then the others by name, see sortedByName.
     private val beneficiaries: Flow<List<BeneficiaryUi>> =
         combine(
             expense.map { it?.beneficiaries.orEmpty() }.distinctUntilChanged(),
@@ -94,7 +96,7 @@ class ExpenseDetailViewModel(
                     fullName = names[beneficiary.userUuid],
                     isShareFixed = beneficiary.isShareFixed,
                 )
-            }
+            }.sortedByName(selfUuid = authenticatedUserUuid, uuidOf = { it.userUuid }, nameOf = { it.fullName })
         }
 
     // A group the user is no longer a member of, removed or left, stays read-only, its expenses

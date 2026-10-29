@@ -7,6 +7,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.state.ToggleableState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.lidory.duckcount.android.ui.text.sortedByName
 import app.lidory.duckcount.expenseList.R
 import app.lidory.duckcount.expenseList.callBacks.CreateExpenseCallBacks
 import app.lidory.duckcount.expenseList.model.Beneficiary
@@ -145,6 +146,9 @@ class CreateExpenseViewModel(
             initialValue = false,
         )
 
+    // Read once it is first needed, to list the user first, see sortedByName.
+    private val selfUuid: String? by lazy { createExpenseCallBacks.getAuthenticatedUserUuid() }
+
     private var _searchQuery = MutableStateFlow("")
     var searchQuery by mutableStateOf("")
         private set
@@ -158,7 +162,7 @@ class CreateExpenseViewModel(
             }
         }
         .map { users ->
-            UserListState(users)
+            UserListState(users.sortedByName(selfUuid = selfUuid, uuidOf = { it.uuid }, nameOf = { it.fullName }))
         }
         .stateIn(
             scope = viewModelScope,
@@ -180,8 +184,11 @@ class CreateExpenseViewModel(
         initialValue = ToggleableState.Off,
     )
 
-    /** The name the form shows for each of its beneficiaries, by their user uuid, as it is read. */
-    val beneficiaryNames: StateFlow<Map<String, String>> =
+    /**
+     * The name of each of the form's beneficiaries, by their user uuid, as it is read: null for
+     * somebody this device holds no profile for, whom the rows list last, see displayedBeneficiaries.
+     */
+    val beneficiaryNames: StateFlow<Map<String, String?>> =
         snapshotFlow { state.beneficiaries.map { it.userUuid } }
             .flatMapLatest { userUuids ->
                 if (userUuids.isEmpty()) {
@@ -189,10 +196,7 @@ class CreateExpenseViewModel(
                 } else {
                     combine(
                         userUuids.map { uuid ->
-                            createExpenseCallBacks.getUserFullName(uuid).map { name ->
-                                // TODO: Show that the username was not found?
-                                name?.let { uuid to name } ?: (uuid to uuid)
-                            }
+                            createExpenseCallBacks.getUserFullName(uuid).map { name -> uuid to name }
                         },
                     ) { pairs -> pairs.toMap() }
                 }
@@ -204,20 +208,26 @@ class CreateExpenseViewModel(
             )
 
     /**
-     * The beneficiaries as the form lists them, named as [names] has them, see [beneficiaryNames].
-     * Taken from [state] as it is, and not through a flow, since each row's share is a field's text.
+     * The beneficiaries as the form lists them, named as [names] has them, see [beneficiaryNames],
+     * the user first and the others by name, see [sortedByName]. Taken from [state] as it is, and not
+     * through a flow, since each row's share is a field's text. Ordered here alone, for the rows:
+     * the expense keeps its beneficiaries in the order they were picked, which decides who the
+     * library gives the cents that do not divide evenly to.
      */
-    fun displayedBeneficiaries(names: Map<String, String>): List<BeneficiaryUi> =
-        state.beneficiaries.map { beneficiary ->
-            BeneficiaryUi(
-                uuid = beneficiary.uuid,
-                userUuid = beneficiary.userUuid,
-                // As typed while its field is being typed in.
-                share = state.shareTexts[beneficiary.userUuid] ?: beneficiary.share,
-                fullName = names[beneficiary.userUuid] ?: beneficiary.userUuid,
-                isShareFixed = beneficiary.isShareFixed,
-            )
-        }
+    fun displayedBeneficiaries(names: Map<String, String?>): List<BeneficiaryUi> =
+        state.beneficiaries
+            .map { beneficiary ->
+                BeneficiaryUi(
+                    uuid = beneficiary.uuid,
+                    userUuid = beneficiary.userUuid,
+                    // As typed while its field is being typed in.
+                    share = state.shareTexts[beneficiary.userUuid] ?: beneficiary.share,
+                    // TODO: Show that the username was not found?
+                    fullName = names[beneficiary.userUuid] ?: beneficiary.userUuid,
+                    isShareFixed = beneficiary.isShareFixed,
+                )
+            }
+            .sortedByName(selfUuid = selfUuid, uuidOf = { it.userUuid }, nameOf = { names[it.userUuid] })
 
     init {
         creditorNames(

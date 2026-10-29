@@ -29,7 +29,7 @@ class CreateGroupFormTest {
     }
 
     @Test
-    fun `whoever is still picked stays in the order the form listed them`() {
+    fun `the user and whoever is still picked are kept`() {
         assertEquals(
             listOf(self, alice, carol),
             keptMembers(

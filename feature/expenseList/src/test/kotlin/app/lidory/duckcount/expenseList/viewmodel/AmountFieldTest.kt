@@ -158,7 +158,8 @@ class AmountFieldTest {
         override fun getExpenseWithBeneficiaries(expenseUuid: String): Flow<ExpenseWithBeneficiaries> = notWhileTyping()
         override suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseSaveError? =
             notWhileTyping()
-        override fun getAuthenticatedUserUuid(): String? = notWhileTyping()
+        // The rows list the user first, see CreateExpenseViewModel.displayedBeneficiaries.
+        override fun getAuthenticatedUserUuid(): String? = "self"
         override fun getGroupCurrency(groupUuid: String): Flow<Currency> = notWhileTyping()
 
         private fun notWhileTyping(): Nothing = error("Not asked while amounts are typed")

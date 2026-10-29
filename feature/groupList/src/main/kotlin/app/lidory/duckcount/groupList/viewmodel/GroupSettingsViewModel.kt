@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.lidory.duckcount.android.ui.text.sortedByName
 import app.lidory.duckcount.groupList.callBacks.GroupSettingsCallBacks
 import app.lidory.duckcount.groupList.model.ContactRequestError
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
@@ -101,7 +102,8 @@ class GroupSettingsViewModel(
         memberUuids,
     ) { users, contacts, memberUuids ->
         UserListState(
-            users = invitableUsers(users = users, memberUuids = memberUuids),
+            users = invitableUsers(users = users, memberUuids = memberUuids)
+                .sortedByName(selfUuid = null, uuidOf = { it.uuid }, nameOf = { it.fullName }),
             nobodyToPick = nobodyToPick(contacts = contacts, memberUuids = memberUuids),
         )
     }.stateIn(
@@ -381,7 +383,8 @@ data class GroupSettingsState(
 /**
  * Emits the settings of [group], its members named as [nameOf] tells, see [displayNames], each
  * time a name changes: a member the user is put in a group with by somebody else is named once a
- * group sync reads their profile, which can be after the screen opened.
+ * group sync reads their profile, which can be after the screen opened. The members are listed by
+ * name, see [sortedByName], the screen putting the user first.
  */
 fun groupSettingsState(
     group: GroupWithMembers,
@@ -392,9 +395,9 @@ fun groupSettingsState(
     return displayNames(userUuids = members.map { it.userUuid }, nameOf = nameOf).map { names ->
         GroupSettingsState(
             groupWithMembers = group,
-            membersWithFullName = members.map { member ->
-                GroupMemberWithFullName(member = member, fullName = names[member.userUuid])
-            },
+            membersWithFullName = members
+                .map { member -> GroupMemberWithFullName(member = member, fullName = names[member.userUuid]) }
+                .sortedByName(selfUuid = null, uuidOf = { it.member.userUuid }, nameOf = { it.fullName }),
         )
     }
 }

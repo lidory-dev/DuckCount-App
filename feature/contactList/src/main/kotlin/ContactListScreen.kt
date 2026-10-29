@@ -41,6 +41,7 @@ import app.lidory.duckcount.android.ui.composable.button.DuckCountButton
 import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.android.ui.text.nameOrder
 import component.ContactRequestsCard
 import model.User
 import org.koin.androidx.compose.koinViewModel
@@ -162,7 +163,7 @@ private fun ContactList(
             .groupBy { it.section() }
             .toSortedMap(compareBy<String> { it == OTHER_SECTION }.thenBy { it })
             .mapValues { (_, section) ->
-                section.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.fullName })
+                section.sortedWith(compareBy(nameOrder()) { it.fullName })
             }
     }
 

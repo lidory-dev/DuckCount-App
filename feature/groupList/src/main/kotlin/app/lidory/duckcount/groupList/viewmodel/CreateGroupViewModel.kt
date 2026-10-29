@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.lidory.duckcount.android.ui.text.sortedByName
 import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
 import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.GroupCreationError
@@ -112,7 +113,10 @@ class CreateGroupViewModel(
         // nobodyToPick.
         groupListCallBacks.getInvitableUsersFiltered(filter = ""),
     ) { users, contacts ->
-        UserListState(users = users, nobodyToPick = nobodyToPick(contacts = contacts, memberUuids = emptySet()))
+        UserListState(
+            users = users.sortedByName(selfUuid = null, uuidOf = { it.uuid }, nameOf = { it.fullName }),
+            nobodyToPick = nobodyToPick(contacts = contacts, memberUuids = emptySet()),
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000L),
@@ -220,7 +224,10 @@ class CreateGroupViewModel(
         }
     }
 
-    /** Lists the user and [uuids], the members picked besides them, in the form. */
+    /**
+     * Lists the user and [uuids], the members picked besides them, in the form, the user first and
+     * the others by name, see [sortedByName].
+     */
     fun onMembersSelected(uuids: Set<String>) {
         viewModelScope.launch {
             val content = content ?: return@launch
@@ -236,7 +243,15 @@ class CreateGroupViewModel(
                 (uuids - keptUuids).map { GroupMember(userUuid = it, groupUuid = "", isAdmin = false) },
             )
 
-            updateContent { it.copy(members = kept + added) }
+            updateContent {
+                it.copy(
+                    members = (kept + added).sortedByName(
+                        selfUuid = content.authenticatedUserUuid,
+                        uuidOf = { member -> member.member.userUuid },
+                        nameOf = { member -> member.fullName },
+                    ),
+                )
+            }
         }
     }
 
@@ -418,8 +433,9 @@ fun toggledSelection(
 
 /**
  * The members of [members] the form keeps once [selectedUuids] are picked besides the user,
- * [selfUuid], in the order it listed them: the user, whatever is picked, and whoever is still
- * picked. Whoever is picked and not listed yet comes after them.
+ * [selfUuid]: the user, whatever is picked, and whoever is still picked. Whoever is picked and not
+ * listed yet is added to them, the form listing them all by name, see
+ * [CreateGroupViewModel.onMembersSelected].
  */
 fun keptMembers(
     members: List<GroupMemberWithFullName>,

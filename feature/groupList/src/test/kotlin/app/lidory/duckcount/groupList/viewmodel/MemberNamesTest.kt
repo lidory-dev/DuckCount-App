@@ -61,6 +61,22 @@ class MemberNamesTest {
         }
     }
 
+    /** The group lists them as they joined; the screen puts the user first, see groupMemberDetail. */
+    @Test
+    fun `the members are listed by name and those with none last`() {
+        val members = listOf("zoe", "unknown", "emile", "bob").map {
+            GroupMember(userUuid = it, groupUuid = "group", isAdmin = it == "zoe")
+        }
+        val names = FakeNames("zoe" to "Zoé", "emile" to "Émile", "bob" to "bob")
+
+        collecting(groupSettingsState(group = group.copy(members = members), nameOf = names::of)) { states ->
+            assertEquals(
+                listOf("bob", "Émile", "Zoé", null),
+                states.receive().membersWithFullName.map { it.fullName },
+            )
+        }
+    }
+
     @Test
     fun `the open sheet shows a name read after it opened`() {
         val names = FakeNames("alice" to "Alice")

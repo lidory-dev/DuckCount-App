@@ -26,4 +26,8 @@ class ExpenseHistoryCallBacksImpl(
     override fun getUserFullName(userUuid: String): Flow<String?> {
         return userRepository.getDisplayName(userUuid)
     }
+
+    override fun getAuthenticatedUserUuid(): String? {
+        return authenticationUtils.getAuthenticatedUserUuid()
+    }
 }

@@ -2,6 +2,7 @@ package app.lidory.duckcount.expenseList.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.lidory.duckcount.android.ui.text.sortedByName
 import app.lidory.duckcount.expenseList.callBacks.ExpenseHistoryCallBacks
 import app.lidory.duckcount.expenseList.model.BeneficiaryUi
 import app.lidory.duckcount.expenseList.model.ExpenseHistory
@@ -52,15 +53,22 @@ class ExpenseHistoryDetailViewModel(
                         version = version,
                         authorFullName = fullNames[version.authorUuid],
                         creditorFullName = fullNames[expense.creditorUuid],
-                        beneficiaries = expense.beneficiaries.map { beneficiary ->
-                            BeneficiaryUi(
-                                uuid = beneficiary.uuid,
-                                userUuid = beneficiary.userUuid,
-                                share = beneficiary.share,
-                                fullName = fullNames[beneficiary.userUuid],
-                                isShareFixed = beneficiary.isShareFixed,
-                            )
-                        },
+                        // As the expense's own screen lists them, see sortedByName.
+                        beneficiaries = expense.beneficiaries
+                            .map { beneficiary ->
+                                BeneficiaryUi(
+                                    uuid = beneficiary.uuid,
+                                    userUuid = beneficiary.userUuid,
+                                    share = beneficiary.share,
+                                    fullName = fullNames[beneficiary.userUuid],
+                                    isShareFixed = beneficiary.isShareFixed,
+                                )
+                            }
+                            .sortedByName(
+                                selfUuid = expenseHistoryCallBacks.getAuthenticatedUserUuid(),
+                                uuidOf = { it.userUuid },
+                                nameOf = { it.fullName },
+                            ),
                     )
                 }
             }

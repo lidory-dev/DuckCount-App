@@ -9,4 +9,7 @@ interface ExpenseHistoryCallBacks {
 
     /** Emits the name to show for [userUuid] as it changes, see [CreateExpenseCallBacks.getUserFullName]. */
     fun getUserFullName(userUuid: String): Flow<String?>
+
+    /** The user's own uuid, whom a version lists first among its beneficiaries. */
+    fun getAuthenticatedUserUuid(): String?
 }
