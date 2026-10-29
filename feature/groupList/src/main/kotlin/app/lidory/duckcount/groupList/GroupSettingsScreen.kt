@@ -44,6 +44,7 @@ import app.lidory.duckcount.groupList.model.MembershipChangeResult
 import app.lidory.duckcount.groupList.model.message
 import app.lidory.duckcount.groupList.viewmodel.GroupSettingsViewModel
 import app.lidory.duckcount.groupList.viewmodel.MemberActions
+import app.lidory.duckcount.groupList.viewmodel.isHistoryReadable
 import app.lidory.duckcount.groupList.viewmodel.isLeavable
 import app.lidory.duckcount.groupList.viewmodel.memberActions
 import org.koin.androidx.compose.koinViewModel
@@ -54,6 +55,7 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 fun GroupSettingsScreen(
     onBack: () -> Unit,
     navigateToEditGroup: () -> Unit,
+    navigateToGroupHistory: () -> Unit,
     navigateToContactDetail: (userUuid: String) -> Unit,
     navigateToContactRequests: () -> Unit,
     modifier: Modifier = Modifier,
@@ -146,6 +148,18 @@ fun GroupSettingsScreen(
                     }
                 },
                 actions = {
+                    // To every member still in it, whom alone the server gives it to.
+                    if (group?.isHistoryReadable() == true) {
+                        IconButton(
+                            onClick = navigateToGroupHistory,
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_history),
+                                contentDescription = stringResource(R.string.group_history),
+                            )
+                        }
+                    }
+
                     // To its creator alone, whose versions of it are the ones its members show.
                     if (group?.canEdit == true) {
                         IconButton(

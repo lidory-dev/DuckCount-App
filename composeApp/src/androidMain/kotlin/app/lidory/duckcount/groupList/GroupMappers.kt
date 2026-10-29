@@ -6,6 +6,8 @@ import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupCreationError
 import app.lidory.duckcount.groupList.model.GroupCreationFailure
 import app.lidory.duckcount.groupList.model.GroupEditError
+import app.lidory.duckcount.groupList.model.GroupHistoryError
+import app.lidory.duckcount.groupList.model.GroupInformationVersion
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.LeaveResult
@@ -28,6 +30,8 @@ import database.domain.GroupWithMembers as GroupWithMembersDb
 import database.domain.User as UserDb
 import group.GroupCreationError as SharedGroupCreationError
 import group.GroupEditError as SharedGroupEditError
+import group.GroupHistoryError as SharedGroupHistoryError
+import group.GroupInformationVersion as SharedGroupInformationVersion
 import group.GroupLeaveError as SharedGroupLeaveError
 import group.GroupMembershipError as SharedGroupMembershipError
 import group.MembershipChangeOutcome as SharedMembershipChangeOutcome
@@ -206,8 +210,9 @@ suspend fun SharedGroupMembershipError.toMembershipChangeError(
 
 /**
  * Maps an edit of a group that was not saved to the reason the form surfaces: the group having a
- * change on its way to the server, or the server holding an edit this device had yet to read, or
- * else what kept it from going through, as for a creation, see [toGroupCreationError].
+ * change on its way to the server, the server holding an edit this device had yet to read, or the
+ * group showing what the form holds already, or else what kept it from going through, as for a
+ * creation, see [toGroupCreationError].
  *
  * What went wrong with the user's own storage or the library is folded into
  * [GroupCreationFailure.UNKNOWN], as is nobody being signed in, and the device locking as the edit
@@ -220,6 +225,8 @@ fun SharedGroupEditError.toGroupEditError(isOnline: Boolean): GroupEditError = w
 
     SharedGroupEditError.Outdated -> GroupEditError.Outdated
 
+    SharedGroupEditError.Unchanged -> GroupEditError.Unchanged
+
     is SharedGroupEditError.Network -> GroupEditError.Failure(error.toGroupCreationFailure(isOnline = isOnline))
 
     is SharedGroupEditError.Identity -> GroupEditError.Failure(error.toGroupCreationFailure(isOnline = isOnline))
@@ -230,6 +237,43 @@ fun SharedGroupEditError.toGroupEditError(isOnline: Boolean): GroupEditError = w
     SharedGroupEditError.NotCreator,
     SharedGroupEditError.Crypto,
         -> GroupEditError.Failure(GroupCreationFailure.UNKNOWN)
+}
+
+/** One version of a group's information as its history screen shows it, see `group.GroupHistory`. */
+fun SharedGroupInformationVersion.toGroupListModel(): GroupInformationVersion = GroupInformationVersion(
+    revision = revision,
+    title = title,
+    description = description,
+    isCreation = isCreation,
+    isCurrent = isCurrent,
+    revisedAt = revisedAt,
+)
+
+/**
+ * Maps a history that could not be read to the reason its screen surfaces: the device locking as
+ * it was read, which unlocking it and reading it again sees to, a history sealed under a key this
+ * device has yet to read, which its sync sees to, or else what kept it from being read, as for a
+ * creation, see [toGroupCreationError].
+ *
+ * What went wrong with the user's own storage is folded into [GroupCreationFailure.UNKNOWN], as is
+ * nobody being signed in, as for an edit, see [toGroupEditError]. So is what the group's settings
+ * offer no history of: a group the user is no longer in, see [GroupWithMembersDb.isLeft], or that
+ * this device no longer holds. The server refusing the history, to a member its creator removed
+ * since this device last synced say, is a network failure the user cannot act on either.
+ */
+fun SharedGroupHistoryError.toGroupHistoryError(isOnline: Boolean): GroupHistoryError = when (this) {
+    SharedGroupHistoryError.DeviceLocked -> GroupHistoryError.DeviceLocked
+
+    SharedGroupHistoryError.Unreadable -> GroupHistoryError.Unreadable
+
+    is SharedGroupHistoryError.Network -> GroupHistoryError.Failure(error.toGroupCreationFailure(isOnline = isOnline))
+
+    is SharedGroupHistoryError.Identity -> GroupHistoryError.Failure(error.toGroupCreationFailure(isOnline = isOnline))
+
+    SharedGroupHistoryError.NoSession,
+    SharedGroupHistoryError.NotMember,
+    SharedGroupHistoryError.Storage,
+        -> GroupHistoryError.Failure(GroupCreationFailure.UNKNOWN)
 }
 
 /**
@@ -307,9 +351,10 @@ private fun VaultError.toGroupCreationFailure(isOnline: Boolean): GroupCreationF
 /**
  * The network failures of asking for the invitees' key packages, or the vault, along the way, or
  * of the server refusing the group, the change to its members, or the edit, which the app never
- * sends it as it would. An answer that never came to a creation or a change is no failure at all:
- * it is sent again until one does, see `group.GroupCreator` and `group.GroupMembershipChanger`.
- * To an edit it is one, nothing sending it again, see `group.GroupEditor`.
+ * sends it as it would, or the history. An answer that never came to a creation or a change is no
+ * failure at all: it is sent again until one does, see `group.GroupCreator` and
+ * `group.GroupMembershipChanger`. To an edit it is one, nothing sending it again, see
+ * `group.GroupEditor`, and to a read of the history, which the user reads again.
  */
 private fun NetworkError.toGroupCreationFailure(isOnline: Boolean): GroupCreationFailure = when (this) {
     NetworkError.NO_INTERNET -> GroupCreationFailure.NO_INTERNET

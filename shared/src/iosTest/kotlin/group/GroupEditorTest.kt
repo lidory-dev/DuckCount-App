@@ -171,6 +171,66 @@ class GroupEditorTest {
         assertEquals("Ski trip 2028", groups.getValue(GROUP).title)
     }
 
+    /** It would wake every other member for nothing, and push the oldest version out of the history. */
+    @Test
+    fun `an edit to what the group shows already is not made`() = runBlocking<Unit> {
+        assertEquals(
+            Result.Error(GroupEditError.Unchanged),
+            edit(title = FIELDS.title, description = FIELDS.description),
+        )
+
+        assertTrue(sent.isEmpty())
+        assertShowsWhatItShowed()
+    }
+
+    /** What the group shows being the last edit, not what it was created with. */
+    @Test
+    fun `an edit made again once made is not sent again`() = runBlocking<Unit> {
+        edit()
+
+        assertEquals(Result.Error(GroupEditError.Unchanged), edit())
+
+        assertEquals(listOf(2L), sent.map { it.revision })
+        assertEquals(2L, groups.getValue(GROUP).infoRevision)
+    }
+
+    /** As a creation is, see [GroupCreator]. */
+    @Test
+    fun `an edit is made without the whitespace around its title and description`() = runBlocking<Unit> {
+        assertEquals(Result.Success(Unit), edit(title = " $TITLE  ", description = "\n$DESCRIPTION\n"))
+
+        val version = assertNotNull(serverVersion.unseal(groupKey = groupKey, groupUuid = GROUP))
+
+        assertEquals(TITLE, version.fields.title)
+        assertEquals(DESCRIPTION, version.fields.description)
+        assertEquals(TITLE, groups.getValue(GROUP).title)
+        assertEquals(DESCRIPTION, groups.getValue(GROUP).description)
+    }
+
+    @Test
+    fun `an edit adding nothing but whitespace around what the group shows is not made`() = runBlocking<Unit> {
+        assertEquals(
+            Result.Error(GroupEditError.Unchanged),
+            edit(title = "${FIELDS.title} ", description = " ${FIELDS.description}\n"),
+        )
+
+        assertTrue(sent.isEmpty())
+        assertShowsWhatItShowed()
+    }
+
+    @Test
+    fun `an edit of the title alone or of the description alone is made`() = runBlocking<Unit> {
+        assertEquals(Result.Success(Unit), edit(description = FIELDS.description))
+        assertEquals(Result.Success(Unit), edit())
+
+        assertEquals(listOf(2L, 3L), sent.map { it.revision })
+
+        val group = groups.getValue(GROUP)
+
+        assertEquals(TITLE, group.title)
+        assertEquals(DESCRIPTION, group.description)
+    }
+
     /** Only its creator's versions are shown by its members, see [GroupSync]. */
     @Test
     fun `a member who did not create the group cannot edit it`() = runBlocking<Unit> {
@@ -198,6 +258,9 @@ class GroupEditorTest {
         assertEquals(LOST.title, group.title)
         assertEquals(LOST.description, group.description)
         assertEquals(2L, group.infoRevision)
+
+        // The group showing the version the server held now, an edit to it is not made.
+        assertEquals(Result.Error(GroupEditError.Unchanged), edit(title = LOST.title, description = LOST.description))
 
         assertEquals(Result.Success(Unit), edit())
 

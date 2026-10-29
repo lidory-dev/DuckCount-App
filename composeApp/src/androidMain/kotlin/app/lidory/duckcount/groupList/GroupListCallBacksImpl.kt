@@ -9,6 +9,7 @@ import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupCreationError
 import app.lidory.duckcount.groupList.model.GroupEditError
+import app.lidory.duckcount.groupList.model.GroupHistory
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.User
@@ -27,6 +28,7 @@ import group.GroupSync
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import util.Result
+import group.GroupHistory as SharedGroupHistory
 
 private const val TAG = "GroupListCallBacksImpl"
 
@@ -35,6 +37,7 @@ class GroupListCallBacksImpl(
     val userRepository: UserRepository,
     private val groupCreator: GroupCreator,
     private val groupEditor: GroupEditor,
+    private val groupHistory: SharedGroupHistory,
     private val groupSync: GroupSync,
     private val groupNotifier: GroupNotifier,
     private val contactSync: ContactSync,
@@ -147,6 +150,19 @@ class GroupListCallBacksImpl(
                 Log.w(TAG, "updateGroup: could not edit the group: ${edit.error}")
 
                 edit.error.toGroupEditError(isOnline = networkConnectivity.isOnline())
+            }
+        }
+
+    override suspend fun getGroupHistory(uuid: String): GroupHistory =
+        when (val history = groupHistory.versions(groupUuid = uuid)) {
+            is Result.Success -> GroupHistory.Versions(versions = history.data.map { it.toGroupListModel() })
+
+            is Result.Error -> {
+                Log.w(TAG, "getGroupHistory: could not read the history: ${history.error}")
+
+                GroupHistory.Unavailable(
+                    error = history.error.toGroupHistoryError(isOnline = networkConnectivity.isOnline()),
+                )
             }
         }
 

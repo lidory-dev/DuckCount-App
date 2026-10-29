@@ -178,7 +178,6 @@ fun CreateOrEditGroupScreen(
                                 && content.canConfirm(
                                     maxTitleLength = viewModel.maxTitleLength,
                                     maxDescriptionLength = viewModel.maxDescriptionLength,
-                                    isNewGroup = viewModel.groupUuid == null,
                                 ),
                         colors = ButtonDefaults.buttonColors()
                             .copy(containerColor = MaterialTheme.colorScheme.primary),
@@ -275,12 +274,14 @@ fun CreateOrEditGroupScreen(
                                 onValueChange = { viewModel.updateDescription(description = it) },
                                 singleLine = false,
                                 maxLines = 5,
+                                // Counted as it is saved, without the whitespace around it, as the
+                                // button counts it, see canConfirm.
                                 error = stringResource(
                                     R.string.description_cant_exceed_max,
-                                    state.description.length,
+                                    state.trimmedDescription.length,
                                     viewModel.maxDescriptionLength,
                                 ),
-                                isInError = state.description.length > viewModel.maxDescriptionLength,
+                                isInError = state.trimmedDescription.length > viewModel.maxDescriptionLength,
                                 focusManager = focusManager,
                                 modifier = Modifier.fillMaxWidth(),
                             )

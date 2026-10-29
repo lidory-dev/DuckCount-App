@@ -55,12 +55,21 @@ private val FIELDS = GroupFields(
     currency = CurrencyCatalog.defaultCurrency,
 )
 
-/** What the group shows once Alice edited it. */
+/** What the group shows once Alice edited it, and once she edited it again. */
 private val EDITED = GroupFields(
     title = "Ski trip 2027",
     description = "Chalet, lift passes and the train",
     currency = CurrencyCatalog.defaultCurrency,
 )
+private val EDITED_AGAIN = GroupFields(
+    title = "Ski trip 2027",
+    description = "Chalet and the train",
+    currency = CurrencyCatalog.defaultCurrency,
+)
+
+/** When the server stored the group as it was created, and as Alice first edited it. */
+private const val CREATED_AT = "2026-10-27T10:00:00.000Z"
+private const val EDITED_AT = "2026-10-28T19:02:07.004Z"
 
 /**
  * What becomes of the changes Alice makes to the members of the group she created with Bob and
@@ -163,6 +172,14 @@ class GroupMembershipChangerTest {
     /** The group's information as the server holds it, signed by Alice, sealed under the key it was last handed. */
     private var serverVersion = FIELDS.sealedAs(creator = alice, groupKey = groupKey, groupUuid = GROUP)
 
+    /**
+     * The versions the group's history holds from before the one the server holds, newest first,
+     * none but for a test that edits the group, see [editTwice], and whether it can be asked for
+     * them.
+     */
+    private var serverHistory = emptyList<GroupHistoryVersionDto>()
+    private var isHistoryReachable = true
+
     /** Whether the server can be asked for the groups it lists. */
     private var isListingReachable = true
 
@@ -209,6 +226,7 @@ class GroupMembershipChangerTest {
 
             if (rotateAnswer == GroupMembershipAnswer.Made) {
                 serverVersion = serverVersion.rotatedBy(body)
+                serverHistory = serverHistory.rotatedBy(body)
                 server.copies[GROUP] = body.keyCopy
             }
 
@@ -216,6 +234,13 @@ class GroupMembershipChangerTest {
         },
         listGroups = {
             if (isListingReachable) Result.Success(listOf(listedGroup())) else Result.Error(NetworkError.NO_INTERNET)
+        },
+        history = {
+            if (isHistoryReachable) {
+                Result.Success(GroupHistoryResponse(current = serverVersion.inHistory(), previous = serverHistory))
+            } else {
+                Result.Error(NetworkError.NO_INTERNET)
+            }
         },
         group = { groups[it] },
         listPending = { pending.values.toList() },
@@ -698,6 +723,119 @@ class GroupMembershipChangerTest {
         assertEquals(EDITED.title, version.fields.title)
         assertEquals(EDITED.description, version.fields.description)
         assertTrue(isAlices(version))
+    }
+
+    /**
+     * A member added after the rotation, or added back, holds the new key alone, and reads the
+     * history with it, see [GroupHistory]: each version is sealed again as it was, at its
+     * revision, and still verifies as Alice's.
+     */
+    @Test
+    fun `a key rotation seals every earlier version of the group's information again under the new key`() =
+        runBlocking<Unit> {
+            editTwice()
+
+            remove(CAROL)
+
+            val rotated = groups.getValue(GROUP).groupKey
+
+            assertEquals(listOf(2L, 1L), rotations.single().previous.map { it.revision })
+
+            val versions = serverHistory.map {
+                assertNotNull(it.unseal(groupKey = rotated, groupUuid = GROUP, currency = FIELDS.currency))
+            }
+
+            assertEquals(listOf(EDITED.title, FIELDS.title), versions.map { it.fields.title })
+            assertEquals(listOf(EDITED.description, FIELDS.description), versions.map { it.fields.description })
+            assertTrue(versions.all { isAlices(it) })
+            assertTrue(
+                serverHistory.all {
+                    it.unseal(groupKey = groupKey, groupUuid = GROUP, currency = FIELDS.currency) == null
+                },
+            )
+            assertEquals(listOf(EDITED_AT, CREATED_AT), serverHistory.map { it.revisedAt })
+        }
+
+    /** Bob holds the group's key, and the server lists what he sealed: sealed again, it would be Alice's word. */
+    @Test
+    fun `a key rotation leaves out an earlier version the creator did not sign`() = runBlocking<Unit> {
+        editTwice()
+        serverHistory = listOf(
+            EDITED.sealedAs(creator = bob, groupKey = groupKey, groupUuid = GROUP, revision = 2).inHistory(),
+            serverHistory.last(),
+        )
+
+        remove(CAROL)
+
+        assertEquals(listOf(1L), rotations.single().previous.map { it.revision })
+        assertEquals(listOf(1L), serverHistory.map { it.revision })
+    }
+
+    /**
+     * One the server kept under a key the group had before, rather than delete it as the rotation
+     * that left it out was taken, see [RotateGroupKeyBody.previous]: left out again.
+     */
+    @Test
+    fun `a key rotation leaves out an earlier version sealed under another key`() = runBlocking<Unit> {
+        editTwice()
+        serverHistory = listOf(
+            serverHistory.first(),
+            FIELDS.sealedAs(creator = alice, groupKey = generateSymmetricEncryptionKey(), groupUuid = GROUP)
+                .inHistory(),
+        )
+
+        remove(CAROL)
+
+        assertEquals(listOf(2L), rotations.single().previous.map { it.revision })
+        assertEquals(listOf(2L), serverHistory.map { it.revision })
+    }
+
+    /** As for the version the server holds, the rotation is left to the next sync, see GroupMembershipSender. */
+    @Test
+    fun `a removal whose history could not be asked for is rotated by the next sync`() = runBlocking<Unit> {
+        editTwice()
+        isHistoryReachable = false
+
+        assertEquals(Result.Success(MembershipChangeOutcome.MADE), remove(CAROL))
+
+        assertEquals(MembershipChangeKind.REMOVAL, pending[GROUP]?.kind)
+        assertEquals(rowsOf(ALICE, BOB).toSet(), members.getValue(GROUP).toSet())
+        assertTrue(rotations.isEmpty())
+        assertEquals(listOf(60L, 60L), resends.seconds)
+
+        isHistoryReachable = true
+
+        assertEquals(Result.Success(Unit), sender.resendPending())
+
+        assertEquals(1, removals.size)
+        assertEquals(listOf(2L, 1L), rotations.single().previous.map { it.revision })
+        assertTrue(pending.isEmpty())
+        assertFalse(groups.getValue(GROUP).groupKey.contentEquals(groupKey))
+    }
+
+    /** Saved and sent again whole, see PendingMembershipChangeEntity: the server takes it once. */
+    @Test
+    fun `a key rotation sent again carries the same earlier versions`() = runBlocking<Unit> {
+        editTwice()
+        rotateAnswer = GroupMembershipAnswer.Failed(error = NetworkError.SERVER_ERROR)
+
+        remove(CAROL)
+
+        rotateAnswer = GroupMembershipAnswer.Made
+
+        assertEquals(Result.Success(Unit), sender.resendPending())
+
+        assertEquals(2, rotations.size)
+        assertEquals(rotations[0].previous, rotations[1].previous)
+        assertEquals(listOf(2L, 1L), rotations[1].previous.map { it.revision })
+
+        val rotated = groups.getValue(GROUP).groupKey
+
+        assertTrue(
+            serverHistory.all {
+                it.unseal(groupKey = rotated, groupUuid = GROUP, currency = FIELDS.currency)?.let(::isAlices) == true
+            },
+        )
     }
 
     /** Replacing the creator's copy on the server as it takes the rotation, see [RotateGroupKeyBody.keyCopy]. */
@@ -1266,6 +1404,22 @@ class GroupMembershipChangerTest {
     )
 
     private fun memberUuids() = members.getValue(GROUP).mapTo(HashSet()) { it.userUuid }
+
+    /**
+     * Has Alice edit the group twice since she created it, as the server and her device hold it:
+     * her third revision shown, and the two before it in its history, sealed under its key.
+     */
+    private fun editTwice() {
+        val shown = assertNotNull(EDITED_AGAIN.signedAs(client = alice, groupUuid = GROUP, revision = 3))
+
+        groups[GROUP] = groups.getValue(GROUP).showing(shown)
+        serverVersion = EDITED_AGAIN.sealedAs(creator = alice, groupKey = groupKey, groupUuid = GROUP, revision = 3)
+        serverHistory = listOf(
+            EDITED.sealedAs(creator = alice, groupKey = groupKey, groupUuid = GROUP, revision = 2)
+                .inHistory(revisedAt = EDITED_AT),
+            FIELDS.sealedAs(creator = alice, groupKey = groupKey, groupUuid = GROUP).inHistory(revisedAt = CREATED_AT),
+        )
+    }
 
     /** Whether Alice signed [version] of the group, as its members check it, see [GroupSync]. */
     private fun isAlices(version: GroupVersion) =

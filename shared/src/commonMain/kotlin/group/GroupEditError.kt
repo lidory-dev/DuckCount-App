@@ -33,6 +33,14 @@ sealed interface GroupEditError : Error {
     data object NotCreator : GroupEditError
 
     /**
+     * The title and description are those the group shows already, see
+     * [database.data.local.entity.GroupEntity.title]: an edit of them would change nothing, and
+     * still wake every other member and take a place in the group's history, see [GroupHistory],
+     * pushing the oldest version out of it.
+     */
+    data object Unchanged : GroupEditError
+
+    /**
      * A change to the group is waiting on the server: its creation, which an edit would find no
      * group on the server to be made to, or a change to its members. The key rotation after a
      * removal seals the version the server held as it was built, see [GroupMembershipSender], and

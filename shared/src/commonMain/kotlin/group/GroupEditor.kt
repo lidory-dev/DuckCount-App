@@ -15,7 +15,8 @@ import util.Result
  * Edits the title and description of a group the user created, as they ask from its settings: the
  * one member whose versions of its information the others show, each signed with their MLS
  * identity, see [GroupVersion]. Its currency stays the one it was created in, signed with every
- * version all the same.
+ * version all the same. The title and description are taken without the whitespace around them,
+ * as a creation takes them, see [GroupCreator], for everything below.
  *
  * In this order, under [withGroupsLock] as a creation, a change to a group's members and the sync
  * are: the key rotation after a removal seals the version the server holds again, see
@@ -24,11 +25,13 @@ import util.Result
  * it, the sync never does.
  * 1. The group is read again, as it stands now. One the user did not create is refused, see
  *    [GroupEditError.NotCreator], and so is one with a change waiting on the server, see
- *    [GroupEditError.ChangePending], with nothing sent.
+ *    [GroupEditError.ChangePending], and an edit to the title and description it shows already,
+ *    see [GroupEditError.Unchanged], with nothing sent.
  * 2. The new title and description, with the group's currency, are signed by the user as the next
  *    revision, one more than the one this device shows, see [GroupEntity.infoRevision], and sealed
  *    under the group's key, see [GroupVersion.seal].
- * 3. It is sent, see [GroupApi.edit]. Taken, it is what this device shows from then on. Refused as
+ * 3. It is sent, see [GroupApi.edit]. Taken, it is what this device shows from then on, and the
+ *    server keeps the version it replaced in the group's history, see [GroupHistory]. Refused as
  *    outdated, the server holding a newer version, the version it lists is shown as the sync would
  *    show it, see [newerThan]. One with this edit's title and description is this very edit, sent
  *    before and taken, its answer lost, and saved again from the form that still showed it: it is
@@ -84,7 +87,10 @@ class GroupEditor internal constructor(
         },
     )
 
-    /** Gives the group [groupUuid] [title] and [description], see [GroupEditor]. */
+    /**
+     * Gives the group [groupUuid] [title] and [description], each without the whitespace around
+     * it, see [GroupEditor].
+     */
     suspend fun edit(groupUuid: String, title: String, description: String): Result<Unit, GroupEditError> =
         withGroupsLock {
             // Once the lock is held: the device may have locked as this waited for it, see above.
@@ -93,7 +99,12 @@ class GroupEditor internal constructor(
                 is Result.Error -> return@withGroupsLock read
             }
 
-            editLocked(selfUuid = selfUuid, groupUuid = groupUuid, title = title, description = description)
+            editLocked(
+                selfUuid = selfUuid,
+                groupUuid = groupUuid,
+                title = title.trim(),
+                description = description.trim(),
+            )
         }
 
     private suspend fun editLocked(
@@ -105,6 +116,8 @@ class GroupEditor internal constructor(
         val held = group(groupUuid) ?: return Result.Error(GroupEditError.NotHeld)
 
         if (held.ownerUuid != selfUuid) return Result.Error(GroupEditError.NotCreator)
+
+        if (held.title == title && held.description == description) return Result.Error(GroupEditError.Unchanged)
 
         if (hasPendingChange(groupUuid)) return Result.Error(GroupEditError.ChangePending)
 

@@ -63,8 +63,8 @@ private const val UNANSWERED_RESEND_SECONDS = 60L
  *
  * To be called under [withGroupsLock], which it does not take itself, as for a creation.
  *
- * [addMembers], [removeMembers], [rotateKey] and [listGroups] are those of [GroupApi], [group] is
- * [GroupDao.get], [listPending] is [GroupDao.getMembershipChanges], [savePending] is
+ * [addMembers], [removeMembers], [rotateKey], [listGroups] and [history] are those of [GroupApi],
+ * [group] is [GroupDao.get], [listPending] is [GroupDao.getMembershipChanges], [savePending] is
  * [GroupDao.upsertMembershipChange], [dropPending] is [GroupDao.deleteMembershipChange],
  * [replaceMembers] is [GroupDao.replaceMembers], [adoptKey] is [GroupDao.adoptRotatedKey], [client]
  * is [MlsIdentityRepository.client], [receiveAccountDeletions] is
@@ -76,6 +76,7 @@ class GroupMembershipSender internal constructor(
     private val removeMembers: suspend (groupUuid: String, body: RemoveGroupMembersBody) -> GroupMembershipAnswer,
     private val rotateKey: suspend (groupUuid: String, body: RotateGroupKeyBody) -> GroupMembershipAnswer,
     private val listGroups: suspend () -> Result<List<GroupDto>, NetworkError>,
+    private val history: suspend (groupUuid: String) -> Result<GroupHistoryResponse, NetworkError>,
     private val group: suspend (groupUuid: String) -> GroupEntity?,
     private val listPending: suspend () -> List<PendingMembershipChangeEntity>,
     private val savePending: suspend (change: PendingMembershipChangeEntity) -> Unit,
@@ -99,6 +100,7 @@ class GroupMembershipSender internal constructor(
         removeMembers = groupApi::removeMembers,
         rotateKey = groupApi::rotateKey,
         listGroups = groupApi::getGroups,
+        history = groupApi::history,
         group = groupDao::get,
         listPending = groupDao::getMembershipChanges,
         savePending = groupDao::upsertMembershipChange,
@@ -293,14 +295,22 @@ class GroupMembershipSender internal constructor(
      * open, that the user did not sign, or that is older, is replaced by the version this device
      * shows, as when the group was created.
      *
+     * The versions the group's history holds from before it are sealed again under the new key as
+     * well, see [RotateGroupKeyBody.previous], read from the server at the same point, as this
+     * device keeps none of them: a member added after the rotation, or added back, holds the new
+     * key alone, and reads the history with it. Each as it is, signature and all, at its revision,
+     * so that the rotation changes nothing of it either, and only those the user signed that open
+     * under the key it replaces, see [openSigned]: one that does not, a member's the server would
+     * have the user vouch for, is left out, and the server drops it as it takes the rotation.
+     *
      * The creator's copy of the new key goes with it, see [RotateGroupKeyBody.keyCopy], sealed
      * before anything is built in the group, see [keyCopyOf].
      *
-     * Not done when the server cannot be asked for the version it holds, the key ring cannot be
-     * read for the copy, or the user's storage fails: the removal stays, the group past its epoch,
-     * which the next sync takes for a removal applied, and rotates the key then. A key message the
-     * library refuses for good is a rotation that never can be, and the removal goes, the group
-     * keeping the key it had.
+     * Not done when the server cannot be asked for the version it holds or for its history, the
+     * key ring cannot be read for the copy, or the user's storage fails: the removal stays, the
+     * group past its epoch, which the next sync takes for a removal applied, and rotates the key
+     * then. A key message the library refuses for good is a rotation that never can be, and the
+     * removal goes, the group keeping the key it had.
      */
     private suspend fun rotate(group: GroupEntity, client: MlsClient) {
         val serverVersion = when (val listed = listGroups()) {
@@ -324,6 +334,18 @@ class GroupMembershipSender internal constructor(
             }
         }
 
+        val previousVersions = when (val read = history(group.uuid)) {
+            is Result.Success -> read.data.previous.mapNotNull {
+                it.openSigned(group = group, creatorKey = client.signaturePublicKey())
+            }
+
+            is Result.Error -> {
+                resendScheduler.resendAfter(seconds = UNANSWERED_RESEND_SECONDS)
+
+                return
+            }
+        }
+
         val fields = serverVersion?.fields
             ?: GroupFields(title = group.title, description = group.description, currency = group.currency)
         val revision = serverVersion?.revision ?: group.infoRevision
@@ -333,6 +355,19 @@ class GroupMembershipSender internal constructor(
             fields.signedAs(client = client, groupUuid = group.uuid, revision = revision)
                 ?.seal(groupKey = groupKey, groupUuid = group.uuid),
         ) { "The library signs every version, and a key from generateSymmetricEncryptionKey seals." }
+
+        val previous = previousVersions.map { version ->
+            val sealed = checkNotNull(version.seal(groupKey = groupKey, groupUuid = group.uuid)) {
+                "A key from generateSymmetricEncryptionKey seals."
+            }
+
+            PreviousGroupVersionBody(
+                revision = sealed.revision,
+                title = sealed.fields.title,
+                description = sealed.fields.description,
+                signature = sealed.signature,
+            )
+        }
 
         val keyCopy = keyCopyOf(groupUuid = group.uuid, groupKey = groupKey) ?: run {
             resendScheduler.resendAfter(seconds = UNANSWERED_RESEND_SECONDS)
@@ -362,6 +397,7 @@ class GroupMembershipSender internal constructor(
                 currency = sealedVersion.fields.currency,
                 signature = sealedVersion.signature,
                 keyCopy = keyCopy,
+                previous = previous,
             ),
             groupKey = groupKey,
         )

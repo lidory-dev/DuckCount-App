@@ -116,7 +116,8 @@ data class RemoveGroupMembersBody(
  * Body of `PUT /groups/{group_uuid}/key`, which the creator sends once a removal is applied,
  * named by its [nonce] as an addition is, see [AddGroupMembersBody]: the new key for the members
  * who remain, and the group's information sealed under it in place of what a removed member can
- * open. The server keeps the revision it holds, which the rotation leaves as it was.
+ * open, the versions its history holds included, see [previous]. The server keeps the revision it
+ * holds, which the rotation leaves as it was, and when it stored each version.
  */
 @Serializable
 data class RotateGroupKeyBody(
@@ -152,6 +153,35 @@ data class RotateGroupKeyBody(
      */
     @SerialName("key_copy")
     val keyCopy: EncryptedFieldDto,
+
+    /**
+     * The versions the group's history holds from before the current one, see [GroupHistory],
+     * sealed again under the new key, each at its revision, and none for a group never edited: a
+     * member added from now on holds that key alone, and reads the history with it. Only those the
+     * creator signed that opened under the key this one replaces, see [GroupMembershipSender]: the
+     * server drops every one it holds that this does not carry as it takes the rotation, sealed
+     * under a key no member added from now on gets.
+     */
+    val previous: List<PreviousGroupVersionBody>,
+)
+
+/**
+ * One version of a group's information from before the current one, sealed again under the new
+ * key a rotation hands over, as [RotateGroupKeyBody.previous] carries it: its revision as the
+ * server holds it, which names the version the server replaces with it, and its title, description
+ * and the creator's signature over them, the currency staying the group's own, sealed as
+ * [EditGroupBody]'s are, see [GroupVersion.seal]. Not signed again: what is signed is what the
+ * fields open to, which the new key changes nothing of, see [signedAs].
+ */
+@Serializable
+data class PreviousGroupVersionBody(
+    val revision: Long,
+
+    val title: EncryptedFieldDto,
+
+    val description: EncryptedFieldDto,
+
+    val signature: EncryptedFieldDto,
 )
 
 /**
@@ -266,6 +296,43 @@ data class GroupDto(
 data class GroupMemberDto(
     @SerialName("user_uuid")
     val userUuid: String,
+)
+
+/**
+ * Body of `GET /groups/{group_uuid}/history`: the versions of a group's information the server
+ * keeps, [current], the one `GET /groups` lists, and [previous], those its edits replaced, newest
+ * first, the last nine of them, see [GroupHistory].
+ */
+@Serializable
+data class GroupHistoryResponse(
+    val current: GroupHistoryVersionDto,
+
+    val previous: List<GroupHistoryVersionDto>,
+)
+
+/**
+ * One version of a group's information as its history holds it, see [GroupHistoryResponse]: its
+ * title, description and the creator's signature over them as [revision], sealed under the group's
+ * key as [GroupDto]'s are, and when the server stored it. No currency: no edit changes it, so the
+ * group's own is what every version is checked with, see [GroupHistoryVersionDto.unseal].
+ */
+@Serializable
+data class GroupHistoryVersionDto(
+    val revision: Long,
+
+    val title: EncryptedFieldDto,
+
+    val description: EncryptedFieldDto,
+
+    val signature: EncryptedFieldDto,
+
+    /**
+     * When the server stored this version, as the group was created or the edit that made it was
+     * taken, RFC 3339 in UTC to the millisecond, as the API writes it: the server's word, which
+     * nothing signs. A key rotation leaves it as it was.
+     */
+    @SerialName("revised_at")
+    val revisedAt: String,
 )
 
 /**

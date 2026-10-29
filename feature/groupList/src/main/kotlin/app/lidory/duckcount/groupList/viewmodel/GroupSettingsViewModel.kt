@@ -449,6 +449,14 @@ fun GroupWithMembers.memberActions(): MemberActions = when {
 fun GroupWithMembers.isLeavable(): Boolean = canLeave
 
 /**
+ * Whether the settings of [this] offer the user the history of its title and description, see
+ * [app.lidory.duckcount.groupList.callBacks.GroupListCallBacks.getGroupHistory]: to every member
+ * still in it, its creator included, and to nobody else, the server giving it to its current
+ * members alone.
+ */
+fun GroupWithMembers.isHistoryReadable(): Boolean = !isLeft
+
+/**
  * Whether the member [userUuid] can be removed by the user [selfUuid], given the [actions] they
  * have: anybody but them, the group's creator, who never leaves it, as nobody else could change
  * its members.

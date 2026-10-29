@@ -4,6 +4,7 @@ import database.data.local.entity.MembershipChangeKind
 import database.data.local.entity.PendingMembershipChangeEntity
 import database.data.remote.EncryptedFieldDto
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlin.io.encoding.Base64
 import kotlin.test.Test
@@ -41,6 +42,14 @@ class PendingMembershipChangeTest {
         currency = EncryptedFieldDto(ciphertext = "Y3VycmVuY3k=", nonce = "bm9uY2Uz"),
         signature = EncryptedFieldDto(ciphertext = "c2lnbmF0dXJl", nonce = "bm9uY2U1"),
         keyCopy = EncryptedFieldDto(ciphertext = "a2V5", nonce = "bm9uY2U0"),
+        previous = listOf(
+            PreviousGroupVersionBody(
+                revision = 1,
+                title = EncryptedFieldDto(ciphertext = "dGl0bGUgMQ==", nonce = "bm9uY2U2"),
+                description = EncryptedFieldDto(ciphertext = "ZGVzY3JpcHRpb24gMQ==", nonce = "bm9uY2U3"),
+                signature = EncryptedFieldDto(ciphertext = "c2lnbmF0dXJlIDE=", nonce = "bm9uY2U4"),
+            ),
+        ),
     )
 
     @Test
@@ -54,12 +63,35 @@ class PendingMembershipChangeTest {
             keysOf(PendingMembershipChange.Removal(groupUuid = GROUP, body = removal, commitEpoch = 1).toEntity()),
         )
         assertEquals(
-            setOf("nonce", "key_message", "title", "description", "currency", "signature", "key_copy"),
+            setOf("nonce", "key_message", "title", "description", "currency", "signature", "key_copy", "previous"),
             keysOf(
                 PendingMembershipChange.KeyRotation(groupUuid = GROUP, body = rotation, groupKey = ByteArray(32))
                     .toEntity(),
             ),
         )
+    }
+
+    /** Each at the revision the server holds it at, with no currency, which no edit changes. */
+    @Test
+    fun `the versions a key rotation seals again are written with the names the server reads`() {
+        val kept = PendingMembershipChange.KeyRotation(groupUuid = GROUP, body = rotation, groupKey = ByteArray(32))
+            .toEntity()
+        val previous = Json.parseToJsonElement(kept.body).jsonObject.getValue("previous").jsonArray.single().jsonObject
+
+        assertEquals(setOf("revision", "title", "description", "signature"), previous.keys)
+        assertEquals("1", previous.getValue("revision").toString())
+    }
+
+    /** The server takes it, and drops every version of the history it held. */
+    @Test
+    fun `a key rotation carrying no earlier version is written with an empty list`() {
+        val kept = PendingMembershipChange.KeyRotation(
+            groupUuid = GROUP,
+            body = rotation.copy(previous = emptyList()),
+            groupKey = ByteArray(32),
+        ).toEntity()
+
+        assertEquals("[]", Json.parseToJsonElement(kept.body).jsonObject.getValue("previous").toString())
     }
 
     /** Sent again exactly as it first went out, see `PendingMembershipChangeEntity`. */
@@ -89,6 +121,7 @@ class PendingMembershipChangeTest {
         assertEquals(7, change.commitEpoch)
     }
 
+    /** The versions of the history it seals again among it, see [RotateGroupKeyBody.previous]. */
     @Test
     fun `a key rotation kept pending is sent again with the key it hands over`() {
         val groupKey = ByteArray(32) { it.toByte() }

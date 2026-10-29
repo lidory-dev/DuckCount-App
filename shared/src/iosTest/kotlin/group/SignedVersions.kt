@@ -65,6 +65,29 @@ internal fun SealedGroupVersion.rotatedBy(body: RotateGroupKeyBody) = SealedGrou
     signature = body.signature,
 )
 
+/**
+ * This version as the group's history holds it, see [GroupHistoryVersionDto]: its fields but the
+ * currency, which the history does not hold, stored by the server at [revisedAt].
+ */
+internal fun SealedGroupVersion.inHistory(revisedAt: String = "2026-10-29T08:15:42.317Z") = GroupHistoryVersionDto(
+    revision = revision,
+    title = fields.title,
+    description = fields.description,
+    signature = signature,
+    revisedAt = revisedAt,
+)
+
+/**
+ * The versions a key rotation, [body], leaves the server holding in the group's history, of
+ * these, as the API takes it: each one it carries in place of the one at the same revision, when
+ * there is one, the time it was stored at kept, and none it does not carry.
+ */
+internal fun List<GroupHistoryVersionDto>.rotatedBy(body: RotateGroupKeyBody) = mapNotNull { held ->
+    body.previous.firstOrNull { it.revision == held.revision }?.let { carried ->
+        held.copy(title = carried.title, description = carried.description, signature = carried.signature)
+    }
+}
+
 /** [this] once it shows [version], as `GroupDao.updateInformation` leaves it. */
 internal fun GroupEntity.showing(version: GroupVersion) = GroupEntity(
     uuid = uuid,

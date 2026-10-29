@@ -35,6 +35,7 @@ import app.lidory.duckcount.expenseList.viewmodel.expenseListViewModel
 import app.lidory.duckcount.groupList.CreateOrEditGroupScreen
 import app.lidory.duckcount.groupList.GroupBalanceScreen
 import app.lidory.duckcount.groupList.GroupDetailScreen
+import app.lidory.duckcount.groupList.GroupHistoryScreen
 import app.lidory.duckcount.groupList.GroupSettingsScreen
 import app.lidory.duckcount.groupList.GroupSettleUpScreen
 import app.lidory.duckcount.navigation.key.ContactDetailScreenKey
@@ -47,6 +48,7 @@ import app.lidory.duckcount.navigation.key.ExpenseDetailScreenKey
 import app.lidory.duckcount.navigation.key.ExpenseHistoryDetailScreenKey
 import app.lidory.duckcount.navigation.key.ExpenseHistoryScreenKey
 import app.lidory.duckcount.navigation.key.GroupDetailScreenKey
+import app.lidory.duckcount.navigation.key.GroupHistoryScreenKey
 import app.lidory.duckcount.navigation.key.GroupSettingsScreenKey
 import app.lidory.duckcount.navigation.key.NewContactScreenKey
 import app.lidory.duckcount.settings.SettingsFlow
@@ -360,12 +362,26 @@ fun NavigationRoot(
                                 },
                                 onBack = { backStack.removeIf { it is GroupSettingsScreenKey } },
                                 navigateToEditGroup = { backStack.add(CreateGroupScreenKey(key.groupUuid)) },
+                                navigateToGroupHistory = { backStack.add(GroupHistoryScreenKey(key.groupUuid)) },
                                 navigateToContactDetail = { userUuid ->
                                     backStack.add(ContactDetailScreenKey(userUuid))
                                 },
                                 navigateToContactRequests = { backStack.add(ContactRequestListScreenKey) },
                                 animatedVisibilityScope = LocalNavAnimatedContentScope.current,
                                 sharedTransitionScope = this@SharedTransitionLayout,
+                            )
+                        }
+                    }
+
+                    is GroupHistoryScreenKey -> {
+                        NavEntry(
+                            key = key,
+                        ) {
+                            GroupHistoryScreen(
+                                viewModel = koinViewModel {
+                                    parametersOf(key.groupUuid)
+                                },
+                                onBack = dropUnlessResumed { backStack.removeIf { it is GroupHistoryScreenKey } },
                             )
                         }
                     }

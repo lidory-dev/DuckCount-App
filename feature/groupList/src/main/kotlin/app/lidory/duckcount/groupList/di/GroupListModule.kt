@@ -3,6 +3,7 @@ package app.lidory.duckcount.groupList.di
 import app.lidory.duckcount.groupList.viewmodel.CreateGroupViewModel
 import app.lidory.duckcount.groupList.viewmodel.GroupBalanceViewModel
 import app.lidory.duckcount.groupList.viewmodel.GroupDetailViewModel
+import app.lidory.duckcount.groupList.viewmodel.GroupHistoryViewModel
 import app.lidory.duckcount.groupList.viewmodel.GroupListViewModel
 import app.lidory.duckcount.groupList.viewmodel.GroupSettingsViewModel
 import app.lidory.duckcount.groupList.viewmodel.GroupSettleUpViewModel
@@ -22,5 +23,6 @@ val groupListModule = module {
     viewModelOf(::GroupDetailViewModel)
     viewModelOf(::GroupBalanceViewModel)
     viewModelOf(::GroupSettingsViewModel)
+    viewModelOf(::GroupHistoryViewModel)
     viewModelOf(::GroupSettleUpViewModel)
 }

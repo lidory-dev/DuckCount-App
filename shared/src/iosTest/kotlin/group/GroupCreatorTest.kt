@@ -239,6 +239,31 @@ class GroupCreatorTest {
         assertEquals(FIRST_GROUP_REVISION, groups.getValue(groupUuid).infoRevision)
     }
 
+    /**
+     * A space typed at the end of the title, or a line left after the description, would otherwise
+     * reach every member.
+     */
+    @Test
+    fun `the group is created without the whitespace around its title and description`() = runBlocking<Unit> {
+        val groupUuid = assertIs<Result.Success<String>>(
+            create(title = "  Ski trip ", description = "\nChalet and lift passes\n\n"),
+        ).data
+        val body = posted.single().body
+
+        val version = assertNotNull(
+            SealedGroupVersion(
+                fields = SealedGroupFields(title = body.title, description = body.description, currency = body.currency),
+                revision = FIRST_GROUP_REVISION,
+                signature = body.signature,
+            ).unseal(groupKey = groups.getValue(groupUuid).groupKey, groupUuid = groupUuid),
+        )
+
+        assertEquals("Ski trip", version.fields.title)
+        assertEquals("Chalet and lift passes", version.fields.description)
+        assertEquals("Ski trip", groups.getValue(groupUuid).title)
+        assertEquals("Chalet and lift passes", groups.getValue(groupUuid).description)
+    }
+
     /** Sealing it reads the key ring, before any key package is asked for, which would be spent for nothing. */
     @Test
     fun `a key ring that does not answer creates nothing and asks for no key package`() = runBlocking<Unit> {
@@ -642,10 +667,14 @@ class GroupCreatorTest {
         assertTrue(posted.isEmpty())
     }
 
-    private suspend fun create(inviteeUuids: Set<String> = setOf(BOB, CAROL)) =
+    private suspend fun create(
+        inviteeUuids: Set<String> = setOf(BOB, CAROL),
+        title: String = "Ski trip",
+        description: String = "Chalet and lift passes",
+    ) =
         creator.create(
-            title = "Ski trip",
-            description = "Chalet and lift passes",
+            title = title,
+            description = description,
             currency = CurrencyCatalog.defaultCurrency,
             inviteeUuids = inviteeUuids,
         )

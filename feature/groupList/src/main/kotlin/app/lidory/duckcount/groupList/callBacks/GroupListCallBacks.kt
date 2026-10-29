@@ -4,6 +4,7 @@ import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupCreationError
 import app.lidory.duckcount.groupList.model.GroupEditError
+import app.lidory.duckcount.groupList.model.GroupHistory
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.User
@@ -50,7 +51,8 @@ interface GroupListCallBacks {
 
     /**
      * Creates the group of [members], the user among them, and sends it to the others, who join it
-     * at their next sync.
+     * at their next sync. Its [title] and [description] are taken without the whitespace around
+     * them, see [app.lidory.duckcount.groupList.viewmodel.canConfirm].
      *
      * Returns null once created, or why it could not be. Created means kept on this device: should
      * the server not have taken it yet, it is sent again until it does, and reaches its members
@@ -66,16 +68,26 @@ interface GroupListCallBacks {
     fun getAuthenticatedUserUuid(): String?
 
     /**
-     * Gives the group [uuid], which the user created, [title] and [description], signed as theirs,
-     * and sends them to the server, from which every member's device takes them at its next sync.
-     * Its currency stays the one it was created in, and its members are changed from its settings,
-     * by its creator alone, see [GroupSettingsCallBacks.addMembers].
+     * Gives the group [uuid], which the user created, [title] and [description], each without the
+     * whitespace around it, as a creation takes them, signed as theirs, and sends them to the
+     * server, from which every member's device takes them at its next sync. Its currency stays the
+     * one it was created in, and its members are changed from its settings, by its creator alone,
+     * see [GroupSettingsCallBacks.addMembers].
      *
      * Returns null once the server took them, which the group then shows, or why it did not, the
      * group showing what it showed, or, refused as outdated, the newer version the server holds,
      * see [GroupEditError.Outdated]: nothing is sent again.
      */
     suspend fun updateGroup(uuid: String, title: String, description: String): GroupEditError?
+
+    /**
+     * The versions of the title and description of the group [uuid], which the user is still in,
+     * that the server keeps, the current one and the last nine its creator's edits replaced, newest
+     * first: each one checked against its creator's signature, as the version the group shows is.
+     * Read from the server every time it is asked for, so that every member sees the same, those
+     * added since included.
+     */
+    suspend fun getGroupHistory(uuid: String): GroupHistory
 
     /**
      * Brings the groups up to date: joins the ones contacts added the user to, and sends again the

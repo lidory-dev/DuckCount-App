@@ -12,7 +12,8 @@ import app.lidory.duckcount.groupList.R
  *
  * Nothing is left of an edit that was not saved: the form shows what the user typed, for them to
  * save again, and the group what it showed, but after [Outdated], when it shows the newer version
- * it was read again for.
+ * it was read again for, and after [Unchanged], when it shows what the form holds, which there is
+ * nothing to save of then.
  */
 sealed interface GroupEditError {
 
@@ -31,6 +32,13 @@ sealed interface GroupEditError {
      * can be saved over it.
      */
     data object Outdated : GroupEditError
+
+    /**
+     * The group shows what the form holds already, which the form offers no saving of: a sync
+     * brought it as the edit was being made, an earlier edit of the user's whose answer was lost,
+     * say.
+     */
+    data object Unchanged : GroupEditError
 }
 
 /** The sentence [this] is told in, see [message]: a creation's for what kept it from going through. */
@@ -39,6 +47,7 @@ fun GroupEditError.messageRes(): Int = when (this) {
     is GroupEditError.Failure -> failure.messageRes()
     GroupEditError.ChangePending -> R.string.group_edit_error_change_pending
     GroupEditError.Outdated -> R.string.group_edit_error_outdated
+    GroupEditError.Unchanged -> R.string.group_edit_error_unchanged
 }
 
 /** What the form says of [this]. */

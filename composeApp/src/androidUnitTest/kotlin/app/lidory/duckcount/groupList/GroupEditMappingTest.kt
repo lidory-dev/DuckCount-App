@@ -36,6 +36,11 @@ class GroupEditMappingTest {
     }
 
     @Test
+    fun `an edit to what the group shows already is told as such`() {
+        assertEquals(GroupEditError.Unchanged, SharedGroupEditError.Unchanged.toGroupEditError(isOnline = true))
+    }
+
+    @Test
     fun `no connectivity is no internet`() {
         assertEquals(
             GroupEditError.Failure(GroupCreationFailure.NO_INTERNET),

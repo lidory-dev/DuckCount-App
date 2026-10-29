@@ -44,12 +44,13 @@ import kotlin.io.encoding.Base64
  *    session is read and before any key package is asked for, and then, under [withGroupsLock]
  *    like everything after, every one of them a contact this device pinned an identity for, none
  *    of them blocked, see [refusalOf].
- * 2. The group's key is drawn, its fields signed by the user as its first version, see
- *    [FIRST_GROUP_REVISION], and sealed under it, and the creator's copy of it sealed for the
- *    server to keep, see [GroupKeyCopies.seal], which reads the key ring: a key ring not answering
- *    stops everything here, with no key package spent. Then a key package is asked for each of
- *    them, a few at a time, see [fetchKeyPackages]. Any of them without one stops everything here,
- *    every one of them named, with nothing saved.
+ * 2. The group's key is drawn, its fields, the title and description taken without the whitespace
+ *    around them, signed by the user as its first version, see [FIRST_GROUP_REVISION], and sealed
+ *    under it, and the creator's copy of it sealed for the server to keep, see
+ *    [GroupKeyCopies.seal], which reads the key ring: a key ring not answering stops everything
+ *    here, with no key package spent. Then a key package is asked for each of them, a few at a
+ *    time, see [fetchKeyPackages]. Any of them without one stops everything here, every one of
+ *    them named, with nothing saved.
  * 3. The group is built with the library, its key travelling in the Welcome with the key to every
  *    member's profile this device holds, see [build] and [profileKeysToHandOut], and saved with its
  *    members and the request that will create it, the creator's copy of its key in it, see
@@ -127,7 +128,8 @@ class GroupCreator internal constructor(
     /**
      * Creates a group of the user and [inviteeUuids], at least one of them and fewer than
      * [GroupLimits.MAX_MEMBERS], entitled [title], with [description] and [currency], and returns
-     * its UUID, see [GroupCreator].
+     * its UUID, see [GroupCreator]. The title and description are taken without the whitespace
+     * around them, as an edit takes them, see [GroupEditor].
      */
     suspend fun create(
         title: String,
@@ -148,7 +150,7 @@ class GroupCreator internal constructor(
         return withGroupsLock {
             createLocked(
                 selfUuid = selfUuid,
-                fields = GroupFields(title = title, description = description, currency = currency),
+                fields = GroupFields(title = title.trim(), description = description.trim(), currency = currency),
                 inviteeUuids = inviteeUuids,
             )
         }

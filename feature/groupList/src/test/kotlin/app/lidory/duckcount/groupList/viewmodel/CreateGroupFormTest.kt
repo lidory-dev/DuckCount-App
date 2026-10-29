@@ -52,7 +52,7 @@ class CreateGroupFormTest {
     fun `the user alone cannot confirm a group`() {
         assertFalse(
             form(members = listOf(self))
-                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000, isNewGroup = true),
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
         )
     }
 
@@ -60,7 +60,7 @@ class CreateGroupFormTest {
     fun `the user and somebody else with a title can confirm a group`() {
         assertTrue(
             form(members = listOf(self, alice))
-                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000, isNewGroup = true),
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
         )
     }
 
@@ -68,16 +68,83 @@ class CreateGroupFormTest {
     @Test
     fun `a group being edited can be confirmed with no members listed`() {
         assertTrue(
-            form(members = emptyList())
-                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000, isNewGroup = false),
+            form(members = emptyList(), shown = SHOWN)
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
         )
     }
 
     @Test
     fun `a group being edited with no title cannot be confirmed`() {
         assertFalse(
-            form(members = emptyList(), title = "")
-                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000, isNewGroup = false),
+            form(members = emptyList(), title = "", shown = SHOWN)
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
+        )
+    }
+
+    /** It would wake every other member for nothing, and push the oldest version out of the history. */
+    @Test
+    fun `a group being edited to what it shows cannot be confirmed`() {
+        assertFalse(
+            form(members = emptyList(), title = SHOWN.title, description = SHOWN.description, shown = SHOWN)
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
+        )
+    }
+
+    @Test
+    fun `a group being edited with its title alone changed can be confirmed`() {
+        assertTrue(
+            form(members = emptyList(), title = "Ski trip 2027", description = SHOWN.description, shown = SHOWN)
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
+        )
+    }
+
+    @Test
+    fun `a group being edited with its description alone changed can be confirmed`() {
+        assertTrue(
+            form(members = emptyList(), title = SHOWN.title, description = "", shown = SHOWN)
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
+        )
+    }
+
+    /** Saved without it, it would be the same title and description again. */
+    @Test
+    fun `a group being edited with nothing but whitespace added around it cannot be confirmed`() {
+        assertFalse(
+            form(
+                members = emptyList(),
+                title = " ${SHOWN.title} ",
+                description = "${SHOWN.description}\n\n",
+                shown = SHOWN,
+            ).canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
+        )
+    }
+
+    @Test
+    fun `a title of nothing but spaces cannot be confirmed`() {
+        assertFalse(
+            form(members = listOf(self, alice), title = "   ")
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
+        )
+        assertFalse(
+            form(members = emptyList(), title = "   ", shown = SHOWN)
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
+        )
+    }
+
+    /** Counted as it is saved, without the whitespace around it. */
+    @Test
+    fun `a title past its limit by the whitespace around it alone can be confirmed`() {
+        assertTrue(
+            form(members = listOf(self, alice), title = " ${"a".repeat(50)} ")
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
+        )
+    }
+
+    @Test
+    fun `a description past its limit by the whitespace around it alone can be confirmed`() {
+        assertTrue(
+            form(members = listOf(self, alice), description = "${"a".repeat(2000)}\n")
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
         )
     }
 
@@ -85,7 +152,7 @@ class CreateGroupFormTest {
     fun `a group with no title cannot be confirmed`() {
         assertFalse(
             form(members = listOf(self, alice), title = "")
-                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000, isNewGroup = true),
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
         )
     }
 
@@ -93,7 +160,7 @@ class CreateGroupFormTest {
     fun `a title past its limit cannot be confirmed`() {
         assertFalse(
             form(members = listOf(self, alice), title = "a".repeat(51))
-                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000, isNewGroup = true),
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
         )
     }
 
@@ -101,7 +168,7 @@ class CreateGroupFormTest {
     fun `a description past its limit cannot be confirmed`() {
         assertFalse(
             form(members = listOf(self, alice), description = "a".repeat(2001))
-                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000, isNewGroup = true),
+                .canConfirm(maxTitleLength = 50, maxDescriptionLength = 2000),
         )
     }
 
@@ -114,6 +181,7 @@ class CreateGroupFormTest {
         members: List<GroupMemberWithFullName>,
         title: String = "Trip",
         description: String = "",
+        shown: GroupInformation? = null,
     ) = CreateGroupState.Content(
         title = title,
         description = description,
@@ -125,5 +193,9 @@ class CreateGroupFormTest {
         ),
         members = members,
         authenticatedUserUuid = "self",
+        shown = shown,
     )
 }
+
+/** What the group being edited shows, see [CreateGroupState.Content.shown]. */
+private val SHOWN = GroupInformation(title = "Ski trip", description = "Chalet and lift passes")

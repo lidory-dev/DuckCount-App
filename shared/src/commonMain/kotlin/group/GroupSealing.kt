@@ -99,11 +99,8 @@ internal fun GroupFields.seal(groupKey: ByteArray, groupUuid: String): SealedGro
  */
 internal fun SealedGroupFields.unseal(groupKey: ByteArray, groupUuid: String): GroupFields? =
     GroupFields(
-        title = unsealBound(groupKey, Context.title(groupUuid), title)?.decodeToString()
-            ?.takeIf { it.length <= MAX_TITLE_LENGTH }
-            ?: return null,
-        description = unsealBound(groupKey, Context.description(groupUuid), description)?.decodeToString()
-            ?.takeIf { it.length <= MAX_DESCRIPTION_LENGTH }
+        title = openTitle(groupKey = groupKey, groupUuid = groupUuid, sealed = title) ?: return null,
+        description = openDescription(groupKey = groupKey, groupUuid = groupUuid, sealed = description)
             ?: return null,
         currency = unsealBound(groupKey, Context.currency(groupUuid), currency)?.toCurrency() ?: return null,
     )
@@ -112,7 +109,8 @@ internal fun SealedGroupFields.unseal(groupKey: ByteArray, groupUuid: String): G
  * Seals this version under [groupKey] for the group [groupUuid]: its fields as [GroupFields.seal]
  * does, and its signature as one more field, the raw bytes the library signed. Ready for `POST
  * /groups`, an edit, see [EditGroupBody], and a key rotation, which seals the same version again
- * under the new key, see [RotateGroupKeyBody].
+ * under the new key, see [RotateGroupKeyBody], and each one its history holds, see
+ * [PreviousGroupVersionBody].
  *
  * Returns null only when [groupKey] is not a 32-byte key, as for [GroupFields.seal].
  */
@@ -136,8 +134,50 @@ internal fun SealedGroupVersion.unseal(groupKey: ByteArray, groupUuid: String): 
     GroupVersion(
         fields = fields.unseal(groupKey = groupKey, groupUuid = groupUuid) ?: return null,
         revision = revision,
-        signature = unsealBound(groupKey, Context.signature(groupUuid), signature) ?: return null,
+        signature = openSignature(groupKey = groupKey, groupUuid = groupUuid, sealed = signature) ?: return null,
     )
+
+/**
+ * Opens this version of the group [groupUuid] as its history holds it with [groupKey], its
+ * currency [currency], the group's own, or returns null when its title, its description or its
+ * signature does not open, as [SealedGroupVersion.unseal] opens the version the server lists: each
+ * as that field of that group, under that key, the title and description no longer than the form
+ * allows.
+ *
+ * The history holds no currency, which no edit changes: the group's own is what the creator signed
+ * with every version, see [GroupVersion], so a version is checked with it, see [openSigned].
+ * Opened is not checked here either, and the signature is what holds each field to its version:
+ * every version of a group is sealed under the same key, with the same contexts, so a field moved
+ * from one to another opens all the same, and only fails to verify as the version it was moved to.
+ */
+internal fun GroupHistoryVersionDto.unseal(groupKey: ByteArray, groupUuid: String, currency: Currency): GroupVersion? =
+    GroupVersion(
+        fields = GroupFields(
+            title = openTitle(groupKey = groupKey, groupUuid = groupUuid, sealed = title) ?: return null,
+            description = openDescription(groupKey = groupKey, groupUuid = groupUuid, sealed = description)
+                ?: return null,
+            currency = currency,
+        ),
+        revision = revision,
+        signature = openSignature(groupKey = groupKey, groupUuid = groupUuid, sealed = signature) ?: return null,
+    )
+
+/**
+ * The title [sealed] opens to as that of the group [groupUuid] under [groupKey], or null when it
+ * does not, or is longer than the form allows, see [SealedGroupFields.unseal].
+ */
+private fun openTitle(groupKey: ByteArray, groupUuid: String, sealed: EncryptedFieldDto): String? =
+    unsealBound(groupKey, Context.title(groupUuid), sealed)?.decodeToString()
+        ?.takeIf { it.length <= MAX_TITLE_LENGTH }
+
+/** The description [sealed] opens to, as [openTitle] opens a title. */
+private fun openDescription(groupKey: ByteArray, groupUuid: String, sealed: EncryptedFieldDto): String? =
+    unsealBound(groupKey, Context.description(groupUuid), sealed)?.decodeToString()
+        ?.takeIf { it.length <= MAX_DESCRIPTION_LENGTH }
+
+/** The signature [sealed] opens to as that of a version of the group [groupUuid] under [groupKey]. */
+private fun openSignature(groupKey: ByteArray, groupUuid: String, sealed: EncryptedFieldDto): ByteArray? =
+    unsealBound(groupKey, Context.signature(groupUuid), sealed)
 
 /**
  * The currency of [CurrencyCatalog] whose UUID was sealed, or null for one the app does not ship

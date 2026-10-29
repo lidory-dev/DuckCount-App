@@ -51,6 +51,7 @@
     </plurals>
     <string name="group_edit_error_change_pending">Le groupe pourra être modifié dès que sa dernière modification sera parvenue au serveur</string>
     <string name="group_edit_error_outdated">Le groupe a été modifié entre-temps, enregistrez à nouveau</string>
+    <string name="group_edit_error_unchanged">Le groupe a déjà ce titre et cette description</string>
 
     <!-- GroupSettingsScreen -->
     <plurals name="group_size">
@@ -80,6 +81,15 @@
         <item quantity="one" tools:ignore="ImpliedQuantity">%1$s a supprimé son compte</item>
         <item quantity="other">%1$s ont supprimé leur compte</item>
     </plurals>
+
+    <!-- GroupHistoryScreen -->
+    <string name="group_history">Historique du groupe</string>
+    <string name="group_history_current">Version actuelle</string>
+    <string name="group_history_created_on">Créé le %1$s</string>
+    <string name="group_history_edited_on">Modifié le %1$s</string>
+    <string name="group_history_retry">Réessayer</string>
+    <string name="group_history_error_device_locked">Le téléphone s’est verrouillé avant la lecture de l’historique, réessayez</string>
+    <string name="group_history_error_unreadable">L’historique ne peut pas encore être lu sur cet appareil, réessayez dans un instant</string>
 
     <!-- GroupMemberBottomSheet -->
     <string name="member_view_profile">Voir le profil</string>

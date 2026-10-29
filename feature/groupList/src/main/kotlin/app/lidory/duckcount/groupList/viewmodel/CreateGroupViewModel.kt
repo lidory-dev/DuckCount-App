@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -136,6 +137,7 @@ class CreateGroupViewModel(
                     // Changed from the group's settings, by its creator alone, never here.
                     members = emptyList(),
                     authenticatedUserUuid = authenticatedUserUuid,
+                    shown = GroupInformation(title = group.title, description = group.description),
                 )
             } ?: run {
                 CreateGroupState.Content(
@@ -157,10 +159,20 @@ class CreateGroupViewModel(
                 )
             }
 
-            // Read once, for the form to keep what the user typed, and watched from then on for the
-            // group going, or the user being out of it, see isGone.
+            // Read once, for the form to keep what the user typed, and watched from then on for
+            // what the group shows, which the form saves nothing but a change of, see
+            // CreateGroupState.Content.shown, and for the group going, or the user being out of
+            // it, see isGone.
             if (groupUuid != null) {
-                groupListCallBacks.getGroupWithMembers(groupUuid).first { it == null || it.isLeft }
+                groupListCallBacks.getGroupWithMembers(groupUuid)
+                    .onEach { group ->
+                        if (group != null) {
+                            updateContent {
+                                it.copy(shown = GroupInformation(title = group.title, description = group.description))
+                            }
+                        }
+                    }
+                    .first { it == null || it.isLeft }
 
                 _isGone.value = true
             }
@@ -315,26 +327,54 @@ sealed interface CreateGroupState {
         /** Who the group to create is made of, the user first: nobody for a group being edited. */
         val members: List<GroupMemberWithFullName>,
         val authenticatedUserUuid: String,
-    ) : CreateGroupState
+
+        /**
+         * The title and description the group being edited shows now, which the form saves
+         * nothing but a change of, see [canConfirm]: read again each time they change, as when an
+         * edit refused as outdated shows the version the server holds, or a sync an earlier edit
+         * of the user's whose answer was lost. Null for a group to create.
+         */
+        val shown: GroupInformation? = null,
+    ) : CreateGroupState {
+        /**
+         * [title] without the whitespace around it, as the group is saved with it, which the form
+         * is checked by, see [canConfirm]. The field holds it as typed: trimmed as it is typed, a
+         * space typed after a word would be swallowed, and the cursor moved back over it.
+         */
+        val trimmedTitle: String = title.trim()
+
+        /** [description] without the whitespace around it, as [trimmedTitle] is [title]. */
+        val trimmedDescription: String = description.trim()
+    }
 }
+
+/** A group's title and description, see [CreateGroupState.Content.shown]. */
+data class GroupInformation(
+    val title: String,
+    val description: String,
+)
 
 data class UserListState(
     val users: List<User> = emptyList(),
 )
 
 /**
- * Whether [this] holds a group to confirm: a title and a description within [maxTitleLength] and
- * [maxDescriptionLength], and for a group to create, [isNewGroup], the user and somebody else in
- * it. A group being edited keeps its members, which its settings change, see [members].
+ * Whether [this] holds a group to confirm, as it is saved, without the whitespace around its title
+ * and description, see [CreateGroupState.Content.trimmedTitle]: a title and a description within
+ * [maxTitleLength] and [maxDescriptionLength], and for a group to create, the user and somebody
+ * else in it. A group being edited keeps its members, which its settings change, see [members],
+ * and is confirmed only with a title or a description other than those it shows, see
+ * [CreateGroupState.Content.shown]: an edit that changes nothing would still wake every other
+ * member, and take a place in the group's history.
  */
-fun CreateGroupState.Content.canConfirm(
-    maxTitleLength: Int,
-    maxDescriptionLength: Int,
-    isNewGroup: Boolean,
-): Boolean =
-    (!isNewGroup || members.size >= 2) &&
-        title.length in (1..maxTitleLength) &&
-        description.length in (0..maxDescriptionLength)
+fun CreateGroupState.Content.canConfirm(maxTitleLength: Int, maxDescriptionLength: Int): Boolean =
+    when (shown) {
+        // A group to create.
+        null -> members.size >= 2
+        else -> trimmedTitle != shown.title || trimmedDescription != shown.description
+    } &&
+        trimmedTitle.length in (1..maxTitleLength) &&
+        trimmedDescription.length in (0..maxDescriptionLength)
 
 /**
  * How many members the group has with [selectedUuids] picked besides the [currentMemberCount] it

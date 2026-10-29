@@ -99,6 +99,12 @@ object DuckCountRoutes {
         val GROUP = "$GROUP_BASE_URL/:group_uuid"
 
         /**
+         * `GET` lists the versions of the information of one group the server keeps, the current
+         * one and those its edits replaced, newest first, any current member.
+         */
+        val HISTORY = "$GROUP_BASE_URL/:group_uuid/history"
+
+        /**
          * `GET` lists the messages waiting for the caller in one group, oldest first, `POST` posts
          * one to every other current member, any member.
          */

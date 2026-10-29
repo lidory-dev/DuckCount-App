@@ -4,6 +4,7 @@ import group.GroupApi
 import group.GroupCreationSender
 import group.GroupCreator
 import group.GroupEditor
+import group.GroupHistory
 import group.GroupKeyCopies
 import group.GroupLeaver
 import group.GroupMembershipChanger
@@ -88,6 +89,14 @@ val groupModule = module {
 
     single {
         GroupEditor(
+            groupApi = get(),
+            groupDao = get(),
+            mlsIdentityRepository = get(),
+        )
+    }
+
+    single {
+        GroupHistory(
             groupApi = get(),
             groupDao = get(),
             mlsIdentityRepository = get(),

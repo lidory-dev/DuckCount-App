@@ -22,6 +22,11 @@ class GroupEditMessageTest {
     }
 
     @Test
+    fun `an edit to what the group shows already is told as such`() {
+        assertEquals(R.string.group_edit_error_unchanged, GroupEditError.Unchanged.messageRes())
+    }
+
+    @Test
     fun `what kept it from going through is told as for a creation`() {
         GroupCreationFailure.entries.forEach { failure ->
             assertEquals(failure.messageRes(), GroupEditError.Failure(failure).messageRes())

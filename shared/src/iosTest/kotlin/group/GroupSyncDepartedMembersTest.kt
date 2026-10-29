@@ -119,6 +119,8 @@ class GroupSyncDepartedMembersTest {
             rotateAnswer
         },
         listGroups = { Result.Success(listed()) },
+        // Never edited: what becomes of its history is GroupMembershipChangerTest's.
+        history = { Result.Success(GroupHistoryResponse(current = serverVersion.inHistory(), previous = emptyList())) },
         group = { groups[it] },
         listPending = { pending.values.toList() },
         savePending = { change -> pending[change.groupUuid] = change },
