@@ -118,6 +118,7 @@ fun GroupSettingsScreen(
         onSelectUsers = { viewModel.addMembers() },
         onDismissRequest = { viewModel.hideMemberDialog() },
         userList = userListState.users,
+        nobodyToPick = userListState.nobodyToPick,
         searchQuery = viewModel.searchQuery,
         // Cleared with the selection once the picker closes, and only then: not while the members
         // picked are being added, see GroupSettingsViewModel.hideMemberDialog.

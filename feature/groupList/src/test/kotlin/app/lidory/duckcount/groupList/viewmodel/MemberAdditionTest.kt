@@ -1,8 +1,10 @@
 package app.lidory.duckcount.groupList.viewmodel
 
+import app.lidory.duckcount.groupList.model.NobodyToPick
 import app.lidory.duckcount.groupList.model.User
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -29,6 +31,33 @@ class MemberAdditionTest {
     @Test
     fun `the picker keeps the order the contacts come in`() {
         assertEquals(listOf(carol, alice), invitableUsers(users = listOf(carol, alice), memberUuids = setOf("self")))
+    }
+
+    /** Rather than that a search found nobody, with nothing searched. */
+    @Test
+    fun `the picker tells a user whose contacts are all in the group so`() {
+        assertEquals(
+            NobodyToPick.ALL_MEMBERS,
+            nobodyToPick(contacts = listOf(alice, bob), memberUuids = setOf("self", "alice", "bob")),
+        )
+    }
+
+    @Test
+    fun `the picker tells a user with no contact so`() {
+        assertEquals(NobodyToPick.NO_CONTACTS, nobodyToPick(contacts = emptyList(), memberUuids = setOf("self")))
+    }
+
+    /** A group to create has no members yet, the user aside, who is never among their contacts. */
+    @Test
+    fun `the picker tells a user creating a group with no contact so`() {
+        assertEquals(NobodyToPick.NO_CONTACTS, nobodyToPick(contacts = emptyList(), memberUuids = emptySet()))
+    }
+
+    /** An empty list then means a search that found nobody. */
+    @Test
+    fun `the picker gives no reason while a contact can be picked`() {
+        assertNull(nobodyToPick(contacts = listOf(alice, bob), memberUuids = setOf("self", "alice")))
+        assertNull(nobodyToPick(contacts = listOf(alice), memberUuids = emptySet()))
     }
 
     @Test

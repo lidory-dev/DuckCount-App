@@ -14,6 +14,7 @@ import app.lidory.duckcount.groupList.model.LeaveResult
 import app.lidory.duckcount.groupList.model.MemberRelation
 import app.lidory.duckcount.groupList.model.MembershipChangeError
 import app.lidory.duckcount.groupList.model.MembershipChangeResult
+import app.lidory.duckcount.groupList.model.NobodyToPick
 import app.lidory.duckcount.groupList.model.User
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -88,14 +89,21 @@ class GroupSettingsViewModel(
         .map { state -> state.membersWithFullName.mapTo(HashSet()) { it.member.userUuid } }
         .distinctUntilChanged()
 
+    // The contacts the user can put in a group, whatever is searched.
+    private val contacts: Flow<List<User>> = groupSettingsCallBacks.getInvitableUsersFiltered(filter = "")
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val usersState: StateFlow<UserListState> = combine(
         snapshotFlow { searchQuery }.flatMapLatest { query ->
             groupSettingsCallBacks.getInvitableUsersFiltered(filter = query)
         },
+        contacts,
         memberUuids,
-    ) { users, memberUuids ->
-        UserListState(invitableUsers(users = users, memberUuids = memberUuids))
+    ) { users, contacts, memberUuids ->
+        UserListState(
+            users = invitableUsers(users = users, memberUuids = memberUuids),
+            nobodyToPick = nobodyToPick(contacts = contacts, memberUuids = memberUuids),
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000L),
@@ -104,7 +112,7 @@ class GroupSettingsViewModel(
 
     // Who the picker lists whatever is searched, see listedPicks.
     private val listedUuids: StateFlow<Set<String>> = combine(
-        groupSettingsCallBacks.getInvitableUsersFiltered(filter = ""),
+        contacts,
         memberUuids,
     ) { users, memberUuids ->
         invitableUsers(users = users, memberUuids = memberUuids).mapTo(HashSet()) { it.uuid }
@@ -546,6 +554,18 @@ fun isRequestOut(error: ContactRequestError?): Boolean =
 /** Who of [users] can be added to the group of [memberUuids]: whoever is not in it yet. */
 fun invitableUsers(users: List<User>, memberUuids: Set<String>): List<User> =
     users.filterNot { it.uuid in memberUuids }
+
+/**
+ * Why the picker lists nobody, whatever is searched, for the group of [memberUuids], none for a
+ * group to create: the user has no contact they can put in a group among [contacts], or every one
+ * of them is in it already, see [invitableUsers]. Null when somebody can be picked: an empty list
+ * then means that nobody's name holds what is searched.
+ */
+fun nobodyToPick(contacts: List<User>, memberUuids: Set<String>): NobodyToPick? = when {
+    contacts.isEmpty() -> NobodyToPick.NO_CONTACTS
+    invitableUsers(users = contacts, memberUuids = memberUuids).isEmpty() -> NobodyToPick.ALL_MEMBERS
+    else -> null
+}
 
 /**
  * Who of [picked] is picked still: those the picker lists, [listedUuids], whatever is searched.

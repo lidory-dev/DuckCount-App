@@ -112,4 +112,6 @@
         <item quantity="one">%1$d/%2$d member</item>
         <item quantity="other">%1$d/%2$d members</item>
     </plurals>
+    <string name="no_contacts_to_pick">You don’t have any contacts to add yet. Add some from the Contacts tab.</string>
+    <string name="all_contacts_already_members">All the contacts you can add are already in this group</string>
 </resources>

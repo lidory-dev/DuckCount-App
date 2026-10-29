@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.composable.button.ButtonBottomPadding
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
@@ -42,6 +43,7 @@ import app.lidory.duckcount.android.ui.composable.fullscreendialog.FullScreenDia
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.R
+import app.lidory.duckcount.groupList.model.NobodyToPick
 import app.lidory.duckcount.groupList.model.User
 import app.lidory.duckcount.groupList.viewmodel.isSelectable
 import app.lidory.duckcount.groupList.viewmodel.memberCount
@@ -51,7 +53,8 @@ import app.lidory.duckcount.android.ui.R as androidUiR
  * Picks the members of a group besides the user, from their contacts: [selectedUuids] never holds
  * the user, who is in the group whatever is picked, and counts against [maxMembers] all the same.
  * For a group that exists, it picks the members to add to it among [userList], those who are not
- * in it yet, the [currentMemberCount] it has counting against [maxMembers] just as well.
+ * in it yet, the [currentMemberCount] it has counting against [maxMembers] just as well. With
+ * nobody to list, it tells why, [nobodyToPick], rather than that a search found nobody.
  *
  * Confirming hands the selection to [onSelectUsers], which closes the picker once done with it:
  * adding members to a group keeps it open while [isConfirming], and tells over it, in
@@ -68,6 +71,7 @@ fun GroupMemberFullScreenDialog(
     onSelectUsers: (Set<String>) -> Unit,
     onDismissRequest: () -> Unit,
     userList: List<User>,
+    nobodyToPick: NobodyToPick?,
     searchQuery: String,
     clearSearchQuery: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
@@ -191,11 +195,21 @@ fun GroupMemberFullScreenDialog(
                 )
 
                 if (userList.isEmpty()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        Text(text = stringResource(androidUiR.string.no_result))
+                    // Nobody to pick whatever is searched, then why, or nobody whose name holds what
+                    // is, and nothing while the lists are still being read.
+                    val emptyListText = when (nobodyToPick) {
+                        NobodyToPick.NO_CONTACTS -> stringResource(R.string.no_contacts_to_pick)
+                        NobodyToPick.ALL_MEMBERS -> stringResource(R.string.all_contacts_already_members)
+                        null -> if (searchQuery.isNotBlank()) stringResource(androidUiR.string.no_result) else null
+                    }
+
+                    emptyListText?.let { text ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            Text(text = text, textAlign = TextAlign.Center)
+                        }
                     }
 
                     // Out of the bar while the window is too short for it there, see isButtonPinned.

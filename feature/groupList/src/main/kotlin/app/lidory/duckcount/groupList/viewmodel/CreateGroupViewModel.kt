@@ -12,6 +12,7 @@ import app.lidory.duckcount.groupList.model.GroupCreationError
 import app.lidory.duckcount.groupList.model.GroupEditError
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
+import app.lidory.duckcount.groupList.model.NobodyToPick
 import app.lidory.duckcount.groupList.model.User
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -23,9 +24,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -103,18 +104,20 @@ class CreateGroupViewModel(
     val selectedUuids: StateFlow<Set<String>> = _selectedUuids
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val usersState: StateFlow<UserListState> = snapshotFlow { searchQuery }
-        .flatMapLatest { query ->
+    val usersState: StateFlow<UserListState> = combine(
+        snapshotFlow { searchQuery }.flatMapLatest { query ->
             groupListCallBacks.getInvitableUsersFiltered(filter = query)
-        }
-        .map { users ->
-            UserListState(users)
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000L),
-            initialValue = UserListState(),
-        )
+        },
+        // Whatever is searched, to tell a user who has no contact to put in the group, see
+        // nobodyToPick.
+        groupListCallBacks.getInvitableUsersFiltered(filter = ""),
+    ) { users, contacts ->
+        UserListState(users = users, nobodyToPick = nobodyToPick(contacts = contacts, memberUuids = emptySet()))
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000L),
+        initialValue = UserListState(),
+    )
 
     init {
         // Once, and not whenever the form is collected again: coming back to the app after a few
@@ -354,8 +357,13 @@ data class GroupInformation(
     val description: String,
 )
 
+/**
+ * Whom the member picker lists, [users], and why it lists nobody whatever is searched,
+ * [nobodyToPick]: null while somebody can be picked, and while the lists are still being read.
+ */
 data class UserListState(
     val users: List<User> = emptyList(),
+    val nobodyToPick: NobodyToPick? = null,
 )
 
 /**

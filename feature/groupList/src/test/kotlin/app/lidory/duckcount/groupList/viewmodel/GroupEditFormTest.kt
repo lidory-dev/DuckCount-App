@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.resetMain
@@ -152,7 +153,8 @@ private class EditCallBacks(private val group: Flow<GroupWithMembers?>) : GroupL
 
     override fun getAllGroups(): Flow<List<Group>> = TODO()
     override fun getGroup(uuid: String): Flow<Group> = TODO()
-    override fun getInvitableUsersFiltered(filter: String): Flow<List<User>> = TODO()
+    // Read as the form opens, for the member picker, which these tests leave closed.
+    override fun getInvitableUsersFiltered(filter: String): Flow<List<User>> = flowOf(emptyList())
     override fun getUsersFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> = TODO()
     override fun getUserFullName(uuid: String): Flow<String?> = TODO()
     override fun getDefaultCurrency(): Currency = TODO()

@@ -154,6 +154,7 @@ fun CreateOrEditGroupScreen(
         },
         onDismissRequest = { viewModel.hideMemberDialog() },
         userList = userListState.users,
+        nobodyToPick = userListState.nobodyToPick,
         searchQuery = viewModel.searchQuery,
         clearSearchQuery = { viewModel.clearSearchQuery() },
         onSearchQueryChange = { viewModel.updateSearchQuery(it) },
