@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +34,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
+import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.composable.button.ButtonBottomPadding
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedButton
 import app.lidory.duckcount.android.ui.composable.button.isButtonPinned
@@ -185,12 +185,13 @@ fun BeneficiariesDialog(
                 }
 
                 if (usersList.isEmpty()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        Text(text = stringResource(R.string.no_result))
-                    }
+                    // Only ever a search that found nobody: the user is listed whatever they have.
+                    // Centred in what the button leaves, as the contacts tab tells it.
+                    EmptyContentContainer(
+                        modifier = Modifier.weight(1f),
+                        icon = androidUiR.drawable.ic_search,
+                        text = R.string.no_result,
+                    )
 
                     // Out of the bar while the window is too short for it there, see isButtonPinned.
                     if (!isButtonPinned) confirmButton(Modifier)

@@ -205,7 +205,7 @@ private fun ContactList(
                 )
             } else {
                 EmptyContentContainer(
-                    icon = R.drawable.ic_contacts_group,
+                    icon = androidUiR.drawable.ic_contacts_group,
                     text = R.string.no_contacts_yet,
                 )
             }

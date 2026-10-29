@@ -4,7 +4,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,8 +32,8 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
+import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.composable.button.ButtonBottomPadding
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
 import app.lidory.duckcount.android.ui.composable.button.isButtonPinned
@@ -196,19 +195,27 @@ fun GroupMemberFullScreenDialog(
 
                 if (userList.isEmpty()) {
                     // Nobody to pick whatever is searched, then why, or nobody whose name holds what
-                    // is, and nothing while the lists are still being read.
-                    val emptyListText = when (nobodyToPick) {
-                        NobodyToPick.NO_CONTACTS -> stringResource(R.string.no_contacts_to_pick)
-                        NobodyToPick.ALL_MEMBERS -> stringResource(R.string.all_contacts_already_members)
-                        null -> if (searchQuery.isNotBlank()) stringResource(androidUiR.string.no_result) else null
-                    }
+                    // is, and nothing while the lists are still being read. Centred in what the
+                    // button leaves, as the contacts tab tells it.
+                    when (nobodyToPick) {
+                        NobodyToPick.NO_CONTACTS -> EmptyContentContainer(
+                            modifier = Modifier.weight(1f),
+                            icon = androidUiR.drawable.ic_contacts_group,
+                            text = R.string.no_contacts_to_pick,
+                        )
 
-                    emptyListText?.let { text ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
-                        ) {
-                            Text(text = text, textAlign = TextAlign.Center)
+                        NobodyToPick.ALL_MEMBERS -> EmptyContentContainer(
+                            modifier = Modifier.weight(1f),
+                            icon = R.drawable.ic_group,
+                            text = R.string.all_contacts_already_members,
+                        )
+
+                        null -> if (searchQuery.isNotBlank()) {
+                            EmptyContentContainer(
+                                modifier = Modifier.weight(1f),
+                                icon = androidUiR.drawable.ic_search,
+                                text = androidUiR.string.no_result,
+                            )
                         }
                     }
 

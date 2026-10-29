@@ -110,7 +110,7 @@ fun ContactVerificationScreen(
             ContactVerification.NotContact -> {
                 EmptyContentContainer(
                     modifier = Modifier.padding(innerPadding),
-                    icon = R.drawable.ic_contacts_group,
+                    icon = androidUiR.drawable.ic_contacts_group,
                     text = R.string.contact_verification_not_contact,
                 )
             }

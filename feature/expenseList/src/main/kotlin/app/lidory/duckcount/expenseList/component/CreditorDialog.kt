@@ -4,9 +4,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.composable.fullscreendialog.FullScreenDialog
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
@@ -87,12 +90,13 @@ fun CreditorDialog(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(
-                        top = innerPadding.calculateTopPadding(),
-                        bottom = Padding.medium,
-                        start = Padding.medium,
-                        end = Padding.medium,
-                    ),
+                    // Above the navigation bar and the keyboard, as on the other pickers: the
+                    // people a search finds can all be scrolled into view, and what is told when
+                    // it finds nobody is centred in what the keyboard leaves.
+                    .padding(innerPadding)
+                    .consumeWindowInsets(innerPadding)
+                    .imePadding()
+                    .padding(start = Padding.medium, end = Padding.medium, bottom = Padding.medium),
                 verticalArrangement = Arrangement.spacedBy(Padding.large),
             ) {
                 DuckCountSearchBar(
@@ -103,12 +107,12 @@ fun CreditorDialog(
                 )
 
                 if (usersList.isEmpty()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        Text(text = stringResource(R.string.no_result))
-                    }
+                    // Only ever a search that found nobody: the user is listed whatever they have.
+                    // Centred, as the contacts tab tells it.
+                    EmptyContentContainer(
+                        icon = androidUiR.drawable.ic_search,
+                        text = R.string.no_result,
+                    )
                 } else {
                     LazyColumn(
                         state = listState,
