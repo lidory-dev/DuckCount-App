@@ -20,6 +20,13 @@ sealed interface GroupMembershipError : Error {
     data object NoSession : GroupMembershipError
 
     /**
+     * The device locked before the change could be built, as it waited for a sync under way, say:
+     * who is signed in, the user's MLS identity and the key to their profile are read with keys a
+     * locked device cannot use, see [GroupSyncError.DeviceLocked].
+     */
+    data object DeviceLocked : GroupMembershipError
+
+    /**
      * The user did not create the group, and only its creator adds and removes members: the
      * members' devices take Commits from nobody else, see
      * [database.data.local.entity.GroupEntity.ownerUuid].

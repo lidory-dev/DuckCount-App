@@ -9,6 +9,7 @@ import database.data.local.dao.IdentityConflictDao
 import database.data.local.entity.GroupEntity
 import database.data.local.entity.PendingMembershipChangeEntity
 import database.data.repository.ContactRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import mls.ConsumeKeyPackageDto
@@ -88,6 +89,16 @@ enum class MembershipChangeOutcome {
  * next change back, and a change sent and left there would wait for the next sync to reach its
  * members, a removal its key rotation.
  *
+ * A change can wait on a sync under way for as long as that sync takes, and the device can lock
+ * meanwhile, which leaves nothing the vault holds readable: who is signed in, the user's MLS
+ * identity until it is opened in this process, the contacts still to bring back, and the key to
+ * the user's profile. Before the Commit is built, a change the user asked for is not made then,
+ * see [GroupMembershipError.DeviceLocked], and an addition reads all of it before it asks for any
+ * key package, which would be spent for nothing. The sync's own removals read the vault as is
+ * instead, and its pass stops at the first read that throws, see [removeUnderGroupsLock]. After the
+ * Commit is built, nothing reads the vault but the backup of a rotated key, which the next sync
+ * makes when the vault would not take it, see [GroupMembershipSender].
+ *
  * [userUuid] is [getAuthenticatedUserUuid], [restoreContacts] is [ContactRepository.restore],
  * [contacts] and [blocked] are [ContactDao.getUserUuids] and [IdentityConflictDao.getBlocked],
  * [client] is [MlsIdentityRepository.client], [consumeKeyPackage] is
@@ -156,9 +167,15 @@ class GroupMembershipChanger internal constructor(
     suspend fun add(groupUuid: String, userUuids: Set<String>): Result<MembershipChangeOutcome, GroupMembershipError> {
         require(userUuids.isNotEmpty()) { "Members are added one at least." }
 
-        val selfUuid = userUuid() ?: return Result.Error(GroupMembershipError.NoSession)
+        return withGroupsLock {
+            // Once the lock is held: the device may have locked as this waited for it, see above.
+            val selfUuid = when (val read = unlockedOrError { userUuid() }) {
+                is Result.Success -> read.data ?: return@withGroupsLock Result.Error(GroupMembershipError.NoSession)
+                is Result.Error -> return@withGroupsLock read
+            }
 
-        return withGroupsLock { addLocked(selfUuid = selfUuid, groupUuid = groupUuid, userUuids = userUuids) }
+            addLocked(selfUuid = selfUuid, groupUuid = groupUuid, userUuids = userUuids)
+        }
     }
 
     /**
@@ -168,14 +185,33 @@ class GroupMembershipChanger internal constructor(
     suspend fun remove(
         groupUuid: String,
         userUuids: Set<String>,
-    ): Result<MembershipChangeOutcome, GroupMembershipError> =
-        withGroupsLock { removeUnderGroupsLock(groupUuid = groupUuid, userUuids = userUuids) }
+    ): Result<MembershipChangeOutcome, GroupMembershipError> {
+        require(userUuids.isNotEmpty()) { "Members are removed one at least." }
+
+        return withGroupsLock {
+            // Once the lock is held: the device may have locked as this waited for it, see above.
+            val selfUuid = when (val read = unlockedOrError { userUuid() }) {
+                is Result.Success -> read.data ?: return@withGroupsLock Result.Error(GroupMembershipError.NoSession)
+                is Result.Error -> return@withGroupsLock read
+            }
+
+            removeLocked(
+                selfUuid = selfUuid,
+                groupUuid = groupUuid,
+                userUuids = userUuids,
+                openClient = ::clientWhileUnlocked,
+            )
+        }
+    }
 
     /**
      * Removes [userUuids] as [remove] does, for a caller already holding [withGroupsLock], which
      * this does not take: the group sync, which removes from the groups the user created whoever
      * the server no longer lists, see [GroupSync]. To be called under that lock alone, which is not
      * reentrant: [remove] would wait on it for good there.
+     *
+     * The vault is read as is: on a locked device the read throws, and the sync stops its pass there,
+     * telling its caller to try again once the device is unlocked, see [GroupSyncError.DeviceLocked].
      */
     internal suspend fun removeUnderGroupsLock(
         groupUuid: String,
@@ -185,11 +221,7 @@ class GroupMembershipChanger internal constructor(
 
         val selfUuid = userUuid() ?: return Result.Error(GroupMembershipError.NoSession)
 
-        // A member's way out is leaving, see GroupLeaver, never a removal of their own, and the
-        // creator never leaves: nobody else could change the group.
-        require(selfUuid !in userUuids) { "The creator of a group is never removed from it." }
-
-        return removeLocked(selfUuid = selfUuid, groupUuid = groupUuid, userUuids = userUuids)
+        return removeLocked(selfUuid = selfUuid, groupUuid = groupUuid, userUuids = userUuids, openClient = ::clientAsIs)
     }
 
     private suspend fun addLocked(
@@ -204,11 +236,14 @@ class GroupMembershipChanger internal constructor(
 
         // Before the pins are read, as for a creation: until the contacts are back, a contact
         // looks like a stranger, and their pin is not there.
-        restoreContacts().onError { return Result.Error(GroupMembershipError.Contacts(it)) }
+        when (val restored = unlockedOrError { restoreContacts() }) {
+            is Result.Success -> restored.data.onError { return Result.Error(GroupMembershipError.Contacts(it)) }
+            is Result.Error -> return restored
+        }
 
-        val client = when (val opened = client()) {
+        val client = when (val opened = clientWhileUnlocked()) {
             is Result.Success -> opened.data
-            is Result.Error -> return Result.Error(GroupMembershipError.Identity(opened.error))
+            is Result.Error -> return opened
         }
 
         val roster = when (val read = settledRosterOf(client = client, mlsGroupId = held.mlsGroupId)) {
@@ -227,6 +262,13 @@ class GroupMembershipChanger internal constructor(
 
         refusalOf(client = client, userUuids = newMemberUuids)?.let { return Result.Error(it) }
 
+        // Before any key package is asked for, which a device locked by now would spend for
+        // nothing, see GroupMembershipChanger.
+        val ownKey = when (val read = unlockedOrError { ownProfileKey() }) {
+            is Result.Success -> read.data
+            is Result.Error -> return read
+        }
+
         val keyPackages = when (
             val fetched = fetchKeyPackages(inviteeUuids = newMemberUuids, consumeKeyPackage = consumeKeyPackage)
         ) {
@@ -244,7 +286,7 @@ class GroupMembershipChanger internal constructor(
         val profileKeys = profileKeysToHandOut(
             memberUuids = roster.memberUuids + keyPackages.map { it.userUuid },
             selfUuid = selfUuid,
-            ownProfileKey = ownProfileKey(),
+            ownProfileKey = ownKey,
             contactProfileKey = contactProfileKey,
             learnedProfileKey = learnedProfileKey,
         )
@@ -312,19 +354,28 @@ class GroupMembershipChanger internal constructor(
         }
     }
 
+    /**
+     * Removes [userUuids] from the group [groupUuid] as the user [selfUuid], with the MLS client
+     * [openClient] opens, see [clientWhileUnlocked] and [clientAsIs].
+     */
     private suspend fun removeLocked(
         selfUuid: String,
         groupUuid: String,
         userUuids: Set<String>,
+        openClient: suspend () -> Result<MlsClient, GroupMembershipError>,
     ): Result<MembershipChangeOutcome, GroupMembershipError> {
+        // A member's way out is leaving, see GroupLeaver, never a removal of their own, and the
+        // creator never leaves: nobody else could change the group.
+        require(selfUuid !in userUuids) { "The creator of a group is never removed from it." }
+
         val held = when (val checked = changeable(groupUuid = groupUuid, selfUuid = selfUuid)) {
             is Result.Success -> checked.data
             is Result.Error -> return checked
         }
 
-        val client = when (val opened = client()) {
+        val client = when (val opened = openClient()) {
             is Result.Success -> opened.data
-            is Result.Error -> return Result.Error(GroupMembershipError.Identity(opened.error))
+            is Result.Error -> return opened
         }
 
         val roster = when (val read = settledRosterOf(client = client, mlsGroupId = held.mlsGroupId)) {
@@ -358,6 +409,23 @@ class GroupMembershipChanger internal constructor(
             saveAndSend(change = change, held = held, client = client)
         }
     }
+
+    /** The user's MLS client, or why it does not open, the vault read as is, see [removeUnderGroupsLock]. */
+    private suspend fun clientAsIs(): Result<MlsClient, GroupMembershipError> =
+        when (val opened = client()) {
+            is Result.Success -> opened
+            is Result.Error -> Result.Error(GroupMembershipError.Identity(opened.error))
+        }
+
+    /**
+     * The user's MLS client, for a change they asked for, or why it does not open: the device having
+     * locked before this process first opened it included, see [GroupMembershipError.DeviceLocked].
+     */
+    private suspend fun clientWhileUnlocked(): Result<MlsClient, GroupMembershipError> =
+        when (val read = unlockedOrError { clientAsIs() }) {
+            is Result.Success -> read.data
+            is Result.Error -> read
+        }
 
     /**
      * The group [groupUuid] with its MLS group, when the user [selfUuid] may change its members
@@ -455,3 +523,19 @@ class GroupMembershipChanger internal constructor(
 
 /** A group the user may change the members of, and its MLS group, see [GroupMembershipChanger.changeable]. */
 private class HeldGroup(val group: GroupEntity, val mlsGroupId: ByteArray)
+
+/**
+ * What [read], a read of the vault for a change the user asked for, gives, or
+ * [GroupMembershipError.DeviceLocked] when the device is locked: what the vault holds is read with
+ * keys a locked device cannot use, and reading it throws an [IllegalStateException] then.
+ */
+private inline fun <T> unlockedOrError(read: () -> T): Result<T, GroupMembershipError> =
+    try {
+        Result.Success(read())
+    } catch (exception: CancellationException) {
+        // The caller going away, which the catch below would otherwise take for a locked device,
+        // a CancellationException being an IllegalStateException.
+        throw exception
+    } catch (_: IllegalStateException) {
+        Result.Error(GroupMembershipError.DeviceLocked)
+    }

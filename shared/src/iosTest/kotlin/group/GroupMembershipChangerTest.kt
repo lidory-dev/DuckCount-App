@@ -6,6 +6,7 @@ import database.data.local.entity.MembershipChangeKind
 import database.data.local.entity.PendingMembershipChangeEntity
 import database.domain.CurrencyCatalog
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
@@ -41,6 +42,11 @@ private const val CAROL = "33333333-3333-3333-3333-333333333333"
 private const val DAVE = "44444444-4444-4444-4444-444444444444"
 
 private const val GROUP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+private const val DEVICE_LOCKED = "KSafe: Cannot access Keystore key - device is locked"
+
+/** What a change reads from the vault, which a locked device refuses, each on its own in a test. */
+private enum class VaultRead { SESSION, IDENTITY, CONTACTS, PROFILE_KEY, BACKUP }
 
 /** What the group is created with. */
 private val FIELDS = GroupFields(
@@ -131,6 +137,9 @@ class GroupMembershipChangerTest {
 
     /** Whether the vault answers for Alice's own key, see `ProfileKeyVault.getOrCreateProfileEncryptionKey`. */
     private var isVaultAnswering = true
+
+    /** The reads the device refuses, as locked, throwing as KSafe does then. */
+    private val locked = mutableSetOf<VaultRead>()
     private val contactProfileKeys = mutableMapOf(
         BOB to generateSymmetricEncryptionKey(),
         CAROL to generateSymmetricEncryptionKey(),
@@ -211,6 +220,7 @@ class GroupMembershipChangerTest {
         client = { Result.Success(alice) },
         receiveAccountDeletions = { userUuids -> deletedAccounts += userUuids },
         backUp = { groupUuid, key ->
+            readable(VaultRead.BACKUP)
             backedUp[groupUuid] = key
             groups[groupUuid] = groups.getValue(groupUuid).withKey(groupKey = key, isBackedUp = true)
         },
@@ -218,11 +228,20 @@ class GroupMembershipChangerTest {
     )
 
     private val changer = GroupMembershipChanger(
-        userUuid = { sessionUuid },
-        restoreContacts = { Result.Success(Unit) },
+        userUuid = {
+            readable(VaultRead.SESSION)
+            sessionUuid
+        },
+        restoreContacts = {
+            readable(VaultRead.CONTACTS)
+            Result.Success(Unit)
+        },
         contacts = { contacts },
         blocked = { blocked },
-        client = { Result.Success(alice) },
+        client = {
+            readable(VaultRead.IDENTITY)
+            Result.Success(alice)
+        },
         consumeKeyPackage = { userUuid ->
             fetched += userUuid
             keyPackages[userUuid] ?: Result.Success(keyPackageOf(clientOf(userUuid)))
@@ -232,7 +251,10 @@ class GroupMembershipChangerTest {
         savePending = ::save,
         bookResend = sender::bookResend,
         send = sender::send,
-        ownProfileKey = { aliceProfileKey.takeIf { isVaultAnswering } },
+        ownProfileKey = {
+            readable(VaultRead.PROFILE_KEY)
+            aliceProfileKey.takeIf { isVaultAnswering }
+        },
         contactProfileKey = { contactProfileKeys[it] },
         learnedProfileKey = { learnedProfileKeys[it] },
         oweProfileKey = { groupUuid ->
@@ -947,12 +969,133 @@ class GroupMembershipChangerTest {
         assertFailsWith<IllegalArgumentException> { remove(ALICE) }
     }
 
+    @Test
+    fun `a change asked for on a locked device changes nothing`() = runBlocking<Unit> {
+        locked += VaultRead.SESSION
+
+        assertEquals(Result.Error(GroupMembershipError.DeviceLocked), add(DAVE))
+        assertEquals(Result.Error(GroupMembershipError.DeviceLocked), remove(CAROL))
+
+        assertTrue(fetched.isEmpty())
+        assertTrue(additions.isEmpty())
+        assertTrue(removals.isEmpty())
+        assertNothingChanged()
+    }
+
+    /** A sync holds the lock past the moment the device locks, and the removal waits for it. */
+    @Test
+    fun `a removal that waited on a sync as the device locked changes nothing`() = runBlocking<Unit> {
+        val syncGate = CompletableDeferred<Unit>()
+        val sync = launch { withGroupsLock { syncGate.await() } }
+        yield()
+
+        val removal = async { remove(CAROL) }
+        yield()
+
+        locked += VaultRead.SESSION
+        syncGate.complete(Unit)
+
+        assertEquals(Result.Error(GroupMembershipError.DeviceLocked), removal.await())
+        sync.join()
+
+        assertTrue(removals.isEmpty())
+        assertNothingChanged()
+    }
+
+    /**
+     * Who is signed in is read once the lock is held, the only read refused here: read before the
+     * wait, it would go through, and so would everything after it, Dave being added.
+     */
+    @Test
+    fun `an addition that waited on a sync as the device locked asks for no key package`() = runBlocking<Unit> {
+        val syncGate = CompletableDeferred<Unit>()
+        val sync = launch { withGroupsLock { syncGate.await() } }
+        yield()
+
+        val addition = async { add(DAVE) }
+        yield()
+
+        locked += VaultRead.SESSION
+        syncGate.complete(Unit)
+
+        assertEquals(Result.Error(GroupMembershipError.DeviceLocked), addition.await())
+        sync.join()
+
+        assertTrue(fetched.isEmpty())
+        assertTrue(additions.isEmpty())
+        assertNothingChanged()
+    }
+
+    /** Its identity is read from the vault until this process first opens it. */
+    @Test
+    fun `a change whose MLS client cannot open on a locked device changes nothing`() = runBlocking<Unit> {
+        locked += VaultRead.IDENTITY
+
+        assertEquals(Result.Error(GroupMembershipError.DeviceLocked), add(DAVE))
+        assertEquals(Result.Error(GroupMembershipError.DeviceLocked), remove(CAROL))
+
+        assertTrue(fetched.isEmpty())
+        assertNothingChanged()
+    }
+
+    /** Until a restore has gone through since the user signed in. */
+    @Test
+    fun `an addition whose contacts a locked device cannot bring back changes nothing`() = runBlocking<Unit> {
+        locked += VaultRead.CONTACTS
+
+        assertEquals(Result.Error(GroupMembershipError.DeviceLocked), add(DAVE))
+
+        assertTrue(fetched.isEmpty())
+        assertNothingChanged()
+    }
+
+    /** Read before any key package is asked for, which would otherwise be spent for nothing. */
+    @Test
+    fun `an addition whose creator's profile key a locked device cannot read asks for no key package`() =
+        runBlocking<Unit> {
+            locked += VaultRead.PROFILE_KEY
+
+            assertEquals(Result.Error(GroupMembershipError.DeviceLocked), add(DAVE))
+
+            assertTrue(fetched.isEmpty())
+            assertNothingChanged()
+        }
+
+    /** The removal was made all the same, and the new key is backed up by the next sync, see GroupKeyBackUp. */
+    @Test
+    fun `a removal taken whose new key a locked vault cannot back up is made`() = runBlocking<Unit> {
+        locked += VaultRead.BACKUP
+
+        assertEquals(Result.Success(MembershipChangeOutcome.MADE), remove(CAROL))
+
+        assertEquals(1, rotations.size)
+        assertTrue(pending.isEmpty())
+        assertFalse(groups.getValue(GROUP).groupKey.contentEquals(groupKey))
+        assertFalse(groups.getValue(GROUP).isBackedUp)
+        assertNull(backedUp[GROUP])
+    }
+
+    /** The sync stops its pass at the first read a locked device refuses, see GroupSyncError.DeviceLocked. */
+    @Test
+    fun `a removal by the sync on a locked device throws for the sync to stop`() = runBlocking<Unit> {
+        locked += VaultRead.SESSION
+
+        assertFailsWith<IllegalStateException> {
+            withGroupsLock { changer.removeUnderGroupsLock(groupUuid = GROUP, userUuids = setOf(CAROL)) }
+        }
+
+        assertTrue(removals.isEmpty())
+        assertNothingChanged()
+    }
+
     private suspend fun add(vararg userUuids: String) = add(userUuids.toSet())
 
     private suspend fun add(userUuids: Set<String>) = changer.add(groupUuid = GROUP, userUuids = userUuids)
 
     private suspend fun remove(vararg userUuids: String) =
         changer.remove(groupUuid = GROUP, userUuids = userUuids.toSet())
+
+    private fun readable(read: VaultRead) = check(read !in locked) { DEVICE_LOCKED }
 
     private fun save(change: PendingMembershipChangeEntity) {
         onSavePending(change)

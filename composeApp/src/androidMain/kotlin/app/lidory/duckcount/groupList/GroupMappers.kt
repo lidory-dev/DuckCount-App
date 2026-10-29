@@ -151,7 +151,8 @@ fun SharedMembershipChangeOutcome.toMembershipChangeResult(): MembershipChangeRe
  * order of [memberUuids], the order they were picked in, or else what kept it from going through.
  *
  * What went wrong with the user's own storage or the library is folded into
- * [GroupCreationFailure.UNKNOWN], as is nobody being signed in, as for a creation. So is what the
+ * [GroupCreationFailure.UNKNOWN], as is nobody being signed in, as for a creation, and the device
+ * locking as the change waited for a sync, as for a leave, see [toLeaveResult]. So is what the
  * group's settings offer no change for: a group the user did not create, is no longer in, or
  * that this device does not hold, see [GroupWithMembersDb.canChangeMembers], one with a change
  * waiting on the server, see [GroupWithMembersDb.hasPendingChange], and more members than the
@@ -187,6 +188,7 @@ suspend fun SharedGroupMembershipError.toMembershipChangeError(
             MembershipChangeError.Failure(error.toGroupCreationFailure(isOnline = isOnline))
 
         SharedGroupMembershipError.NoSession,
+        SharedGroupMembershipError.DeviceLocked,
         SharedGroupMembershipError.NotCreator,
         SharedGroupMembershipError.NotHeld,
         SharedGroupMembershipError.ChangePending,

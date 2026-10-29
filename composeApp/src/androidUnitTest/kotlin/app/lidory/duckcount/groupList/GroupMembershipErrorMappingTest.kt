@@ -107,6 +107,15 @@ class GroupMembershipErrorMappingTest {
         )
     }
 
+    /** Nothing was changed, and nothing the user can act on but asking again once it is unlocked. */
+    @Test
+    fun `the device locking as the change waited is unknown`() {
+        assertEquals(
+            MembershipChangeError.Failure(GroupCreationFailure.UNKNOWN),
+            SharedGroupMembershipError.DeviceLocked.mapped(),
+        )
+    }
+
     /** The settings offer no change while one is pending, nor past the limit. */
     @Test
     fun `what the settings never offer is unknown`() {

@@ -4,6 +4,7 @@ import database.data.local.dao.GroupDao
 import database.data.local.entity.GroupEntity
 import database.data.local.entity.GroupMemberEntity
 import database.data.local.entity.PendingMembershipChangeEntity
+import kotlinx.coroutines.CancellationException
 import message.DirectMessageSender
 import message.ResendScheduler
 import mls.MlsIdentityError
@@ -231,8 +232,17 @@ class GroupMembershipSender internal constructor(
         if (change is PendingMembershipChange.KeyRotation) {
             adoptKey(change.groupUuid, change.groupKey)
 
-            // One the vault would not take now, the next sync backs up.
-            backUp(change.groupUuid, change.groupKey)
+            // One the vault would not take now, the next sync backs up, see GroupKeyBackUp: a locked
+            // device's included, whose vault reads throw rather than fail. The change the server
+            // took is made all the same, where the throw would crash the removal the user asked
+            // for, or stop the sync's pass.
+            try {
+                backUp(change.groupUuid, change.groupKey)
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (_: IllegalStateException) {
+                // See above.
+            }
 
             return
         }
