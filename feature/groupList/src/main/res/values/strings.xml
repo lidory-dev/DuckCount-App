@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="you_are_not_part_of_any_group">You are not part of any group</string>
+    <string name="title_cant_exceed_max">Title too long (%1$s/%2$s)</string>
     <string name="description_cant_exceed_max">Description too long (%1$s/%2$s)</string>
     <string name="select_new_members">Select new members</string>
     <string name="create_a_group">Create a group</string>

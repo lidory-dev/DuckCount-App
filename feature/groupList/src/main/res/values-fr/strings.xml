@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <string name="you_are_not_part_of_any_group">Aucun groupe pour le moment</string>
+    <string name="title_cant_exceed_max">Titre trop long (%1$s/%2$s)</string>
     <string name="description_cant_exceed_max">Description trop longue (%1$s/%2$s)</string>
     <string name="select_new_members">Sélectionner de nouveaux membres</string>
     <string name="create_a_group">Créer un groupe</string>

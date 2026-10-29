@@ -264,8 +264,18 @@ fun CreateOrEditGroupScreen(
                                 onValueChange = { viewModel.updateTitle(title = it) },
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                                 focusManager = focusManager,
-                                error = stringResource(androidUiR.string.title_mandatory),
-                                isInError = state.title.isBlank(),
+                                // Counted as it is saved, without the whitespace around it, as the
+                                // button counts it, see canConfirm.
+                                error =
+                                    if (state.trimmedTitle.isEmpty())
+                                        stringResource(androidUiR.string.title_mandatory)
+                                    else
+                                        stringResource(
+                                            R.string.title_cant_exceed_max,
+                                            state.trimmedTitle.length,
+                                            viewModel.maxTitleLength,
+                                        ),
+                                isInError = state.trimmedTitle.length !in (1..viewModel.maxTitleLength),
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
