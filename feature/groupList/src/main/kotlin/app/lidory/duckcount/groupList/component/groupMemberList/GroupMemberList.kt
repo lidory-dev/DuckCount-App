@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.Modifier
-import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 
 fun LazyListScope.groupMemberList(
@@ -13,7 +12,6 @@ fun LazyListScope.groupMemberList(
     maxMembers: Int,
     enabled: Boolean,
     onModifyMemberList: () -> Unit,
-    removeMember: (GroupMember) -> Unit,
     authenticatedUserUuid: String?,
 ) {
     item {
@@ -31,8 +29,6 @@ fun LazyListScope.groupMemberList(
                 modifier = Modifier.fillMaxWidth(),
                 member = memberWithFullName.member,
                 memberFullName = memberWithFullName.fullName,
-                removeMember = {},
-                isRemovable = false,
             )
         }
     }
@@ -50,8 +46,6 @@ fun LazyListScope.groupMemberList(
                 .fillMaxWidth(),
             member = memberWithFullName.member,
             memberFullName = memberWithFullName.fullName,
-            removeMember = removeMember,
-            enabled = enabled,
         )
     }
 }

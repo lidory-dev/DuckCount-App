@@ -255,15 +255,6 @@ class CreateGroupViewModel(
         }
     }
 
-    fun removeMember(member: GroupMember) {
-        updateContent {
-            it.copy(
-                members = it.members.filterNot { memberWithFullName -> memberWithFullName.member.userUuid == member.userUuid },
-            )
-        }
-        _selectedUuids.update { selected -> selected - member.userUuid }
-    }
-
     private suspend fun withFullNames(members: List<GroupMember>): List<GroupMemberWithFullName> = coroutineScope {
         members
             .map { member ->

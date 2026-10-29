@@ -314,9 +314,6 @@ fun CreateOrEditGroupScreen(
                                 onModifyMemberList = {
                                     viewModel.showMemberDialog()
                                 },
-                                removeMember = { member ->
-                                    viewModel.removeMember(member)
-                                },
                             )
                         }
 
