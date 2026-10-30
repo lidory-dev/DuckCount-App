@@ -1,5 +1,6 @@
 package app.lidory.duckcount.expenseList
 
+import android.util.Log
 import app.lidory.duckcount.expenseList.callBacks.ExpenseDetailCallBacks
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.ExpenseWriteError
@@ -11,6 +12,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import util.Result
+
+private const val TAG = "ExpenseDetailCallBacks"
 
 class ExpenseDetailCallBacksImpl(
     private val expenseRepository: ExpenseRepository,
@@ -34,26 +37,14 @@ class ExpenseDetailCallBacksImpl(
     override suspend fun deleteExpense(expenseUuid: String): ExpenseWriteError? {
         val expense = expenseRepository.getWithBeneficiaries(expenseUuid).first()
 
-        // Group expense: local-only delete. Returning early is essential, the one-time
-        // branch below must not also run (it would issue a server delete for an expense
-        // the server never received).
-        if (expense?.groupUuid != null) {
-            if (expense.isSettlement) {
-                // Records a settlement between two people; only its beneficiary
-                // (the person who received the money back) may remove it. Deleting it is a
-                // soft delete (a settlement is never hard-deleted), but unlike a regular
-                // expense it cannot be restored afterward.
-                val authenticatedUserUuid = getAuthenticatedUserUuid()
-                if (expense.beneficiaries.none { it.userUuid == authenticatedUserUuid }) {
-                    return ExpenseWriteError.UNAUTHORIZED
-                }
-                expenseRepository.delete(expenseUuid)
-                return null
-            }
+        val groupUuid = expense?.groupUuid
 
-            // TODO: "Delete" on the server.
-            expenseRepository.delete(expenseUuid)
-            return null
+        // A version saying it is deleted, which a settlement's recipient alone writes.
+        if (groupUuid != null) {
+            return when (val result = expenseRepository.deleteGroupExpense(groupUuid = groupUuid, uuid = expenseUuid)) {
+                is Result.Success -> null
+                is Result.Error -> result.error.toExpenseWriteError(isOnline = networkConnectivity.isOnline())
+            }
         }
 
         // One-time expense: online-first write-through (server delete, then local hard delete).
@@ -69,8 +60,20 @@ class ExpenseDetailCallBacksImpl(
             is Result.Error -> result.error.toExpenseWriteError(networkConnectivity.isOnline())
         }
 
-    override suspend fun restoreExpense(expenseUuid: String) {
-        expenseRepository.restore(expenseUuid)
+    // Only a group expense is ever shown deleted, a one-time expense going with its deletion: one gone
+    // since, with a log-out say, leaves nothing to restore, and the screen closes.
+    override suspend fun restoreExpense(expenseUuid: String): ExpenseWriteError? {
+        val groupUuid = expenseRepository.getWithBeneficiaries(expenseUuid).first()?.groupUuid ?: return null
+
+        return when (val result = expenseRepository.restoreGroupExpense(groupUuid = groupUuid, uuid = expenseUuid)) {
+            is Result.Success -> null
+
+            is Result.Error -> {
+                Log.w(TAG, "restoreExpense: could not restore the expense: ${result.error}")
+
+                result.error.toExpenseWriteError(isOnline = networkConnectivity.isOnline())
+            }
+        }
     }
 
     override fun getAuthenticatedUserUuid(): String? {

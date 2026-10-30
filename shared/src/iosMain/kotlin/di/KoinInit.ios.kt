@@ -8,6 +8,8 @@ import database.di.dbModule
 import database.di.dbPlatformModule
 import discoveryUsername.di.discoveryModule
 import channel.di.channelModule
+import group.GroupSyncAnnouncer
+import group.NoGroupSyncAnnouncer
 import message.NoResendScheduler
 import message.ResendScheduler
 import message.di.messageModule
@@ -48,6 +50,7 @@ fun initKoin() {
 /** What the shared layer only knows as an interface, as iOS implements it so far. */
 private val iosPlatformModule = module {
     single<ResendScheduler> { NoResendScheduler }
+    single<GroupSyncAnnouncer> { NoGroupSyncAnnouncer }
 }
 
 class KoinHelper : KoinComponent {

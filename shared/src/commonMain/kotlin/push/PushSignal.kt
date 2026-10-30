@@ -25,8 +25,8 @@ data class PushSignal(
     /**
      * The user whose action sent it: the sender of the message, whoever asked to become a
      * contact or accepted, the creditor who changed an expense, the owner of a group, the
-     * member who left one. Null when the payload names nobody this build can read, which is
-     * taken as nobody at all.
+     * member who left one, the member who wrote an expense in one. Null when the payload names
+     * nobody this build can read, which is taken as nobody at all.
      */
     val from: String?,
 ) {
@@ -111,6 +111,20 @@ data class PushSignal(
         GROUP_MEMBER_LEFT,
 
         /**
+         * A member of a group the user is in added one of its expenses, or edited one, deleted it or
+         * restored it, see `group.GroupExpenseSync`. Sent by the server to every current member but
+         * the writer, from the writer, as it takes the write.
+         *
+         * Says no more than that: in which group, and whether the expense concerns the user at all,
+         * the device learns only from its sync, which tells them once it has read that they paid
+         * for it or share in it, see `expense.GroupExpenseUpdates`, the server being unable to tell,
+         * the payer and the beneficiaries sealed with the rest of it. Taken from a contact, and from
+         * whoever shares a group the user is still in with them, see [WakeList]: a member who is no
+         * contact may well have paid for the user.
+         */
+        GROUP_EXPENSE,
+
+        /**
          * Something this build does not know about, including a payload it could not
          * read at all.
          *
@@ -127,8 +141,11 @@ data class PushSignal(
      *
      * A request to become a contact comes from a stranger by definition, so it is taken from
      * anybody. An acceptance only from somebody the user sent a contact request still waiting
-     * for its answer, since they are a contact only once the sync has read it. Everything
-     * else only from a contact. A signal naming nobody is from nobody the user knows.
+     * for its answer, since they are a contact only once the sync has read it. An expense of a
+     * group from a contact, or from somebody the user shares a group they are still in with,
+     * whoever wrote one being a member of it. Everything else only from a contact: a member who
+     * is no contact has no other signal of theirs taken. A signal naming nobody is from nobody
+     * the user knows.
      */
     fun mayWake(wakeList: WakeListStore): Boolean {
         if (kind == Kind.CONTACT_REQUEST) return true
@@ -137,6 +154,7 @@ data class PushSignal(
 
         return when (kind) {
             Kind.CONTACT_ACCEPTED -> wakeList.isRequested(userUuid = from)
+            Kind.GROUP_EXPENSE -> wakeList.isContact(userUuid = from) || wakeList.isCoMember(userUuid = from)
             else -> wakeList.isContact(userUuid = from)
         }
     }
@@ -157,6 +175,7 @@ data class PushSignal(
                 "group_welcome" -> Kind.GROUP_WELCOME
                 "group_changed" -> Kind.GROUP_CHANGED
                 "group_member_left" -> Kind.GROUP_MEMBER_LEFT
+                "group_expense" -> Kind.GROUP_EXPENSE
                 else -> Kind.UNKNOWN
             }
 

@@ -29,6 +29,7 @@ import app.lidory.duckcount.push.ContactNotifier
 import app.lidory.duckcount.push.ExpenseNotifier
 import app.lidory.duckcount.push.GroupNotifier
 import app.lidory.duckcount.push.NotificationLeftovers
+import app.lidory.duckcount.push.NotifyingGroupSyncAnnouncer
 import app.lidory.duckcount.push.UnifiedPushRegistrar
 import app.lidory.duckcount.push.WorkManagerResendScheduler
 import app.lidory.duckcount.settings.SettingsCallBacks
@@ -42,6 +43,7 @@ import di.contactListModule
 import di.sharedModule
 import discoveryUsername.di.discoveryModule
 import channel.di.channelModule
+import group.GroupSyncAnnouncer
 import message.ResendScheduler
 import message.di.messageModule
 import expense.di.expenseModule
@@ -78,6 +80,7 @@ val pushPlatformModule = module {
     single { ExpenseNotifier(androidContext()) }
     single { GroupNotifier(androidContext()) }
     single { WorkManagerResendScheduler(androidContext()) }.bind<ResendScheduler>()
+    single { NotifyingGroupSyncAnnouncer(get()) }.bind<GroupSyncAnnouncer>()
 }
 val groupCallBacks = module {
     singleOf(::GroupListCallBacksImpl).bind<GroupListCallBacks>()

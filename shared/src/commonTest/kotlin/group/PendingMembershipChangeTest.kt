@@ -50,6 +50,8 @@ class PendingMembershipChangeTest {
                 signature = EncryptedFieldDto(ciphertext = "c2lnbmF0dXJlIDE=", nonce = "bm9uY2U4"),
             ),
         ),
+        keyGeneration = 3,
+        previousKey = EncryptedFieldDto(ciphertext = "cHJldmlvdXM=", nonce = "bm9uY2U5"),
     )
 
     @Test
@@ -63,7 +65,18 @@ class PendingMembershipChangeTest {
             keysOf(PendingMembershipChange.Removal(groupUuid = GROUP, body = removal, commitEpoch = 1).toEntity()),
         )
         assertEquals(
-            setOf("nonce", "key_message", "title", "description", "currency", "signature", "key_copy", "previous"),
+            setOf(
+                "nonce",
+                "key_message",
+                "title",
+                "description",
+                "currency",
+                "signature",
+                "key_copy",
+                "previous",
+                "key_generation",
+                "previous_key",
+            ),
             keysOf(
                 PendingMembershipChange.KeyRotation(groupUuid = GROUP, body = rotation, groupKey = ByteArray(32))
                     .toEntity(),

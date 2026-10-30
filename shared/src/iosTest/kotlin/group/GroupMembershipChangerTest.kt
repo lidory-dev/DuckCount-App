@@ -1,6 +1,7 @@
 package group
 
 import database.data.local.entity.GroupEntity
+import database.data.local.entity.GroupKeyEntity
 import database.data.local.entity.GroupMemberEntity
 import database.data.local.entity.MembershipChangeKind
 import database.data.local.entity.PendingMembershipChangeEntity
@@ -134,6 +135,7 @@ class GroupMembershipChangerTest {
             ownerUuid = ALICE,
             mlsGroupId = creation.mlsGroupId,
             groupKey = groupKey,
+            keyGeneration = FIRST_KEY_GENERATION,
             isBackedUp = true,
             isLeft = false,
             handedProfileKeyHash = null,
@@ -168,6 +170,14 @@ class GroupMembershipChangerTest {
 
     /** Whom the server's refusals named as having deleted their account. */
     private val deletedAccounts = mutableListOf<String>()
+
+    /**
+     * The signature key Alice's device recorded for each member, see `GroupMemberSignatureKeyEntity`,
+     * and the links back through the group's keys the server stored with each rotation it took, see
+     * [GroupKeyChain].
+     */
+    private val signatureKeys = mutableMapOf<String, ByteArray>()
+    private val serverLinks = mutableListOf<GroupKeyLinkDto>()
 
     /** The group's information as the server holds it, signed by Alice, sealed under the key it was last handed. */
     private var serverVersion = FIELDS.sealedAs(creator = alice, groupKey = groupKey, groupUuid = GROUP)
@@ -206,6 +216,9 @@ class GroupMembershipChangerTest {
 
     private val resends = ResendsBooked()
 
+    /** The members of the group as each change rebuilt who may wake Alice, see [push.WakeList]. */
+    private val wakeListRebuilds = mutableListOf<Set<GroupMemberEntity>>()
+
     private val sender = GroupMembershipSender(
         addMembers = { _, body ->
             posted()
@@ -228,6 +241,8 @@ class GroupMembershipChangerTest {
                 serverVersion = serverVersion.rotatedBy(body)
                 serverHistory = serverHistory.rotatedBy(body)
                 server.copies[GROUP] = body.keyCopy
+                server.generations[GROUP] = body.keyGeneration
+                serverLinks += GroupKeyLinkDto(generation = body.keyGeneration, previousKey = body.previousKey)
             }
 
             rotateAnswer
@@ -247,16 +262,20 @@ class GroupMembershipChangerTest {
         savePending = ::save,
         dropPending = { pending.remove(it) },
         replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
-        adoptKey = { groupUuid, key ->
+        recordSignatureKeys = { recorded ->
+            recorded.forEach { signatureKeys[it.userUuid] = it.signatureKey }
+        },
+        rebuildWakeList = { wakeListRebuilds += members.getValue(GROUP).toSet() },
+        adoptKey = { groupUuid, key, keyGeneration ->
             onAdoptKey()
-            groups[groupUuid] = groups.getValue(groupUuid).withKey(groupKey = key)
+            groups[groupUuid] = groups.getValue(groupUuid).withKey(groupKey = key, keyGeneration = keyGeneration)
             pending.remove(groupUuid)
         },
         client = { Result.Success(alice) },
         receiveAccountDeletions = { userUuids -> deletedAccounts += userUuids },
-        sealKeyCopy = { groupUuid, key ->
+        sealKeyCopy = { groupUuid, key, keyGeneration ->
             readable(VaultRead.KEY_RING)
-            keyCopies.seal(groupUuid = groupUuid, groupKey = key)
+            keyCopies.seal(groupUuid = groupUuid, groupKey = key, keyGeneration = keyGeneration)
         },
         resendScheduler = resends,
     )
@@ -349,9 +368,11 @@ class GroupMembershipChangerTest {
         assertEquals(ALICE, inspection.committerUserUuid)
         assertEquals(listOf(ALICE, BOB, CAROL), inspection.memberUuids)
 
-        val handedKey = assertNotNull(welcomeHandoverOf(payload = assertNotNull(inspection.welcomePayload))).groupKey
+        val handedOver = assertNotNull(welcomeHandoverOf(payload = assertNotNull(inspection.welcomePayload))).groupKey
+        val handedKey = handedOver.key
 
         assertContentEquals(groupKey, handedKey)
+        assertEquals(FIRST_KEY_GENERATION, handedOver.generation)
         assertEquals(FIELDS.title, serverVersion.fields.unseal(groupKey = handedKey, groupUuid = GROUP)?.title)
 
         val daveGroupId = dave.joinGroup(
@@ -614,6 +635,7 @@ class GroupMembershipChangerTest {
 
         assertEquals(listOf(CAROL), removals.single().removedMemberUuids)
         assertEquals(rowsOf(ALICE, BOB).toSet(), members.getValue(GROUP).toSet())
+        assertEquals(listOf(rowsOf(ALICE, BOB).toSet()), wakeListRebuilds)
         assertEquals(setOf(ALICE, BOB), aliceRoster().memberUuids.toSet())
         assertTrue(pending.isEmpty())
 
@@ -847,7 +869,7 @@ class GroupMembershipChangerTest {
 
         assertContentEquals(
             groups.getValue(GROUP).groupKey,
-            rotation.keyCopy.openKeyCopy(sealingKey = server.sealingKey, groupUuid = GROUP),
+            rotation.keyCopy.openKeyCopy(sealingKey = server.sealingKey, groupUuid = GROUP, keyGeneration = 2),
         )
     }
 
@@ -866,7 +888,7 @@ class GroupMembershipChangerTest {
         )
 
         assertEquals(ALICE, keyMessage.senderUserUuid)
-        assertContentEquals(groups.getValue(GROUP).groupKey, groupKeyOf(keyMessage.payload))
+        assertContentEquals(groups.getValue(GROUP).groupKey, groupKeyOf(keyMessage.payload)?.key)
     }
 
     @Test
@@ -879,6 +901,109 @@ class GroupMembershipChangerTest {
         assertTrue(commit.removedSelf)
 
         assertFailsWith<MlsException> { carol.process(carolGroupId, rotations.single().keyMessage) }
+    }
+
+    /**
+     * Nothing sealed under the old key is sealed again: what was is read with the old key, which
+     * the link the server keeps leads back to from the new one, see [RotateGroupKeyBody.previousKey].
+     */
+    @Test
+    fun `a key rotation hands over the next generation with the link back to the key it replaces`() =
+        runBlocking<Unit> {
+            remove(CAROL)
+
+            val rotation = rotations.single()
+            val rotated = groups.getValue(GROUP)
+
+            assertEquals(2L, rotation.keyGeneration)
+            assertEquals(2L, rotated.keyGeneration)
+            assertContentEquals(
+                groupKey,
+                rotation.previousKey.openKeyLink(groupKey = rotated.groupKey, groupUuid = GROUP, generation = 2),
+            )
+
+            bob.process(bobGroupId, removals.single().commitMessage)
+
+            val keyMessage = assertIs<ProcessedMessage.ApplicationMessage>(bob.process(bobGroupId, rotation.keyMessage))
+            val handedOver = assertNotNull(groupKeyOf(keyMessage.payload))
+
+            assertEquals(2L, handedOver.generation)
+            assertContentEquals(rotated.groupKey, handedOver.key)
+        }
+
+    @Test
+    fun `each key rotation is one generation past the one before it`() = runBlocking<Unit> {
+        remove(CAROL)
+
+        val second = groups.getValue(GROUP).groupKey
+
+        remove(BOB)
+
+        val third = groups.getValue(GROUP)
+
+        assertEquals(listOf(2L, 3L), rotations.map { it.keyGeneration })
+        assertEquals(3L, third.keyGeneration)
+        assertContentEquals(
+            second,
+            rotations[1].previousKey.openKeyLink(groupKey = third.groupKey, groupUuid = GROUP, generation = 3),
+        )
+    }
+
+    /** Handed the current key alone, see [welcomePayloadOf], from which the chain leads back to the first. */
+    @Test
+    fun `a member added after two rotations gets the first key back through the chain`() = runBlocking<Unit> {
+        remove(CAROL)
+        remove(BOB)
+        add(DAVE)
+
+        val inspection = dave.inspectWelcome(
+            welcome = Base64.Default.decode(additions.single().welcomeMessage),
+            expectedGroupUuid = GROUP,
+        )
+        val handedOver = assertNotNull(welcomeHandoverOf(payload = assertNotNull(inspection.welcomePayload))).groupKey
+
+        assertEquals(3L, handedOver.generation)
+        assertContentEquals(groups.getValue(GROUP).groupKey, handedOver.key)
+
+        // Dave's device, holding what the Welcome handed over.
+        val held = mutableMapOf(handedOver.generation to handedOver.key)
+        val chain = GroupKeyChain(
+            keyLinks = { Result.Success(serverLinks.toList()) },
+            group = { groups[it] },
+            heldKeys = { groupUuid ->
+                held.map { (generation, key) ->
+                    GroupKeyEntity(groupUuid = groupUuid, generation = generation, groupKey = key)
+                }
+            },
+            storeRecovered = { _, keys -> keys.forEach { held.getOrPut(it.generation) { it.groupKey } } },
+        )
+
+        assertContentEquals(
+            groupKey,
+            assertIs<Result.Success<ByteArray>>(chain.keyOf(groupUuid = GROUP, generation = FIRST_KEY_GENERATION)).data,
+        )
+        assertEquals(setOf(1L, 2L, 3L), held.keys)
+    }
+
+    /** Nothing in the chain leads forward: the link back to the key she holds is sealed under one she never gets. */
+    @Test
+    fun `a removed member reads neither the next key nor the link back from it`() = runBlocking<Unit> {
+        remove(CAROL)
+
+        carol.process(carolGroupId, removals.single().commitMessage)
+
+        assertFailsWith<MlsException> { carol.process(carolGroupId, rotations.single().keyMessage) }
+        assertNull(rotations.single().previousKey.openKeyLink(groupKey = groupKey, groupUuid = GROUP, generation = 2))
+    }
+
+    /** What every member writes in the group is checked against it, see `GroupMemberSignatureKeyEntity`. */
+    @Test
+    fun `a change applied records the signature key each member holds in the tree`() = runBlocking<Unit> {
+        add(DAVE)
+
+        assertEquals(setOf(ALICE, BOB, CAROL, DAVE), signatureKeys.keys)
+        assertContentEquals(alice.signaturePublicKey(), signatureKeys[ALICE])
+        assertContentEquals(dave.signaturePublicKey(), signatureKeys[DAVE])
     }
 
     @Test
@@ -900,6 +1025,7 @@ class GroupMembershipChangerTest {
 
         assertTrue(rotations.isEmpty())
         assertNothingChanged()
+        assertTrue(wakeListRebuilds.isEmpty())
     }
 
     @Test
@@ -989,7 +1115,11 @@ class GroupMembershipChangerTest {
         assertContentEquals(rotatedKey, groups.getValue(GROUP).groupKey)
         assertContentEquals(
             rotatedKey,
-            rotations.first().keyCopy.openKeyCopy(sealingKey = server.sealingKey, groupUuid = GROUP),
+            rotations.first().keyCopy.openKeyCopy(
+                sealingKey = server.sealingKey,
+                groupUuid = GROUP,
+                keyGeneration = 2,
+            ),
         )
         assertTrue(groups.getValue(GROUP).isBackedUp)
     }
@@ -1046,7 +1176,7 @@ class GroupMembershipChangerTest {
             bob.process(bobGroupId, rotations.single().keyMessage),
         )
 
-        assertContentEquals(groups.getValue(GROUP).groupKey, groupKeyOf(keyMessage.payload))
+        assertContentEquals(groups.getValue(GROUP).groupKey, groupKeyOf(keyMessage.payload)?.key)
     }
 
     /** The process dies between the server taking the key rotation and the key being taken here. */
@@ -1077,7 +1207,7 @@ class GroupMembershipChangerTest {
             bob.process(bobGroupId, rotations.first().keyMessage),
         )
 
-        assertContentEquals(rotatedKey, groupKeyOf(keyMessage.payload))
+        assertContentEquals(rotatedKey, groupKeyOf(keyMessage.payload)?.key)
     }
 
     /** The process dies between the server taking the addition and its Commit applied. */
@@ -1401,6 +1531,7 @@ class GroupMembershipChangerTest {
         version = serverVersion,
         memberUuids = members.getValue(GROUP).map { it.userUuid },
         keyCopy = server.copies[GROUP],
+        keyCopyGeneration = server.listedGenerationOf(GROUP),
     )
 
     private fun memberUuids() = members.getValue(GROUP).mapTo(HashSet()) { it.userUuid }
@@ -1473,6 +1604,7 @@ private fun GroupEntity.copy(
     ownerUuid: String = this.ownerUuid,
     mlsGroupId: ByteArray? = this.mlsGroupId,
     groupKey: ByteArray = this.groupKey,
+    keyGeneration: Long = this.keyGeneration,
     isBackedUp: Boolean = this.isBackedUp,
     handedProfileKeyHash: String? = this.handedProfileKeyHash,
 ) = GroupEntity(
@@ -1484,13 +1616,18 @@ private fun GroupEntity.copy(
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,
+    keyGeneration = keyGeneration,
     isBackedUp = isBackedUp,
     isLeft = isLeft,
     handedProfileKeyHash = handedProfileKeyHash,
 )
 
-/** [this] as `GroupDao.adoptRotatedKey` leaves it: the rotation carried the creator's copy of [groupKey]. */
-private fun GroupEntity.withKey(groupKey: ByteArray) = copy(groupKey = groupKey, isBackedUp = true)
+/**
+ * [this] as `GroupDao.adoptRotatedKey` leaves it: the rotation carried the creator's copy of
+ * [groupKey], the generation [keyGeneration] of its keys.
+ */
+private fun GroupEntity.withKey(groupKey: ByteArray, keyGeneration: Long) =
+    copy(groupKey = groupKey, keyGeneration = keyGeneration, isBackedUp = true)
 
 private fun GroupEntity.withOwner(ownerUuid: String) = copy(ownerUuid = ownerUuid)
 

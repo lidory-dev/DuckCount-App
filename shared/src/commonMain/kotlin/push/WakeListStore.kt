@@ -15,11 +15,14 @@ interface WakeListStore {
     /** Whether the user sent [userUuid] a contact request still waiting for its answer. */
     fun isRequested(userUuid: String): Boolean
 
+    /** Whether [userUuid] shares a group the user is still in with them, blocked members aside. */
+    fun isCoMember(userUuid: String): Boolean
+
     /**
-     * Replaces the whole list with [contacts] and the recipients of the [requested] contact
-     * requests, written before this returns.
+     * Replaces the whole list with [contacts], the recipients of the [requested] contact
+     * requests and the members of the user's groups, [coMembers], written before this returns.
      */
-    suspend fun replace(contacts: Set<String>, requested: Set<String>)
+    suspend fun replace(contacts: Set<String>, requested: Set<String>, coMembers: Set<String>)
 
     /** Empties it, for good by the time this returns, as the session ends. */
     suspend fun clear()

@@ -4,16 +4,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.groupList.callBacks.GroupSettleUpCallBacks
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
+import app.lidory.duckcount.groupList.model.GroupCreationFailure
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.Transaction
 import app.lidory.duckcount.groupList.model.TransactionWithFullName
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -60,15 +63,30 @@ class GroupSettleUpViewModel(
             initialValue = GroupSettleUpState.Loading,
         )
 
+    // Why recording a settlement did not go through, for the screen to tell.
+    private val _showError = Channel<GroupCreationFailure>(Channel.BUFFERED)
+    val showError: Flow<GroupCreationFailure> = _showError.receiveAsFlow()
+
+    // Whether a settlement is on its way to the server: another tap meanwhile would record it twice,
+    // each one an expense of its own, the debt showing until the first is taken.
+    private var isSettling = false
+
     fun validateSettlement(
         creditorUuid: String,
         debtorUuid: String,
         amount: String,
     ) {
+        if (isSettling) return
+
+        isSettling = true
+
         viewModelScope.launch {
-            groupSettleUpCallBacks.validateSettlement(
-                creditorUuid, debtorUuid, amount, groupUuid,
-            )
+            try {
+                groupSettleUpCallBacks.validateSettlement(creditorUuid, debtorUuid, amount, groupUuid)
+                    ?.let { _showError.send(it) }
+            } finally {
+                isSettling = false
+            }
         }
     }
 }

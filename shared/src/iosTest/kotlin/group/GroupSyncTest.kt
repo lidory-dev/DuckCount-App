@@ -115,6 +115,13 @@ class GroupSyncTest {
 
     private val groups = mutableMapOf<String, GroupEntity>()
     private val members = mutableMapOf<String, List<GroupMemberEntity>>()
+
+    /**
+     * The generations of each group's key saved with it, see `GroupKeyEntity`, and the signature
+     * key recorded for each of its members, see `GroupMemberSignatureKeyEntity`.
+     */
+    private val heldKeys = mutableMapOf<String, Set<Long>>()
+    private val signatureKeys = mutableMapOf<String, Map<String, ByteArray>>()
     private val pending = mutableMapOf<String, PendingGroupCreationEntity>()
     private val declined = mutableSetOf<String>()
 
@@ -196,7 +203,7 @@ class GroupSyncTest {
         restoreContacts = { Result.Success(Unit) },
         listGroups = {
             if (isServerReachable) {
-                Result.Success(listed.map { it.copy(keyCopy = server.copies[it.uuid]) })
+                Result.Success(listed.map(server::listing))
             } else {
                 Result.Error(NetworkError.NO_INTERNET)
             }
@@ -234,15 +241,22 @@ class GroupSyncTest {
             it in contacts && it !in blocked
         },
         client = { Result.Success(bob) },
-        save = { group, groupMembers ->
+        save = { group, groupMembers, olderKeys, groupSignatureKeys ->
             onSave()
             check(!isDatabaseFailing) { "The database is failing." }
             groups[group.uuid] = group
             members[group.uuid] = groupMembers
+            heldKeys[group.uuid] = (olderKeys.map { it.generation } + group.keyGeneration).toSet()
+            signatureKeys[group.uuid] = groupSignatureKeys.associate { it.userUuid to it.signatureKey }
         },
         memberUuidsOf = { groupUuid -> members[groupUuid].orEmpty().map { it.userUuid } },
         replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
-        updateKey = { _, _ -> error("No group here is handed a new key.") },
+        recordSignatureKeys = { recorded ->
+            recorded.forEach {
+                signatureKeys[it.groupUuid] = signatureKeys[it.groupUuid].orEmpty() + (it.userUuid to it.signatureKey)
+            }
+        },
+        takeKeys = { _, _ -> error("No group here is handed a new key.") },
         updateInformation = { _, _ -> error("Alice edits nothing here.") },
         markLeft = { error("Nobody is removed from a group here.") },
         recordDeclined = { groupUuid -> declined += groupUuid },
@@ -269,6 +283,7 @@ class GroupSyncTest {
             onHandOut()
             Result.Success(Unit)
         },
+        rebuildWakeList = {},
         resendScheduler = resends,
     )
 
@@ -311,6 +326,33 @@ class GroupSyncTest {
         assertEquals(listOf(welcomeOf(GROUP)), acknowledged[GROUP]?.toList())
         assertTrue(declined.isEmpty())
     }
+
+    /**
+     * As for a group whose creator rotated its key before adding Bob: the Welcome hands over the
+     * key of the generation the group is at, and the tree it seats him in each member's identity.
+     */
+    @Test
+    fun `a group joined holds the key the Welcome hands over as its generation and each member's signature key`() =
+        runBlocking<Unit> {
+            val groupKey = generateSymmetricEncryptionKey()
+
+            invite(
+                creator = alice,
+                groupKey = groupKey,
+                welcomePayload = welcomePayloadOf(groupKey = groupKey, keyGeneration = 2, profileKeys = emptyMap()),
+            )
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            val group = assertNotNull(groups[GROUP])
+
+            assertEquals(2L, group.keyGeneration)
+            assertEquals(setOf(2L), heldKeys[GROUP])
+            assertEquals(2L, server.generationOf(GROUP))
+            assertEquals(setOf(ALICE, BOB, CAROL), signatureKeys[GROUP]?.keys)
+            assertContentEquals(alice.signaturePublicKey(), signatureKeys[GROUP]?.get(ALICE))
+            assertContentEquals(carol.signaturePublicKey(), signatureKeys[GROUP]?.get(CAROL))
+        }
 
     /**
      * Nothing this device stores reads once it locks, and the pass stops there: the group was
@@ -542,7 +584,11 @@ class GroupSyncTest {
         val davesGroup = dave.createGroup(
             groupUuid = GROUP,
             invitees = listOf(bob.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(groupKey = davesGroupKey, profileKeys = emptyMap()),
+            welcomePayload = welcomePayloadOf(
+                groupKey = davesGroupKey,
+                keyGeneration = FIRST_KEY_GENERATION,
+                profileKeys = emptyMap(),
+            ),
         )
 
         waiting[GROUP] = mutableListOf(
@@ -566,7 +612,11 @@ class GroupSyncTest {
         invite(
             creator = alice,
             groupKey = groupKey,
-            welcomePayload = welcomePayloadOf(groupKey = groupKey + 0, profileKeys = emptyMap()),
+            welcomePayload = welcomePayloadOf(
+                groupKey = groupKey + 0,
+                keyGeneration = FIRST_KEY_GENERATION,
+                profileKeys = emptyMap(),
+            ),
         )
 
         assertDeclinedStoringNothing()
@@ -911,6 +961,46 @@ class GroupSyncTest {
         assertEquals(4L, assertNotNull(groups[GROUP]).infoRevision)
     }
 
+    /** The generations before it come back through the chain as they are asked for, see [GroupKeyChain]. */
+    @Test
+    fun `a group brought back holds the key its copy holds as the generation the copy was put up as`() =
+        runBlocking<Unit> {
+            val groupKey = generateSymmetricEncryptionKey()
+
+            list(owner = ALICE, groupKey = groupKey)
+            listed[0] = listed[0].copy(keyGeneration = 3)
+            server.copies[GROUP] = server.copyOf(groupKey = groupKey, sealedFor = GROUP, keyGeneration = 3)
+            server.generations[GROUP] = 3
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            val group = assertNotNull(groups[GROUP])
+
+            assertEquals(3L, group.keyGeneration)
+            assertContentEquals(groupKey, group.groupKey)
+            assertEquals(setOf(3L), heldKeys[GROUP])
+            assertTrue(server.putUp.isEmpty())
+        }
+
+    /**
+     * The server listing the copy as a later generation than its own, which it opens as the key of
+     * no generation but its own: taken for no copy at all, as one sealed for another group is.
+     */
+    @Test
+    fun `a group listed with a copy of another generation than its own is declined as one with no copy`() =
+        runBlocking<Unit> {
+            val groupKey = generateSymmetricEncryptionKey()
+
+            list(owner = ALICE, groupKey = groupKey)
+            server.copies[GROUP] = server.copyOf(groupKey = groupKey, sealedFor = GROUP, keyGeneration = 2)
+            server.generations[GROUP] = 3
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            assertTrue(groups.isEmpty())
+            assertEquals(listOf(GROUP), left)
+        }
+
     /**
      * Alice is pinned, as a contact's pin comes back with the vault after a log-out: Carol's version
      * is not hers, and with nothing of the group shown to keep instead, it is not brought back,
@@ -1244,7 +1334,11 @@ class GroupSyncTest {
         val addition = dave.addMembersTo(
             mlsGroupId = daveGroup,
             invitees = listOf(bob.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
+            welcomePayload = welcomePayloadOf(
+                groupKey = groupKey,
+                keyGeneration = FIRST_KEY_GENERATION,
+                profileKeys = emptyMap(),
+            ),
         )
 
         dave.applyPendingCommitIn(mlsGroupId = daveGroup)
@@ -1333,7 +1427,11 @@ class GroupSyncTest {
             val addition = bob.addMembersTo(
                 mlsGroupId = bobGroupId,
                 invitees = listOf(dave.inviteeKeyPackage()),
-                welcomePayload = welcomePayloadOf(groupKey = groups.getValue(GROUP).groupKey, profileKeys = emptyMap()),
+                welcomePayload = welcomePayloadOf(
+                    groupKey = groups.getValue(GROUP).groupKey,
+                    keyGeneration = FIRST_KEY_GENERATION,
+                    profileKeys = emptyMap(),
+                ),
             )
 
             pendingChanges += GROUP
@@ -1425,7 +1523,11 @@ class GroupSyncTest {
         creator: MlsClient,
         invitees: List<MlsClient> = listOf(bob, carol),
         groupKey: ByteArray = generateSymmetricEncryptionKey(),
-        welcomePayload: ByteArray? = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
+        welcomePayload: ByteArray? = welcomePayloadOf(
+            groupKey = groupKey,
+            keyGeneration = FIRST_KEY_GENERATION,
+            profileKeys = emptyMap(),
+        ),
         sealedFor: String = GROUP,
         listedMembers: List<String> = (listOf(creator) + invitees).map { it.userUuid() },
         sealedToLastResort: Boolean = false,
@@ -1573,7 +1675,11 @@ class GroupSyncTest {
         val creation = bob.createGroup(
             groupUuid = GROUP,
             invitees = listOf(alice.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
+            welcomePayload = welcomePayloadOf(
+                groupKey = groupKey,
+                keyGeneration = FIRST_KEY_GENERATION,
+                profileKeys = emptyMap(),
+            ),
         )
         val sealed = FIELDS.sealedAs(creator = bob, groupKey = groupKey, groupUuid = GROUP)
 
@@ -1586,6 +1692,7 @@ class GroupSyncTest {
             ownerUuid = BOB,
             mlsGroupId = creation.mlsGroupId,
             groupKey = groupKey,
+            keyGeneration = FIRST_KEY_GENERATION,
             isBackedUp = false,
             isLeft = false,
             handedProfileKeyHash = null,
@@ -1617,7 +1724,11 @@ class GroupSyncTest {
         val creation = bob.createGroup(
             groupUuid = GROUP,
             invitees = listOf(alice.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
+            welcomePayload = welcomePayloadOf(
+                groupKey = groupKey,
+                keyGeneration = FIRST_KEY_GENERATION,
+                profileKeys = emptyMap(),
+            ),
         )
 
         groups[GROUP] = GroupEntity(
@@ -1629,6 +1740,7 @@ class GroupSyncTest {
             ownerUuid = BOB,
             mlsGroupId = creation.mlsGroupId,
             groupKey = groupKey,
+            keyGeneration = FIRST_KEY_GENERATION,
             isBackedUp = true,
             isLeft = false,
             handedProfileKeyHash = null,
@@ -1791,6 +1903,7 @@ private fun GroupEntity.withHanded(handedProfileKeyHash: String?) = GroupEntity(
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,
+    keyGeneration = keyGeneration,
     isBackedUp = isBackedUp,
     isLeft = isLeft,
     handedProfileKeyHash = handedProfileKeyHash,

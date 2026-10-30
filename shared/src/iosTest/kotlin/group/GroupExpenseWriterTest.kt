@@ -1,0 +1,726 @@
+package group
+
+import database.AppDatabase
+import database.data.local.entity.GroupEntity
+import database.data.local.entity.GroupKeyEntity
+import database.data.local.entity.PendingGroupCreationEntity
+import database.withInMemoryDatabase
+import kotlinx.coroutines.runBlocking
+import mls.InMemoryMlsStore
+import uniffi.lib_duckcount.MlsClient
+import uniffi.lib_duckcount.generateSymmetricEncryptionKey
+import uniffi.lib_duckcount.newGroupExpenseId
+import util.NetworkError
+import util.Result
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+private const val ALICE = "11111111-1111-1111-1111-111111111111"
+private const val BOB = "22222222-2222-2222-2222-222222222222"
+
+private const val GROUP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+/**
+ * What becomes of the expenses Alice writes in a group she is in, see [GroupExpenseWriter],
+ * whatever the server answers: it takes them as the API does, unless a test has it lose the answer,
+ * and Bob writes too. Her device syncs the group's expenses as it would, see [GroupExpenseSync]. The
+ * database is the real one, in memory, and so are the seals and signatures; the server is stood in
+ * for.
+ */
+class GroupExpenseWriterTest {
+
+    private val alice = MlsClient(userUuid = ALICE, secret = ByteArray(32) { 1 }, store = InMemoryMlsStore())
+    private val bob = MlsClient(userUuid = BOB, secret = ByteArray(32) { 2 }, store = InMemoryMlsStore())
+
+    private val firstKey = generateSymmetricEncryptionKey()
+    private val secondKey = generateSymmetricEncryptionKey()
+    private val thirdKey = generateSymmetricEncryptionKey()
+
+    private val server = GroupExpenseServer()
+
+    /** What the group sync reads when the writer has it run: the key of a rotation, or nothing. */
+    private var rotationRead: GroupKeyEntity? = null
+    private var groupSyncs = 0
+
+    /** Alice paid 90.00 for dinner, half of it each for her and Bob. */
+    private val dinner = groupExpenseOf(
+        uuid = "",
+        groupUuid = GROUP,
+        creditorUuid = ALICE,
+        amount = "90.00",
+        shares = listOf(ALICE to "45.00", BOB to "45.00"),
+        title = "  Dinner at the harbour ",
+    )
+
+    init {
+        alice.pinIdentity(userUuid = BOB, signatureKey = bob.signaturePublicKey())
+    }
+
+    /** Alice's sync, which reaches the server's listing and its feed unless [isReachable] says not. */
+    private fun syncOf(
+        database: AppDatabase,
+        userUuid: () -> String? = { ALICE },
+        isReachable: Boolean = true,
+    ) = GroupExpenseSync(
+        userUuid = userUuid,
+        client = { Result.Success(alice) },
+        listExpenses = { if (isReachable) server.getExpenses() else Result.Error(NetworkError.UNREACHABLE) },
+        listExpensesFrom = { _, _ -> error("The server lists every expense on one page") },
+        listChanges = { _, since ->
+            if (isReachable) server.getChanges(since = since) else Result.Error(NetworkError.UNREACHABLE)
+        },
+        keyOf = GroupKeyChain(
+            keyLinks = { Result.Success(emptyList()) },
+            group = database.groupDao::get,
+            heldKeys = database.groupDao::getKeys,
+            storeRecovered = database.groupDao::insertRecoveredKeys,
+        )::keyOf,
+        groupDao = database.groupDao,
+        expenseDao = database.expenseDao,
+        listedDao = database.listedGroupExpenseDao,
+    )
+
+    private fun writerOf(database: AppDatabase, sync: GroupExpenseSync = syncOf(database)): GroupExpenseWriter =
+        GroupExpenseWriter(
+            userUuid = { ALICE },
+            group = database.groupDao::get,
+            hasPendingCreation = database.groupDao::hasPendingCreation,
+            shown = database.expenseDao::getGroupExpense,
+            store = database.expenseDao::storeGroupExpenses,
+            client = { Result.Success(alice) },
+            create = { _, body -> server.create(body = body) },
+            update = { _, expenseUuid, body -> server.update(expenseUuid = expenseUuid, body = body) },
+            syncGroups = {
+                groupSyncs++
+                rotationRead?.let { database.groupDao.takeHandedKeys(groupUuid = GROUP, keys = listOf(it)) }
+            },
+            syncExpenses = sync::syncGroup,
+            newId = { authorUuid ->
+                newGroupExpenseId(authorUuid = authorUuid)?.also { server.uuidsByNonce[it.nonce] = it.uuid }
+            },
+        )
+
+    /**
+     * What Bob's device opens of the version the server holds of the expense [uuid] under
+     * [groupKey]: that expense of the group at the revision listed, signed by Alice, whose key his
+     * device holds, as what the app writes; or null when it does not open so, and every member's
+     * device but Alice's refuses it.
+     */
+    private fun bobOpens(uuid: String, groupKey: ByteArray): OpenedGroupExpense? {
+        val listed = assertNotNull(server.expenses[uuid])
+
+        return listed.content
+            .unsealGroupExpense(groupKey = groupKey, groupUuid = GROUP, expenseUuid = uuid, revision = listed.revision)
+            ?.takeIf { it.isSignedBy(authorKey = alice.signaturePublicKey()) }
+            ?.opened(currency = GROUP_CURRENCY)
+    }
+
+    private suspend fun AppDatabase.holdingTheGroup() {
+        groupDao.upsertWithMembers(group = groupOf(), members = emptyList(), olderKeys = emptyList(), signatureKeys = emptyList())
+    }
+
+    @Test
+    fun `an expense is created on the server and shown as it was taken`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            assertEquals(Result.Success(Unit), writerOf(database).create(groupUuid = GROUP, expense = dinner))
+
+            val uuid = server.expenses.keys.single()
+            val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+            assertEquals("Dinner at the harbour", shown.expense.title)
+            assertEquals(FIRST_GROUP_EXPENSE_REVISION, shown.expense.revision)
+            assertEquals(ALICE, shown.expense.authorUuid)
+            assertEquals(FIRST_KEY_GENERATION, server.creates.single().keyGeneration)
+        }
+    }
+
+    /**
+     * Sealed under the key the group had before a rotation Alice's device had yet to read: the
+     * group sync reads it, and the create goes again, once, under it, with the same nonce.
+     */
+    @Test
+    fun `a create sealed under a replaced key is sealed again under the new one and sent once more`() =
+        runBlocking<Unit> {
+            withInMemoryDatabase { database ->
+                database.holdingTheGroup()
+                server.keyGeneration = 2
+                rotationRead = GroupKeyEntity(groupUuid = GROUP, generation = 2, groupKey = secondKey)
+
+                assertEquals(Result.Success(Unit), writerOf(database).create(groupUuid = GROUP, expense = dinner))
+
+                assertEquals(listOf(1L, 2L), server.creates.map { it.keyGeneration })
+                assertEquals(1, server.creates.map { it.nonce }.distinct().size)
+                assertEquals(1, groupSyncs)
+
+                val uuid = server.expenses.keys.single()
+
+                assertEquals("Dinner at the harbour", assertNotNull(bobOpens(uuid = uuid, groupKey = secondKey)).expense.title)
+                assertNull(bobOpens(uuid = uuid, groupKey = firstKey))
+            }
+        }
+
+    /** As for a create: sealed again under the key the group sync reads, at the same revision. */
+    @Test
+    fun `an edit sealed under a replaced key is sealed again under the new one and sent once more`() =
+        runBlocking<Unit> {
+            withInMemoryDatabase { database ->
+                database.holdingTheGroup()
+
+                val writer = writerOf(database)
+
+                writer.create(groupUuid = GROUP, expense = dinner)
+
+                val uuid = server.expenses.keys.single()
+
+                server.keyGeneration = 2
+                rotationRead = GroupKeyEntity(groupUuid = GROUP, generation = 2, groupKey = secondKey)
+
+                assertEquals(
+                    Result.Success(Unit),
+                    writer.edit(groupUuid = GROUP, expense = dinner.copy(uuid = uuid, title = "Dinner", revision = 1)),
+                )
+
+                assertEquals(listOf(1L, 2L), server.updates.map { it.keyGeneration })
+                assertEquals(listOf(2L, 2L), server.updates.map { it.revision })
+                assertEquals("Dinner", assertNotNull(bobOpens(uuid = uuid, groupKey = secondKey)).expense.title)
+                assertNull(bobOpens(uuid = uuid, groupKey = firstKey))
+            }
+        }
+
+    @Test
+    fun `a create the group sync brings no newer key for is not sent again`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+            server.keyGeneration = 2
+
+            assertEquals(
+                Result.Error(GroupExpenseWriteError.KeyNotCurrent),
+                writerOf(database).create(groupUuid = GROUP, expense = dinner),
+            )
+
+            assertEquals(1, server.creates.size)
+        }
+    }
+
+    /** Two rotations Alice's device was behind on, the group sync having read only the first: once only. */
+    @Test
+    fun `a create is sealed again once at most`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+            server.keyGeneration = 3
+            rotationRead = GroupKeyEntity(groupUuid = GROUP, generation = 2, groupKey = secondKey)
+
+            assertEquals(
+                Result.Error(GroupExpenseWriteError.KeyNotCurrent),
+                writerOf(database).create(groupUuid = GROUP, expense = dinner),
+            )
+
+            assertEquals(listOf(1L, 2L), server.creates.map { it.keyGeneration })
+            assertEquals(1, groupSyncs)
+        }
+    }
+
+    /**
+     * An edit the server took, its answer lost, saved again from the form that still showed it: the
+     * server refuses its revision, holding it already, and the sync shows it is Alice's own.
+     */
+    @Test
+    fun `an edit refused for a revision the server holds as sent is made`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+            val edit = dinner.copy(uuid = uuid, title = "Dinner", revision = 1)
+
+            server.losesNextAnswer = true
+
+            assertTrue(writer.edit(groupUuid = GROUP, expense = edit) is Result.Error)
+
+            assertEquals(Result.Success(Unit), writer.edit(groupUuid = GROUP, expense = edit))
+
+            val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+            assertEquals("Dinner", shown.expense.title)
+            assertEquals(2L, shown.expense.revision)
+            assertEquals(listOf(2L, 2L), server.updates.map { it.revision })
+        }
+    }
+
+    /** Bob's edit came first: Alice's is refused, and his shown. */
+    @Test
+    fun `an edit refused for another member's version is a conflict that shows it`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+            val created = dinner.copy(
+                uuid = uuid,
+                title = "Dinner at the harbour",
+                beneficiaries = dinner.beneficiaries.map { it.copy(expenseUuid = uuid) },
+                revision = 1,
+            )
+
+            server.put(created.copy(title = "Bob's dinner").listedAs(revision = 2, author = bob, authorUuid = BOB, groupKey = firstKey))
+
+            assertEquals(
+                Result.Error(GroupExpenseWriteError.Conflict),
+                writer.edit(groupUuid = GROUP, expense = created.copy(title = "Alice's dinner")),
+            )
+
+            val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+            assertEquals("Bob's dinner", shown.expense.title)
+            assertEquals(BOB, shown.expense.authorUuid)
+        }
+    }
+
+    /**
+     * The device locked as Alice's edit waited for its answer: the sync the refusal sets off goes by
+     * her UUID as the writer read it before sending, which a locked device cannot read again.
+     */
+    @Test
+    fun `an edit refused for another member's version is a conflict on a device locked since it was sent`() =
+        runBlocking<Unit> {
+            withInMemoryDatabase { database ->
+                database.holdingTheGroup()
+
+                writerOf(database).create(groupUuid = GROUP, expense = dinner)
+
+                val uuid = server.expenses.keys.single()
+                val created = dinner.copy(
+                    uuid = uuid,
+                    title = "Dinner at the harbour",
+                    beneficiaries = dinner.beneficiaries.map { it.copy(expenseUuid = uuid) },
+                    revision = 1,
+                )
+
+                server.put(created.copy(title = "Bob's dinner").listedAs(revision = 2, author = bob, authorUuid = BOB, groupKey = firstKey))
+
+                val locked = writerOf(
+                    database = database,
+                    sync = syncOf(database = database, userUuid = { error("Cannot access Keystore key - device is locked") }),
+                )
+
+                assertEquals(
+                    Result.Error(GroupExpenseWriteError.Conflict),
+                    locked.edit(groupUuid = GROUP, expense = created.copy(title = "Alice's dinner")),
+                )
+
+                val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+                assertEquals("Bob's dinner", shown.expense.title)
+            }
+        }
+
+    /** Edited at the same revision Alice built hers on, saying the same: still Bob's, and so a conflict. */
+    @Test
+    fun `an edit refused for another member's version saying the same is a conflict`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+            val edit = dinner.copy(
+                uuid = uuid,
+                title = "Dinner",
+                beneficiaries = dinner.beneficiaries.map { it.copy(expenseUuid = uuid) },
+                revision = 1,
+            )
+
+            server.put(edit.listedAs(revision = 2, author = bob, authorUuid = BOB, groupKey = firstKey))
+
+            assertEquals(Result.Error(GroupExpenseWriteError.Conflict), writer.edit(groupUuid = GROUP, expense = edit))
+        }
+    }
+
+    /**
+     * Bob's edit reached Alice's device, a push syncing it, as her form was open on the version
+     * before: saved, hers would undo his unseen.
+     */
+    @Test
+    fun `an edit of a version replaced as the form was open is a conflict`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+            val read = dinner.copy(
+                uuid = uuid,
+                title = "Dinner at the harbour",
+                beneficiaries = dinner.beneficiaries.map { it.copy(expenseUuid = uuid) },
+                revision = 1,
+            )
+
+            server.put(read.copy(amount = "60.00", beneficiaries = read.beneficiaries.map { it.copy(share = "30.00") })
+                .listedAs(revision = 2, author = bob, authorUuid = BOB, groupKey = firstKey))
+            syncOf(database).syncGroup(groupUuid = GROUP)
+
+            assertEquals(
+                Result.Error(GroupExpenseWriteError.Conflict),
+                writer.edit(groupUuid = GROUP, expense = read.copy(title = "Alice's dinner")),
+            )
+
+            val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+            assertEquals("60.00", shown.expense.amount)
+            assertEquals(2L, assertNotNull(server.expenses[uuid]).revision)
+        }
+    }
+
+    /** Bob deleted it first: deleted as Alice asked, which is all she asked. */
+    @Test
+    fun `a deletion another member made first is made`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+            val created = dinner.copy(
+                uuid = uuid,
+                title = "Dinner at the harbour",
+                beneficiaries = dinner.beneficiaries.map { it.copy(expenseUuid = uuid) },
+            )
+
+            server.put(created.copy(isDeleted = true).listedAs(revision = 2, author = bob, authorUuid = BOB, groupKey = firstKey))
+
+            assertEquals(Result.Success(Unit), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
+
+            val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+            assertTrue(shown.expense.isDeleted)
+            assertEquals(BOB, shown.expense.authorUuid)
+        }
+    }
+
+    /**
+     * Bob stored a version that opens as no expense of the group, which every member's device
+     * refuses and goes on showing the one before of: Alice's edit is made after it, once.
+     */
+    @Test
+    fun `a write over a version every device refuses is made after it`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+            val read = dinner.copy(
+                uuid = uuid,
+                title = "Dinner at the harbour",
+                beneficiaries = dinner.beneficiaries.map { it.copy(expenseUuid = uuid) },
+                revision = 1,
+            )
+
+            // Sealed as another expense's, and listed as this one's.
+            val elsewhere = "ffffffff-ffff-8fff-8fff-ffffffffffff"
+
+            server.put(
+                read.copy(uuid = elsewhere).listedAs(revision = 2, author = bob, authorUuid = BOB, groupKey = firstKey)
+                    .copy(uuid = uuid),
+            )
+
+            assertEquals(Result.Success(Unit), writer.edit(groupUuid = GROUP, expense = read.copy(title = "Dinner")))
+
+            val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+            assertEquals("Dinner", shown.expense.title)
+            assertEquals(3L, shown.expense.revision)
+            assertEquals(listOf(2L, 3L), server.updates.map { it.revision })
+            assertEquals("Dinner", assertNotNull(bobOpens(uuid = uuid, groupKey = firstKey)).expense.title)
+        }
+    }
+
+    /**
+     * Alice's edit written over the version every device refuses, its answer lost, saved again from
+     * the form still open on the version before: the server holds it, one revision past the one the
+     * form sends, and it is hers.
+     */
+    @Test
+    fun `a write over a refused version saved again once its answer is lost is made`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+            val read = dinner.copy(
+                uuid = uuid,
+                title = "Dinner at the harbour",
+                beneficiaries = dinner.beneficiaries.map { it.copy(expenseUuid = uuid) },
+                revision = 1,
+            )
+
+            // Sealed as another expense's, and listed as this one's.
+            val elsewhere = "ffffffff-ffff-8fff-8fff-ffffffffffff"
+
+            server.put(
+                read.copy(uuid = elsewhere).listedAs(revision = 2, author = bob, authorUuid = BOB, groupKey = firstKey)
+                    .copy(uuid = uuid),
+            )
+            server.losesNextAnswer = true
+
+            assertTrue(writer.edit(groupUuid = GROUP, expense = read.copy(title = "Dinner")) is Result.Error)
+
+            assertEquals(Result.Success(Unit), writer.edit(groupUuid = GROUP, expense = read.copy(title = "Dinner")))
+
+            val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+            assertEquals("Dinner", shown.expense.title)
+            assertEquals(3L, shown.expense.revision)
+            assertEquals(listOf(2L, 3L, 2L), server.updates.map { it.revision })
+        }
+    }
+
+    /**
+     * As above, the sync the second save sets off not reaching the server: whether the version it
+     * holds one revision past the one the form sends is Alice's cannot be told, and the save fails
+     * as the sync did, rather than as another member's change.
+     */
+    @Test
+    fun `a write over a refused version saved again as the sync cannot reach the server fails as the sync did`() =
+        runBlocking<Unit> {
+            withInMemoryDatabase { database ->
+                database.holdingTheGroup()
+
+                val writer = writerOf(database)
+
+                writer.create(groupUuid = GROUP, expense = dinner)
+
+                val uuid = server.expenses.keys.single()
+                val read = dinner.copy(
+                    uuid = uuid,
+                    title = "Dinner at the harbour",
+                    beneficiaries = dinner.beneficiaries.map { it.copy(expenseUuid = uuid) },
+                    revision = 1,
+                )
+
+                // Sealed as another expense's, and listed as this one's.
+                val elsewhere = "ffffffff-ffff-8fff-8fff-ffffffffffff"
+
+                server.put(
+                    read.copy(uuid = elsewhere).listedAs(revision = 2, author = bob, authorUuid = BOB, groupKey = firstKey)
+                        .copy(uuid = uuid),
+                )
+                server.losesNextAnswer = true
+
+                assertTrue(writer.edit(groupUuid = GROUP, expense = read.copy(title = "Dinner")) is Result.Error)
+
+                val cutOff = writerOf(database = database, sync = syncOf(database = database, isReachable = false))
+
+                assertEquals(
+                    Result.Error(GroupExpenseWriteError.Network(NetworkError.UNREACHABLE)),
+                    cutOff.edit(groupUuid = GROUP, expense = read.copy(title = "Dinner")),
+                )
+                assertEquals(listOf(2L, 3L, 2L), server.updates.map { it.revision })
+            }
+        }
+
+    /** The server stored it and the answer never came back: sent again, it is found stored, and made once. */
+    @Test
+    fun `a create whose answer is lost is sent again with its nonce and made once`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+            server.losesNextAnswer = true
+
+            assertEquals(Result.Success(Unit), writerOf(database).create(groupUuid = GROUP, expense = dinner))
+
+            val uuid = server.expenses.keys.single()
+
+            assertEquals(2, server.creates.size)
+            assertEquals(1, server.creates.map { it.nonce }.distinct().size)
+            assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+        }
+    }
+
+    /** Nothing reached the server: sent again once, and the failure it is. */
+    @Test
+    fun `a create the server cannot be reached for is sent again once and fails`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+            server.isReachable = false
+
+            assertEquals(
+                Result.Error(GroupExpenseWriteError.Network(NetworkError.UNREACHABLE)),
+                writerOf(database).create(groupUuid = GROUP, expense = dinner),
+            )
+
+            assertEquals(2, server.creates.size)
+        }
+    }
+
+    @Test
+    fun `a deletion and a restore are versions the server takes`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+
+            assertEquals(Result.Success(Unit), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
+            assertTrue(assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid)).expense.isDeleted)
+
+            // Deleted already: nothing to send.
+            assertEquals(Result.Success(Unit), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
+
+            assertEquals(Result.Success(Unit), writer.restore(groupUuid = GROUP, expenseUuid = uuid))
+
+            val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+            assertEquals(false, shown.expense.isDeleted)
+            assertEquals(3L, shown.expense.revision)
+            assertEquals(listOf(2L, 3L), server.updates.map { it.revision })
+        }
+    }
+
+    /** Bob paid Alice back: she records it, and may delete it, but nobody edits it or restores it. */
+    @Test
+    fun `a settlement is recorded and deleted by its recipient alone and never edited or restored`() =
+        runBlocking<Unit> {
+            withInMemoryDatabase { database ->
+                database.holdingTheGroup()
+
+                val writer = writerOf(database)
+
+                assertEquals(
+                    Result.Success(Unit),
+                    writer.recordSettlement(groupUuid = GROUP, payerUuid = BOB, amount = "45.00", timestamp = "2026-10-30T21:00:00"),
+                )
+
+                val uuid = server.expenses.keys.single()
+                val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+                assertTrue(shown.expense.isSettlement)
+                assertEquals(BOB, shown.expense.creditorUuid)
+                assertEquals(listOf(ALICE), shown.beneficiaries.map { it.userUuid })
+
+                val edit = dinner.copy(uuid = uuid, amount = "40.00", revision = 1)
+
+                assertEquals(Result.Error(GroupExpenseWriteError.SettlementLocked), writer.edit(groupUuid = GROUP, expense = edit))
+
+                assertEquals(Result.Success(Unit), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
+
+                assertEquals(
+                    Result.Error(GroupExpenseWriteError.SettlementLocked),
+                    writer.restore(groupUuid = GROUP, expenseUuid = uuid),
+                )
+
+                assertEquals(listOf(2L), server.updates.map { it.revision })
+            }
+        }
+
+    /** Alice paid Bob back, which only Bob records, and deletes. */
+    @Test
+    fun `a settlement whose recipient is somebody else is neither recorded nor deleted`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val toBob = groupExpenseOf(
+                uuid = "",
+                groupUuid = GROUP,
+                creditorUuid = ALICE,
+                amount = "45.00",
+                shares = listOf(BOB to "45.00"),
+                title = "",
+                description = "",
+                isSettlement = true,
+            )
+
+            val writer = writerOf(database)
+
+            assertEquals(Result.Error(GroupExpenseWriteError.SettlementLocked), writer.create(groupUuid = GROUP, expense = toBob))
+
+            val uuid = "cccccccc-cccc-8ccc-8ccc-cccccccccccc"
+            val recorded = toBob.copy(uuid = uuid, beneficiaries = toBob.beneficiaries.map { it.copy(expenseUuid = uuid) })
+
+            server.put(recorded.listedAs(revision = 1, author = bob, authorUuid = BOB, groupKey = firstKey))
+            GroupExpenseSync(
+                userUuid = { ALICE },
+                client = { Result.Success(alice) },
+                listExpenses = { server.getExpenses() },
+                listExpensesFrom = { _, _ -> error("One page") },
+                listChanges = { _, since -> server.getChanges(since = since) },
+                keyOf = { _, _ -> Result.Success(firstKey) },
+                groupDao = database.groupDao,
+                expenseDao = database.expenseDao,
+                listedDao = database.listedGroupExpenseDao,
+            ).sync()
+
+            assertEquals(Result.Error(GroupExpenseWriteError.SettlementLocked), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
+            assertTrue(server.creates.isEmpty())
+            assertTrue(server.updates.isEmpty())
+        }
+    }
+
+    /** Nothing is written in a group the server may refuse to create, which would leave it behind. */
+    @Test
+    fun `nothing is written in a group whose creation is pending`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+            database.groupDao.insertPendingCreation(PendingGroupCreationEntity(groupUuid = GROUP, body = "{}"))
+
+            assertEquals(
+                Result.Error(GroupExpenseWriteError.CreationPending),
+                writerOf(database).create(groupUuid = GROUP, expense = dinner),
+            )
+
+            assertTrue(server.creates.isEmpty())
+        }
+    }
+
+    @Test
+    fun `nothing is written in a group the user left`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+            database.groupDao.markLeft(uuid = GROUP)
+
+            assertEquals(
+                Result.Error(GroupExpenseWriteError.NotMember),
+                writerOf(database).create(groupUuid = GROUP, expense = dinner),
+            )
+        }
+    }
+
+    private fun groupOf() = GroupEntity(
+        uuid = GROUP,
+        title = "Ski trip",
+        description = "",
+        currency = GROUP_CURRENCY,
+        infoRevision = FIRST_GROUP_REVISION,
+        ownerUuid = BOB,
+        mlsGroupId = GROUP.encodeToByteArray(),
+        groupKey = firstKey,
+        keyGeneration = FIRST_KEY_GENERATION,
+        isBackedUp = true,
+        isLeft = false,
+        handedProfileKeyHash = null,
+    )
+}

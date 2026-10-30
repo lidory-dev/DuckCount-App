@@ -20,4 +20,10 @@ data class ExpenseWithBeneficiaries(
 
     /** When they did, in the device's time zone; null when it is not settled. */
     val settledAt: LocalDateTime? = null,
+
+    /**
+     * The revision of the version shown, which an edit of a group expense is written after: one
+     * another member made as the form was open is then not written over unseen.
+     */
+    val revision: Long? = null,
 )

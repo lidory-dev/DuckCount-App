@@ -59,7 +59,9 @@ class ExpenseListViewModel(
     /**
      * The newest one-time expenses came on screen.
      *
-     * Only that list: a group's expenses are never announced by a notification.
+     * Only that list: what a member does to an expense of a group is announced whatever is on
+     * screen, as a change to a one-time expense is, the expense being wherever it sits in the
+     * group's list.
      */
     fun onNewestShown() = expenseListCallBacks.newestExpensesShown()
 

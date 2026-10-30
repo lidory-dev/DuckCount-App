@@ -1,7 +1,9 @@
 package group
 
 import database.data.local.entity.GroupEntity
+import database.data.local.entity.GroupKeyEntity
 import database.data.local.entity.GroupMemberEntity
+import database.data.local.entity.GroupMemberSignatureKeyEntity
 import database.domain.CurrencyCatalog
 import kotlinx.coroutines.runBlocking
 import message.ResendsBooked
@@ -30,6 +32,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -74,10 +77,16 @@ class GroupSyncMembershipTest {
     private var contacts = setOf(ALICE, DAVE)
     private val names = mapOf(ALICE to "Alice", DAVE to "Dave")
 
-    /** Alice's MLS group, the key she last handed over, and the fields as the server holds them. */
+    /**
+     * Alice's MLS group, the key she last handed over and its generation, the fields as the server
+     * holds them, and the links back through the group's keys its rotations stored, see
+     * [GroupKeyChain].
+     */
     private var aliceGroupId: ByteArray? = null
     private var groupKey = generateSymmetricEncryptionKey()
+    private var keyGeneration = FIRST_KEY_GENERATION
     private var serverVersion: SealedGroupVersion? = null
+    private val serverLinks = mutableListOf<GroupKeyLinkDto>()
 
     /** Who the server holds as the group's current members, and whether it lists the group to Bob anyway. */
     private val serverMembers = mutableListOf<String>()
@@ -100,6 +109,14 @@ class GroupSyncMembershipTest {
     private val members = mutableMapOf<String, List<GroupMemberEntity>>()
     private val declined = mutableSetOf<String>()
 
+    /**
+     * Every generation of each group's key Bob's device holds, see `GroupKeyEntity`, and the
+     * signature key recorded for each of its members, see `GroupMemberSignatureKeyEntity`, as the
+     * database keeps them: none replaced by the next, nor dropped as a member goes.
+     */
+    private val heldKeys = mutableMapOf<String, MutableMap<Long, ByteArray>>()
+    private val signatureKeys = mutableMapOf<String, MutableMap<String, ByteArray>>()
+
     /** The groups Bob left on the server, in order. */
     private val left = mutableListOf<String>()
 
@@ -109,6 +126,9 @@ class GroupSyncMembershipTest {
      */
     private val server = ServerKeyCopies()
     private val keyCopies = server.groupKeyCopies(groups)
+
+    /** The members of each group as the sync rebuilt who may wake Bob each time, see [push.WakeList]. */
+    private val wakeListRebuilds = mutableListOf<Map<String, List<GroupMemberEntity>>>()
 
     /** What runs as the sync posts the user's own key, once every group is caught up. */
     private var onHandOut: suspend () -> Unit = {}
@@ -180,14 +200,22 @@ class GroupSyncMembershipTest {
         },
         isUnblockedContact = { it in contacts },
         client = { Result.Success(bob) },
-        save = { group, groupMembers ->
+        save = { group, groupMembers, olderKeys, groupSignatureKeys ->
             groups[group.uuid] = group
             members[group.uuid] = groupMembers
+            hold(olderKeys + group.currentKey())
+            record(groupSignatureKeys)
         },
         memberUuidsOf = { groupUuid -> members[groupUuid].orEmpty().map { it.userUuid } },
         replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
-        updateKey = { groupUuid, key ->
-            groups[groupUuid] = groups.getValue(groupUuid).with(groupKey = key, isBackedUp = false)
+        recordSignatureKeys = ::record,
+        takeKeys = { groupUuid, keys ->
+            hold(keys)
+            groups[groupUuid] = groups.getValue(groupUuid).with(
+                groupKey = keys.last().groupKey,
+                keyGeneration = keys.last().generation,
+                isBackedUp = false,
+            )
         },
         updateInformation = { _, _ -> error("Alice edits nothing here.") },
         markLeft = { groupUuid -> groups[groupUuid] = groups.getValue(groupUuid).with(isLeft = true) },
@@ -208,6 +236,10 @@ class GroupSyncMembershipTest {
             onHandOut()
             Result.Success(Unit)
         },
+        rebuildWakeList = {
+            steps += "wake list"
+            wakeListRebuilds += members.toMap()
+        },
         resendScheduler = ResendsBooked(),
     )
 
@@ -216,7 +248,10 @@ class GroupSyncMembershipTest {
         bob.pinIdentity(userUuid = DAVE, signatureKey = dave.signaturePublicKey())
     }
 
-    /** Last of all: every key a group handed over in the pass has its copy put up by the pass. */
+    /**
+     * Every key a group handed over in the pass has its copy put up by the pass, and who may wake
+     * Bob is rebuilt last of all, whatever failed.
+     */
     @Test
     fun `the membership changes still pending are sent again before anything and the key copies put up last`() =
         runBlocking<Unit> {
@@ -224,7 +259,7 @@ class GroupSyncMembershipTest {
 
             val pass = groupSync.sync(contactsTakenIn = true)
 
-            assertEquals(listOf("creations", "membership changes", "key copies"), steps)
+            assertEquals(listOf("creations", "membership changes", "key copies", "wake list"), steps)
             assertEquals(GroupSyncError.Network(NetworkError.SERVER_ERROR), pass.failure)
         }
 
@@ -261,6 +296,7 @@ class GroupSyncMembershipTest {
             assertNull(pass.failure)
             assertTrue(pass.removed.isEmpty())
             assertEquals(rowsOf(ALICE, BOB), members.getValue(GROUP).toSet())
+            assertEquals(rowsOf(ALICE, BOB), wakeListRebuilds.last().getValue(GROUP).toSet())
 
             val group = groups.getValue(GROUP)
 
@@ -268,6 +304,106 @@ class GroupSyncMembershipTest {
             assertContentEquals(groupKey, server.keyOf(GROUP))
             assertTrue(group.isBackedUp)
             assertEquals(listOf(removal, rotation), acknowledged[GROUP]?.toList())
+        }
+
+    /**
+     * Two rotations read in one pass, as for a member whose device was off for both: what was sealed
+     * under each stays readable with it, every generation kept, the last one the group's.
+     */
+    @Test
+    fun `every key the creator hands over is kept as its generation the last one the group's`() =
+        runBlocking<Unit> {
+            joined()
+
+            val first = groupKey
+
+            aliceRemoves(CAROL)
+            aliceRotates()
+
+            val second = groupKey
+
+            aliceRotates()
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            val group = groups.getValue(GROUP)
+
+            assertEquals(3L, group.keyGeneration)
+            assertContentEquals(groupKey, group.groupKey)
+            assertEquals(setOf(1L, 2L, 3L), heldKeys.getValue(GROUP).keys)
+            assertContentEquals(first, heldKeys.getValue(GROUP)[1])
+            assertContentEquals(second, heldKeys.getValue(GROUP)[2])
+            assertEquals(3L, server.generationOf(GROUP))
+        }
+
+    /**
+     * What the members write is checked against it, see `GroupMemberSignatureKeyEntity`: what
+     * Carol wrote while in the group stays in it.
+     */
+    @Test
+    fun `the signature key each member holds in the tree is recorded and kept once they go`() =
+        runBlocking<Unit> {
+            joined()
+
+            assertEquals(setOf(ALICE, BOB, CAROL), signatureKeys.getValue(GROUP).keys)
+            assertContentEquals(carol.signaturePublicKey(), signatureKeys.getValue(GROUP)[CAROL])
+
+            aliceRemoves(CAROL)
+            aliceAdds(dave)
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            assertEquals(setOf(ALICE, BOB, CAROL, DAVE), signatureKeys.getValue(GROUP).keys)
+            assertContentEquals(dave.signaturePublicKey(), signatureKeys.getValue(GROUP)[DAVE])
+        }
+
+    /** Nothing reaches a member once removed, and nothing in the chain leads forward, see [GroupKeyChain]. */
+    @Test
+    fun `the user removed never holds the generation after the one they were removed at`() = runBlocking<Unit> {
+        joined()
+        aliceRemoves(BOB)
+        aliceRotates()
+
+        groupSync.sync(contactsTakenIn = true)
+
+        val group = groups.getValue(GROUP)
+
+        assertTrue(group.isLeft)
+        assertEquals(FIRST_KEY_GENERATION, group.keyGeneration)
+        assertEquals(setOf(FIRST_KEY_GENERATION), heldKeys.getValue(GROUP).keys)
+        assertEquals(Result.Error(GroupKeyChainError.NotHeld), bobsKeyChain().keyOf(groupUuid = GROUP, generation = 2))
+    }
+
+    /**
+     * Removed at the first generation and added back at the third: the one in between, which never
+     * reached him, comes back through the chain from the key the Welcome hands over.
+     */
+    @Test
+    fun `the user added back after rotations gets the generation they missed back through the chain`() =
+        runBlocking<Unit> {
+            joined()
+            aliceRemoves(BOB)
+            groupSync.sync(contactsTakenIn = true)
+
+            aliceRotates()
+
+            val missed = groupKey
+
+            aliceRotates()
+            aliceAdds(bob)
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            val group = groups.getValue(GROUP)
+
+            assertFalse(group.isLeft)
+            assertEquals(3L, group.keyGeneration)
+            assertEquals(setOf(1L, 3L), heldKeys.getValue(GROUP).keys)
+
+            val recovered = bobsKeyChain().keyOf(groupUuid = GROUP, generation = 2)
+
+            assertContentEquals(missed, assertIs<Result.Success<ByteArray>>(recovered).data)
+            assertEquals(setOf(1L, 2L, 3L), heldKeys.getValue(GROUP).keys)
         }
 
     @Test
@@ -508,7 +644,7 @@ class GroupSyncMembershipTest {
             val carolGroupId = carolJoins()
             val handedOver = carol.encryptApplicationMessage(
                 mlsGroupId = carolGroupId,
-                payload = groupKeyMessageOf(generateSymmetricEncryptionKey()),
+                payload = groupKeyMessageOf(groupKey = generateSymmetricEncryptionKey(), keyGeneration = 2),
             )
             val messageUuid = post(sender = CAROL, ciphertext = handedOver)
 
@@ -1211,6 +1347,7 @@ class GroupSyncMembershipTest {
             ownerUuid = ALICE,
             mlsGroupId = null,
             groupKey = groupKey,
+            keyGeneration = FIRST_KEY_GENERATION,
             isBackedUp = true,
             isLeft = false,
             handedProfileKeyHash = null,
@@ -1236,7 +1373,11 @@ class GroupSyncMembershipTest {
         val creation = alice.createGroup(
             groupUuid = GROUP,
             invitees = listOf(bob.inviteeKeyPackage(), carol.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
+            welcomePayload = welcomePayloadOf(
+                groupKey = groupKey,
+                keyGeneration = keyGeneration,
+                profileKeys = emptyMap(),
+            ),
         )
 
         aliceGroupId = creation.mlsGroupId
@@ -1255,7 +1396,11 @@ class GroupSyncMembershipTest {
         val addition = alice.addMembersTo(
             mlsGroupId = aliceGroup(),
             invitees = listOf(invitee.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
+            welcomePayload = welcomePayloadOf(
+                groupKey = groupKey,
+                keyGeneration = keyGeneration,
+                profileKeys = emptyMap(),
+            ),
         )
 
         alice.applyPendingCommitIn(mlsGroupId = aliceGroup())
@@ -1287,17 +1432,29 @@ class GroupSyncMembershipTest {
     }
 
     /**
-     * Has Alice hand the members a new key as [GroupMembershipSender] does once a removal is applied,
-     * and the server re-seal the group's fields under it, and returns the UUID of the key message,
-     * or of nothing when it was not Bob's to get.
+     * Has Alice hand the members a new key, of the next generation, as [GroupMembershipSender] does
+     * once a removal is applied, and the server re-seal the group's fields under it and keep the
+     * link back to the key it replaces, and returns the UUID of the key message, or of nothing when
+     * it was not Bob's to get.
      */
     private suspend fun aliceRotates(): String {
         val newKey = generateSymmetricEncryptionKey()
-        val message = alice.encryptApplicationMessage(mlsGroupId = aliceGroup(), payload = groupKeyMessageOf(newKey))
+        val newGeneration = keyGeneration + 1
+        val message = alice.encryptApplicationMessage(
+            mlsGroupId = aliceGroup(),
+            payload = groupKeyMessageOf(groupKey = newKey, keyGeneration = newGeneration),
+        )
 
         val delivered = deliver(message)
 
+        serverLinks += GroupKeyLinkDto(
+            generation = newGeneration,
+            previousKey = assertNotNull(
+                sealKeyLink(previousKey = groupKey, groupKey = newKey, groupUuid = GROUP, generation = newGeneration),
+            ),
+        )
         groupKey = newKey
+        keyGeneration = newGeneration
         serverVersion = FIELDS.sealedAs(creator = alice, groupKey = newKey, groupUuid = GROUP)
 
         return delivered ?: ""
@@ -1336,8 +1493,39 @@ class GroupSyncMembershipTest {
             version = version,
             memberUuids = serverMembers.toList(),
             keyCopy = server.copies[GROUP],
+            keyCopyGeneration = server.listedGenerationOf(GROUP),
+            keyGeneration = keyGeneration,
         )
     }
+
+    /** Records [keys] among the generations Bob's device holds, as `GroupDao.upsertKeys` does. */
+    private fun hold(keys: List<GroupKeyEntity>) {
+        keys.forEach { heldKeys.getOrPut(it.groupUuid) { mutableMapOf() }[it.generation] = it.groupKey }
+    }
+
+    /** Records [recorded] as the members' signature keys, as `GroupDao.upsertSignatureKeys` does. */
+    private fun record(recorded: List<GroupMemberSignatureKeyEntity>) {
+        recorded.forEach { signatureKeys.getOrPut(it.groupUuid) { mutableMapOf() }[it.userUuid] = it.signatureKey }
+    }
+
+    /**
+     * What `GroupKeyChain` gives of the keys of [GROUP] on Bob's device, from what it holds and the
+     * links the server lists to its current members, as `GroupDao` keeps them.
+     */
+    private fun bobsKeyChain() = GroupKeyChain(
+        keyLinks = {
+            if (BOB in serverMembers) Result.Success(serverLinks.toList()) else Result.Error(NetworkError.NOT_FOUND)
+        },
+        group = { groups[it] },
+        heldKeys = { groupUuid ->
+            heldKeys[groupUuid].orEmpty().map { (generation, key) ->
+                GroupKeyEntity(groupUuid = groupUuid, generation = generation, groupKey = key)
+            }
+        },
+        storeRecovered = { groupUuid, keys ->
+            keys.forEach { heldKeys.getValue(groupUuid).getOrPut(it.generation) { it.groupKey } }
+        },
+    )
 
     /** Has Carol join Alice's group from its Welcome, and returns her copy of it. */
     private fun carolJoins(): ByteArray = carol.joinGroup(
@@ -1361,8 +1549,12 @@ class GroupSyncMembershipTest {
 private fun rowsOf(vararg userUuids: String) =
     userUuids.mapTo(HashSet()) { GroupMemberEntity(userUuid = it, groupUuid = GROUP, isAdmin = it == ALICE) }
 
+/** The key this group holds as the generation it is, as `GroupDao` keeps it with the group. */
+private fun GroupEntity.currentKey() = GroupKeyEntity(groupUuid = uuid, generation = keyGeneration, groupKey = groupKey)
+
 private fun GroupEntity.with(
     groupKey: ByteArray = this.groupKey,
+    keyGeneration: Long = this.keyGeneration,
     isBackedUp: Boolean = this.isBackedUp,
     isLeft: Boolean = this.isLeft,
 ) = GroupEntity(
@@ -1374,6 +1566,7 @@ private fun GroupEntity.with(
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,
+    keyGeneration = keyGeneration,
     isBackedUp = isBackedUp,
     isLeft = isLeft,
     handedProfileKeyHash = handedProfileKeyHash,

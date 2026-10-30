@@ -24,6 +24,8 @@ interface LocalDataDao {
         deleteBeneficiaries()
         deleteGroups()
         deleteGroupMembers()
+        deleteGroupKeys()
+        deleteGroupMemberSignatureKeys()
         deletePendingGroupCreations()
         deletePendingMembershipChanges()
         deleteDeclinedGroups()
@@ -34,7 +36,7 @@ interface LocalDataDao {
         deleteIdentityConflicts()
         deleteOneTimeExpenseKeys()
         deleteUnverifiedExpenseKeys()
-        deleteOneTimeExpenseRevisions()
+        deleteExpenseRevisions()
         deleteOneTimeExpenseSettledMarks()
         deletePendingExpenseKeys()
         deleteKeyRequestBudgets()
@@ -42,6 +44,8 @@ interface LocalDataDao {
         deleteProfileKeyRequestBudgets()
         deleteOwedExpenseKeys()
         deleteListedOneTimeExpenses()
+        deleteListedGroupExpenses()
+        deleteUnreadableGroupExpenses()
         deleteChangeFeeds()
         deleteMlsRecords()
         deleteMemberProfiles()
@@ -64,6 +68,12 @@ interface LocalDataDao {
 
     @Query("DELETE FROM GroupMemberEntity")
     suspend fun deleteGroupMembers()
+
+    @Query("DELETE FROM GroupKeyEntity")
+    suspend fun deleteGroupKeys()
+
+    @Query("DELETE FROM GroupMemberSignatureKeyEntity")
+    suspend fun deleteGroupMemberSignatureKeys()
 
     @Query("DELETE FROM PendingGroupCreationEntity")
     suspend fun deletePendingGroupCreations()
@@ -95,8 +105,8 @@ interface LocalDataDao {
     @Query("DELETE FROM UnverifiedExpenseKeyEntity")
     suspend fun deleteUnverifiedExpenseKeys()
 
-    @Query("DELETE FROM OneTimeExpenseRevisionEntity")
-    suspend fun deleteOneTimeExpenseRevisions()
+    @Query("DELETE FROM ExpenseRevisionEntity")
+    suspend fun deleteExpenseRevisions()
 
     @Query("DELETE FROM OneTimeExpenseSettledMarkEntity")
     suspend fun deleteOneTimeExpenseSettledMarks()
@@ -118,6 +128,12 @@ interface LocalDataDao {
 
     @Query("DELETE FROM ListedOneTimeExpenseEntity")
     suspend fun deleteListedOneTimeExpenses()
+
+    @Query("DELETE FROM ListedGroupExpenseEntity")
+    suspend fun deleteListedGroupExpenses()
+
+    @Query("DELETE FROM UnreadableGroupExpenseEntity")
+    suspend fun deleteUnreadableGroupExpenses()
 
     @Query("DELETE FROM ChangeFeedEntity")
     suspend fun deleteChangeFeeds()

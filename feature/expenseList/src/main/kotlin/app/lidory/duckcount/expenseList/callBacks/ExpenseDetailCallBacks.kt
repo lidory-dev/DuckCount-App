@@ -16,7 +16,11 @@ interface ExpenseDetailCallBacks {
      */
     suspend fun setSettled(expenseUuid: String, isSettled: Boolean): ExpenseWriteError?
 
-    suspend fun restoreExpense(expenseUuid: String)
+    /**
+     * Restores the deleted expense of a group, which every member sees restored. Returns null when
+     * the write succeeds (server + local), or the reason it failed.
+     */
+    suspend fun restoreExpense(expenseUuid: String): ExpenseWriteError?
 
     /** Emits the name to show for [userUuid] as it changes, see [CreateExpenseCallBacks.getUserFullName]. */
     fun getUserFullName(userUuid: String): Flow<String?>

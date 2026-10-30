@@ -9,7 +9,9 @@ import database.data.local.dao.IdentityConflictDao
 import database.data.local.dao.UserDao
 import database.data.local.entity.DeclinedGroupEntity
 import database.data.local.entity.GroupEntity
+import database.data.local.entity.GroupKeyEntity
 import database.data.local.entity.GroupMemberEntity
+import database.data.local.entity.GroupMemberSignatureKeyEntity
 import database.data.repository.ContactRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -27,6 +29,8 @@ import mls.joinGroupOf
 import mls.pinnedSignatureKeyFor
 import mls.processGroupMessageIn
 import mls.rosterOf
+import push.WakeList
+import uniffi.lib_duckcount.MemberInfo
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.ProcessedMessage
@@ -137,9 +141,13 @@ class GroupSyncPass(
  * 8. Last, the user's copy of the key of every group the server lists is put up wherever the
  *    listing shows none, or this device holds a key whose copy has not gone up, see
  *    [GroupKeyCopies.putUp]: each group this pass joined, and each whose creator handed over a new
- *    key in it, among them. Nothing else in the pass waits on it, and none of it runs between
- *    reading a group's messages and acknowledging them, see [drain] and [enter]: sealing a copy
- *    reads the key ring, which throws once the device locks.
+ *    key in it, among them, the copy of the newest generation this device holds. Nothing else in
+ *    the pass waits on it, and none of it runs between reading a group's messages and
+ *    acknowledging them, see [drain] and [enter]: sealing a copy reads the key ring, which throws
+ *    once the device locks.
+ * 9. Who may wake the user is rebuilt with the members the groups hold now, see [WakeList]: those
+ *    of a group the user was removed from no longer do, and those of a group they joined do, with
+ *    an expense of it.
  *
  * Then, with the groups free again, the names of the members who are not the user's contacts are
  * read with the keys the groups handed over, and the keys and names backed up, see
@@ -158,9 +166,13 @@ class GroupSyncPass(
  *
  * Once joined, a group changes by its creator alone, see [GroupEntity.ownerUuid]: their Commits are
  * taken, and the keys they hand over, and nobody else's, see [read], and the versions of its
- * information they signed, see [takeEdits]. The keys to the members' profiles are the one thing
- * anybody else hands over: each member their own, which beats the one the creator relayed for
- * them, and any of theirs that came in an earlier message, see [takeProfileKeys].
+ * information they signed, see [takeEdits]. Every key they hand over is kept with its generation,
+ * see [GroupKeyEntity], none in place of the one before it: what was sealed under that one stays
+ * sealed under it. So is the signature key every member holds in the group's tree, as the Welcome
+ * and each Commit read leave it, see [GroupMemberSignatureKeyEntity], kept once they leave. The
+ * keys to the members' profiles are the one thing anybody else hands over: each member their own,
+ * which beats the one the creator relayed for them, and any of theirs that came in an earlier
+ * message, see [takeProfileKeys].
  *
  * Of a group this device holds the MLS state of, the one thing the server's word decides of its
  * members is who is no longer one: the creator's device removes whoever the server stops listing,
@@ -191,11 +203,11 @@ class GroupSyncPass(
  * [ContactRepository.restore], [listGroups], [listMessages], [acknowledge] and [leave] are
  * [GroupApi.getGroups], [GroupApi.getGroupMessages], [GroupApi.acknowledgeGroupMessages] and
  * [GroupApi.leave], [storedGroups], [declinedGroups], [save], [memberUuidsOf], [replaceMembers],
- * [updateKey], [updateInformation], [markLeft], [recordDeclined] and [forgetDeclined] are
- * [GroupDao.getAll], [GroupDao.getDeclinedUuids], [GroupDao.upsertWithMembers],
- * [GroupDao.getMemberUuids], [GroupDao.replaceMembers], [GroupDao.updateGroupKey],
- * [GroupDao.updateInformation], [GroupDao.markLeft], [GroupDao.insertDeclined] and
- * [GroupDao.deleteDeclined], [removeDeparted] is
+ * [recordSignatureKeys], [takeKeys], [updateInformation], [markLeft], [recordDeclined] and
+ * [forgetDeclined] are [GroupDao.getAll], [GroupDao.getDeclinedUuids], [GroupDao.upsertWithMembers],
+ * [GroupDao.getMemberUuids], [GroupDao.replaceMembers], [GroupDao.upsertSignatureKeys],
+ * [GroupDao.takeHandedKeys], [GroupDao.updateInformation], [GroupDao.markLeft],
+ * [GroupDao.insertDeclined] and [GroupDao.deleteDeclined], [removeDeparted] is
  * [GroupMembershipChanger.removeUnderGroupsLock], [isUnblockedContact] is [ContactDao.isUnblocked],
  * [client] is [MlsIdentityRepository.client], [fullName] is [UserDao.getFullName],
  * [hasPendingChange] is [GroupDao.hasPendingChange], [isBlocked] is
@@ -203,15 +215,15 @@ class GroupSyncPass(
  * [takeOwnerKey], [fillGap], [restoreMemberProfiles], [readMemberNames] and [backUpMemberProfiles]
  * are [MemberProfileRepository.takeOwnerKey], [MemberProfileRepository.fillGap],
  * [MemberProfileRepository.restore], [MemberProfileRepository.readNames] and
- * [MemberProfileRepository.backUp], and [handOutProfileKey] is [GroupProfileKeyDelivery.handOut],
- * or what a test stands in for any of them, as [resendScheduler] is for the scheduler bound on this
- * platform.
+ * [MemberProfileRepository.backUp], [handOutProfileKey] is [GroupProfileKeyDelivery.handOut], and
+ * [rebuildWakeList] is [WakeList.rebuild], or what a test stands in for any of them, as
+ * [resendScheduler] is for the scheduler bound on this platform.
  */
 class GroupSync internal constructor(
     private val userUuid: () -> String?,
     private val resendPending: suspend () -> EmptyResult<NetworkError>,
     private val resendMembershipChanges: suspend () -> EmptyResult<GroupSyncError>,
-    private val openKeyCopies: suspend (groups: List<GroupDto>) -> Result<Map<String, ByteArray>, VaultError>,
+    private val openKeyCopies: suspend (groups: List<GroupDto>) -> Result<Map<String, GroupKeyGeneration>, VaultError>,
     private val putUpKeyCopies: suspend (listed: List<GroupDto>) -> EmptyResult<GroupSyncError>,
     private val restoreContacts: suspend () -> EmptyResult<ContactSyncError>,
     private val listGroups: suspend () -> Result<List<GroupDto>, NetworkError>,
@@ -222,10 +234,16 @@ class GroupSync internal constructor(
     private val leave: suspend (groupUuid: String) -> GroupLeaveAnswer,
     private val isUnblockedContact: suspend (userUuid: String) -> Boolean,
     private val client: suspend () -> Result<MlsClient, MlsIdentityError>,
-    private val save: suspend (group: GroupEntity, members: List<GroupMemberEntity>) -> Unit,
+    private val save: suspend (
+        group: GroupEntity,
+        members: List<GroupMemberEntity>,
+        olderKeys: List<GroupKeyEntity>,
+        signatureKeys: List<GroupMemberSignatureKeyEntity>,
+    ) -> Unit,
     private val memberUuidsOf: suspend (groupUuid: String) -> List<String>,
     private val replaceMembers: suspend (groupUuid: String, members: List<GroupMemberEntity>) -> Unit,
-    private val updateKey: suspend (groupUuid: String, groupKey: ByteArray) -> Unit,
+    private val recordSignatureKeys: suspend (signatureKeys: List<GroupMemberSignatureKeyEntity>) -> Unit,
+    private val takeKeys: suspend (groupUuid: String, keys: List<GroupKeyEntity>) -> Unit,
     private val updateInformation: suspend (groupUuid: String, version: GroupVersion) -> Unit,
     private val markLeft: suspend (groupUuid: String) -> Unit,
     private val recordDeclined: suspend (groupUuid: String) -> Unit,
@@ -244,6 +262,7 @@ class GroupSync internal constructor(
     private val readMemberNames: suspend () -> EmptyResult<GroupSyncError>,
     private val backUpMemberProfiles: suspend () -> EmptyResult<GroupSyncError>,
     private val handOutProfileKey: suspend (behind: Set<String>) -> EmptyResult<GroupSyncError>,
+    private val rebuildWakeList: suspend () -> Unit,
     private val resendScheduler: ResendScheduler,
 ) {
     constructor(
@@ -260,6 +279,7 @@ class GroupSync internal constructor(
         identityConflictDao: IdentityConflictDao,
         mlsIdentityRepository: MlsIdentityRepository,
         userDao: UserDao,
+        wakeList: WakeList,
         resendScheduler: ResendScheduler,
     ) : this(
         userUuid = ::getAuthenticatedUserUuid,
@@ -279,7 +299,8 @@ class GroupSync internal constructor(
         save = groupDao::upsertWithMembers,
         memberUuidsOf = groupDao::getMemberUuids,
         replaceMembers = groupDao::replaceMembers,
-        updateKey = { groupUuid, groupKey -> groupDao.updateGroupKey(uuid = groupUuid, groupKey = groupKey) },
+        recordSignatureKeys = groupDao::upsertSignatureKeys,
+        takeKeys = groupDao::takeHandedKeys,
         updateInformation = { groupUuid, version ->
             groupDao.updateInformation(
                 uuid = groupUuid,
@@ -304,6 +325,7 @@ class GroupSync internal constructor(
         readMemberNames = memberProfileRepository::readNames,
         backUpMemberProfiles = memberProfileRepository::backUp,
         handOutProfileKey = groupProfileKeyDelivery::handOut,
+        rebuildWakeList = wakeList::rebuild,
         resendScheduler = resendScheduler,
     )
 
@@ -333,6 +355,9 @@ class GroupSync internal constructor(
 
                 bringInLine(joined = joined, removed = removed, contactsTakenIn = contactsTakenIn)
                     ?.let { failure = failure ?: it }
+
+                // Whatever came of the rest, as the contacts' backup rebuilds it, see WakeList.
+                rebuildWakeList()
             }
         } && runsUnlocked {
             // Once the groups handed over what they had: the names are read with the keys they
@@ -503,9 +528,12 @@ class GroupSync internal constructor(
      * the order the server lists it, see [readAll], and acts on what that came to: the user removed,
      * which leaves the group on this device read-only, its MLS state deleted, see
      * [GroupEntity.isLeft], and is noted in [removed]; or else the members the last Commit left,
-     * the keys to the members' profiles handed over, see [takeProfileKeys], and the last key the
-     * creator handed over, whose copy goes up once the pass is through with every group, see
-     * [GroupKeyCopies.putUp]. One whose messages could not all be read is noted in [behind].
+     * the keys to the members' profiles handed over, see [takeProfileKeys], and every key the
+     * creator handed over, each as its generation, the last as the group's, whose copy goes up once
+     * the pass is through with every group, see [GroupKeyCopies.putUp]. Either way, the signature
+     * key each member held in the tree every Commit read left is recorded, see
+     * [GroupMemberSignatureKeyEntity]. One whose messages could not all be read is noted in
+     * [behind].
      *
      * The removal is recorded before anything that could throw: the Commit is spent once read, and
      * one whose reading is lost would leave the group held for good, the user never told. Nor is any
@@ -586,8 +614,18 @@ class GroupSync internal constructor(
             )
 
             // Recorded as not backed up, for its copy to go up at the end of the pass, see
-            // GroupKeyCopies.putUp, or of a later one.
-            reading.groupKeys.lastOrNull()?.let { groupKey -> updateKey(group.uuid, groupKey) }
+            // GroupKeyCopies.putUp, or of a later one. Every one of them, the newest as the group's
+            // key: one read and not kept would be a generation this device lacks, which only the
+            // chain gives back then, see GroupKeyChain.
+            if (reading.groupKeys.isNotEmpty()) {
+                takeKeys(group.uuid, reading.groupKeys.map { it.entityOf(groupUuid = group.uuid) })
+            }
+        }
+
+        // Whoever a Commit read seated or kept, the user removed or not: what they wrote is
+        // checked against it, see GroupMemberSignatureKeyEntity.
+        if (reading.signatureKeys.isNotEmpty()) {
+            recordSignatureKeys(reading.signatureKeys.entitiesOf(groupUuid = group.uuid))
         }
 
         // One whose acknowledgement does not go through is read again by the next sync, and
@@ -617,7 +655,8 @@ class GroupSync internal constructor(
         val handled = mutableListOf<String>()
         var membersAfter: List<String>? = null
         val membersSeen = memberUuids.toHashSet()
-        val groupKeys = mutableListOf<ByteArray>()
+        val signatureKeys = mutableMapOf<String, ByteArray>()
+        val groupKeys = mutableListOf<GroupKeyGeneration>()
         val profileKeys = mutableListOf<ProfileKeyHandover>()
 
         for (message in messages) {
@@ -625,8 +664,11 @@ class GroupSync internal constructor(
 
             when (reading) {
                 is GroupMessageReading.Committed -> {
-                    membersAfter = reading.memberUuids
-                    membersSeen += reading.memberUuids
+                    val memberUuidsAfter = reading.members.map { it.userUuid }
+
+                    membersAfter = memberUuidsAfter
+                    membersSeen += memberUuidsAfter
+                    reading.members.forEach { signatureKeys[it.userUuid] = it.signatureKey }
                 }
 
                 is GroupMessageReading.Rekeyed -> groupKeys += reading.groupKey
@@ -642,6 +684,7 @@ class GroupSync internal constructor(
                         handled = handled,
                         memberUuids = membersAfter,
                         memberUuidsSeen = membersSeen,
+                        signatureKeys = signatureKeys,
                         groupKeys = groupKeys,
                         profileKeys = profileKeys,
                         isRemoved = true,
@@ -653,6 +696,7 @@ class GroupSync internal constructor(
                     handled = handled,
                     memberUuids = membersAfter,
                     memberUuidsSeen = membersSeen,
+                    signatureKeys = signatureKeys,
                     groupKeys = groupKeys,
                     profileKeys = profileKeys,
                     isRemoved = false,
@@ -667,6 +711,7 @@ class GroupSync internal constructor(
             handled = handled,
             memberUuids = membersAfter,
             memberUuidsSeen = membersSeen,
+            signatureKeys = signatureKeys,
             groupKeys = groupKeys,
             profileKeys = profileKeys,
             isRemoved = false,
@@ -703,7 +748,7 @@ class GroupSync internal constructor(
                 GroupMessageReading.Removed
             } else {
                 GroupMessageReading.Committed(
-                    memberUuids = checkNotNull(processed.memberUuidsAfterCommit) {
+                    members = checkNotNull(processed.membersAfterCommit) {
                         "The members are read after every Commit keeping the user in the group."
                     },
                 )
@@ -1122,12 +1167,14 @@ class GroupSync internal constructor(
 
     /**
      * Brings back [group], which a log-out took off this device, with [groupKey], the key the
-     * user's copy the server lists with it holds, see [GroupKeyCopies.open]: the version of its
-     * information the server lists, at its revision, see [GroupEntity.infoRevision], and its
-     * members, without its MLS state, which the log-out took for good, see
-     * [GroupEntity.mlsGroupId]. The members are those the server lists, the tree that named them
-     * having gone with that state, and so they stay, see [refresh]. Backed up as it is, the server
-     * holding the copy it came from.
+     * user's copy the server lists with it holds, as the generation the server lists that copy as,
+     * see [GroupKeyCopies.open]: the version of its information the server lists, at its revision,
+     * see [GroupEntity.infoRevision], and its members, without its MLS state, which the log-out
+     * took for good, see [GroupEntity.mlsGroupId]. The members are those the server lists, the tree
+     * that named them having gone with that state, and so they stay, see [refresh], and no
+     * signature key is recorded for any of them. Backed up as it is, the server holding the copy it
+     * came from. The generations before the copy's are got back through the chain as they are
+     * asked for, see [GroupKeyChain].
      *
      * Its creator is the one the server lists, see [GroupDto.creatorUuid], the Welcome that named
      * them long gone, and the version is held against the pin this device holds for them, see
@@ -1154,7 +1201,7 @@ class GroupSync internal constructor(
      */
     private suspend fun restore(
         group: GroupDto,
-        groupKey: ByteArray,
+        groupKey: GroupKeyGeneration,
         selfUuid: String,
         joined: MutableList<GroupArrival>,
         removed: MutableList<GroupRemoval>,
@@ -1175,7 +1222,7 @@ class GroupSync internal constructor(
         }
 
         val version = group.sealedVersion().openSigned(
-            groupKey = groupKey,
+            groupKey = groupKey.key,
             groupUuid = group.uuid,
             creatorUuid = group.creatorUuid,
             creatorKey = creatorKey,
@@ -1197,6 +1244,8 @@ class GroupSync internal constructor(
             memberUuids = group.members.map { it.userUuid },
             mlsGroupId = null,
             groupKey = groupKey,
+            olderKeys = emptyList(),
+            signatureKeys = emptyMap(),
             isBackedUp = true,
             isLeft = false,
         )
@@ -1487,9 +1536,12 @@ class GroupSync internal constructor(
      * that does not open is, there being nothing of the group shown on this device to keep
      * instead. It is kept at the revision the server lists, see [GroupEntity.infoRevision],
      * whatever this device showed of a group it holds already, which it joins anew. The key kept
-     * is the last one handed over, which is what the creator seals with from then on, not backed
-     * up yet: its copy goes up once the pass is through with every group, see
-     * [GroupKeyCopies.putUp], unless the catch-up removed the user again, see [drain].
+     * as the group's is the last one handed over, which is what the creator seals with from then
+     * on, not backed up yet: its copy goes up once the pass is through with every group, see
+     * [GroupKeyCopies.putUp], unless the catch-up removed the user again, see [drain]. Every one
+     * handed over is kept as its generation, see [GroupKeyEntity], and the signature key each
+     * member held in the Welcome's tree and every Commit after it, see
+     * [GroupMemberSignatureKeyEntity].
      *
      * The key is in the payload of the Welcome, see [welcomeHandoverOf], with the keys to the
      * members' profiles, which are taken with those the catch-up read, see [takeProfileKeys], once
@@ -1541,7 +1593,7 @@ class GroupSync internal constructor(
             creatorKey = creatorKey,
         )
 
-        if (welcomeKey?.let { versionUnder(groupKey = it) } == null && after.isEmpty()) return refuse()
+        if (welcomeKey?.let { versionUnder(groupKey = it.key) } == null && after.isEmpty()) return refuse()
 
         val entry = try {
             withGroupJoinLock<Entry> {
@@ -1551,6 +1603,15 @@ class GroupSync internal constructor(
                     expectedMembers = inspection.memberUuids,
                 )
 
+                // The Welcome's tree, before anything after it changes it. Nothing past the join
+                // may throw, and the keys are worth less than the group: storage failing here
+                // leaves them to the Commits after it, and to the pins.
+                val seated = try {
+                    client.rosterOf(mlsGroupId = mlsGroupId).members
+                } catch (_: MlsException) {
+                    emptyList()
+                }
+
                 val caughtUp = readAll(
                     client = client,
                     mlsGroupId = mlsGroupId,
@@ -1559,10 +1620,12 @@ class GroupSync internal constructor(
                     messages = after,
                 )
 
-                val groupKeys = listOfNotNull(welcomeKey) + caughtUp.groupKeys
+                // Newest first, whatever order the server listed them in: a key message it held back
+                // and listed after a later one's is a generation behind, see GroupDao.takeHandedKeys.
+                val groupKeys = (listOfNotNull(welcomeKey) + caughtUp.groupKeys).sortedByDescending { it.generation }
 
-                // Newest first: the server re-sealed it under each key the creator handed over.
-                val version = groupKeys.asReversed().firstNotNullOfOrNull { groupKey -> versionUnder(groupKey) }
+                // The server re-sealed it under each key the creator handed over.
+                val version = groupKeys.firstNotNullOfOrNull { groupKey -> versionUnder(groupKey.key) }
 
                 if (version == null) {
                     client.deleteGroupQuietly(mlsGroupId = mlsGroupId)
@@ -1570,15 +1633,16 @@ class GroupSync internal constructor(
                     return@withGroupJoinLock Entry.Refused
                 }
 
-                val groupKey = groupKeys.last()
-
                 val kept = keep(
                     group = group,
                     version = version,
                     creatorUuid = creatorUuid,
                     memberUuids = caughtUp.memberUuids ?: (inspection.memberUuids + selfUuid),
                     mlsGroupId = mlsGroupId,
-                    groupKey = groupKey,
+                    groupKey = groupKeys.first(),
+                    olderKeys = groupKeys.drop(1),
+                    // A Commit's after the Welcome's, each member as the group last held them.
+                    signatureKeys = seated.associate { it.userUuid to it.signatureKey } + caughtUp.signatureKeys,
                     isBackedUp = false,
                     isLeft = caughtUp.isRemoved,
                 )
@@ -1763,8 +1827,9 @@ class GroupSync internal constructor(
 
     /**
      * Saves [group] with the [version] of its information it lists, [creatorUuid] as its creator,
-     * and its members, [memberUuids], the creator their admin, in place of whatever this device held
-     * of it, and says whether it was saved.
+     * its members, [memberUuids], the creator their admin, in place of whatever this device held
+     * of it, [groupKey] as its key and [olderKeys] among the generations before it, and the
+     * signature key each of [signatureKeys] signs with, by user UUID, and says whether it was saved.
      */
     private suspend fun keep(
         group: GroupDto,
@@ -1772,7 +1837,9 @@ class GroupSync internal constructor(
         creatorUuid: String,
         memberUuids: List<String>,
         mlsGroupId: ByteArray?,
-        groupKey: ByteArray,
+        groupKey: GroupKeyGeneration,
+        olderKeys: List<GroupKeyGeneration>,
+        signatureKeys: Map<String, ByteArray>,
         isBackedUp: Boolean,
         isLeft: Boolean,
     ): Boolean {
@@ -1784,7 +1851,8 @@ class GroupSync internal constructor(
             infoRevision = version.revision,
             ownerUuid = creatorUuid,
             mlsGroupId = mlsGroupId,
-            groupKey = groupKey,
+            groupKey = groupKey.key,
+            keyGeneration = groupKey.generation,
             isBackedUp = isBackedUp,
             isLeft = isLeft,
             // Owed, as every group the user joins is, see [takeProfileKeys].
@@ -1792,7 +1860,12 @@ class GroupSync internal constructor(
         )
 
         return try {
-            save(entity, membersOf(groupUuid = group.uuid, memberUuids = memberUuids, creatorUuid = creatorUuid))
+            save(
+                entity,
+                membersOf(groupUuid = group.uuid, memberUuids = memberUuids, creatorUuid = creatorUuid),
+                olderKeys.map { it.entityOf(groupUuid = group.uuid) },
+                signatureKeys.entitiesOf(groupUuid = group.uuid),
+            )
 
             true
         } catch (_: Exception) {
@@ -1804,14 +1877,17 @@ class GroupSync internal constructor(
 /** What one message waiting in a group came to, see [GroupSync.read]. */
 private sealed interface GroupMessageReading {
 
-    /** A Commit from the creator, applied: the group now holds [memberUuids], the user among them. */
-    class Committed(val memberUuids: List<String>) : GroupMessageReading
+    /**
+     * A Commit from the creator, applied: the group now holds [members], the user among them, as
+     * its tree holds them.
+     */
+    class Committed(val members: List<MemberInfo>) : GroupMessageReading
 
     /** A Commit from the creator removing the user, after which the group cannot be read in. */
     data object Removed : GroupMessageReading
 
-    /** The creator handing over [groupKey], the group's new key, see [groupKeyOf]. */
-    class Rekeyed(val groupKey: ByteArray) : GroupMessageReading
+    /** The creator handing over [groupKey], the group's new key, with its generation, see [groupKeyOf]. */
+    class Rekeyed(val groupKey: GroupKeyGeneration) : GroupMessageReading
 
     /** Keys to the members' profiles handed over, see [ProfileKeyHandover]. */
     class HandedProfileKeys(val handover: ProfileKeyHandover) : GroupMessageReading
@@ -1858,8 +1934,14 @@ private class GroupReading(
     /** Everybody the group held at one point or another of what was read, the user among them. */
     val memberUuidsSeen: Set<String>,
 
-    /** Every key the creator handed over, in the order handed over. */
-    val groupKeys: List<ByteArray>,
+    /**
+     * The signature key each member held in the tree of the last Commit read that held them, by
+     * user UUID, those it removed since among them: empty when no Commit was read.
+     */
+    val signatureKeys: Map<String, ByteArray>,
+
+    /** Every key the creator handed over, with its generation, in the order handed over. */
+    val groupKeys: List<GroupKeyGeneration>,
 
     /** Every key to a member's profile handed over, in the order handed over, see [ProfileKeyHandover]. */
     val profileKeys: List<ProfileKeyHandover>,
@@ -1908,6 +1990,23 @@ private inline fun runsUnlocked(block: () -> Unit): Boolean =
 /** The members of the group [groupUuid], [memberUuids], [creatorUuid] their admin. */
 private fun membersOf(groupUuid: String, memberUuids: List<String>, creatorUuid: String) =
     memberUuids.map { GroupMemberEntity(userUuid = it, groupUuid = groupUuid, isAdmin = it == creatorUuid) }
+
+/** This generation of the key of the group [groupUuid], as it is kept, see [GroupKeyEntity]. */
+private fun GroupKeyGeneration.entityOf(groupUuid: String) =
+    GroupKeyEntity(groupUuid = groupUuid, generation = generation, groupKey = key)
+
+/** These signature keys of the members of the group [groupUuid], by user UUID, as they are kept. */
+private fun Map<String, ByteArray>.entitiesOf(groupUuid: String) =
+    map { (userUuid, signatureKey) ->
+        GroupMemberSignatureKeyEntity(groupUuid = groupUuid, userUuid = userUuid, signatureKey = signatureKey)
+    }
+
+/**
+ * The signature key each of these members, as the tree of the group [groupUuid] holds them, signs
+ * with there, as it is kept, see [GroupMemberSignatureKeyEntity].
+ */
+internal fun List<MemberInfo>.signatureKeysIn(groupUuid: String) =
+    associate { it.userUuid to it.signatureKey }.entitiesOf(groupUuid = groupUuid)
 
 /**
  * When the server stored this message, in milliseconds since the epoch: the one clock every message

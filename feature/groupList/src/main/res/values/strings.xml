@@ -23,6 +23,10 @@
     <string name="currency">Currency</string>
     <string name="left_group_marker">No longer a member</string>
     <string name="left_group_notice">You’re no longer a member of this group</string>
+    <plurals name="unreadable_expenses_notice">
+        <item quantity="one">%1$d expense can’t be read on this device yet, so the balances leave it out</item>
+        <item quantity="other">%1$d expenses can’t be read on this device yet, so the balances leave them out</item>
+    </plurals>
 
     <!-- CreateOrEditGroupScreen -->
     <plurals name="members_out_of_limit">
@@ -35,6 +39,7 @@
     <string name="group_creation_error_timeout">The server took too long to answer, please try again</string>
     <string name="group_creation_error_server_unreachable">Server is unreachable, please try again later</string>
     <string name="group_creation_error_unknown">Something went wrong, please try again</string>
+    <string name="group_creation_error_rate_limited">Too many changes, please try again later</string>
     <plurals name="group_creation_error_not_contacts">
         <item quantity="one">%1$s can’t be added to a group yet</item>
         <item quantity="other">%1$s can’t be added to a group yet</item>

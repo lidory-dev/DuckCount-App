@@ -35,6 +35,7 @@ import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.component.UserAmountCard
 import app.lidory.duckcount.expenseList.extensions.formatDate
 import app.lidory.duckcount.expenseList.extensions.formatTime
+import app.lidory.duckcount.expenseList.model.authorLineRes
 import app.lidory.duckcount.expenseList.model.messageRes
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseHistoryDetailState
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseHistoryDetailViewModel
@@ -115,10 +116,9 @@ fun ExpenseHistoryDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(Padding.small),
                 ) {
                     item {
-                        val textRes = if (version.isCreation) R.string.created_by else androidUiR.string.modified_by
                         Text(
                             text = stringResource(
-                                textRes,
+                                state.change.authorLineRes(),
                                 state.authorFullName ?: stringResource(R.string.unknown_person),
                             ),
                             fontStyle = FontStyle.Italic,

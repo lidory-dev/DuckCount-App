@@ -195,5 +195,7 @@ private class HistoryCallBacks(
     override fun getAuthenticatedUserUuid(): String? = TODO()
     override suspend fun updateGroup(uuid: String, title: String, description: String): GroupEditError? = TODO()
     override suspend fun refreshGroups(): Unit = TODO()
+    override suspend fun refreshGroupExpenses(uuid: String): Unit = TODO()
+    override fun getUnreadableExpenseCount(uuid: String): Flow<Int> = TODO()
     override fun groupsSeen(): Unit = TODO()
 }

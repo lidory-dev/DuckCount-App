@@ -15,16 +15,22 @@ import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.User
 import app.lidory.duckcount.networking.NetworkConnectivity
 import app.lidory.duckcount.push.ContactNotifier
+import app.lidory.duckcount.push.ExpenseNotifier
 import app.lidory.duckcount.push.GroupNotifier
 import contact.ContactArrivals
 import contact.ContactSync
+import database.data.repository.ExpenseRepository
 import database.data.repository.GroupRepository
 import database.data.repository.UserRepository
 import database.domain.CurrencyCatalog
 import database.domain.currencyDisplayName
+import expense.GroupExpenseUpdates
 import group.GroupCreator
 import group.GroupEditor
+import group.GroupExpenseSync
 import group.GroupSync
+import group.GroupSyncError
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import util.Result
@@ -35,11 +41,15 @@ private const val TAG = "GroupListCallBacksImpl"
 class GroupListCallBacksImpl(
     val groupRepository: GroupRepository,
     val userRepository: UserRepository,
+    private val expenseRepository: ExpenseRepository,
     private val groupCreator: GroupCreator,
     private val groupEditor: GroupEditor,
     private val groupHistory: SharedGroupHistory,
     private val groupSync: GroupSync,
+    private val groupExpenseSync: GroupExpenseSync,
+    private val groupExpenseUpdates: GroupExpenseUpdates,
     private val groupNotifier: GroupNotifier,
+    private val expenseNotifier: ExpenseNotifier,
     private val contactSync: ContactSync,
     private val contactArrivals: ContactArrivals,
     private val contactNotifier: ContactNotifier,
@@ -185,10 +195,64 @@ class GroupListCallBacksImpl(
 
         // Nothing to tell the user about a failure: they keep seeing the groups they already
         // had, and the next refresh, or push, tries again.
-        groupSync.sync(contactsTakenIn = contacts.isTakenIn).failure?.let { failure ->
+        val groups = groupSync.sync(contactsTakenIn = contacts.isTakenIn)
+
+        groups.failure?.let { failure ->
             Log.w(TAG, "refreshGroups: could not sync the groups: $failure")
+        }
+
+        // The device locked as the groups were synced: their expenses could only throw now, and
+        // wait for the next refresh, or push, as in the push sync.
+        if (groups.failure == GroupSyncError.DeviceLocked) return
+
+        // Then their expenses, the groups having read the key of any rotation they are sealed
+        // under: the first time after a sign-in, every group's, from the server. Those are not in
+        // front of the user either, the list showing none, so what concerns them is announced as
+        // the push sync would have. Telling what does reads the user's UUID, which the device
+        // locking as the sync ran leaves unreadable too: nothing is announced then, a locked phone
+        // posting nothing, and what that pass stored is not told about later either.
+        val updates = unlessLocked {
+            val groupExpenses = groupExpenseSync.sync()
+
+            groupExpenses.failure?.let { failure ->
+                Log.w(TAG, "refreshGroups: could not sync the groups' expenses: $failure")
+            }
+
+            groupExpenseUpdates.of(changes = groupExpenses.changes)
+        } ?: return
+
+        expenseNotifier.notifyGroupExpenses(updates = updates)
+    }
+
+    override suspend fun refreshGroupExpenses(uuid: String) {
+        // Nothing announced: the user is looking at them. A failure is not reported either, as for
+        // the groups: they keep seeing what they had.
+        unlessLocked { groupExpenseSync.syncGroup(groupUuid = uuid) }?.failure?.let { failure ->
+            Log.w(TAG, "refreshGroupExpenses: could not sync the group's expenses: $failure")
         }
     }
 
+    override fun getUnreadableExpenseCount(uuid: String): Flow<Int> =
+        expenseRepository.getUnreadableGroupExpenseCount(groupUuid = uuid)
+
     override fun groupsSeen() = groupNotifier.clearGroups()
 }
+
+/**
+ * What [sync] comes to, or null when the device locked as it ran: what this device stores is read
+ * with keys a locked device cannot use, and reading it throws an [IllegalStateException] then, see
+ * [GroupSyncError.DeviceLocked], which would take the app down from the screen's scope. What it did
+ * not get to is read by the next refresh, or push.
+ */
+private inline fun <T> unlessLocked(sync: () -> T): T? =
+    try {
+        sync()
+    } catch (exception: CancellationException) {
+        // The screen going away, which the catch below would otherwise take for a locked device,
+        // a CancellationException being an IllegalStateException.
+        throw exception
+    } catch (_: IllegalStateException) {
+        Log.w(TAG, "unlessLocked: the device locked as the groups' expenses were synced")
+
+        null
+    }

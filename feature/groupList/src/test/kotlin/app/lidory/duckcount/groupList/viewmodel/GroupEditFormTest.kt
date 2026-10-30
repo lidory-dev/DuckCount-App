@@ -168,5 +168,7 @@ private class EditCallBacks(private val group: Flow<GroupWithMembers?>) : GroupL
     override suspend fun updateGroup(uuid: String, title: String, description: String): GroupEditError? = TODO()
     override suspend fun getGroupHistory(uuid: String): GroupHistory = TODO()
     override suspend fun refreshGroups(): Unit = TODO()
+    override suspend fun refreshGroupExpenses(uuid: String): Unit = TODO()
+    override fun getUnreadableExpenseCount(uuid: String): Flow<Int> = TODO()
     override fun groupsSeen(): Unit = TODO()
 }

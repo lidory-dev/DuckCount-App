@@ -6,8 +6,9 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import authenticationUtils.getAuthenticatedUserUuid
 import database.data.local.dao.ExpenseDao
+import database.data.local.dao.ListedGroupExpenseDao
 import database.data.local.dao.OwedExpenseKeyDao
-import database.data.local.entity.OneTimeExpenseRevisionEntity
+import database.data.local.entity.ExpenseRevisionEntity
 import database.data.local.entity.OwedExpenseKeyEntity
 import database.data.mappers.toBeneficiaryEntity
 import database.data.mappers.toExpenseEntity
@@ -38,6 +39,11 @@ import expense.replacedAt
 import expense.sealOneTime
 import expense.sealSettledMark
 import expense.unsealOneTime
+import group.GroupExpenseHistory
+import group.GroupExpenseHistoryEntry
+import group.GroupExpenseHistoryError
+import group.GroupExpenseWriteError
+import group.GroupExpenseWriter
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.datetime.TimeZone
@@ -63,6 +69,9 @@ class ExpenseRepository(
     private val oneTimeExpenseSync: OneTimeExpenseSync,
     private val mlsIdentityRepository: MlsIdentityRepository,
     private val directMessageSender: DirectMessageSender,
+    private val groupExpenseWriter: GroupExpenseWriter,
+    private val groupExpenseHistory: GroupExpenseHistory,
+    private val listedGroupExpenseDao: ListedGroupExpenseDao,
 ) {
 
     @OptIn(ExperimentalPagingApi::class)
@@ -168,7 +177,7 @@ class ExpenseRepository(
 
         // Stored over whatever is there: a refresh may have stored it already, from the change
         // the creation made in the user's own feed.
-        expenseDao.setNewestRevision(OneTimeExpenseRevisionEntity(id.uuid, FIRST_REVISION))
+        expenseDao.setNewestRevision(ExpenseRevisionEntity(id.uuid, FIRST_REVISION))
         expenseDao.upsertOneTimeExpense(
             expense = synced.toExpenseWithBeneficiariesEntity(),
             revision = FIRST_REVISION,
@@ -434,41 +443,81 @@ class ExpenseRepository(
     }
 
     /**
-     * Saves a group expense, its title and description taken without the whitespace around them,
-     * as a one-time expense's are, see [trimmed].
+     * Creates [expenseWithBeneficiaries] in the group [groupUuid], on the server first, see
+     * [GroupExpenseWriter]: its title and description taken without the whitespace around them, as
+     * a one-time expense's are, see [trimmed], under a UUID derived from the user's, in the group's
+     * currency.
      */
-    suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries) {
-        expenseDao.insertWithBeneficiaries(
-            expenseWithBeneficiaries = expenseWithBeneficiaries.trimmed().toExpenseWithBeneficiariesEntity(),
+    suspend fun createGroupExpense(
+        groupUuid: String,
+        expenseWithBeneficiaries: ExpenseWithBeneficiaries,
+    ): EmptyResult<GroupExpenseWriteError> =
+        groupExpenseWriter.create(groupUuid = groupUuid, expense = expenseWithBeneficiaries)
+
+    /**
+     * Saves an edit of the expense of the group [groupUuid] that [expenseWithBeneficiaries] names,
+     * taken as [createGroupExpense] takes one, as the version after the one it was read at, its
+     * [ExpenseWithBeneficiaries.revision], see [GroupExpenseWriter]. [GroupExpenseWriteError.Conflict]
+     * is another member's edit made first, which this device shows from then on.
+     */
+    suspend fun updateGroupExpense(
+        groupUuid: String,
+        expenseWithBeneficiaries: ExpenseWithBeneficiaries,
+    ): EmptyResult<GroupExpenseWriteError> =
+        groupExpenseWriter.edit(groupUuid = groupUuid, expense = expenseWithBeneficiaries)
+
+    /**
+     * Deletes the expense [uuid] of the group [groupUuid], as a version saying so, see
+     * [GroupExpenseWriter.delete]: it stays listed, struck through, and counts in no balance.
+     */
+    suspend fun deleteGroupExpense(groupUuid: String, uuid: String): EmptyResult<GroupExpenseWriteError> =
+        groupExpenseWriter.delete(groupUuid = groupUuid, expenseUuid = uuid)
+
+    /** Restores the deleted expense [uuid] of the group [groupUuid], see [GroupExpenseWriter.restore]. */
+    suspend fun restoreGroupExpense(groupUuid: String, uuid: String): EmptyResult<GroupExpenseWriteError> =
+        groupExpenseWriter.restore(groupUuid = groupUuid, expenseUuid = uuid)
+
+    /**
+     * Records that [payerUuid] paid the user [amount] back in the group [groupUuid], at [timestamp],
+     * see [GroupExpenseWriter.recordSettlement]: the user, its recipient, alone records it.
+     */
+    suspend fun recordGroupSettlement(
+        groupUuid: String,
+        payerUuid: String,
+        amount: String,
+        timestamp: String,
+    ): EmptyResult<GroupExpenseWriteError> =
+        groupExpenseWriter.recordSettlement(
+            groupUuid = groupUuid,
+            payerUuid = payerUuid,
+            amount = amount,
+            timestamp = timestamp,
         )
-    }
+
+    /**
+     * The versions of the group expense [uuid]: the one this device shows, then each one from
+     * before it that the server keeps, newest first, each with who wrote it, see
+     * [GroupExpenseHistory].
+     */
+    suspend fun getGroupExpenseHistory(
+        uuid: String,
+    ): Result<List<GroupExpenseHistoryEntry>, GroupExpenseHistoryError> =
+        groupExpenseHistory.versions(expenseUuid = uuid)
+
+    /**
+     * Emits how many expenses of the group [groupUuid] the server lists that this device cannot read
+     * yet and shows no version of, as it changes, see
+     * [database.data.local.entity.UnreadableGroupExpenseEntity].
+     */
+    fun getUnreadableGroupExpenseCount(groupUuid: String): Flow<Int> =
+        listedGroupExpenseDao.countUnreadableAsFlow(groupUuid = groupUuid)
 
     suspend fun update(expense: Expense) {
         expenseDao.update(expenseEntity = expense.toExpenseEntity())
     }
 
-    /** Saves an edit of a group expense, taken as [insertWithBeneficiaries] takes one. */
-    suspend fun updateWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries) {
-        expenseDao.updateWithBeneficiaries(
-            expenseWithBeneficiaries = expenseWithBeneficiaries.trimmed().toExpenseWithBeneficiariesEntity(),
-        )
-    }
-
     suspend fun delete(expense: Expense) {
         expenseDao.delete(expenseEntity = expense.toExpenseEntity())
-    }
-
-    suspend fun delete(expenseUuid: String) {
-        expenseDao.delete(expenseUuid)
-    }
-
-    suspend fun restore(expenseUuid: String) {
-        expenseDao.restore(expenseUuid)
-    }
-
-    /** Hard-deletes a local expense and its beneficiaries; there is no restoring it. */
-    suspend fun hardDelete(expenseUuid: String) {
-        expenseDao.hardDeleteWithBeneficiaries(expenseUuid = expenseUuid)
     }
 
     fun getAll(): Flow<List<ExpenseWithBeneficiaries>> {

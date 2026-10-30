@@ -245,24 +245,31 @@ class CreateExpenseViewModel(
                 updateCurrency(groupCurrency)
             }
 
-            expenseUuid?.let { uuid ->
-                val expense = createExpenseCallBacks.getExpenseWithBeneficiaries(expenseUuid = uuid).first()
-
-                // The currency first: it decides how the amount and the shares are written.
-                updateCurrency(expense.currency)
-                updateTitle(expense.title)
-                updateCreditor(expense.creditorUuid)
-                updateAmount(expense.amount)
-                updateDescription(expense.description)
-                state = state.copy(timestamp = expense.timestamp)
-                updateBeneficiaries(expense.beneficiaries)
-                expense.beneficiaries.forEach {
-                    updateBeneficiaryShare(it.userUuid, it.share)
-                }
-
-                loadedState.value = state
-            }
+            expenseUuid?.let { uuid -> read(expenseUuid = uuid) }
         }
+    }
+
+    /**
+     * Reads the expense [expenseUuid] into the form, as this device shows it, the version an edit
+     * is written after, and takes the form as it then stands for what the edit has to differ from,
+     * see [loadedState].
+     */
+    private suspend fun read(expenseUuid: String) {
+        val expense = createExpenseCallBacks.getExpenseWithBeneficiaries(expenseUuid = expenseUuid).first()
+
+        // The currency first: it decides how the amount and the shares are written.
+        updateCurrency(expense.currency)
+        updateTitle(expense.title)
+        updateCreditor(expense.creditorUuid)
+        updateAmount(expense.amount)
+        updateDescription(expense.description)
+        state = state.copy(timestamp = expense.timestamp, revision = expense.revision, isDeleted = expense.isDeleted)
+        updateBeneficiaries(expense.beneficiaries)
+        expense.beneficiaries.forEach {
+            updateBeneficiaryShare(it.userUuid, it.share)
+        }
+
+        loadedState.value = state
     }
 
     fun toggleSelectedUser(user: User) {
@@ -307,7 +314,8 @@ class CreateExpenseViewModel(
 
             val error = createExpenseCallBacks.insertWithBeneficiaries(
                 expenseWithBeneficiaries = ExpenseWithBeneficiaries(
-                    // TODO: get uuid from server
+                    // Until it is written: either kind is then given a UUID derived from the user's,
+                    // see CreateExpenseCallBacks.insertWithBeneficiaries.
                     uuid = expenseUuid,
                     timestamp = getCurrentTimestamp(),
                     title = state.title,
@@ -364,6 +372,7 @@ class CreateExpenseViewModel(
                         it.copy(expenseUuid = expenseUuid)
                     },
                     isDeleted = saved.isDeleted,
+                    revision = saved.revision,
                 ),
             )
 
@@ -376,9 +385,20 @@ class CreateExpenseViewModel(
     /**
      * Tells the screen why the write failed. When it was for naming people who deleted their
      * account, they are taken out of the selection first and the shares worked out again without
-     * them, see [withoutDeletedAccounts], so that the user can save again.
+     * them, see [withoutDeletedAccounts], so that the user can save again. When another member
+     * changed the expense first, the form is read again from the version this device shows of it
+     * now, over what the user typed, see [ExpenseWriteError.CHANGED_MEANWHILE]: the user sees what
+     * they would write over, and saves from it, every save built on the version read before being
+     * refused the same way; unless that version is a deletion, which the form saves nothing over,
+     * see [ExpenseSaveError.DeletedMeanwhile].
      */
     private suspend fun report(error: ExpenseSaveError) {
+        val isChangedMeanwhile = error == ExpenseSaveError.Write(ExpenseWriteError.CHANGED_MEANWHILE)
+
+        if (isChangedMeanwhile) {
+            expenseUuid?.let { read(expenseUuid = it) }
+        }
+
         if (error is ExpenseSaveError.BeneficiariesDeleted) {
             onBeneficiariesSelected(
                 uuids = withoutDeletedAccounts(
@@ -388,7 +408,7 @@ class CreateExpenseViewModel(
             )
         }
 
-        _showError.send(error)
+        _showError.send(if (isChangedMeanwhile && state.isDeleted) ExpenseSaveError.DeletedMeanwhile else error)
     }
 
     fun updateTitle(title: String) {
@@ -607,7 +627,18 @@ data class CreateExpenseState(
      * [CreateExpenseViewModel.typeBeneficiaryShare]: the share itself is in [beneficiaries].
      */
     val shareTexts: Map<String, String> = emptyMap(),
+
+    /**
+     * Whether the version the form was read from is a deletion, see [ExpenseSaveError.DeletedMeanwhile]:
+     * the form then saves nothing, the detail screen offering no edit of a deleted expense either.
+     */
     val isDeleted: Boolean = false,
+
+    /**
+     * The revision of the version the form was read from, see [ExpenseWithBeneficiaries.revision]:
+     * the one an edit is written after.
+     */
+    val revision: Long? = null,
     private val validateExpenseCallBack: (String, Currency, List<Beneficiary>) -> Int?,
 ) {
     /**

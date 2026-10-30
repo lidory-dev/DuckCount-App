@@ -5,6 +5,7 @@ import database.data.local.entity.GroupMemberEntity
 import database.data.local.entity.GroupWithMembersEntity
 import database.domain.CurrencyCatalog
 import group.FIRST_GROUP_REVISION
+import group.FIRST_KEY_GENERATION
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -164,6 +165,7 @@ class GroupMappingTest {
             ownerUuid = ownerUuid,
             mlsGroupId = mlsGroupId,
             groupKey = ByteArray(32),
+            keyGeneration = FIRST_KEY_GENERATION,
             isBackedUp = true,
             isLeft = isLeft,
             handedProfileKeyHash = null,

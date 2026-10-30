@@ -30,6 +30,7 @@ fun ExpenseDetailActionButtons(
     canEdit: Boolean,
     canDelete: Boolean,
     canRestore: Boolean,
+    canShowHistory: Boolean,
     restore: () -> Unit,
     edit: () -> Unit,
     delete: () -> Unit,
@@ -96,6 +97,19 @@ fun ExpenseDetailActionButtons(
                     )
                 }
             }
+
+            // Its deletion is a version of its own, which tells who deleted it.
+            if (canShowHistory) {
+                IconButton(
+                    enabled = enabled,
+                    onClick = history,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_history),
+                        contentDescription = stringResource(R.string.history),
+                    )
+                }
+            }
         } else {
             if (canEdit) {
                 IconButton(
@@ -109,7 +123,7 @@ fun ExpenseDetailActionButtons(
                 }
             }
 
-            if (!isSettlement) {
+            if (canShowHistory) {
                 IconButton(
                     enabled = enabled,
                     onClick = history,

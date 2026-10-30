@@ -21,12 +21,20 @@ data class ExpenseEntity(
     val isDeleted: Boolean = false,
 
     /**
-     * The revision the version of a one-time expense this row holds was signed at, see
-     * `expense.OneTimeExpenseSealing`; null for a group expense. Its history is told from it:
-     * which versions came before it, and whether it is the expense as created.
+     * The revision the version this row holds was signed at, see `expense.OneTimeExpenseSealing`
+     * for a one-time expense and `group.GroupExpenseSealing` for a group's; null only for a row
+     * written on this device alone, as the iOS form still writes one. Its history is told from it: which
+     * versions came before it, and whether it is the expense as created.
      *
-     * Not [OneTimeExpenseRevisionEntity.newestRevision], which an edit reserves before it is
-     * sent, and which stays ahead of the row when the edit gets no answer.
+     * Not [ExpenseRevisionEntity.newestRevision], which an edit of a one-time expense reserves
+     * before it is sent, and which stays ahead of the row when the edit gets no answer.
      */
     val revision: Long? = null,
+
+    /**
+     * Who wrote the version of a group expense this row holds, as it is signed, see
+     * `group.GroupExpenseSealing`: any member may write any version but a settlement's, see
+     * [isSettlement]. Null for a one-time expense, whose every version its creditor signs.
+     */
+    val authorUuid: String? = null,
 )

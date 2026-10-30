@@ -67,12 +67,13 @@ enum class MembershipChangeOutcome {
  *    already, or for a removal who is no member, is left out: a change asked for twice is made
  *    once.
  * 3. The Commit is built with the library, an addition's Welcome handing the new members the
- *    group's key and the key to every member's profile this device holds, see
- *    [profileKeysToHandOut], and saved with the request that will make it, see
- *    [PendingMembershipChangeEntity], before anything is sent. The members already in the group
- *    are handed the same keys in an application message of the epoch before the Commit's, see
- *    [AddGroupMembersBody.profileKeysMessage], which goes with it. An addition handing over none
- *    of the user's own leaves the group owed it, see [GroupEntity.handedProfileKeyHash].
+ *    group's current key with its generation, see [GroupKeyChain], and the key to every member's
+ *    profile this device holds, see [profileKeysToHandOut], and saved with the request that will
+ *    make it, see [PendingMembershipChangeEntity], before anything is sent. The members already
+ *    in the group are handed the same keys in an application message of the epoch before the
+ *    Commit's, see [AddGroupMembersBody.profileKeysMessage], which goes with it. An addition
+ *    handing over none of the user's own leaves the group owed it, see
+ *    [GroupEntity.handedProfileKeyHash].
  * 4. It is sent, see [GroupMembershipSender.send], its resend booked first, see
  *    [GroupMembershipSender.bookResend]. Only a refusal undoes it; the server not answering, or
  *    answering that it cannot take it yet, leaves it to go out again, see
@@ -318,11 +319,17 @@ class GroupMembershipChanger internal constructor(
         return withContext(NonCancellable) {
             val addition = try {
                 // The group's key, which its fields are sealed under, as for a creation: the
-                // Welcome binds it to this group alone, see GroupSync.
+                // Welcome binds it to this group alone, see GroupSync. The current one, with its
+                // generation, which the chain leads back from to the keys before it, see
+                // GroupKeyChain.
                 client.addMembersTo(
                     mlsGroupId = held.mlsGroupId,
                     invitees = keyPackages,
-                    welcomePayload = welcomePayloadOf(groupKey = held.group.groupKey, profileKeys = profileKeys),
+                    welcomePayload = welcomePayloadOf(
+                        groupKey = held.group.groupKey,
+                        keyGeneration = held.group.keyGeneration,
+                        profileKeys = profileKeys,
+                    ),
                 )
             } catch (exception: MlsException) {
                 return@withContext Result.Error(

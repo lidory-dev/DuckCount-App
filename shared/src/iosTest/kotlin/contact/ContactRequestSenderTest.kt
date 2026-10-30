@@ -5,6 +5,7 @@ import database.data.local.entity.OutgoingContactRequestEntity
 import database.data.remote.SendContactRequestBody
 import database.domain.CurrencyCatalog
 import group.FIRST_GROUP_REVISION
+import group.FIRST_KEY_GENERATION
 import kotlinx.coroutines.runBlocking
 import mls.ApplicationMessageReading
 import mls.ConsumeKeyPackageDto
@@ -504,6 +505,7 @@ class ContactRequestSenderTest {
         ownerUuid = ALICE,
         mlsGroupId = mlsGroupId,
         groupKey = groupKey,
+        keyGeneration = FIRST_KEY_GENERATION,
         isBackedUp = true,
         isLeft = isLeft,
         handedProfileKeyHash = null,

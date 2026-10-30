@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 import uniffi.lib_duckcount.AddMembersOutput
 import uniffi.lib_duckcount.GroupCreation
 import uniffi.lib_duckcount.InviteeKeyPackage
+import uniffi.lib_duckcount.MemberInfo
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.MlsGroup
@@ -99,11 +100,11 @@ internal class ProcessedGroupMessage(
     val processed: ProcessedMessage,
 
     /**
-     * Every member the group holds once the message is processed, the user included, as their
-     * credentials name them, when it was a Commit the user is still in the group after; null for
-     * anything else.
+     * Every member the group holds once the message is processed, the user included, as its tree
+     * holds them, see [MemberInfo], when it was a Commit the user is still in the group after; null
+     * for anything else.
      */
-    val memberUuidsAfterCommit: List<String>?,
+    val membersAfterCommit: List<MemberInfo>?,
 )
 
 /**
@@ -126,26 +127,29 @@ internal suspend fun MlsClient.processGroupMessageIn(
     val processed = group.processIncomingMessage(message = message, allowedCommitter = creatorUuid)
 
     // Read from the same copy, the tree the Commit left, before anything else can reach it.
-    val memberUuids = if (processed is ProcessedMessage.Commit && !processed.removedSelf) {
-        group.members().map { it.userUuid }
-    } else {
-        null
-    }
+    val members = if (processed is ProcessedMessage.Commit && !processed.removedSelf) group.members() else null
 
-    ProcessedGroupMessage(processed = processed, memberUuidsAfterCommit = memberUuids)
+    ProcessedGroupMessage(processed = processed, membersAfterCommit = members)
 }
 
 /** Who is in a group, as far as changing its members goes, see [rosterOf]. */
 internal class GroupRoster(
-    /** Every member, the user included, as their credentials name them. */
-    val memberUuids: List<String>,
+    /**
+     * Every member, the user included, as the group's tree holds them: who their credentials name,
+     * and the key each signs with there, see [MemberInfo].
+     */
+    val members: List<MemberInfo>,
 
     /** The epoch the group is in. */
     val epoch: Long,
 
     /** Whether a Commit of the user's is pending in it: built, and neither applied nor discarded. */
     val hasPendingCommit: Boolean,
-)
+) {
+    /** Every member, the user included, as their credentials name them. */
+    val memberUuids: List<String>
+        get() = members.map { it.userUuid }
+}
 
 /**
  * Who is in the group [mlsGroupId], by its tree rather than by anything the server said, see
@@ -154,7 +158,7 @@ internal class GroupRoster(
 internal suspend fun MlsClient.rosterOf(mlsGroupId: ByteArray): GroupRoster =
     withGroup(mlsGroupId = mlsGroupId) { group ->
         GroupRoster(
-            memberUuids = group.members().map { it.userUuid },
+            members = group.members(),
             epoch = group.epoch().toLong(),
             hasPendingCommit = group.hasPendingCommit(),
         )
@@ -183,13 +187,14 @@ internal suspend fun MlsClient.removeMembersFrom(mlsGroupId: ByteArray, userUuid
 
 /**
  * Applies the Commit of the user's pending in the group [mlsGroupId], once the server took it, and
- * returns every member the group holds then, the user included.
+ * returns every member the group holds then, the user included, as its tree holds them, see
+ * [MemberInfo].
  */
-internal suspend fun MlsClient.applyPendingCommitIn(mlsGroupId: ByteArray): List<String> =
+internal suspend fun MlsClient.applyPendingCommitIn(mlsGroupId: ByteArray): List<MemberInfo> =
     withGroup(mlsGroupId = mlsGroupId) { group ->
         group.applyPendingCommit()
 
-        group.members().map { it.userUuid }
+        group.members()
     }
 
 /**

@@ -8,7 +8,7 @@ import androidx.room.PrimaryKey
  * signed marks this device has shown says, see `expense.SettledMark`. No mark is no row: an
  * expense nobody marked is not paid back.
  *
- * Apart from the expense's row for the reason [OneTimeExpenseRevisionEntity] is: a sync deletes
+ * Apart from the expense's row for the reason [ExpenseRevisionEntity] is: a sync deletes
  * the row whenever the server stops listing the expense, and a mark that went with it would let
  * the server leave the expense out once, then serve a mark from before the newest.
  */

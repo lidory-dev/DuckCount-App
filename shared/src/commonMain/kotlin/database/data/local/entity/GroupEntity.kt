@@ -61,18 +61,30 @@ class GroupEntity(
     val mlsGroupId: ByteArray?,
 
     /**
-     * The key the group's fields are sealed under on the server, 32 random bytes, one per group:
-     * handed to the invitees inside the Welcome that lets them in, and backed up as the user's own
-     * copy, which the server keeps with the group, see `group.GroupKeyCopies`. Replaced by the
-     * creator once they remove somebody, see `group.GroupMembershipSender`, the members who remain
-     * being handed the new one over MLS.
+     * The key the group's fields are sealed under on the server, 32 random bytes, the newest this
+     * device holds of the group's keys: handed to the invitees inside the Welcome that lets them
+     * in, and backed up as the user's own copy, which the server keeps with the group, see
+     * `group.GroupKeyCopies`. Replaced by the creator once they remove somebody, see
+     * `group.GroupMembershipSender`, the members who remain being handed the new one over MLS.
+     *
+     * The one replaced is kept all the same, as every generation this device holds is, see
+     * [GroupKeyEntity], this one included.
      */
     val groupKey: ByteArray,
 
     /**
+     * Which generation of the group's keys [groupKey] is, see `group.GroupKeyChain`:
+     * `group.FIRST_KEY_GENERATION` for the key the group was created with, one more for each key
+     * its creator handed over since. The group's current one as far as this device knows, which
+     * the server takes whatever is written in the group under, and the rotation of the user's own
+     * after a removal is made one past, see `group.GroupMembershipSender`.
+     */
+    val keyGeneration: Long,
+
+    /**
      * Whether the server holds the user's copy of [groupKey], this key and not one it replaced:
      * false from the moment the key changes, see
-     * [database.data.local.dao.GroupDao.updateGroupKey], until the copy of the new one went up,
+     * [database.data.local.dao.GroupDao.takeHandedKeys], until the copy of the new one went up,
      * which the sync sees to, see `group.GroupKeyCopies.putUp`.
      */
     val isBackedUp: Boolean,
@@ -102,4 +114,19 @@ class GroupEntity(
      * [database.data.local.dao.GroupDao.getOwedProfileKey].
      */
     val handedProfileKeyHash: String?,
+
+    /**
+     * Whether this device has taken in the group's expenses whole once, see `group.GroupExpenseSync`:
+     * a pass over them that read their listing and opened every version of it, none of them failing
+     * to be told or left to be read later. Until then each one it stores is new to the device and
+     * none of them news to the user, see `group.GroupExpenseChange.isFirstListing`: the user just
+     * joined the group, joined it again once added back, or brought it back after a log-out. One
+     * the user creates starts taken in, nothing being written in it before its creation is taken,
+     * see `group.GroupCreator`.
+     *
+     * Kept apart from where the group's feed of changes stands, see [ChangeFeedEntity]: a pass that
+     * stops after the listing was kept would otherwise have the next one announce every expense of
+     * the group, and a feed started over and not read again would have it announce nothing.
+     */
+    val hasTakenInExpenses: Boolean = false,
 )

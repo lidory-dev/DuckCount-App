@@ -1,21 +1,30 @@
 package app.lidory.duckcount.groupList
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.component.DebtCard
 import app.lidory.duckcount.groupList.component.SettlementCard
+import app.lidory.duckcount.groupList.model.GroupCreationFailure
+import app.lidory.duckcount.groupList.model.messageRes
 import app.lidory.duckcount.groupList.viewmodel.DebtSide
 import app.lidory.duckcount.groupList.viewmodel.GroupSettleUpState
 import app.lidory.duckcount.groupList.viewmodel.GroupSettleUpViewModel
@@ -29,7 +38,33 @@ fun GroupSettleUpScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    when (val state = state) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    var pendingError by remember { mutableStateOf<GroupCreationFailure?>(null) }
+
+    // Tell why a settlement was not recorded: the debt is still listed, for the user to try again.
+    LaunchedEffect(Unit) {
+        viewModel.showError.collect { pendingError = it }
+    }
+    pendingError?.let { error ->
+        val message = stringResource(error.messageRes())
+        LaunchedEffect(error) {
+            snackbarHostState.showSnackbar(message)
+            pendingError = null
+        }
+    }
+
+    Column(modifier = modifier.fillMaxSize()) {
+        Box(modifier = Modifier.weight(1f)) {
+            SettleUpContent(state = state, viewModel = viewModel)
+        }
+
+        DuckCountSnackbarHost(hostState = snackbarHostState)
+    }
+}
+
+@Composable
+private fun SettleUpContent(state: GroupSettleUpState, viewModel: GroupSettleUpViewModel) {
+    when (state) {
         GroupSettleUpState.Loading -> {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -47,7 +82,7 @@ fun GroupSettleUpScreen(
                 )
             } else {
                 LazyColumn(
-                    modifier = modifier.padding(Padding.medium),
+                    modifier = Modifier.padding(Padding.medium),
                 ) {
                     items(
                         items = state.transactions,

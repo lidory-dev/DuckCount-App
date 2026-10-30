@@ -4,7 +4,12 @@ import group.GroupApi
 import group.GroupCreationSender
 import group.GroupCreator
 import group.GroupEditor
+import group.GroupExpenseApi
+import group.GroupExpenseHistory
+import group.GroupExpenseSync
+import group.GroupExpenseWriter
 import group.GroupHistory
+import group.GroupKeyChain
 import group.GroupKeyCopies
 import group.GroupLeaver
 import group.GroupMembershipChanger
@@ -18,6 +23,8 @@ val groupModule = module {
     single { GroupApi(client = get()) }
 
     single { GroupKeyCopies(vaultRepository = get(), groupApi = get(), groupDao = get()) }
+
+    single { GroupKeyChain(groupApi = get(), groupDao = get()) }
 
     single {
         MemberProfileRepository(
@@ -69,6 +76,7 @@ val groupModule = module {
             groupKeyCopies = get(),
             mlsIdentityRepository = get(),
             directMessageSender = get(),
+            wakeList = get(),
             resendScheduler = get(),
         )
     }
@@ -108,7 +116,43 @@ val groupModule = module {
             groupApi = get(),
             groupDao = get(),
             mlsIdentityRepository = get(),
+            wakeList = get(),
             resendScheduler = get(),
+        )
+    }
+
+    single { GroupExpenseApi(client = get()) }
+
+    single {
+        GroupExpenseSync(
+            groupExpenseApi = get(),
+            groupKeyChain = get(),
+            groupDao = get(),
+            expenseDao = get(),
+            listedGroupExpenseDao = get(),
+            mlsIdentityRepository = get(),
+        )
+    }
+
+    single {
+        GroupExpenseWriter(
+            groupExpenseApi = get(),
+            groupDao = get(),
+            expenseDao = get(),
+            groupSync = get(),
+            groupSyncAnnouncer = get(),
+            groupExpenseSync = get(),
+            mlsIdentityRepository = get(),
+        )
+    }
+
+    single {
+        GroupExpenseHistory(
+            groupExpenseApi = get(),
+            groupKeyChain = get(),
+            groupDao = get(),
+            expenseDao = get(),
+            mlsIdentityRepository = get(),
         )
     }
 
@@ -127,6 +171,7 @@ val groupModule = module {
             identityConflictDao = get(),
             mlsIdentityRepository = get(),
             userDao = get(),
+            wakeList = get(),
             resendScheduler = get(),
         )
     }

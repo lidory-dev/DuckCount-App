@@ -1,11 +1,14 @@
 package app.lidory.duckcount.groupList
 
+import android.util.Log
 import app.lidory.duckcount.expenseList.utils.getCurrentTimestamp
 import app.lidory.duckcount.getTransactionForGroup
 import app.lidory.duckcount.groupList.callBacks.GroupSettleUpCallBacks
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
+import app.lidory.duckcount.groupList.model.GroupCreationFailure
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.Transaction
+import app.lidory.duckcount.networking.NetworkConnectivity
 import database.data.repository.ExpenseRepository
 import database.data.repository.GroupMemberRepository
 import database.data.repository.GroupRepository
@@ -13,16 +16,17 @@ import database.data.repository.UserRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlin.uuid.Uuid
-import database.domain.Beneficiary as DBBeneficiary
+import util.Result
 import database.domain.Currency as DBCurrency
-import database.domain.ExpenseWithBeneficiaries as DBExpenseWithBeneficiaries
+
+private const val TAG = "GroupSettleUpCallBacks"
 
 class GroupSettleUpCallBacksImpl(
     private val groupMemberRepository: GroupMemberRepository,
     private val userRepository: UserRepository,
     private val expenseRepository: ExpenseRepository,
     private val groupRepository: GroupRepository,
+    private val networkConnectivity: NetworkConnectivity,
 ) : GroupSettleUpCallBacks {
 
     override suspend fun getGroupTransactions(
@@ -81,32 +85,24 @@ class GroupSettleUpCallBacksImpl(
         debtorUuid: String,
         amount: String,
         groupUuid: String,
-    ) {
-        // TODO: The UUID should come from the server.
-        val expenseUuid = Uuid.random().toString()
-
-        expenseRepository.insertWithBeneficiaries(
-            DBExpenseWithBeneficiaries(
-                uuid = expenseUuid,
-                timestamp = getCurrentTimestamp(),
-                title = "",
-                description = "",
-                amount = amount,
-                creditorUuid = debtorUuid,
-                isSettlement = true,
-                currency = getCurrency(groupUuid),
-                groupUuid = groupUuid,
-                isDeleted = false,
-                beneficiaries = listOf(
-                    DBBeneficiary(
-                        uuid = Uuid.random().toString(),
-                        expenseUuid = expenseUuid,
-                        userUuid = creditorUuid,
-                        share = amount,
-                        isShareFixed = true,
-                    ),
-                ),
-            ),
+    ): GroupCreationFailure? {
+        // Paid by the debtor to the user, the creditor, who alone records it, under a UUID derived
+        // from theirs.
+        val recorded = expenseRepository.recordGroupSettlement(
+            groupUuid = groupUuid,
+            payerUuid = debtorUuid,
+            amount = amount,
+            timestamp = getCurrentTimestamp(),
         )
+
+        return when (recorded) {
+            is Result.Success -> null
+
+            is Result.Error -> {
+                Log.w(TAG, "validateSettlement: could not record the settlement: ${recorded.error}")
+
+                recorded.error.toGroupCreationFailure(isOnline = networkConnectivity.isOnline())
+            }
+        }
     }
 }

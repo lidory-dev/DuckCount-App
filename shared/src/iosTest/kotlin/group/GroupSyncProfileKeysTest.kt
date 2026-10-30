@@ -190,13 +190,18 @@ class GroupSyncProfileKeysTest {
         leave = { error("Nothing is declined here.") },
         isUnblockedContact = { it in contactTables.contacts && it !in blocked },
         client = { Result.Success(bob) },
-        save = { group, groupMembers ->
+        save = { group, groupMembers, _, _ ->
             groups[group.uuid] = group
             members[group.uuid] = groupMembers
         },
         memberUuidsOf = { groupUuid -> members[groupUuid].orEmpty().map { it.userUuid } },
         replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
-        updateKey = { groupUuid, key -> groups[groupUuid] = groups.getValue(groupUuid).with(groupKey = key) },
+        recordSignatureKeys = {},
+        takeKeys = { groupUuid, keys ->
+            val newest = keys.last()
+
+            groups[groupUuid] = groups.getValue(groupUuid).with(groupKey = newest.groupKey, keyGeneration = newest.generation)
+        },
         updateInformation = { _, _ -> error("Alice edits nothing here.") },
         markLeft = { groupUuid -> groups[groupUuid] = groups.getValue(groupUuid).with(isLeft = true) },
         recordDeclined = { error("Nothing is declined here.") },
@@ -214,6 +219,7 @@ class GroupSyncProfileKeysTest {
         readMemberNames = memberProfiles::readNames,
         backUpMemberProfiles = memberProfiles::backUp,
         handOutProfileKey = delivery::handOut,
+        rebuildWakeList = {},
         resendScheduler = resends,
     )
 
@@ -598,6 +604,7 @@ class GroupSyncProfileKeysTest {
             invitees = listOf(bob.inviteeKeyPackage(), carol.inviteeKeyPackage()),
             welcomePayload = welcomePayloadOf(
                 groupKey = groupKey,
+                keyGeneration = FIRST_KEY_GENERATION,
                 profileKeys = aliceHoldsOf(listOf(ALICE, BOB, CAROL)) + extraKeys,
             ),
         )
@@ -634,7 +641,11 @@ class GroupSyncProfileKeysTest {
         val addition = alice.addMembersTo(
             mlsGroupId = aliceGroup(),
             invitees = invitees.map { it.inviteeKeyPackage() },
-            welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = profileKeys),
+            welcomePayload = welcomePayloadOf(
+                groupKey = groupKey,
+                keyGeneration = FIRST_KEY_GENERATION,
+                profileKeys = profileKeys,
+            ),
         )
 
         alice.applyPendingCommitIn(mlsGroupId = aliceGroup())
@@ -785,6 +796,7 @@ private fun contactOf(userUuid: String, key: ByteArray) =
 
 private fun GroupEntity.with(
     groupKey: ByteArray = this.groupKey,
+    keyGeneration: Long = this.keyGeneration,
     isLeft: Boolean = this.isLeft,
     handedProfileKeyHash: String? = this.handedProfileKeyHash,
 ) = GroupEntity(
@@ -796,6 +808,7 @@ private fun GroupEntity.with(
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,
+    keyGeneration = keyGeneration,
     isBackedUp = isBackedUp,
     isLeft = isLeft,
     handedProfileKeyHash = handedProfileKeyHash,

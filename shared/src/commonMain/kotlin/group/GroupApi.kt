@@ -180,10 +180,11 @@ class GroupApi(
 
     /**
      * Hands the members of the group [groupUuid], which the caller created, the key [body] carries,
-     * and replaces the group's fields and its creator's signature with those sealed under it, its
-     * revision as it was, the versions its history holds with those [body] carries sealed under it,
-     * dropping every other, see [RotateGroupKeyBody.previous], and the caller's copy of its key
-     * with the one [body] carries, see [GroupMembershipAnswer].
+     * takes the group to its generation, storing the link back to the key it replaces, see
+     * [RotateGroupKeyBody.previousKey], and replaces the group's fields and its creator's signature
+     * with those sealed under it, its revision as it was, the versions its history holds with those
+     * [body] carries sealed under it, dropping every other, see [RotateGroupKeyBody.previous], and
+     * the caller's copy of its key with the one [body] carries, see [GroupMembershipAnswer].
      */
     suspend fun rotateKey(groupUuid: String, body: RotateGroupKeyBody): GroupMembershipAnswer =
         changeMembers {
@@ -194,16 +195,35 @@ class GroupApi(
         }
 
     /**
-     * Stores [keyCopy] as the caller's own copy of the key of the group [groupUuid], in place of any
-     * they had, see [GroupKeyCopies.putUp]. A `404` means the caller is no current member of the
-     * group, removed since it was listed say, or the proxy in front of the server answering as it
-     * is redeployed: either way the next listing decides again.
+     * Stores [keyCopy] as the caller's own copy of the key of the group [groupUuid], the generation
+     * [keyGeneration] of its keys, in place of any they had, see [GroupKeyCopies.putUp]. A `404`
+     * means the caller is no current member of the group, removed since it was listed say, or the
+     * proxy in front of the server answering as it is redeployed: either way the next listing
+     * decides again.
      */
-    suspend fun saveKeyCopy(groupUuid: String, keyCopy: EncryptedFieldDto): EmptyResult<NetworkError> =
+    suspend fun saveKeyCopy(
+        groupUuid: String,
+        keyCopy: EncryptedFieldDto,
+        keyGeneration: Long,
+    ): EmptyResult<NetworkError> =
         client.put<Unit, SaveGroupKeyCopyBody>(
             route = DuckCountRoutes.Group.KEY_COPY,
             pathParams = mapOf("group_uuid" to groupUuid),
-            body = SaveGroupKeyCopyBody(keyCopy = keyCopy),
+            body = SaveGroupKeyCopyBody(keyCopy = keyCopy, keyGeneration = keyGeneration),
+        )
+
+    /**
+     * Every link of the chain back through the keys of the group [groupUuid], see [GroupKeyChain],
+     * ascending by generation, from the second to the group's current one, as its creator's
+     * rotations stored them, see [RotateGroupKeyBody.previousKey].
+     *
+     * A `404` is a caller who is no current member of the group, a former one included, or the
+     * proxy in front of the server answering as it is redeployed.
+     */
+    suspend fun keyLinks(groupUuid: String): Result<List<GroupKeyLinkDto>, NetworkError> =
+        client.get<List<GroupKeyLinkDto>>(
+            route = DuckCountRoutes.Group.KEY_LINKS,
+            pathParams = mapOf("group_uuid" to groupUuid),
         )
 
     /**

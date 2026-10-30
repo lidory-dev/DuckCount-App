@@ -35,7 +35,8 @@ class ExpenseDetailViewModel(
     private val _isClosed = MutableStateFlow(false)
     val isClosed: StateFlow<Boolean> = _isClosed.asStateFlow()
 
-    // Emitted when delete failed (offline / server error) so the screen can surface it.
+    // Emitted when a delete, a restore or a mark failed (offline / server error) so the screen can
+    // surface it.
     private val _showError = Channel<ExpenseWriteError>(Channel.BUFFERED)
     val showError: Flow<ExpenseWriteError> = _showError.receiveAsFlow()
 
@@ -125,6 +126,7 @@ class ExpenseDetailViewModel(
                     canDelete = actions.canDelete,
                     canRestore = actions.canRestore,
                     canSettle = actions.canSettle,
+                    canShowHistory = actions.canShowHistory,
                 )
             }
         }.stateIn(
@@ -167,8 +169,8 @@ class ExpenseDetailViewModel(
             // would undo the deletion the screen is closing on.
             if (_isClosed.value) return@launch
 
-            expenseDetailCallBacks.restoreExpense(expenseUuid)
-            _isClosed.value = true
+            val error = expenseDetailCallBacks.restoreExpense(expenseUuid)
+            if (error == null) _isClosed.value = true else _showError.send(error)
         }
     }
 }
@@ -183,9 +185,15 @@ sealed interface ExpenseScreenState {
         val canEdit: Boolean,
         val canDelete: Boolean,
 
-        /** Whether the expense, once deleted, can be restored: not in a group the user is no longer in. */
+        /**
+         * Whether the expense, once deleted, can be restored: not in a group the user is no longer
+         * in, and never a settlement.
+         */
         val canRestore: Boolean,
         val canSettle: Boolean,
+
+        /** Whether the versions of the expense can be shown, see [ExpenseActions.canShowHistory]. */
+        val canShowHistory: Boolean,
     ) : ExpenseScreenState
 }
 
@@ -197,29 +205,38 @@ data class ExpenseActions(
     /** Whether the expense, once deleted, can be restored. */
     val canRestore: Boolean,
     val canSettle: Boolean,
+
+    /**
+     * Whether the versions of the expense can be shown: never a settlement's, which nobody edits,
+     * nor in a group the user is no longer a member of, whose server serves them to its current
+     * members alone.
+     */
+    val canShowHistory: Boolean,
 )
 
 /**
  * What the user, [selfUuid], may do with this expense: nothing that changes it in a group they are
  * no longer a member of, removed or left, [isGroupLeft], which stays read-only, its expenses with
  * it.
+ *
+ * A settlement is recorded by its recipient alone, its one beneficiary, and only they delete it,
+ * see [ExpenseWithBeneficiaries.isSettlement]. Nobody edits one, nor restores it once deleted: it
+ * stays in the list struck through, as its confirmation says. Every member's device refuses a
+ * version of one that does otherwise.
  */
 fun ExpenseWithBeneficiaries.actions(selfUuid: String?, isGroupLeft: Boolean) = ExpenseActions(
-    canEdit = !isGroupLeft && (
-        (!isSettlement && groupUuid != null)
-            || (!isSettlement && creditorUuid == selfUuid)
-    ),
-    // A settlement may only be deleted by its beneficiary (the money's recipient).
+    canEdit = !isGroupLeft && !isSettlement && (groupUuid != null || creditorUuid == selfUuid),
     // A one-time expense may only be deleted by its creditor.
     // A group expense may be deleted by any member of the group, while they are one.
-    canDelete = !isGroupLeft && (
-        (isSettlement && beneficiaries.any { it.userUuid == selfUuid })
-            || (groupUuid == null && creditorUuid == selfUuid)
-            || groupUuid != null
-    ),
-    canRestore = !isGroupLeft,
+    canDelete = !isGroupLeft && when {
+        isSettlement -> beneficiaries.any { it.userUuid == selfUuid }
+        groupUuid == null -> creditorUuid == selfUuid
+        else -> true
+    },
+    canRestore = !isGroupLeft && !isSettlement,
     // Only a one-time expense can be marked as paid back, and only by its
     // creditor, the one paid back: they sign it, and the server takes the
     // mark from nobody else.
     canSettle = groupUuid == null && creditorUuid == selfUuid,
+    canShowHistory = !isGroupLeft && !isSettlement,
 )

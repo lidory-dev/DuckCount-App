@@ -32,8 +32,9 @@ interface CreateExpenseCallBacks {
 
     /**
      * Writes [expenseWithBeneficiaries], its title and description taken without the whitespace
-     * around them, see [app.lidory.duckcount.expenseList.viewmodel.canConfirmText]. Returns null
-     * when write succeeds (server + local), or the reason it failed.
+     * around them, see [app.lidory.duckcount.expenseList.viewmodel.canConfirmText], under a UUID
+     * derived from the user's, in place of the one it holds. Returns null when write succeeds
+     * (server + local), or the reason it failed.
      */
     suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseSaveError?
 

@@ -1,6 +1,7 @@
 package app.lidory.duckcount.groupList.callBacks
 
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
+import app.lidory.duckcount.groupList.model.GroupCreationFailure
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.Transaction
 import kotlinx.coroutines.flow.Flow
@@ -23,7 +24,18 @@ interface GroupSettleUpCallBacks {
 
     suspend fun getCurrencySymbol(groupUuid: String): String
 
-    suspend fun validateSettlement(creditorUuid: String, debtorUuid: String, amount: String, groupUuid: String)
+    /**
+     * Records that [debtorUuid] paid [amount] back to the user, [creditorUuid], in the group
+     * [groupUuid], on the server first, as every expense of a group is written: the user is the one
+     * paid back, who alone records it. Returns null once the server took it, which the group then
+     * shows, or why it did not, nothing being recorded then.
+     */
+    suspend fun validateSettlement(
+        creditorUuid: String,
+        debtorUuid: String,
+        amount: String,
+        groupUuid: String,
+    ): GroupCreationFailure?
 
     /**
      * Emits the name to show for [userUuid] as it changes, or null while this device has none for

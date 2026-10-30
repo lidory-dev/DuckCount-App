@@ -17,8 +17,8 @@ private const val DEVICE_LOCKED = "KSafe: Cannot access Keystore key - device is
  * [vault.VaultEntryKey.GROUP_MASTER_KEY], which seals them.
  *
  * Every copy the server takes, with a creation, a key rotation or as `PUT
- * /groups/{group_uuid}/key-copy`, lands in [copies] as the API stores it, for a test to read back
- * with [keyOf].
+ * /groups/{group_uuid}/key-copy`, lands in [copies] as the API stores it, with the generation it
+ * holds in [generations], for a test to read back with [keyOf], and to list with [listing].
  */
 internal class ServerKeyCopies {
 
@@ -27,6 +27,12 @@ internal class ServerKeyCopies {
 
     /** The copy the server holds for the user, by group. */
     val copies = mutableMapOf<String, EncryptedFieldDto>()
+
+    /**
+     * The generation of the group's keys each copy in [copies] holds, as the server lists it, by
+     * group: [FIRST_KEY_GENERATION] for a copy a test puts there with no generation of its own.
+     */
+    val generations = mutableMapOf<String, Long>()
 
     /** The groups a copy was put up for, in order, and how many times the key ring was read. */
     val putUp = mutableListOf<String>()
@@ -58,27 +64,59 @@ internal class ServerKeyCopies {
         }
     }
 
-    /** What the server makes of [keyCopy] put up for the group [groupUuid], see [GroupApi.saveKeyCopy]. */
-    fun save(groupUuid: String, keyCopy: EncryptedFieldDto): EmptyResult<NetworkError> {
+    /**
+     * What the server makes of [keyCopy], of the generation [keyGeneration], put up for the group
+     * [groupUuid], see [GroupApi.saveKeyCopy].
+     */
+    fun save(groupUuid: String, keyCopy: EncryptedFieldDto, keyGeneration: Long): EmptyResult<NetworkError> {
         putUp += groupUuid
 
         if (groupUuid in notMemberOf) return Result.Error(NetworkError.NOT_FOUND)
 
-        if (saveAnswer is Result.Success) copies[groupUuid] = keyCopy
+        if (saveAnswer is Result.Success) {
+            copies[groupUuid] = keyCopy
+            generations[groupUuid] = keyGeneration
+        }
 
         return saveAnswer
     }
 
+    /** The generation the server lists its copy for the group [groupUuid] as, see [generations]. */
+    fun generationOf(groupUuid: String): Long = generations[groupUuid] ?: FIRST_KEY_GENERATION
+
+    /** The generation the server lists with its copy for the group [groupUuid], null when it holds none. */
+    fun listedGenerationOf(groupUuid: String): Long? = copies[groupUuid]?.let { generationOf(groupUuid) }
+
     /**
      * The key the server's copy for the group [groupUuid] holds, or null when it holds none, or one
-     * that does not open as that group's.
+     * that does not open as that group's key of the generation it lists it as.
      */
     fun keyOf(groupUuid: String): ByteArray? =
-        copies[groupUuid]?.openKeyCopy(sealingKey = sealingKey, groupUuid = groupUuid)
+        copies[groupUuid]?.openKeyCopy(
+            sealingKey = sealingKey,
+            groupUuid = groupUuid,
+            keyGeneration = generationOf(groupUuid),
+        )
 
-    /** [groupKey] sealed as the user's copy of the key of the group [sealedFor], as their device seals it. */
-    fun copyOf(groupKey: ByteArray, sealedFor: String): EncryptedFieldDto =
-        checkNotNull(sealKeyCopy(sealingKey = sealingKey, groupUuid = sealedFor, groupKey = groupKey))
+    /**
+     * [groupKey], the generation [keyGeneration] of the keys of the group [sealedFor], sealed as the
+     * user's copy of its key, as their device seals it.
+     */
+    fun copyOf(groupKey: ByteArray, sealedFor: String, keyGeneration: Long = FIRST_KEY_GENERATION): EncryptedFieldDto =
+        checkNotNull(
+            sealKeyCopy(
+                sealingKey = sealingKey,
+                groupUuid = sealedFor,
+                groupKey = groupKey,
+                keyGeneration = keyGeneration,
+            ),
+        )
+
+    /** [group] as the server lists it to the user, with the copy it holds for them, if any, and its generation. */
+    fun listing(group: GroupDto): GroupDto = group.copy(
+        keyCopy = copies[group.uuid],
+        keyCopyGeneration = listedGenerationOf(group.uuid),
+    )
 
     /**
      * A [GroupKeyCopies] sealing under [sealingKey] and putting copies up here, for the groups this
@@ -102,7 +140,9 @@ internal fun GroupEntity.markedBackedUp() = GroupEntity(
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,
+    keyGeneration = keyGeneration,
     isBackedUp = true,
     isLeft = isLeft,
     handedProfileKeyHash = handedProfileKeyHash,
+    hasTakenInExpenses = hasTakenInExpenses,
 )

@@ -62,5 +62,25 @@
     <string name="push_group_removed_text">%1$s removed you from the group “%2$s”</string>
     <string name="push_group_removed_text_unknown">Someone removed you from the group “%1$s”</string>
     <string name="push_group_removed_text_locked">Someone removed you from a group</string>
+    <string name="push_group_expense_added_title">New group expense</string>
+    <string name="push_group_expense_added_text_locked">Someone added an expense in one of your groups</string>
+    <string name="push_group_expense_changed_title">Group expense updated</string>
+    <string name="push_group_expense_changed_text_locked">An expense in one of your groups was updated</string>
+    <string name="push_group_expense_added">%1$s added “%2$s” in %3$s</string>
+    <string name="push_group_expense_added_unknown">Someone added “%1$s” in %2$s</string>
+    <string name="push_group_expense_edited">%1$s edited “%2$s” in %3$s</string>
+    <string name="push_group_expense_edited_unknown">Someone edited “%1$s” in %2$s</string>
+    <string name="push_group_expense_deleted">%1$s deleted “%2$s” in %3$s</string>
+    <string name="push_group_expense_deleted_unknown">Someone deleted “%1$s” in %2$s</string>
+    <string name="push_group_expense_restored">%1$s restored “%2$s” in %3$s</string>
+    <string name="push_group_expense_restored_unknown">Someone restored “%1$s” in %2$s</string>
+    <string name="push_group_settlement_added">%1$s recorded your settlement of %2$s in %3$s</string>
+    <string name="push_group_settlement_added_unknown">Someone recorded your settlement of %1$s in %2$s</string>
+    <string name="push_group_settlement_deleted">%1$s deleted your settlement of %2$s in %3$s</string>
+    <string name="push_group_settlement_deleted_unknown">Someone deleted your settlement of %1$s in %2$s</string>
+    <plurals name="push_group_expense_summary">
+        <item quantity="one">%1$d group expense updated</item>
+        <item quantity="other">%1$d group expenses updated</item>
+    </plurals>
     <string name="settings">Settings</string>
 </resources>

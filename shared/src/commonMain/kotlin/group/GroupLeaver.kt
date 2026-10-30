@@ -10,6 +10,7 @@ import message.ResendScheduler
 import mls.MlsIdentityError
 import mls.MlsIdentityRepository
 import mls.deleteGroupQuietly
+import push.WakeList
 import uniffi.lib_duckcount.MlsClient
 import util.EmptyResult
 import util.NetworkError
@@ -18,8 +19,9 @@ import util.Result
 /**
  * Takes the user out of a group they did not create, as they ask from its settings: on this device
  * first, then on the server. The group stays on this device, read-only, with what the user had of
- * it, as after a removal, see [GroupEntity.isLeft]: its expenses are stored on this device alone,
- * and this is the only copy the user has of them.
+ * it, as after a removal, see [GroupEntity.isLeft]: its expenses as this device last synced them,
+ * see [GroupExpenseSync], which the server lists to its current members alone, and which a log-out
+ * takes with it.
  *
  * In this order, under [withGroupsLock] as a sync and a change to a group's members are: a sync
  * draining the group, or rejoining it, as this runs would act on what this is halfway through. The
@@ -36,7 +38,9 @@ import util.Result
  *    while the leave is owed, see [GroupSync], so no removal is ever told about for it. Before
  *    anything is sent, as a decline is recorded first: a leave sent and never recorded would
  *    leave the group current here for good, the server sending a member who left nothing more,
- *    the creator's Commit removing them included.
+ *    the creator's Commit removing them included. Who may wake the user is rebuilt then, see
+ *    [WakeList]: its members no longer do, but for those in another of their groups, and their
+ *    contacts.
  * 3. Its MLS state is deleted, when this device holds it, as for a removal. A deletion that fails
  *    leaves the state to be deleted before the user is let back in, see [GroupSync]. The row
  *    keeps the group's id, so that a direct message naming it is still never read, see
@@ -86,15 +90,16 @@ import util.Result
  * creator, so that group never changes again anyway.
  *
  * [userUuid] is [getAuthenticatedUserUuid], [group] is [GroupDao.get], [markLeftAndOweLeave] and
- * [forgetOwedLeave] are [GroupDao.markLeftAndOweLeave] and [GroupDao.deleteDeclined], [client] is
- * [MlsIdentityRepository.client], [deleteKeyCopy] is [GroupApi.deleteKeyCopy] and [sendLeave] is
- * [GroupApi.leave], or what a test stands in for any of them, as [resendScheduler] is for the
- * scheduler bound on this platform.
+ * [forgetOwedLeave] are [GroupDao.markLeftAndOweLeave] and [GroupDao.deleteDeclined],
+ * [rebuildWakeList] is [WakeList.rebuild], [client] is [MlsIdentityRepository.client],
+ * [deleteKeyCopy] is [GroupApi.deleteKeyCopy] and [sendLeave] is [GroupApi.leave], or what a test
+ * stands in for any of them, as [resendScheduler] is for the scheduler bound on this platform.
  */
 class GroupLeaver internal constructor(
     private val userUuid: () -> String?,
     private val group: suspend (groupUuid: String) -> GroupEntity?,
     private val markLeftAndOweLeave: suspend (groupUuid: String) -> Unit,
+    private val rebuildWakeList: suspend () -> Unit,
     private val client: suspend () -> Result<MlsClient, MlsIdentityError>,
     private val deleteKeyCopy: suspend (groupUuid: String) -> EmptyResult<NetworkError>,
     private val sendLeave: suspend (groupUuid: String) -> GroupLeaveAnswer,
@@ -105,11 +110,13 @@ class GroupLeaver internal constructor(
         groupApi: GroupApi,
         groupDao: GroupDao,
         mlsIdentityRepository: MlsIdentityRepository,
+        wakeList: WakeList,
         resendScheduler: ResendScheduler,
     ) : this(
         userUuid = ::getAuthenticatedUserUuid,
         group = groupDao::get,
         markLeftAndOweLeave = groupDao::markLeftAndOweLeave,
+        rebuildWakeList = wakeList::rebuild,
         client = mlsIdentityRepository::client,
         deleteKeyCopy = groupApi::deleteKeyCopy,
         sendLeave = groupApi::leave,
@@ -141,6 +148,14 @@ class GroupLeaver internal constructor(
             markLeftAndOweLeave(held.uuid)
         } catch (_: Exception) {
             return Result.Error(GroupLeaveError.Storage)
+        }
+
+        // Its members wake the user no longer, see above.
+        try {
+            rebuildWakeList()
+        } catch (_: IllegalStateException) {
+            // The device locked since, see above: the next sync, which waits for the unlock,
+            // rebuilds it.
         }
 
         // A client that does not open leaves the state as a failed deletion does, see above.

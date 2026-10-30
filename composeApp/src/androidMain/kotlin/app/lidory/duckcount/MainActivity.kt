@@ -16,8 +16,9 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 const val EXTRA_OPEN_CONTACT_REQUESTS = "app.lidory.duckcount.extra.OPEN_CONTACT_REQUESTS"
 
 /**
- * Set on the intent a notification about a group the user was added to opens, so the app lands
- * on the group list, where the group is, rather than on the expenses.
+ * Set on the intent a notification about a group the user was added to opens, or about an expense
+ * of one of their groups, so the app lands on the group list, where the group is, rather than on
+ * the one-time expenses.
  */
 const val EXTRA_OPEN_GROUPS = "app.lidory.duckcount.extra.OPEN_GROUPS"
 

@@ -89,6 +89,7 @@ fun CreateExpenseScreen(
             enabled = !isSaving
                     && !isSaved
                     && (viewModel.isNewExpense() || hasChanges)
+                    && !viewModel.state.isDeleted
                     && viewModel.state.error == null
                     && viewModel.state.amount.isNotBlank()
                     && viewModel.state.canConfirmText(

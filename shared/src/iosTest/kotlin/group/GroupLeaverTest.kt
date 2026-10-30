@@ -90,9 +90,13 @@ class GroupLeaverTest {
     /** Who is signed in. */
     private var selfUuid: String? = BOB
 
-    /** Alice's MLS group, the key she last handed over, and the group's information as the server holds it. */
+    /**
+     * Alice's MLS group, the key she last handed over and its generation, and the group's
+     * information as the server holds it.
+     */
     private var aliceGroupId: ByteArray? = null
     private var groupKey = generateSymmetricEncryptionKey()
+    private var keyGeneration = FIRST_KEY_GENERATION
     private var serverVersion: SealedGroupVersion? = null
 
     /** Who the server holds as the group's current members. */
@@ -107,6 +111,9 @@ class GroupLeaverTest {
     private val groups = mutableMapOf<String, GroupEntity>()
     private val members = mutableMapOf<String, List<GroupMemberEntity>>()
     private val declined = mutableSetOf<String>()
+
+    /** Whether the group was left each time the leave rebuilt who may wake Bob, see [push.WakeList]. */
+    private val wakeListRebuilds = mutableListOf<Boolean>()
 
     /** Whether recording the leave fails, as the database failing would. */
     private var isDatabaseFailing = false
@@ -163,14 +170,19 @@ class GroupLeaverTest {
         leave = ::serverLeave,
         isUnblockedContact = { it in contacts },
         client = { Result.Success(bob) },
-        save = { group, groupMembers ->
+        save = { group, groupMembers, _, _ ->
             groups[group.uuid] = group
             members[group.uuid] = groupMembers
         },
         memberUuidsOf = { groupUuid -> members[groupUuid].orEmpty().map { it.userUuid } },
         replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
-        updateKey = { groupUuid, key ->
-            groups[groupUuid] = groups.getValue(groupUuid).with(groupKey = key, isBackedUp = false)
+        recordSignatureKeys = {},
+        takeKeys = { groupUuid, keys ->
+            groups[groupUuid] = groups.getValue(groupUuid).with(
+                groupKey = keys.last().groupKey,
+                keyGeneration = keys.last().generation,
+                isBackedUp = false,
+            )
         },
         updateInformation = { _, _ -> error("Alice edits nothing here.") },
         markLeft = { groupUuid -> groups[groupUuid] = groups.getValue(groupUuid).with(isLeft = true) },
@@ -188,6 +200,7 @@ class GroupLeaverTest {
         readMemberNames = { Result.Success(Unit) },
         backUpMemberProfiles = { Result.Success(Unit) },
         handOutProfileKey = { Result.Success(Unit) },
+        rebuildWakeList = {},
         resendScheduler = resends,
     )
 
@@ -202,6 +215,10 @@ class GroupLeaverTest {
             groups[groupUuid] = groups.getValue(groupUuid).with(isLeft = true)
             declined += groupUuid
             onRecorded()
+        },
+        rebuildWakeList = {
+            check(!isDeviceLocked) { DEVICE_LOCKED }
+            wakeListRebuilds += groups.getValue(GROUP).isLeft
         },
         client = {
             check(!isDeviceLocked) { DEVICE_LOCKED }
@@ -255,6 +272,7 @@ class GroupLeaverTest {
             assertTrue(declined.isEmpty())
             assertTrue(BOB !in serverMembers)
             assertTrue(resends.seconds.isEmpty())
+            assertEquals(listOf(true), wakeListRebuilds)
         }
 
     @Test
@@ -416,6 +434,7 @@ class GroupLeaverTest {
         assertTrue(bob.holdsGroup(mlsGroupId = mlsGroupId))
         assertTrue(keyCopyDeletions.isEmpty())
         assertTrue(left.isEmpty())
+        assertTrue(wakeListRebuilds.isEmpty())
     }
 
     @Test
@@ -457,8 +476,8 @@ class GroupLeaverTest {
 
     /**
      * The device locks once the leave is recorded, before this process first opened Bob's MLS
-     * client: the state stays held, and the leave, which the locked device cannot send, is booked
-     * and sent by the next sync.
+     * client: the state stays held, who may wake him is left to the next sync to rebuild, and the
+     * leave, which the locked device cannot send, is booked and sent by that sync.
      */
     @Test
     fun `a device locked once the leave is recorded leaves the group left and the leave booked`() =
@@ -476,6 +495,7 @@ class GroupLeaverTest {
             assertEquals(setOf(GROUP), declined)
             assertTrue(bob.holdsGroup(mlsGroupId = mlsGroupId))
             assertEquals(listOf(60L), resends.seconds)
+            assertTrue(wakeListRebuilds.isEmpty())
 
             isDeviceLocked = false
 
@@ -745,7 +765,11 @@ class GroupLeaverTest {
         val creation = alice.createGroup(
             groupUuid = GROUP,
             invitees = listOf(bob.inviteeKeyPackage(), carol.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
+            welcomePayload = welcomePayloadOf(
+                groupKey = groupKey,
+                keyGeneration = keyGeneration,
+                profileKeys = emptyMap(),
+            ),
         )
 
         aliceGroupId = creation.mlsGroupId
@@ -763,7 +787,11 @@ class GroupLeaverTest {
         val addition = alice.addMembersTo(
             mlsGroupId = aliceGroup(),
             invitees = listOf(invitee.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
+            welcomePayload = welcomePayloadOf(
+                groupKey = groupKey,
+                keyGeneration = keyGeneration,
+                profileKeys = emptyMap(),
+            ),
         )
 
         alice.applyPendingCommitIn(mlsGroupId = aliceGroup())
@@ -798,11 +826,15 @@ class GroupLeaverTest {
      */
     private suspend fun aliceRotates() {
         val newKey = generateSymmetricEncryptionKey()
-        val message = alice.encryptApplicationMessage(mlsGroupId = aliceGroup(), payload = groupKeyMessageOf(newKey))
+        val message = alice.encryptApplicationMessage(
+            mlsGroupId = aliceGroup(),
+            payload = groupKeyMessageOf(groupKey = newKey, keyGeneration = keyGeneration + 1),
+        )
 
         deliver(message)
 
         groupKey = newKey
+        keyGeneration += 1
         serverVersion = FIELDS.sealedAs(creator = alice, groupKey = newKey, groupUuid = GROUP)
     }
 
@@ -835,6 +867,8 @@ class GroupLeaverTest {
             version = version,
             memberUuids = serverMembers.toList(),
             keyCopy = server.copies[GROUP],
+            keyCopyGeneration = server.listedGenerationOf(GROUP),
+            keyGeneration = keyGeneration,
         )
     }
 
@@ -852,6 +886,7 @@ class GroupLeaverTest {
         ownerUuid = ownerUuid,
         mlsGroupId = mlsGroupId,
         groupKey = groupKey,
+        keyGeneration = FIRST_KEY_GENERATION,
         isBackedUp = true,
         isLeft = false,
         handedProfileKeyHash = null,
@@ -863,6 +898,7 @@ private fun rowsOf(vararg userUuids: String) =
 
 private fun GroupEntity.with(
     groupKey: ByteArray = this.groupKey,
+    keyGeneration: Long = this.keyGeneration,
     isBackedUp: Boolean = this.isBackedUp,
     isLeft: Boolean = this.isLeft,
 ) = GroupEntity(
@@ -874,6 +910,7 @@ private fun GroupEntity.with(
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,
+    keyGeneration = keyGeneration,
     isBackedUp = isBackedUp,
     isLeft = isLeft,
     handedProfileKeyHash = handedProfileKeyHash,

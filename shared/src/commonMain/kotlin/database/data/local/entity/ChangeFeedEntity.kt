@@ -9,14 +9,15 @@ import androidx.room.PrimaryKey
  * feed's listing. Some after it can be in it too, when the listing was read whole and a
  * later page showed them, and applying them again from the feed leaves them as they are.
  * [feed] names which, "one_time_expenses" for the expenses in
- * [ListedOneTimeExpenseEntity], and later one per group.
+ * [ListedOneTimeExpenseEntity], and "group_expenses:" followed by the group's UUID for those of
+ * each group in [ListedGroupExpenseEntity].
  *
  * Written in the transaction that applies the changes it is past, so the two never
  * disagree, which the server relies on: handing the token over tells it the device has
  * every change before it, and it forgets them. No row means the listing has to be read
  * whole, which is where every feed starts, and where one goes back to when the server can
  * no longer answer from the token or when what is kept no longer reads, see
- * `expense.OneTimeExpenseSync.readListing`.
+ * `expense.OneTimeExpenseSync.readListing` and `group.GroupExpenseSync`.
  */
 @Entity
 class ChangeFeedEntity(

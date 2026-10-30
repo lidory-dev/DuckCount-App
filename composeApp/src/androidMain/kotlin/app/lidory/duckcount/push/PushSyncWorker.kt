@@ -11,7 +11,9 @@ import contact.ContactArrivals
 import contact.ContactSync
 import expense.ExpenseArrivals
 import expense.ExpenseChanges
+import expense.GroupExpenseUpdates
 import expense.OneTimeExpenseSync
+import group.GroupExpenseSync
 import group.GroupSync
 import group.GroupSyncError
 import kotlinx.coroutines.CancellationException
@@ -32,7 +34,8 @@ private const val TAG = "PushSyncWorker"
  * Only a contact's expenses are told about, arriving or changing: a former contact's still
  * come in and change in the app, without a word, see [ExpenseArrivals] and [ExpenseChanges].
  * Only a contact's groups are joined, and each one is told about, see [GroupSync], as is each
- * one the user is removed from.
+ * one the user is removed from. An expense of one of the user's groups is told about whoever
+ * wrote it, member of the group as they are, once it concerns the user, see [GroupExpenseUpdates].
  *
  * Also run with no signal at all, once the server's limit on messages lets through again what
  * a sync left unsent, see [PushWork.enqueueResend]: the passes that send are part of a sync.
@@ -50,6 +53,10 @@ class PushSyncWorker(
     private val groupSync: GroupSync by inject()
 
     private val groupNotifier: GroupNotifier by inject()
+
+    private val groupExpenseSync: GroupExpenseSync by inject()
+
+    private val groupExpenseUpdates: GroupExpenseUpdates by inject()
 
     private val oneTimeExpenseSync: OneTimeExpenseSync by inject()
 
@@ -122,6 +129,9 @@ class PushSyncWorker(
         val isLocked = groups.failure == GroupSyncError.DeviceLocked
         val expenses = if (isLocked) null else oneTimeExpenseSync.sync()
 
+        // After the groups, which read the key of any rotation the expenses are sealed under since.
+        val groupExpenses = if (isLocked) null else groupExpenseSync.sync()
+
         // Whatever did arrive, or change, is worth showing even when a later step failed,
         // and whatever left takes what was said about it down: a contact who removed the
         // user, or deleted their account, while the notification was still up is no longer
@@ -134,6 +144,9 @@ class PushSyncWorker(
 
         expenseNotifier.notify(arrivals = expenseArrivals.since(snapshot = expensesBefore))
         expenseNotifier.notifyChanges(changes = expenseChanges.since(snapshot = shownBefore))
+        expenseNotifier.notifyGroupExpenses(
+            updates = groupExpenseUpdates.of(changes = groupExpenses?.changes.orEmpty()),
+        )
 
         if (isLocked) return waitForUnlock()
 
@@ -151,6 +164,12 @@ class PushSyncWorker(
 
         if (expenses is util.Result.Error) {
             Log.w(TAG, "doWork: could not sync the expenses: ${expenses.error}")
+
+            return retryOrGiveUp(standInsBefore = standInsBefore)
+        }
+
+        groupExpenses?.failure?.let { failure ->
+            Log.w(TAG, "doWork: could not sync the groups' expenses: $failure")
 
             return retryOrGiveUp(standInsBefore = standInsBefore)
         }

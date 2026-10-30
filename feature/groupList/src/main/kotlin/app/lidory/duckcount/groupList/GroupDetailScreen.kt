@@ -30,6 +30,7 @@ import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.component.GroupActionDropDownMenu
 import app.lidory.duckcount.groupList.component.GroupPager
 import app.lidory.duckcount.groupList.component.LeftGroupNotice
+import app.lidory.duckcount.groupList.component.UnreadableExpensesNotice
 import app.lidory.duckcount.groupList.tab.BalanceTab
 import app.lidory.duckcount.groupList.tab.ExpenseTab
 import app.lidory.duckcount.groupList.tab.SettleUpTab
@@ -131,6 +132,14 @@ fun GroupDetailScreen(
         ) {
             if (state.groupWithMembers?.isLeft == true) {
                 LeftGroupNotice(modifier = Modifier.padding(horizontal = Padding.medium, vertical = Padding.small))
+            }
+
+            // Above every tab: the balances and what is left to settle up leave them out too.
+            if (state.unreadableExpenseCount > 0) {
+                UnreadableExpensesNotice(
+                    modifier = Modifier.padding(horizontal = Padding.medium, vertical = Padding.small),
+                    count = state.unreadableExpenseCount,
+                )
             }
 
             GroupPager(

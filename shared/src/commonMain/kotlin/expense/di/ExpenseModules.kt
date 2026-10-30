@@ -4,6 +4,7 @@ import expense.ExpenseArrivals
 import expense.ExpenseChanges
 import expense.ExpenseKeyDelivery
 import expense.ExpenseKeyPull
+import expense.GroupExpenseUpdates
 import expense.OneTimeExpenseKeyRepository
 import expense.OneTimeExpenseSync
 import org.koin.core.module.dsl.singleOf
@@ -13,6 +14,7 @@ val expenseModule = module {
     singleOf(::OneTimeExpenseKeyRepository)
     singleOf(::ExpenseArrivals)
     singleOf(::ExpenseChanges)
+    singleOf(::GroupExpenseUpdates)
     single {
         ExpenseKeyDelivery(
             owedExpenseKeyDao = get(),

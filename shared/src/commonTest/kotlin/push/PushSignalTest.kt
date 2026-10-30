@@ -78,6 +78,15 @@ class PushSignalTest {
         )
     }
 
+    /** Sent to every current member of the group but the one who wrote the expense, from them. */
+    @Test
+    fun `parses a group expense signal`() {
+        assertEquals(
+            PushSignal(kind = PushSignal.Kind.GROUP_EXPENSE, from = ALICE),
+            PushSignal.parse("""{"type":"group_expense","from":"$ALICE"}""".encodeToByteArray()),
+        )
+    }
+
     @Test
     fun `reads a signal a newer server added as unknown`() {
         assertEquals(

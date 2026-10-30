@@ -14,6 +14,7 @@ import contact.RemoveContactError
 import database.data.local.dao.ContactRequestDao
 import database.data.local.dao.ContactTables
 import database.data.local.dao.DirectChannelDao
+import database.data.local.dao.GroupMemberDao
 import database.data.local.dao.LocalDataDao
 import database.data.local.dao.MemberProfileTables
 import database.data.local.dao.NoChannels
@@ -23,6 +24,7 @@ import database.data.local.entity.ContactEntity
 import database.data.local.entity.ContactRequestEntity
 import database.data.local.entity.ContactStanding
 import database.data.local.entity.DirectChannelEntity
+import database.data.local.entity.GroupMemberEntity
 import database.data.local.entity.MemberProfileEntity
 import database.data.local.entity.OpenedContactRequest
 import database.data.local.entity.OutgoingContactRequestEntity
@@ -98,7 +100,12 @@ class ContactRepositoryTest {
     )
 
     private val vaultRepository = VaultRepository(vaultApi = VaultApi(client = client))
-    private val wakeList = WakeList(contactDao = tables.contactDao, contactRequestDao = NoRequests, store = null)
+    private val wakeList = WakeList(
+        contactDao = tables.contactDao,
+        contactRequestDao = NoRequests,
+        groupMemberDao = NoGroupMembers,
+        store = null,
+    )
 
     private val mlsIdentityRepository = MlsIdentityRepository(
         mlsStore = InMemoryMlsStore(),
@@ -777,6 +784,15 @@ private class ChannelTo(
     }
 }
 
+/** Nobody in any group. Only the wake list is handed it, which keeps nothing here. */
+private object NoGroupMembers : GroupMemberDao {
+    override suspend fun insert(groupMemberEntity: GroupMemberEntity) = error("Not used here")
+    override suspend fun update(groupMemberEntity: GroupMemberEntity) = error("Not used here")
+    override suspend fun delete(groupMemberEntity: GroupMemberEntity) = error("Not used here")
+    override fun getMembersFromGroup(groupUuid: String): Flow<List<GroupMemberEntity>> = error("Not used here")
+    override suspend fun getUnblockedCurrentMemberUuids(): List<String> = error("Not used here")
+}
+
 /** No contact request either way. Only the wake list is handed it, which keeps nothing here. */
 private object NoRequests : ContactRequestDao {
     override fun getCountAsFlow(): Flow<Int> = error("Not used here")
@@ -842,6 +858,8 @@ private object NoLocalData : LocalDataDao {
     override suspend fun deleteBeneficiaries() = error("Not used here")
     override suspend fun deleteGroups() = error("Not used here")
     override suspend fun deleteGroupMembers() = error("Not used here")
+    override suspend fun deleteGroupKeys() = error("Not used here")
+    override suspend fun deleteGroupMemberSignatureKeys() = error("Not used here")
     override suspend fun deletePendingGroupCreations() = error("Not used here")
     override suspend fun deletePendingMembershipChanges() = error("Not used here")
     override suspend fun deleteDeclinedGroups() = error("Not used here")
@@ -852,7 +870,7 @@ private object NoLocalData : LocalDataDao {
     override suspend fun deleteIdentityConflicts() = error("Not used here")
     override suspend fun deleteOneTimeExpenseKeys() = error("Not used here")
     override suspend fun deleteUnverifiedExpenseKeys() = error("Not used here")
-    override suspend fun deleteOneTimeExpenseRevisions() = error("Not used here")
+    override suspend fun deleteExpenseRevisions() = error("Not used here")
     override suspend fun deleteOneTimeExpenseSettledMarks() = error("Not used here")
     override suspend fun deletePendingExpenseKeys() = error("Not used here")
     override suspend fun deleteKeyRequestBudgets() = error("Not used here")
@@ -860,6 +878,8 @@ private object NoLocalData : LocalDataDao {
     override suspend fun deleteProfileKeyRequestBudgets() = error("Not used here")
     override suspend fun deleteOwedExpenseKeys() = error("Not used here")
     override suspend fun deleteListedOneTimeExpenses() = error("Not used here")
+    override suspend fun deleteListedGroupExpenses() = error("Not used here")
+    override suspend fun deleteUnreadableGroupExpenses() = error("Not used here")
     override suspend fun deleteChangeFeeds() = error("Not used here")
     override suspend fun deleteMlsRecords() = error("Not used here")
     override suspend fun deleteMemberProfiles() = error("Not used here")

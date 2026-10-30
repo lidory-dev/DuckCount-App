@@ -23,6 +23,10 @@
     <string name="currency">Devise</string>
     <string name="left_group_marker">Vous n’en faites plus partie</string>
     <string name="left_group_notice">Vous ne faites plus partie de ce groupe</string>
+    <plurals name="unreadable_expenses_notice">
+        <item quantity="one">%1$d dépense ne peut pas encore être lue sur cet appareil, les soldes n’en tiennent pas compte</item>
+        <item quantity="other">%1$d dépenses ne peuvent pas encore être lues sur cet appareil, les soldes n’en tiennent pas compte</item>
+    </plurals>
 
     <!-- CreateOrEditGroupScreen -->
     <plurals name="members_out_of_limit">
@@ -35,6 +39,7 @@
     <string name="group_creation_error_timeout">Le serveur a mis trop de temps à répondre, réessayez plus tard</string>
     <string name="group_creation_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
     <string name="group_creation_error_unknown">Une erreur est survenue, réessayez</string>
+    <string name="group_creation_error_rate_limited">Trop de modifications, réessayez plus tard</string>
     <plurals name="group_creation_error_not_contacts">
         <item quantity="one" tools:ignore="ImpliedQuantity">Impossible d’ajouter %1$s à un groupe pour le moment</item>
         <item quantity="other">Impossible d’ajouter %1$s à un groupe pour le moment</item>

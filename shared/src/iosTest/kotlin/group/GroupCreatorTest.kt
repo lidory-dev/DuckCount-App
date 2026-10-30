@@ -204,8 +204,28 @@ class GroupCreatorTest {
 
         assertContentEquals(
             groups.getValue(groupUuid).groupKey,
-            keyCopy.openKeyCopy(sealingKey = server.sealingKey, groupUuid = groupUuid),
+            keyCopy.openKeyCopy(
+                sealingKey = server.sealingKey,
+                groupUuid = groupUuid,
+                keyGeneration = FIRST_KEY_GENERATION,
+            ),
         )
+    }
+
+    /** The server takes the group to that generation as it creates it. */
+    @Test
+    fun `a group is created at the first generation of its key`() = runBlocking<Unit> {
+        val groupUuid = assertIs<Result.Success<String>>(create()).data
+
+        assertEquals(FIRST_KEY_GENERATION, groups.getValue(groupUuid).keyGeneration)
+    }
+
+    /** Whatever its members write in it is news to its creator, none of it written before they could see it. */
+    @Test
+    fun `a group is created with its expenses taken in`() = runBlocking<Unit> {
+        val groupUuid = assertIs<Result.Success<String>>(create()).data
+
+        assertTrue(groups.getValue(groupUuid).hasTakenInExpenses)
     }
 
     /**
@@ -315,9 +335,12 @@ class GroupCreatorTest {
 
             assertEquals(ALICE, inspection.committerUserUuid)
 
-            val groupKey = assertNotNull(welcomeHandoverOf(payload = assertNotNull(inspection.welcomePayload))).groupKey
+            val handedOver = assertNotNull(welcomeHandoverOf(payload = assertNotNull(inspection.welcomePayload)))
+                .groupKey
+            val groupKey = handedOver.key
 
             assertContentEquals(groups.getValue(groupUuid).groupKey, groupKey)
+            assertEquals(FIRST_KEY_GENERATION, handedOver.generation)
 
             bob.joinGroup(
                 welcome = welcome,

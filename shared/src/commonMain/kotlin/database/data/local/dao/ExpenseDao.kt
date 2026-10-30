@@ -11,9 +11,10 @@ import androidx.room.Upsert
 import database.data.local.entity.BeneficiaryEntity
 import database.data.local.entity.ExpenseEntity
 import database.data.local.entity.ExpenseWithBeneficiariesEntity
-import database.data.local.entity.OneTimeExpenseRevisionEntity
+import database.data.local.entity.ExpenseRevisionEntity
 import database.data.local.entity.OneTimeExpenseSettledMarkEntity
 import database.domain.Currency
+import group.mayBeFollowedBy
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -29,24 +30,8 @@ interface ExpenseDao {
     @Insert
     suspend fun insertBeneficiaries(beneficiaries: List<BeneficiaryEntity>)
 
-    @Transaction
-    suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiariesEntity) {
-        insert(expenseEntity = expenseWithBeneficiaries.expense)
-        insertBeneficiaries(beneficiaries = expenseWithBeneficiaries.beneficiaries)
-    }
-
     @Update
     suspend fun update(expenseEntity: ExpenseEntity)
-
-    @Upsert
-    suspend fun updateBeneficiaries(beneficiaries: List<BeneficiaryEntity>)
-
-    @Update
-    @Transaction
-    suspend fun updateWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiariesEntity) {
-        update(expenseEntity = expenseWithBeneficiaries.expense)
-        updateBeneficiaries(beneficiaries = expenseWithBeneficiaries.beneficiaries)
-    }
 
     @Upsert
     suspend fun upsert(expenseEntity: ExpenseEntity)
@@ -64,13 +49,6 @@ interface ExpenseDao {
 
     @Query("SELECT userUuid FROM BeneficiaryEntity WHERE expenseUuid = :expenseUuid")
     suspend fun getBeneficiaryUuids(expenseUuid: String): List<String>
-
-    /** Hard-deletes an expense and its beneficiaries in a single transaction (no restore). */
-    @Transaction
-    suspend fun hardDeleteWithBeneficiaries(expenseUuid: String) {
-        deleteBeneficiariesFor(expenseUuid = expenseUuid)
-        hardDelete(expenseUuid = expenseUuid)
-    }
 
     /** Which one-time expenses this device can currently read, which is what it has a key for. */
     @Query("SELECT uuid FROM ExpenseEntity WHERE groupUuid IS NULL")
@@ -109,7 +87,7 @@ interface ExpenseDao {
      * before the listing was read, see `OneTimeExpenseSync.refresh`.
      *
      * Each of [expenses] comes with the signed revision it was opened at, and is stored only
-     * when nothing newer has been shown or signed, see [OneTimeExpenseRevisionEntity]: an
+     * when nothing newer has been shown or signed, see [ExpenseRevisionEntity]: an
      * older one is what a server putting back an expense from before an edit looks like, and
      * the row on screen stays. Checked in this transaction, so that no other sync or edit can
      * store a newer version between the check and the write.
@@ -127,8 +105,11 @@ interface ExpenseDao {
 
             if (newest != null && revision < newest) return@forEach
 
+            // A group expense's row, under the same UUID: see [storeGroupExpenses].
+            if (isGroupExpense(uuid = expenseUuid)) return@forEach
+
             upsertOneTimeExpense(expense = expense, revision = revision)
-            setNewestRevision(OneTimeExpenseRevisionEntity(expenseUuid, newestRevision = revision))
+            setNewestRevision(ExpenseRevisionEntity(expenseUuid, newestRevision = revision))
         }
     }
 
@@ -148,11 +129,11 @@ interface ExpenseDao {
     @Query("SELECT * FROM ExpenseEntity WHERE uuid = :uuid AND groupUuid IS NULL")
     suspend fun getOneTimeExpense(uuid: String): ExpenseWithBeneficiariesEntity?
 
-    @Query("SELECT newestRevision FROM OneTimeExpenseRevisionEntity WHERE expenseUuid = :expenseUuid")
+    @Query("SELECT newestRevision FROM ExpenseRevisionEntity WHERE expenseUuid = :expenseUuid")
     suspend fun getNewestRevision(expenseUuid: String): Long?
 
     @Upsert
-    suspend fun setNewestRevision(revision: OneTimeExpenseRevisionEntity)
+    suspend fun setNewestRevision(revision: ExpenseRevisionEntity)
 
     /**
      * Reserves the revision an edit of the one-time expense [expenseUuid] is signed at: one
@@ -166,7 +147,7 @@ interface ExpenseDao {
     suspend fun reserveNextRevision(expenseUuid: String): Long? {
         val next = (getNewestRevision(expenseUuid = expenseUuid) ?: return null) + 1
 
-        setNewestRevision(OneTimeExpenseRevisionEntity(expenseUuid, newestRevision = next))
+        setNewestRevision(ExpenseRevisionEntity(expenseUuid, newestRevision = next))
 
         return next
     }
@@ -195,17 +176,78 @@ interface ExpenseDao {
     @Upsert
     suspend fun setSettledMark(mark: OneTimeExpenseSettledMarkEntity)
 
+    /** Whether the expense [uuid] this device holds is a group's. */
+    @Query("SELECT EXISTS (SELECT 1 FROM ExpenseEntity WHERE uuid = :uuid AND groupUuid IS NOT NULL)")
+    suspend fun isGroupExpense(uuid: String): Boolean
+
+    /** The expense [uuid] as this device holds it, of whatever kind, or null. */
+    @Transaction
+    @Query("SELECT * FROM ExpenseEntity WHERE uuid = :uuid")
+    suspend fun getWithBeneficiaries(uuid: String): ExpenseWithBeneficiariesEntity?
+
+    /**
+     * The expense [uuid] of the group [groupUuid] as this device shows it, with the revision it is
+     * and who wrote it, see [ExpenseEntity.authorUuid], or null.
+     */
+    @Transaction
+    @Query("SELECT * FROM ExpenseEntity WHERE uuid = :uuid AND groupUuid = :groupUuid")
+    suspend fun getGroupExpense(groupUuid: String, uuid: String): ExpenseWithBeneficiariesEntity?
+
+    /** The revision each expense of the group [groupUuid] this device shows is at, see [ShownRevision]. */
+    @Query("SELECT uuid, revision FROM ExpenseEntity WHERE groupUuid = :groupUuid AND revision IS NOT NULL")
+    suspend fun getGroupExpenseRevisions(groupUuid: String): List<ShownRevision>
+
+    /**
+     * Stores each of [expenses], versions of the group [groupUuid]'s expenses opened and checked,
+     * each with the revision it was signed at and who signed it, see [ExpenseEntity.revision] and
+     * [ExpenseEntity.authorUuid], its beneficiaries replaced whole, and returns those stored, each
+     * with the version it replaced. Runs in a single transaction.
+     *
+     * Only a version newer than every one this device has shown or signed of its expense is
+     * stored, see [ExpenseRevisionEntity]: one older is what a server putting back a version from
+     * before an edit looks like, and one at the same revision, another version under a number this
+     * device has seen, what one serving members different versions under it looks like, or the
+     * very version shown, listed again. And only one that may follow the version it replaces, see
+     * [mayBeFollowedBy]: a settlement is deleted by its recipient, and that is all that ever
+     * changes of it. Both are checked in this transaction, so that no other sync or write can
+     * store a newer version between the check and the write.
+     *
+     * Nor is one stored over a row of another kind, or of another group: the UUIDs of one-time and
+     * group expenses are derived alike, from their creator's and a nonce, so a member who used the
+     * same nonce for both would have one expense of theirs replace the other on every device
+     * holding both, see [replaceAllOneTimeExpenses], while the server holds each apart. Of two
+     * groups the server lists the same UUID in, the one first stored keeps it: the server takes
+     * none twice, so one of the two listings is made up.
+     */
+    @Transaction
+    suspend fun storeGroupExpenses(
+        groupUuid: String,
+        expenses: List<ExpenseWithBeneficiariesEntity>,
+    ): List<StoredGroupExpense> =
+        expenses.mapNotNull { expense ->
+            val expenseUuid = expense.expense.uuid
+            val revision = expense.expense.revision ?: return@mapNotNull null
+            val previous = getWithBeneficiaries(uuid = expenseUuid)
+
+            if (previous != null && previous.expense.groupUuid != groupUuid) return@mapNotNull null
+
+            val newest = getNewestRevision(expenseUuid = expenseUuid)
+
+            if (newest != null && revision <= newest) return@mapNotNull null
+
+            if (previous != null && !previous.mayBeFollowedBy(next = expense)) return@mapNotNull null
+
+            upsertWithBeneficiaries(expenseWithBeneficiaries = expense)
+            setNewestRevision(ExpenseRevisionEntity(expenseUuid, newestRevision = revision))
+
+            StoredGroupExpense(expense = expense, previous = previous)
+        }
+
     @Delete
     suspend fun delete(expenseEntity: ExpenseEntity)
 
     @Query("DELETE FROM ExpenseEntity WHERE uuid = :expenseUuid")
     suspend fun hardDelete(expenseUuid: String)
-
-    @Query("UPDATE ExpenseEntity SET isDeleted = true WHERE uuid = :expenseUuid")
-    suspend fun delete(expenseUuid: String)
-
-    @Query("UPDATE ExpenseEntity SET isDeleted = false WHERE uuid = :expenseUuid")
-    suspend fun restore(expenseUuid: String)
 
     @Query("SELECT count(*) FROM ExpenseEntity WHERE isDeleted = false")
     suspend fun count(): Int
@@ -260,4 +302,20 @@ class ShownOneTimeExpense(
      * [OneTimeExpenseSettledMarkEntity].
      */
     val isSettled: Boolean,
+)
+
+/** The revision the version of an expense this device shows is at, see [ExpenseEntity.revision]. */
+class ShownRevision(
+    val uuid: String,
+    val revision: Long,
+)
+
+/**
+ * A version of a group expense [ExpenseDao.storeGroupExpenses] stored, [expense], and the one it
+ * replaced, [previous], or null for an expense new to this device: what telling that it changed
+ * takes.
+ */
+class StoredGroupExpense(
+    val expense: ExpenseWithBeneficiariesEntity,
+    val previous: ExpenseWithBeneficiariesEntity?,
 )

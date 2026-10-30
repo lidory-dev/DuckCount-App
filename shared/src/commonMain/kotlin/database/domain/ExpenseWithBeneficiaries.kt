@@ -34,6 +34,14 @@ data class ExpenseWithBeneficiaries(
      * zone; null when it is not.
      */
     val settledAt: LocalDateTime? = null,
+
+    /**
+     * The revision of the version this device shows, see `ExpenseEntity.revision`: what an edit of
+     * a group expense is written after, see `group.GroupExpenseWriter.edit`, so that one another
+     * member made as the form was open is not written over unseen. Read with the expense, never
+     * written with it; null for an expense read from nowhere.
+     */
+    val revision: Long? = null,
 )
 
 /**

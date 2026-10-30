@@ -115,7 +115,8 @@ data class RemoveGroupMembersBody(
 /**
  * Body of `PUT /groups/{group_uuid}/key`, which the creator sends once a removal is applied,
  * named by its [nonce] as an addition is, see [AddGroupMembersBody]: the new key for the members
- * who remain, and the group's information sealed under it in place of what a removed member can
+ * who remain, the generation it is, see [keyGeneration], the key it replaces sealed under it, see
+ * [previousKey], and the group's information sealed under it in place of what a removed member can
  * open, the versions its history holds included, see [previous]. The server keeps the revision it
  * holds, which the rotation leaves as it was, and when it stored each version.
  */
@@ -163,6 +164,27 @@ data class RotateGroupKeyBody(
      * under a key no member added from now on gets.
      */
     val previous: List<PreviousGroupVersionBody>,
+
+    /**
+     * Which generation of the group's keys the new key is, see [GroupKeyChain]: one past the one
+     * it replaces, which the server takes the group to. Any other it refuses with a `409` naming
+     * the group's current generation, after the `409` a resend of a rotation it took hears, see
+     * [GroupMembershipAnswer.AlreadyMade]: never heard by this device, which draws the next from
+     * the generation it holds, every rotation of the group being its own, and each one it sends
+     * kept until the server took it, or refused it writing nothing, see [GroupMembershipSender].
+     */
+    @SerialName("key_generation")
+    val keyGeneration: Long,
+
+    /**
+     * The key the new one replaces, sealed under it as the link at [keyGeneration] of the chain
+     * back through the group's keys, see [sealKeyLink], which the server stores and lists to the
+     * current members, see [GroupApi.keyLinks]: nothing sealed under the old key is sealed again,
+     * a group's expenses each staying under the generation they were written in, and a member
+     * added from now on, holding the new key alone, opens it to read them.
+     */
+    @SerialName("previous_key")
+    val previousKey: EncryptedFieldDto,
 )
 
 /**
@@ -218,6 +240,14 @@ data class SaveGroupKeyCopyBody(
     /** Sealed under the caller's key ring, see [GroupKeyCopies.seal]: opaque to the server. */
     @SerialName("key_copy")
     val keyCopy: EncryptedFieldDto,
+
+    /**
+     * Which generation of the group's keys the copy holds, see [GroupKeyChain], which the server
+     * lists it with, see [GroupDto.keyCopyGeneration]: one it refuses with a `400` past the
+     * group's current one, which no member holds before the server took the rotation to it.
+     */
+    @SerialName("key_generation")
+    val keyGeneration: Long,
 )
 
 /**
@@ -289,6 +319,38 @@ data class GroupDto(
      */
     @SerialName("key_copy")
     val keyCopy: EncryptedFieldDto?,
+
+    /**
+     * Which generation of the group's keys [keyCopy] holds, as the caller said putting it up, see
+     * [SaveGroupKeyCopyBody.keyGeneration], null exactly when [keyCopy] is: the server's word,
+     * which the copy is bound to, see [GroupKeyCopies.open], so that a copy listed as another
+     * generation than its own opens as none.
+     */
+    @SerialName("key_copy_generation")
+    val keyCopyGeneration: Long?,
+
+    /**
+     * Which generation of the group's keys is its current one, see [GroupKeyChain], which the
+     * server takes whatever is written in the group under: one more with each rotation its
+     * creator made, see [RotateGroupKeyBody.keyGeneration]. The server's word: a device holding an
+     * older one waits for the creator's message handing the newer one over, see [GroupSync].
+     */
+    @SerialName("key_generation")
+    val keyGeneration: Long,
+)
+
+/**
+ * Mirrors the server's `GroupKeyLink`: one link of the chain back through a group's keys, as `GET
+ * /groups/{group_uuid}/key-links` lists them, see [GroupKeyChain]: the key of the generation
+ * before [generation], sealed under the key of [generation] by the creator's device as it rotated
+ * the group's key to it, see [RotateGroupKeyBody.previousKey].
+ */
+@Serializable
+data class GroupKeyLinkDto(
+    val generation: Long,
+
+    @SerialName("previous_key")
+    val previousKey: EncryptedFieldDto,
 )
 
 /** One member of a [GroupDto]. */

@@ -99,10 +99,11 @@ class GroupSyncEditsTest {
         leave = { error("Bob leaves nothing here.") },
         isUnblockedContact = { it == ALICE },
         client = { Result.Success(bob) },
-        save = { _, _ -> error("Bob joins nothing here.") },
+        save = { _, _, _, _ -> error("Bob joins nothing here.") },
         memberUuidsOf = { MEMBERS },
         replaceMembers = { _, _ -> },
-        updateKey = { _, _ -> error("Nobody hands Bob a key here.") },
+        recordSignatureKeys = {},
+        takeKeys = { _, _ -> error("Nobody hands Bob a key here.") },
         updateInformation = { groupUuid, version ->
             shown += version
             groups[groupUuid] = groups.getValue(groupUuid).showing(version)
@@ -121,6 +122,7 @@ class GroupSyncEditsTest {
         readMemberNames = { Result.Success(Unit) },
         backUpMemberProfiles = { Result.Success(Unit) },
         handOutProfileKey = { Result.Success(Unit) },
+        rebuildWakeList = {},
         resendScheduler = ResendsBooked(),
     )
 
@@ -305,7 +307,11 @@ class GroupSyncEditsTest {
     private fun bobCreates(): ByteArray = bob.createGroup(
         groupUuid = GROUP,
         invitees = listOf(alice.inviteeKeyPackage(), carol.inviteeKeyPackage()),
-        welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
+        welcomePayload = welcomePayloadOf(
+            groupKey = groupKey,
+            keyGeneration = FIRST_KEY_GENERATION,
+            profileKeys = emptyMap(),
+        ),
     ).mlsGroupId
 
     /** That the group shows [fields] as [revision], its currency the one it was created in. */
@@ -340,6 +346,7 @@ class GroupSyncEditsTest {
         ownerUuid = ownerUuid,
         mlsGroupId = mlsGroupId,
         groupKey = groupKey,
+        keyGeneration = FIRST_KEY_GENERATION,
         isBackedUp = true,
         isLeft = isLeft,
         handedProfileKeyHash = null,

@@ -6,15 +6,17 @@ import kotlin.test.assertTrue
 
 private const val ALICE = "11111111-1111-1111-1111-111111111111"
 private const val BOB = "33333333-3333-3333-3333-333333333333"
+private const val CAROL = "55555555-5555-5555-5555-555555555555"
 private const val MALLORY = "77777777-7777-7777-7777-777777777777"
 
 /**
  * Who may wake the user: Bob is a contact, and Alice has a contact request from the user she
- * has yet to answer. Mallory is a stranger, or a former contact, which comes to the same.
+ * has yet to answer. Carol shares a group the user is still in with them, and is no contact.
+ * Mallory is a stranger, or a former contact, which comes to the same.
  */
 class WakeDecisionTest {
 
-    private val wakeList = WakeListOf(contacts = setOf(BOB), requested = setOf(ALICE))
+    private val wakeList = WakeListOf(contacts = setOf(BOB), requested = setOf(ALICE), coMembers = setOf(CAROL))
 
     @Test
     fun `a contact request wakes the user whoever sent it`() {
@@ -61,9 +63,36 @@ class WakeDecisionTest {
             PushSignal.Kind.GROUP_WELCOME,
             PushSignal.Kind.GROUP_CHANGED,
             PushSignal.Kind.GROUP_MEMBER_LEFT,
+            PushSignal.Kind.GROUP_EXPENSE,
             PushSignal.Kind.UNKNOWN,
         ).forEach { kind ->
             assertFalse(signal(kind, from = ALICE).mayWake(wakeList), "$kind")
+        }
+    }
+
+    /** She may well have paid for the user: whether she did, the sync reads before telling them. */
+    @Test
+    fun `an expense of a group from a member who is no contact wakes the user`() {
+        assertTrue(signal(PushSignal.Kind.GROUP_EXPENSE, from = CAROL).mayWake(wakeList))
+    }
+
+    @Test
+    fun `an expense of a group from a contact wakes the user`() {
+        assertTrue(signal(PushSignal.Kind.GROUP_EXPENSE, from = BOB).mayWake(wakeList))
+    }
+
+    /** Nobody the user shares a group with, nor a contact: the server pushes whatever anybody sends. */
+    @Test
+    fun `an expense of a group from a stranger does not wake the user`() {
+        assertFalse(signal(PushSignal.Kind.GROUP_EXPENSE, from = MALLORY).mayWake(wakeList))
+        assertFalse(signal(PushSignal.Kind.GROUP_EXPENSE, from = null).mayWake(wakeList))
+    }
+
+    /** Sharing a group lets her through with an expense of it, and with nothing else of hers. */
+    @Test
+    fun `nothing but an expense of a group from a member who is no contact wakes the user`() {
+        (PushSignal.Kind.entries - PushSignal.Kind.GROUP_EXPENSE - PushSignal.Kind.CONTACT_REQUEST).forEach { kind ->
+            assertFalse(signal(kind, from = CAROL).mayWake(wakeList), "$kind")
         }
     }
 
@@ -111,12 +140,15 @@ class WakeDecisionTest {
 private class WakeListOf(
     private val contacts: Set<String>,
     private val requested: Set<String>,
+    private val coMembers: Set<String>,
 ) : WakeListStore {
     override fun isContact(userUuid: String): Boolean = userUuid in contacts
 
     override fun isRequested(userUuid: String): Boolean = userUuid in requested
 
-    override suspend fun replace(contacts: Set<String>, requested: Set<String>) {
+    override fun isCoMember(userUuid: String): Boolean = userUuid in coMembers
+
+    override suspend fun replace(contacts: Set<String>, requested: Set<String>, coMembers: Set<String>) {
         error("Only read here")
     }
 

@@ -19,6 +19,7 @@ import app.lidory.duckcount.groupList.model.User
 import contact.ContactRelation
 import contact.ContactSyncError
 import contact.SendContactRequestError
+import group.GroupExpenseWriteError
 import mls.MlsIdentityError
 import util.NetworkError
 import util.Result
@@ -312,6 +313,34 @@ private suspend fun namesOf(
         // getInvitableUsersFiltered, whose row only goes with the session.
         checkNotNull(fullNameOf(userUuid)) { "No name for the member $userUuid" }
     }
+
+/**
+ * Why a settlement the user recorded did not go through, see `group.GroupExpenseWriter`, told in
+ * the words of a creation's failures: what kept the server from being reached, the identity that
+ * signs it included, a group they are no longer in, which the screen offers no settling in once
+ * this device read the removal, though the server refuses it from the moment it was taken, and the
+ * server's limit on what the user writes in their groups, which the expense screens tell too, and
+ * an immediate retry runs into again; or else [GroupCreationFailure.UNKNOWN], nothing else being
+ * anything the user can act on.
+ */
+fun GroupExpenseWriteError.toGroupCreationFailure(isOnline: Boolean): GroupCreationFailure = when (this) {
+    is GroupExpenseWriteError.Network -> error.toGroupCreationFailure(isOnline = isOnline)
+
+    is GroupExpenseWriteError.Identity -> error.toGroupCreationFailure(isOnline = isOnline)
+
+    GroupExpenseWriteError.NotMember -> GroupCreationFailure.GROUP_LEFT
+
+    is GroupExpenseWriteError.RateLimited -> GroupCreationFailure.RATE_LIMITED
+
+    GroupExpenseWriteError.NoSession,
+    GroupExpenseWriteError.CreationPending,
+    GroupExpenseWriteError.NotShown,
+    GroupExpenseWriteError.SettlementLocked,
+    GroupExpenseWriteError.Crypto,
+    GroupExpenseWriteError.KeyNotCurrent,
+    GroupExpenseWriteError.Conflict,
+        -> GroupCreationFailure.UNKNOWN
+}
 
 /** Restoring the contacts fails on the vault or on the MLS client, reported as above. */
 private fun ContactSyncError.toGroupCreationFailure(isOnline: Boolean): GroupCreationFailure = when (this) {

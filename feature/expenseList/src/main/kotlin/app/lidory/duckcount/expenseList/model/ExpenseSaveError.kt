@@ -30,6 +30,13 @@ sealed interface ExpenseSaveError {
      * read-only: the form can still be open as a sync reads the removal.
      */
     data object GroupLeft : ExpenseSaveError
+
+    /**
+     * Another member deleted the expense as the form was open, which the form shows from then on
+     * and saves nothing over: an edit written into a deleted expense would count in no balance, and
+     * nobody would be told of it. The detail screen offers to restore it.
+     */
+    data object DeletedMeanwhile : ExpenseSaveError
 }
 
 /** Somebody who deleted their account, by the name this device shows for them, [fullName], if any. */
@@ -49,6 +56,8 @@ fun ExpenseSaveError.message(): String = when (this) {
     is ExpenseSaveError.Write -> stringResource(error.messageRes())
 
     ExpenseSaveError.GroupLeft -> stringResource(R.string.write_error_group_left)
+
+    ExpenseSaveError.DeletedMeanwhile -> stringResource(R.string.write_error_deleted_meanwhile)
 
     is ExpenseSaveError.BeneficiariesDeleted -> {
         val names = fullNames()

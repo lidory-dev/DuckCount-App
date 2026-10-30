@@ -54,6 +54,7 @@ fun ExpenseWithBeneficiariesEntity.toExpenseWithBeneficiaries() =
         settledAt = settledMark?.takeIf { it.isSettled }?.let {
             Instant.fromEpochMilliseconds(it.markedAt).toLocalDateTime(TimeZone.currentSystemDefault())
         },
+        revision = expense.revision,
     )
 
 fun ExpenseWithBeneficiaries.toExpenseWithBeneficiariesEntity() =

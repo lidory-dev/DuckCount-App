@@ -48,6 +48,8 @@
     <string name="write_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
     <string name="write_error_invalid_data">Cette dépense est invalide</string>
     <string name="write_error_conflict">Le nombre maximum de modifications a été atteint</string>
+    <string name="write_error_changed_meanwhile">Un autre membre a modifié cette dépense entre-temps\u00A0: vérifiez sa dernière version, puis réessayez</string>
+    <string name="write_error_deleted_meanwhile">Un autre membre a supprimé cette dépense entre-temps</string>
     <string name="write_error_unauthorized">Votre session a expiré, reconnectez-vous</string>
     <string name="write_error_unknown">Une erreur est survenue, réessayez</string>
     <string name="unknown_person">Quelqu’un d’autre</string>
@@ -61,6 +63,8 @@
         <item quantity="other">%1$d participants ont supprimé leur compte</item>
     </plurals>
     <string name="write_error_group_left">Vous ne faites plus partie de ce groupe</string>
+    <string name="write_error_creation_pending">Le groupe est encore en cours de création, réessayez dans un instant</string>
+    <string name="write_error_rate_limited">Trop de modifications, réessayez plus tard</string>
 
     <!-- ErrorCard -->
     <string name="no_beneficiaries">Une dépense doit avoir au moins un participant</string>
@@ -96,4 +100,6 @@
 
     <!-- ExpenseHistoryScreen -->
     <string name="created_by">Créé par %1$s</string>
+    <string name="deleted_by">Supprimé par %1$s</string>
+    <string name="restored_by">Restauré par %1$s</string>
 </resources>

@@ -123,6 +123,12 @@ object DuckCountRoutes {
         val KEY = "$GROUP_BASE_URL/:group_uuid/key"
 
         /**
+         * `GET` lists the links of the chain back through the keys of one group, each the key of a
+         * generation sealed under the next, any current member.
+         */
+        val KEY_LINKS = "$GROUP_BASE_URL/:group_uuid/key-links"
+
+        /**
          * The caller's own copy of the key of one group: `PUT` stores it, any current member,
          * `DELETE` drops it. `GET /groups` lists it.
          */
@@ -130,6 +136,24 @@ object DuckCountRoutes {
 
         /** `DELETE` takes the caller out of one group, any member but its owner. */
         val MEMBERSHIP = "$GROUP_BASE_URL/:group_uuid/membership"
+
+        /**
+         * `GET` lists the expenses of one group, a page at a time, newest first, `POST` creates one,
+         * any current member.
+         */
+        val EXPENSES = "$GROUP_BASE_URL/:group_uuid/expenses"
+
+        /** What changed in the expenses of one group since a place in the caller's feed of them. */
+        val EXPENSE_CHANGES = "$GROUP_BASE_URL/:group_uuid/expenses/changes"
+
+        /**
+         * `PUT` replaces one expense of a group with its next version, a deletion and a restore
+         * included, any current member.
+         */
+        val EXPENSE = "$GROUP_BASE_URL/:group_uuid/expenses/:expense_uuid"
+
+        /** `GET` lists the versions of one expense of a group its updates replaced, newest first. */
+        val EXPENSE_HISTORY = "$GROUP_BASE_URL/:group_uuid/expenses/:expense_uuid/history"
     }
 
     object Push {

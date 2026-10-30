@@ -10,6 +10,13 @@ import androidx.room.Update
 import database.data.local.entity.UserEntity
 import kotlinx.coroutines.flow.Flow
 
+/** The name the group and expense screens show for `:uuid`, see [UserDao.getDisplayNameAsFlow]. */
+private const val DISPLAY_NAME = """SELECT COALESCE(
+    (SELECT fullName FROM UserEntity WHERE uuid = :uuid AND isDeleted = false),
+    (SELECT fullName FROM MemberProfileEntity WHERE userUuid = :uuid),
+    (SELECT fullName FROM UserEntity WHERE uuid = :uuid AND isDeleted = true)
+    ) AS fullName"""
+
 @Dao
 interface UserDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -77,16 +84,19 @@ interface UserDao {
      * [remove], for one whose name no group handed the key to.
      *
      * The other name queries stay as they are: what tells whether a notification names somebody,
-     * see [getFullName], is whether they are a contact.
+     * see [getFullName], is whether they are a contact, but for one about an expense of a group,
+     * see [getDisplayName].
      */
-    @Query(
-        """SELECT COALESCE(
-        (SELECT fullName FROM UserEntity WHERE uuid = :uuid AND isDeleted = false),
-        (SELECT fullName FROM MemberProfileEntity WHERE userUuid = :uuid),
-        (SELECT fullName FROM UserEntity WHERE uuid = :uuid AND isDeleted = true)
-        ) AS fullName""",
-    )
+    @Query(DISPLAY_NAME)
     fun getDisplayNameAsFlow(uuid: String): Flow<String?>
+
+    /**
+     * The same name, read once, for a notification about an expense of a group, see
+     * `expense.GroupExpenseUpdates`: it names whoever wrote it as the group's screens do, contact or
+     * not, the user being told of it whoever wrote it.
+     */
+    @Query(DISPLAY_NAME)
+    suspend fun getDisplayName(uuid: String): String?
 
     /**
      * Emits who a group expense of the group [groupUuid] can name, as payer or beneficiary, as they

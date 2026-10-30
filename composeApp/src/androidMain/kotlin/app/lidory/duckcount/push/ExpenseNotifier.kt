@@ -7,10 +7,12 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import app.lidory.duckcount.EXTRA_OPEN_GROUPS
 import app.lidory.duckcount.MainActivity
 import app.lidory.duckcount.R
 import expense.ExpenseArrival
 import expense.ExpenseChange
+import expense.GroupExpenseUpdate
 import push.PushSignal
 
 /**
@@ -60,6 +62,26 @@ private const val EXPENSE_CHANGE_SUMMARY_NOTIFICATION = 5
 private const val UNNAMED_EXPENSE_CHANGE_NOTIFICATION = 6
 
 /**
+ * What the notifications about an expense of one of the user's groups are about, see
+ * [ExpenseNotifier.notifyGroupExpenses].
+ */
+private const val GROUP_EXPENSE_TAG = "group-expense"
+
+/** Ties them together under a heading of their own. */
+private const val GROUP_EXPENSE_GROUP = "group-expenses"
+
+/** The id of the notification that heads them. */
+private const val GROUP_EXPENSE_SUMMARY_NOTIFICATION = 9
+
+/**
+ * What tells the intent of each form that names nobody apart from the named ones', which only ever
+ * goes up as their public version, see [ExpenseNotifier.namelessGroupExpenseNotification]: one for
+ * an expense added to a group, one for an expense of a group updated.
+ */
+private const val UNNAMED_GROUP_EXPENSE_ADDED_REQUEST_CODE = 10
+private const val UNNAMED_GROUP_EXPENSE_CHANGED_REQUEST_CODE = 11
+
+/**
  * How many people may be named in one sync before the rest are left to the summary.
  *
  * Somebody coming back from a log-out can become able to read months of expenses at once,
@@ -76,6 +98,10 @@ private const val MAX_CREDITORS_ANNOUNCED = 4
  *
  * What its creditor does to an expense afterwards is told as well, one notification per
  * expense: marking it as settled or not, editing it, removing it, see [notifyChanges].
+ *
+ * So is what a member of one of the user's groups does to an expense of it that the user paid for
+ * or shares in, one notification per expense too: adding it, editing it, deleting it or restoring
+ * it, see [notifyGroupExpenses].
  *
  * A locked device is told as much as the signal says, and no more. Nothing on a locked
  * phone can read the app's storage, so there is no finding out who shared what: the server
@@ -202,6 +228,7 @@ class ExpenseNotifier(
                     arrivals.size,
                     arrivals.size,
                 ),
+                contentIntent = contentIntent(requestUuid = EXPENSE_SUMMARY_NOTIFICATION),
             )
         }
     }
@@ -264,6 +291,51 @@ class ExpenseNotifier(
                     changes.size,
                     changes.size,
                 ),
+                contentIntent = contentIntent(requestUuid = EXPENSE_CHANGE_SUMMARY_NOTIFICATION),
+            )
+        }
+    }
+
+    /**
+     * Puts up one notification per expense of the user's groups that a member changed, saying what
+     * they did, see [expense.GroupExpenseUpdates]: only those the user paid for or shares in, and
+     * that somebody else wrote.
+     *
+     * Per expense, as [notifyChanges] puts them up and for the same reasons: a later update to an
+     * expense whose notification is still up replaces it without ringing again. These go up whatever
+     * is on screen, too: [newestShown] is about the one-time expenses alone.
+     *
+     * Never from a signal alone: the signal says neither which group nor whether the expense
+     * concerns the user at all, so a locked device puts nothing up, and the sync that tells both
+     * waits for the unlock.
+     */
+    @Synchronized
+    fun notifyGroupExpenses(updates: List<GroupExpenseUpdate>) {
+        if (updates.isEmpty()) return
+
+        createChannel()
+
+        updates.forEach { update ->
+            post(
+                tag = GROUP_EXPENSE_TAG,
+                // One per expense, replaced rather than stacked.
+                id = update.expenseUuid.hashCode(),
+                notification = groupExpenseNotificationFor(update = update),
+            )
+        }
+
+        if (updates.size > 1) {
+            postSummary(
+                tag = GROUP_EXPENSE_TAG,
+                id = GROUP_EXPENSE_SUMMARY_NOTIFICATION,
+                group = GROUP_EXPENSE_GROUP,
+                title = R.string.push_group_expense_changed_title,
+                text = context.resources.getQuantityString(
+                    R.plurals.push_group_expense_summary,
+                    updates.size,
+                    updates.size,
+                ),
+                contentIntent = groupsIntent(requestCode = GROUP_EXPENSE_SUMMARY_NOTIFICATION),
             )
         }
     }
@@ -318,11 +390,12 @@ class ExpenseNotifier(
     /**
      * Says what a signal said, for a device too locked to find out more.
      *
-     * Only an expense signal is announced this way: an expense arriving, or one the user is
-     * on changing. A plain `message` may be a notice that somebody removed the user, and
-     * saying "something happened" when it might be that would be worse than saying nothing.
-     * And only from a contact: [DuckCountPushService] drops an expense signal from anybody
-     * else before it gets here.
+     * Only a one-time expense signal is announced this way: an expense arriving, or one the user
+     * is on changing. A plain `message` may be a notice that somebody removed the user, and
+     * saying "something happened" when it might be that would be worse than saying nothing. An
+     * expense of a group may concern somebody else altogether, its signal going to every member,
+     * see [notifyGroupExpenses]. And only from a contact: [DuckCountPushService] drops an expense
+     * signal from anybody else before it gets here.
      *
      * Synchronized with [notify], [notifyChanges] and [retireStandIns], so that a stand-in
      * cannot go up in the middle of any of them, and be taken down by what was meant for the
@@ -529,13 +602,117 @@ class ExpenseNotifier(
             R.string.push_expense_edited_marked_not_settled_unknown
     }
 
-    /** Puts up the heading of [group], under [title], saying [text]. */
-    private fun postSummary(tag: String, id: Int, group: String, title: Int, text: String) {
+    private fun groupExpenseNotificationFor(update: GroupExpenseUpdate): Notification {
+        val isAdded = update.kind == GroupExpenseUpdate.Kind.ADDED
+
+        val title = if (isAdded) R.string.push_group_expense_added_title else R.string.push_group_expense_changed_title
+
+        // A settlement has no title: the member who paid it knows it by its amount.
+        val expense = if (update.isSettlement) "${update.amount} ${update.currencySymbol}" else update.title
+
+        val text = when (val authorFullName = update.authorFullName) {
+            null -> context.getString(unnamedGroupExpenseTextOf(update = update), expense, update.groupTitle)
+            else -> context.getString(groupExpenseTextOf(update = update), authorFullName, expense, update.groupTitle)
+        }
+
+        return NotificationCompat.Builder(context, EXPENSES_CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(title))
+            .setContentText(text)
+            .setContentIntent(groupsIntent(requestCode = update.expenseUuid.hashCode()))
+            .setCategory(NotificationCompat.CATEGORY_SOCIAL)
+            .setGroup(GROUP_EXPENSE_GROUP)
+            // Who did what in which group is the user's business and nobody else's, so a lockscreen
+            // set to hide notification content shows the nameless form instead of this one.
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(namelessGroupExpenseNotification(isAdded = isAdded))
+            // Rings once per expense: another update to it while this is still up is the same
+            // expense to look at, and goes up in its place without a sound.
+            .setOnlyAlertOnce(true)
+            .setAutoCancel(true)
+            .build()
+    }
+
+    /**
+     * The form of [groupExpenseNotificationFor] that names nobody: an expense was added to one of
+     * the user's groups, when [isAdded], or one was updated, and nothing about which, whose or by
+     * whom. Only ever carried by a named one as its public version, for the reasons
+     * [namelessNotification] gives.
+     */
+    private fun namelessGroupExpenseNotification(isAdded: Boolean): Notification {
+        val title = if (isAdded) R.string.push_group_expense_added_title else R.string.push_group_expense_changed_title
+        val text = if (isAdded) {
+            R.string.push_group_expense_added_text_locked
+        } else {
+            R.string.push_group_expense_changed_text_locked
+        }
+        val requestCode = if (isAdded) {
+            UNNAMED_GROUP_EXPENSE_ADDED_REQUEST_CODE
+        } else {
+            UNNAMED_GROUP_EXPENSE_CHANGED_REQUEST_CODE
+        }
+
+        return NotificationCompat.Builder(context, EXPENSES_CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(title))
+            .setContentText(context.getString(text))
+            .setContentIntent(groupsIntent(requestCode = requestCode))
+            .setCategory(NotificationCompat.CATEGORY_SOCIAL)
+            .setGroup(GROUP_EXPENSE_GROUP)
+            // It carries no name and no title, so there is nothing here to hide.
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setAutoCancel(true)
+            .build()
+    }
+
+    /**
+     * What a member did to an expense of a group, naming them, the expense and the group. A
+     * settlement is only ever recorded or deleted, see [GroupExpenseUpdate.isSettlement], each
+     * told as the user's own, they being the one who paid it.
+     */
+    private fun groupExpenseTextOf(update: GroupExpenseUpdate): Int = when (update.kind) {
+        GroupExpenseUpdate.Kind.ADDED ->
+            if (update.isSettlement) R.string.push_group_settlement_added else R.string.push_group_expense_added
+
+        GroupExpenseUpdate.Kind.DELETED ->
+            if (update.isSettlement) R.string.push_group_settlement_deleted else R.string.push_group_expense_deleted
+
+        GroupExpenseUpdate.Kind.EDITED -> R.string.push_group_expense_edited
+        GroupExpenseUpdate.Kind.RESTORED -> R.string.push_group_expense_restored
+    }
+
+    /** The same without a name, for a member this device holds none for. */
+    private fun unnamedGroupExpenseTextOf(update: GroupExpenseUpdate): Int = when (update.kind) {
+        GroupExpenseUpdate.Kind.ADDED -> if (update.isSettlement) {
+            R.string.push_group_settlement_added_unknown
+        } else {
+            R.string.push_group_expense_added_unknown
+        }
+
+        GroupExpenseUpdate.Kind.DELETED -> if (update.isSettlement) {
+            R.string.push_group_settlement_deleted_unknown
+        } else {
+            R.string.push_group_expense_deleted_unknown
+        }
+
+        GroupExpenseUpdate.Kind.EDITED -> R.string.push_group_expense_edited_unknown
+        GroupExpenseUpdate.Kind.RESTORED -> R.string.push_group_expense_restored_unknown
+    }
+
+    /** Puts up the heading of [group], under [title], saying [text], opening [contentIntent]. */
+    private fun postSummary(
+        tag: String,
+        id: Int,
+        group: String,
+        title: Int,
+        text: String,
+        contentIntent: PendingIntent,
+    ) {
         val notification = NotificationCompat.Builder(context, EXPENSES_CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(title))
             .setContentText(text)
-            .setContentIntent(contentIntent(requestUuid = id))
+            .setContentIntent(contentIntent)
             .setGroup(group)
             .setGroupSummary(true)
             // The summary is a heading over the ones that carry the news, so it is the
@@ -569,6 +746,25 @@ class ExpenseNotifier(
         return PendingIntent.getActivity(
             context,
             requestUuid,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    /**
+     * Opens the app on the group list, where the group whose expense it is is, as a notification
+     * about a group does, see `GroupNotifier`.
+     */
+    private fun groupsIntent(requestCode: Int): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+
+            putExtra(EXTRA_OPEN_GROUPS, true)
+        }
+
+        return PendingIntent.getActivity(
+            context,
+            requestCode,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )

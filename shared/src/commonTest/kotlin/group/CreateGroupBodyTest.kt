@@ -77,7 +77,7 @@ class CreateGroupBodyTest {
             "signature":{"ciphertext":"cw==","nonce":"bg=="},
             "members":[{"user_uuid":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"},
             {"user_uuid":"cccccccc-cccc-4ccc-8ccc-cccccccccccc"}],
-            "key_copy":{"ciphertext":"aw==","nonce":"bg=="}}]""",
+            "key_copy":{"ciphertext":"aw==","nonce":"bg=="},"key_copy_generation":2,"key_generation":3}]""",
         )
 
         val group = groups.single()
@@ -92,6 +92,8 @@ class CreateGroupBodyTest {
             group.members.map { it.userUuid },
         )
         assertEquals(EncryptedFieldDto(ciphertext = "aw==", nonce = "bg=="), group.keyCopy)
+        assertEquals(2L, group.keyCopyGeneration)
+        assertEquals(3L, group.keyGeneration)
     }
 
     /** The server holds no copy of the caller's: one never put up, or dropped with a removal. */
@@ -103,10 +105,12 @@ class CreateGroupBodyTest {
             "title":{"ciphertext":"dA==","nonce":"bg=="},"description":{"ciphertext":"ZA==","nonce":"bg=="},
             "currency":{"ciphertext":"Yw==","nonce":"bg=="},"revision":1,
             "signature":{"ciphertext":"cw==","nonce":"bg=="},
-            "members":[{"user_uuid":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"}],"key_copy":null}]""",
+            "members":[{"user_uuid":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"}],"key_copy":null,
+            "key_copy_generation":null,"key_generation":1}]""",
         )
 
         assertNull(groups.single().keyCopy)
+        assertNull(groups.single().keyCopyGeneration)
     }
 
     /** Nothing else is sent: the currency stays the one the group was created in, see [GroupEditor]. */
@@ -127,12 +131,25 @@ class CreateGroupBodyTest {
     }
 
     @Test
-    fun `a key copy put up is written with the name the server reads`() {
+    fun `a key copy put up is written with the names the server reads`() {
         val written = Json.encodeToJsonElement(
             SaveGroupKeyCopyBody.serializer(),
-            SaveGroupKeyCopyBody(keyCopy = EncryptedFieldDto(ciphertext = "aw==", nonce = "bg==")),
+            SaveGroupKeyCopyBody(keyCopy = EncryptedFieldDto(ciphertext = "aw==", nonce = "bg=="), keyGeneration = 4),
         ).jsonObject
 
-        assertEquals(setOf("key_copy"), written.keys)
+        assertEquals(setOf("key_copy", "key_generation"), written.keys)
+        assertEquals("4", written.getValue("key_generation").toString())
+    }
+
+    /** Ascending, from the second generation on: the first has no key before it. */
+    @Test
+    fun `the links back through a group's keys decode as the server lists them`() {
+        val links = json.decodeFromString<List<GroupKeyLinkDto>>(
+            """[{"generation":2,"previous_key":{"ciphertext":"aw==","nonce":"bg=="}},
+            {"generation":3,"previous_key":{"ciphertext":"bA==","nonce":"bQ=="}}]""",
+        )
+
+        assertEquals(listOf(2L, 3L), links.map { it.generation })
+        assertEquals(EncryptedFieldDto(ciphertext = "bA==", nonce = "bQ=="), links[1].previousKey)
     }
 }

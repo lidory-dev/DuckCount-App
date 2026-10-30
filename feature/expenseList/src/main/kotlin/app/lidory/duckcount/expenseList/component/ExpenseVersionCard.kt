@@ -17,8 +17,9 @@ import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.R
 import app.lidory.duckcount.expenseList.extensions.formatDate
 import app.lidory.duckcount.expenseList.extensions.formatTime
+import app.lidory.duckcount.expenseList.model.VersionChange
+import app.lidory.duckcount.expenseList.model.authorLineRes
 import kotlinx.datetime.LocalDateTime
-import app.lidory.duckcount.android.ui.R as androidUiR
 
 @Composable
 fun ExpenseVersionCard(
@@ -30,7 +31,7 @@ fun ExpenseVersionCard(
     /** Null when it is not known. */
     madeAt: LocalDateTime?,
 
-    isCreation: Boolean,
+    change: VersionChange,
     onClick: () -> Unit,
 ) {
     Card(
@@ -55,9 +56,8 @@ fun ExpenseVersionCard(
                 Spacer(modifier = Modifier.height(4.dp))
             }
 
-            val textRes = if (isCreation) R.string.created_by else androidUiR.string.modified_by
             Text(
-                text = stringResource(textRes, authorFullName ?: stringResource(R.string.unknown_person)),
+                text = stringResource(change.authorLineRes(), authorFullName ?: stringResource(R.string.unknown_person)),
                 style = MaterialTheme.typography.bodyMedium,
                 fontStyle = FontStyle.Italic,
                 maxLines = 1,

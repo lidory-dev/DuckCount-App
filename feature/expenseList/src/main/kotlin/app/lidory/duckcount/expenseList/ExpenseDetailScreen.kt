@@ -86,7 +86,7 @@ fun ExpenseDetailScreen(
         onPauseOrDispose {}
     }
 
-    // Surface delete failures with a message that matches the actual cause.
+    // Surface delete, restore and mark failures with a message that matches the actual cause.
     LaunchedEffect(Unit) {
         viewModel.showError.collect { pendingError = it }
     }
@@ -139,6 +139,7 @@ fun ExpenseDetailScreen(
                             canEdit = content.canEdit,
                             canDelete = content.canDelete,
                             canRestore = content.canRestore,
+                            canShowHistory = content.canShowHistory,
                             restore = viewModel::restoreExpense,
                             delete = viewModel::deleteExpense,
                             edit = dropUnlessResumed { navigateToEditExpense() },

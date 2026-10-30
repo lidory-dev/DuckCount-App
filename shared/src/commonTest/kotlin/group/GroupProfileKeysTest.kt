@@ -31,19 +31,26 @@ class GroupProfileKeysTest {
     @Test
     fun `the Welcome payload is written with the names the members read`() {
         val payload = Json.parseToJsonElement(
-            welcomePayloadOf(groupKey = groupKey, profileKeys = mapOf(ALICE to aliceKey)).decodeToString(),
+            welcomePayloadOf(groupKey = groupKey, keyGeneration = 3, profileKeys = mapOf(ALICE to aliceKey))
+                .decodeToString(),
         ).jsonObject
 
-        assertEquals(setOf("group_key", "profile_keys"), payload.keys)
+        assertEquals(setOf("group_key", "key_generation", "profile_keys"), payload.keys)
+        assertEquals("3", payload.getValue("key_generation").toString())
         assertEquals(setOf(ALICE), payload.getValue("profile_keys").jsonObject.keys)
     }
 
     @Test
-    fun `the Welcome payload reads back as the group key and every member's key`() {
-        val payload = welcomePayloadOf(groupKey = groupKey, profileKeys = mapOf(ALICE to aliceKey, BOB to bobKey))
+    fun `the Welcome payload reads back as the group key of its generation and every member's key`() {
+        val payload = welcomePayloadOf(
+            groupKey = groupKey,
+            keyGeneration = 3,
+            profileKeys = mapOf(ALICE to aliceKey, BOB to bobKey),
+        )
         val handover = assertNotNull(welcomeHandoverOf(payload))
 
-        assertContentEquals(groupKey, handover.groupKey)
+        assertContentEquals(groupKey, handover.groupKey.key)
+        assertEquals(3L, handover.groupKey.generation)
         assertEquals(setOf(ALICE, BOB), handover.profileKeys.keys)
         assertContentEquals(aliceKey, handover.profileKeys[ALICE])
         assertContentEquals(bobKey, handover.profileKeys[BOB])
@@ -52,15 +59,21 @@ class GroupProfileKeysTest {
     /** As a Welcome handing over no key. */
     @Test
     fun `a Welcome payload that is not one reads as nothing`() {
+        val key = Base64.Default.encode(groupKey)
+
         assertNull(welcomeHandoverOf(groupKey))
-        assertNull(welcomeHandoverOf("""{"group_key":"not Base64!","profile_keys":{}}""".encodeToByteArray()))
-        assertNull(welcomeHandoverOf("""{"group_key":"${Base64.Default.encode(groupKey)}"}""".encodeToByteArray()))
+        assertNull(
+            welcomeHandoverOf("""{"group_key":"not Base64!","key_generation":1,"profile_keys":{}}""".encodeToByteArray()),
+        )
+        assertNull(welcomeHandoverOf("""{"group_key":"$key","key_generation":1}""".encodeToByteArray()))
+        assertNull(welcomeHandoverOf("""{"group_key":"$key","profile_keys":{}}""".encodeToByteArray()))
+        assertNull(welcomeHandoverOf("""{"group_key":"$key","key_generation":0,"profile_keys":{}}""".encodeToByteArray()))
     }
 
     /** Whatever the creator wrote: only a 32-byte key opens a profile. */
     @Test
     fun `entries that are no profile key are left out and the others kept`() {
-        val payload = """{"group_key":"${Base64.Default.encode(groupKey)}","profile_keys":{""" +
+        val payload = """{"group_key":"${Base64.Default.encode(groupKey)}","key_generation":1,"profile_keys":{""" +
             """"$ALICE":"${Base64.Default.encode(aliceKey)}",""" +
             """"$BOB":"${Base64.Default.encode(bobKey + 0)}",""" +
             """"$CAROL":"not Base64!"}}"""
@@ -103,7 +116,7 @@ class GroupProfileKeysTest {
 
     @Test
     fun `the group's key handed over is no profile key`() {
-        val message = groupKeyMessageOf(groupKey)
+        val message = groupKeyMessageOf(groupKey, keyGeneration = 2)
 
         assertNull(profileKeysOf(message))
         assertNull(ownProfileKeyOf(message))

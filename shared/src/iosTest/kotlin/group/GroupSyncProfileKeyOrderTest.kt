@@ -280,13 +280,14 @@ class GroupSyncProfileKeyOrderTest {
             leave = { error("Nothing is declined here.") },
             isUnblockedContact = { it == ALICE },
             client = { Result.Success(carol) },
-            save = { group, groupMembers ->
+            save = { group, groupMembers, _, _ ->
                 groups[group.uuid] = group
                 members[group.uuid] = groupMembers
             },
             memberUuidsOf = { groupUuid -> members[groupUuid].orEmpty().map { it.userUuid } },
             replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
-            updateKey = { _, _ -> error("Alice rotates no group's key here.") },
+            recordSignatureKeys = {},
+            takeKeys = { _, _ -> error("Alice rotates no group's key here.") },
             updateInformation = { _, _ -> error("Alice edits nothing here.") },
             markLeft = { error("Carol stays in every group.") },
             recordDeclined = { error("Nothing is declined here.") },
@@ -302,6 +303,7 @@ class GroupSyncProfileKeyOrderTest {
             readMemberNames = { Result.Success(Unit) },
             backUpMemberProfiles = { Result.Success(Unit) },
             handOutProfileKey = { Result.Success(Unit) },
+            rebuildWakeList = {},
             resendScheduler = ResendsBooked(),
         )
     }
@@ -318,6 +320,7 @@ class GroupSyncProfileKeyOrderTest {
             invitees = listOf(bob.inviteeKeyPackage(), carol.inviteeKeyPackage()),
             welcomePayload = welcomePayloadOf(
                 groupKey = groupKey,
+                keyGeneration = FIRST_KEY_GENERATION,
                 profileKeys = mapOf(ALICE to aliceOwnKey, BOB to bobKey, CAROL to carolKey),
             ),
         )
@@ -373,7 +376,11 @@ class GroupSyncProfileKeyOrderTest {
         val addition = alice.addMembersTo(
             mlsGroupId = aliceGroupId,
             invitees = listOf(dave.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(groupKey = groupKeys.getValue(groupUuid), profileKeys = profileKeys),
+            welcomePayload = welcomePayloadOf(
+                groupKey = groupKeys.getValue(groupUuid),
+                keyGeneration = FIRST_KEY_GENERATION,
+                profileKeys = profileKeys,
+            ),
         )
 
         alice.applyPendingCommitIn(mlsGroupId = aliceGroupId)

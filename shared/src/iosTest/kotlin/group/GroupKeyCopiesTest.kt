@@ -25,9 +25,9 @@ private val SEALED = EncryptedFieldDto(ciphertext = "dA==", nonce = "bg==")
 
 /**
  * What becomes of the user's copies of their groups' keys, see [GroupKeyCopies]: sealed so as to
- * open as their own group's alone, opened from what the server lists, and put up wherever the
- * listing shows none, or this device holds a key whose copy has not gone up. The database and
- * the server are stood in for, the sealing is the library's own.
+ * open as their own group's key of their own generation alone, opened from what the server lists,
+ * and put up wherever the listing shows none, or this device holds a key whose copy has not gone
+ * up. The database and the server are stood in for, the sealing is the library's own.
  */
 class GroupKeyCopiesTest {
 
@@ -40,14 +40,43 @@ class GroupKeyCopiesTest {
     @Test
     fun `a copy opens as the key of the group it was sealed for`() = runBlocking<Unit> {
         val groupKey = generateSymmetricEncryptionKey()
-        val copy = assertIs<Result.Success<EncryptedFieldDto>>(keyCopies.seal(groupUuid = GROUP, groupKey = groupKey))
+        val copy = assertIs<Result.Success<EncryptedFieldDto>>(
+            keyCopies.seal(groupUuid = GROUP, groupKey = groupKey, keyGeneration = FIRST_KEY_GENERATION),
+        )
 
-        val opened = assertIs<Result.Success<Map<String, ByteArray>>>(
+        val opened = assertIs<Result.Success<Map<String, GroupKeyGeneration>>>(
             keyCopies.open(listOf(listingOf(GROUP, keyCopy = copy.data))),
         )
 
         assertEquals(setOf(GROUP), opened.data.keys)
-        assertContentEquals(groupKey, opened.data.getValue(GROUP))
+        assertContentEquals(groupKey, opened.data.getValue(GROUP).key)
+    }
+
+    /** What the group is brought back at after a log-out, see [GroupSync]. */
+    @Test
+    fun `a copy opens as the generation it was put up as`() = runBlocking<Unit> {
+        val groupKey = generateSymmetricEncryptionKey()
+        val copy = server.copyOf(groupKey = groupKey, sealedFor = GROUP, keyGeneration = 3)
+
+        val opened = assertIs<Result.Success<Map<String, GroupKeyGeneration>>>(
+            keyCopies.open(listOf(listingOf(GROUP, keyCopy = copy, keyCopyGeneration = 3, keyGeneration = 4))),
+        )
+
+        assertEquals(3L, opened.data.getValue(GROUP).generation)
+        assertContentEquals(groupKey, opened.data.getValue(GROUP).key)
+    }
+
+    /**
+     * As the server listing the copy as a later generation would have it: the key would be taken
+     * for one it is not, and the group sealed under it as that one.
+     */
+    @Test
+    fun `a copy listed as another generation than its own does not open`() = runBlocking<Unit> {
+        val copy = server.copyOf(groupKey = generateSymmetricEncryptionKey(), sealedFor = GROUP, keyGeneration = 2)
+
+        val opened = keyCopies.open(listOf(listingOf(GROUP, keyCopy = copy, keyCopyGeneration = 3, keyGeneration = 3)))
+
+        assertEquals(Result.Success(emptyMap()), opened)
     }
 
     /** As the server moving one group's copy to another would have it: it opens as no group's key. */
@@ -62,7 +91,7 @@ class GroupKeyCopiesTest {
             ),
         )
 
-        assertEquals(setOf(OTHER_GROUP), assertIs<Result.Success<Map<String, ByteArray>>>(opened).data.keys)
+        assertEquals(setOf(OTHER_GROUP), assertIs<Result.Success<Map<String, GroupKeyGeneration>>>(opened).data.keys)
     }
 
     @Test
@@ -89,7 +118,11 @@ class GroupKeyCopiesTest {
 
         assertEquals(
             Result.Error(VaultError.Network(NetworkError.UNREACHABLE)),
-            keyCopies.seal(groupUuid = GROUP, groupKey = generateSymmetricEncryptionKey()),
+            keyCopies.seal(
+                groupUuid = GROUP,
+                groupKey = generateSymmetricEncryptionKey(),
+                keyGeneration = FIRST_KEY_GENERATION,
+            ),
         )
     }
 
@@ -118,20 +151,24 @@ class GroupKeyCopiesTest {
         assertContentEquals(groupKey, server.keyOf(GROUP))
     }
 
-    /** The creator handed over a new key in the group: the copy the server lists holds the one it replaced. */
+    /**
+     * The creator handed over a new key in the group: the copy the server lists holds the one it
+     * replaced, and the new one goes up as the generation it is.
+     */
     @Test
     fun `a key that changed has its copy put up although the listing shows one`() = runBlocking<Unit> {
         val oldKey = generateSymmetricEncryptionKey()
         val newKey = generateSymmetricEncryptionKey()
 
         server.copies[GROUP] = server.copyOf(groupKey = oldKey, sealedFor = GROUP)
-        groups[GROUP] = groupOf(GROUP, groupKey = newKey, isBackedUp = false)
+        groups[GROUP] = groupOf(GROUP, groupKey = newKey, isBackedUp = false, keyGeneration = 2)
 
         assertEquals(
             Result.Success(Unit),
-            keyCopies.putUp(listOf(listingOf(GROUP, keyCopy = server.copies.getValue(GROUP)))),
+            keyCopies.putUp(listOf(listingOf(GROUP, keyCopy = server.copies.getValue(GROUP), keyGeneration = 2))),
         )
 
+        assertEquals(2L, server.generationOf(GROUP))
         assertContentEquals(newKey, server.keyOf(GROUP))
         assertTrue(groups.getValue(GROUP).isBackedUp)
     }
@@ -231,8 +268,16 @@ class GroupKeyCopiesTest {
         assertFalse(groups.getValue(GROUP).isBackedUp)
     }
 
-    /** The group [uuid] as the server lists it to the user, with their copy of its key, [keyCopy], if any. */
-    private fun listingOf(uuid: String, keyCopy: EncryptedFieldDto?) = GroupDto(
+    /**
+     * The group [uuid] as the server lists it to the user, with their copy of its key, [keyCopy], if
+     * any, of the generation [keyCopyGeneration], its key at the generation [keyGeneration].
+     */
+    private fun listingOf(
+        uuid: String,
+        keyCopy: EncryptedFieldDto?,
+        keyCopyGeneration: Long? = keyCopy?.let { FIRST_KEY_GENERATION },
+        keyGeneration: Long = FIRST_KEY_GENERATION,
+    ) = GroupDto(
         uuid = uuid,
         ownerUuid = ALICE,
         creatorUuid = ALICE,
@@ -243,10 +288,18 @@ class GroupKeyCopiesTest {
         signature = SEALED,
         members = listOf(GroupMemberDto(userUuid = ALICE)),
         keyCopy = keyCopy,
+        keyCopyGeneration = keyCopyGeneration,
+        keyGeneration = keyGeneration,
     )
 
-    /** A group of Alice's as this device holds it, under [groupKey]. */
-    private fun groupOf(uuid: String, groupKey: ByteArray, isBackedUp: Boolean, isLeft: Boolean = false) = GroupEntity(
+    /** A group of Alice's as this device holds it, under [groupKey], the generation [keyGeneration] of its keys. */
+    private fun groupOf(
+        uuid: String,
+        groupKey: ByteArray,
+        isBackedUp: Boolean,
+        isLeft: Boolean = false,
+        keyGeneration: Long = FIRST_KEY_GENERATION,
+    ) = GroupEntity(
         uuid = uuid,
         title = "Ski trip",
         description = "",
@@ -255,6 +308,7 @@ class GroupKeyCopiesTest {
         ownerUuid = ALICE,
         mlsGroupId = uuid.encodeToByteArray(),
         groupKey = groupKey,
+        keyGeneration = keyGeneration,
         isBackedUp = isBackedUp,
         isLeft = isLeft,
         handedProfileKeyHash = null,

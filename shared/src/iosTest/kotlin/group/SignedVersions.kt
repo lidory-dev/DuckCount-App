@@ -23,7 +23,8 @@ internal fun GroupFields.sealedAs(
 
 /**
  * The group [uuid] as the server lists it, owned by [ownerUuid] and created by [creatorUuid], with
- * [memberUuids], [version] of its information, and the caller's copy of its key, [keyCopy], if any.
+ * [memberUuids], [version] of its information, the caller's copy of its key, [keyCopy], if any, of
+ * the generation [keyCopyGeneration], and the generation [keyGeneration] its key is at.
  */
 internal fun listedGroupOf(
     uuid: String,
@@ -32,6 +33,8 @@ internal fun listedGroupOf(
     memberUuids: List<String>,
     keyCopy: EncryptedFieldDto? = null,
     creatorUuid: String = ownerUuid,
+    keyGeneration: Long = FIRST_KEY_GENERATION,
+    keyCopyGeneration: Long? = keyCopy?.let { keyGeneration },
 ) = GroupDto(
     uuid = uuid,
     ownerUuid = ownerUuid,
@@ -43,6 +46,8 @@ internal fun listedGroupOf(
     signature = version.signature,
     members = memberUuids.map { GroupMemberDto(userUuid = it) },
     keyCopy = keyCopy,
+    keyCopyGeneration = keyCopyGeneration,
+    keyGeneration = keyGeneration,
 )
 
 /**
@@ -98,6 +103,7 @@ internal fun GroupEntity.showing(version: GroupVersion) = GroupEntity(
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,
+    keyGeneration = keyGeneration,
     isBackedUp = isBackedUp,
     isLeft = isLeft,
     handedProfileKeyHash = handedProfileKeyHash,

@@ -99,6 +99,22 @@ interface GroupListCallBacks {
     suspend fun refreshGroups()
 
     /**
+     * Brings the expenses of the group [uuid] up to date with what its members wrote, as the group
+     * opens, which the group's screens then show, those of a group the user is no longer in staying
+     * as they were.
+     *
+     * Failing is not reported, as for [refreshGroups]: the user keeps seeing what they already had.
+     */
+    suspend fun refreshGroupExpenses(uuid: String)
+
+    /**
+     * Emits how many expenses of the group [uuid] its members wrote that this device cannot read
+     * yet, as it changes: sealed under a key of the group it has yet to get, they are in neither
+     * its list nor its balances, which the group's screen tells the user.
+     */
+    fun getUnreadableExpenseCount(uuid: String): Flow<Int>
+
+    /**
      * Called when the group list is in front of the user.
      */
     fun groupsSeen()

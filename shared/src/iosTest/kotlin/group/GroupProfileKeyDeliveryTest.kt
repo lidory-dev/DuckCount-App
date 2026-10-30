@@ -235,7 +235,11 @@ class GroupProfileKeyDeliveryTest {
         val creation = alice.createGroup(
             groupUuid = groupUuid,
             invitees = (listOf(bob) + others).map { it.inviteeKeyPackage() },
-            welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
+            welcomePayload = welcomePayloadOf(
+                groupKey = groupKey,
+                keyGeneration = FIRST_KEY_GENERATION,
+                profileKeys = emptyMap(),
+            ),
         )
 
         aliceGroups[groupUuid] = creation.mlsGroupId
@@ -265,6 +269,7 @@ class GroupProfileKeyDeliveryTest {
             ownerUuid = ALICE,
             mlsGroupId = bobGroupId,
             groupKey = groupKey,
+            keyGeneration = FIRST_KEY_GENERATION,
             isBackedUp = true,
             isLeft = false,
             handedProfileKeyHash = null,
@@ -282,6 +287,7 @@ private fun GroupEntity.holding(handedProfileKeyHash: String?) = GroupEntity(
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,
+    keyGeneration = keyGeneration,
     isBackedUp = isBackedUp,
     isLeft = isLeft,
     handedProfileKeyHash = handedProfileKeyHash,

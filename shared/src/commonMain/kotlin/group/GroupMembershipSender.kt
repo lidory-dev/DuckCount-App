@@ -3,6 +3,7 @@ package group
 import database.data.local.dao.GroupDao
 import database.data.local.entity.GroupEntity
 import database.data.local.entity.GroupMemberEntity
+import database.data.local.entity.GroupMemberSignatureKeyEntity
 import database.data.local.entity.PendingMembershipChangeEntity
 import database.data.remote.EncryptedFieldDto
 import kotlinx.coroutines.CancellationException
@@ -15,6 +16,8 @@ import mls.discardPendingCommitIn
 import mls.encryptApplicationMessage
 import mls.isRetryable
 import mls.rosterOf
+import push.WakeList
+import uniffi.lib_duckcount.MemberInfo
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
@@ -41,10 +44,13 @@ private const val UNANSWERED_RESEND_SECONDS = 60L
  * may hold:
  * - The server holds the change, now or from an earlier send, see [GroupMembershipAnswer.Made]
  *   and [GroupMembershipAnswer.AlreadyMade]: the Commit is applied, the members are those the
- *   group holds then, and the change goes. An addition is done with then. A removal is followed by
- *   the rotation of the group's key, see [rotate], saved in its place and sent at once, whose being
- *   taken gives the group its new key, backed up already: the rotation carried the creator's copy
- *   of it, see [RotateGroupKeyBody.keyCopy].
+ *   group holds then, the signature key each holds in its tree recorded, see
+ *   [GroupMemberSignatureKeyEntity], who may wake the user rebuilt with them, see [WakeList], and
+ *   the change goes. An addition is done with then. A removal
+ *   is followed by the rotation of the group's key, see [rotate], saved in its place and sent at
+ *   once, whose being taken gives the group its new key, of the next generation, backed up already:
+ *   the rotation carried the creator's copy of it, see [RotateGroupKeyBody.keyCopy]. The key it
+ *   replaces is kept, see [GroupDao.adoptRotatedKey].
  * - The server refused it, writing nothing, see [GroupMembershipAnswer.DeletedMembers] and
  *   [GroupMembershipAnswer.Refused]: the Commit is discarded and the change goes, the group as it
  *   was. Members named as deleted are acted on as any other answer naming them is, see
@@ -66,10 +72,11 @@ private const val UNANSWERED_RESEND_SECONDS = 60L
  * [addMembers], [removeMembers], [rotateKey], [listGroups] and [history] are those of [GroupApi],
  * [group] is [GroupDao.get], [listPending] is [GroupDao.getMembershipChanges], [savePending] is
  * [GroupDao.upsertMembershipChange], [dropPending] is [GroupDao.deleteMembershipChange],
- * [replaceMembers] is [GroupDao.replaceMembers], [adoptKey] is [GroupDao.adoptRotatedKey], [client]
- * is [MlsIdentityRepository.client], [receiveAccountDeletions] is
- * [DirectMessageSender.receiveAccountDeletions] and [sealKeyCopy] is [GroupKeyCopies.seal], or what
- * a test stands in for any of them.
+ * [replaceMembers] is [GroupDao.replaceMembers], [recordSignatureKeys] is
+ * [GroupDao.upsertSignatureKeys], [rebuildWakeList] is [WakeList.rebuild], [adoptKey] is
+ * [GroupDao.adoptRotatedKey], [client] is [MlsIdentityRepository.client], [receiveAccountDeletions]
+ * is [DirectMessageSender.receiveAccountDeletions] and [sealKeyCopy] is [GroupKeyCopies.seal], or
+ * what a test stands in for any of them.
  */
 class GroupMembershipSender internal constructor(
     private val addMembers: suspend (groupUuid: String, body: AddGroupMembersBody) -> GroupMembershipAnswer,
@@ -82,10 +89,16 @@ class GroupMembershipSender internal constructor(
     private val savePending: suspend (change: PendingMembershipChangeEntity) -> Unit,
     private val dropPending: suspend (groupUuid: String) -> Unit,
     private val replaceMembers: suspend (groupUuid: String, members: List<GroupMemberEntity>) -> Unit,
-    private val adoptKey: suspend (groupUuid: String, groupKey: ByteArray) -> Unit,
+    private val recordSignatureKeys: suspend (signatureKeys: List<GroupMemberSignatureKeyEntity>) -> Unit,
+    private val rebuildWakeList: suspend () -> Unit,
+    private val adoptKey: suspend (groupUuid: String, groupKey: ByteArray, keyGeneration: Long) -> Unit,
     private val client: suspend () -> Result<MlsClient, MlsIdentityError>,
     private val receiveAccountDeletions: suspend (userUuids: Collection<String>) -> Unit,
-    private val sealKeyCopy: suspend (groupUuid: String, groupKey: ByteArray) -> Result<EncryptedFieldDto, VaultError>,
+    private val sealKeyCopy: suspend (
+        groupUuid: String,
+        groupKey: ByteArray,
+        keyGeneration: Long,
+    ) -> Result<EncryptedFieldDto, VaultError>,
     private val resendScheduler: ResendScheduler,
 ) {
     constructor(
@@ -94,6 +107,7 @@ class GroupMembershipSender internal constructor(
         groupKeyCopies: GroupKeyCopies,
         mlsIdentityRepository: MlsIdentityRepository,
         directMessageSender: DirectMessageSender,
+        wakeList: WakeList,
         resendScheduler: ResendScheduler,
     ) : this(
         addMembers = groupApi::addMembers,
@@ -106,6 +120,8 @@ class GroupMembershipSender internal constructor(
         savePending = groupDao::upsertMembershipChange,
         dropPending = groupDao::deleteMembershipChange,
         replaceMembers = groupDao::replaceMembers,
+        recordSignatureKeys = groupDao::upsertSignatureKeys,
+        rebuildWakeList = wakeList::rebuild,
         adoptKey = groupDao::adoptRotatedKey,
         client = mlsIdentityRepository::client,
         receiveAccountDeletions = directMessageSender::receiveAccountDeletions,
@@ -218,7 +234,7 @@ class GroupMembershipSender internal constructor(
             roster.hasPendingCommit -> send(change = change, group = group, client = client)
 
             roster.epoch > commitEpoch -> {
-                applied(change = change, group = group, client = client, memberUuids = roster.memberUuids)
+                applied(change = change, group = group, client = client, members = roster.members)
 
                 null
             }
@@ -235,12 +251,12 @@ class GroupMembershipSender internal constructor(
     /** Acts on the server holding [change], see [GroupMembershipSender]. */
     private suspend fun taken(change: PendingMembershipChange, group: GroupEntity, client: MlsClient) {
         if (change is PendingMembershipChange.KeyRotation) {
-            adoptKey(change.groupUuid, change.groupKey)
+            adoptKey(change.groupUuid, change.groupKey, change.body.keyGeneration)
 
             return
         }
 
-        val memberUuids = try {
+        val members = try {
             client.applyPendingCommitIn(mlsGroupId = group.heldMlsGroupId())
         } catch (_: MlsException) {
             // Taken all the same: sent again, it is answered 409, and applied then.
@@ -249,25 +265,32 @@ class GroupMembershipSender internal constructor(
             return
         }
 
-        applied(change = change, group = group, client = client, memberUuids = memberUuids)
+        applied(change = change, group = group, client = client, members = members)
     }
 
     /**
-     * Records the members of [group] once the Commit of [change] is applied, [memberUuids], the
-     * creator their admin, and then drops an addition, or rotates the group's key after a removal,
-     * see [rotate].
+     * Records the members of [group] once the Commit of [change] is applied, [members] as its tree
+     * holds them, the creator their admin, with the signature key each holds there, see
+     * [GroupMemberSignatureKeyEntity], rebuilds who may wake the user with them, see [WakeList],
+     * and then drops an addition, or rotates the group's key after a removal, see [rotate]. The
+     * keys recorded for those a removal took out stay; they themselves go from the wake list there
+     * and then, unless they are contacts or in another of the user's groups.
      */
     private suspend fun applied(
         change: PendingMembershipChange,
         group: GroupEntity,
         client: MlsClient,
-        memberUuids: List<String>,
+        members: List<MemberInfo>,
     ) {
-        val members = memberUuids.map {
-            GroupMemberEntity(userUuid = it, groupUuid = group.uuid, isAdmin = it == group.ownerUuid)
+        val rows = members.map {
+            GroupMemberEntity(userUuid = it.userUuid, groupUuid = group.uuid, isAdmin = it.userUuid == group.ownerUuid)
         }
 
-        replaceMembers(group.uuid, members)
+        replaceMembers(group.uuid, rows)
+
+        recordSignatureKeys(members.signatureKeysIn(groupUuid = group.uuid))
+
+        rebuildWakeList()
 
         when (change) {
             is PendingMembershipChange.Removal -> rotate(group = group, client = client)
@@ -276,11 +299,18 @@ class GroupMembershipSender internal constructor(
     }
 
     /**
-     * Rotates the key of [group], whose removal was just applied: a new key, handed over in an MLS
-     * application message the members it removed cannot read, sent in the epoch the removal took
-     * the group to, see [groupKeyMessageOf], and the group's information sealed under it in place
-     * of what the removed members can open. Saved in place of the removal before it is sent, see
-     * [send].
+     * Rotates the key of [group], whose removal was just applied: a new key, the generation after
+     * the one the group holds, see [GroupEntity.keyGeneration], handed over in an MLS application
+     * message the members it removed cannot read, sent in the epoch the removal took the group to,
+     * see [groupKeyMessageOf], and the group's information sealed under it in place of what the
+     * removed members can open. Saved in place of the removal before it is sent, see [send].
+     *
+     * The key it replaces goes with it, sealed under the new one as the link at its generation of
+     * the chain back through the group's keys, see [sealKeyLink] and [RotateGroupKeyBody.previousKey]:
+     * nothing else sealed under the old key is sealed again, the group's expenses staying under the
+     * generation each was written in, and a member added after the rotation, handed the new key
+     * alone, gets the old one back through the chain, see [GroupKeyChain]. The members it removed
+     * never get the new key, nor so the link, nor anything sealed under either.
      *
      * The version sealed again is the one the server holds, opened with the key it is sealed under,
      * and signed again as the revision it is, so that the rotation changes nothing of it, as the
@@ -350,6 +380,16 @@ class GroupMembershipSender internal constructor(
             ?: GroupFields(title = group.title, description = group.description, currency = group.currency)
         val revision = serverVersion?.revision ?: group.infoRevision
         val groupKey = generateSymmetricEncryptionKey()
+        val keyGeneration = group.keyGeneration + 1
+
+        val previousKey = checkNotNull(
+            sealKeyLink(
+                previousKey = group.groupKey,
+                groupKey = groupKey,
+                groupUuid = group.uuid,
+                generation = keyGeneration,
+            ),
+        ) { "A key from generateSymmetricEncryptionKey seals." }
 
         val sealedVersion = checkNotNull(
             fields.signedAs(client = client, groupUuid = group.uuid, revision = revision)
@@ -369,14 +409,17 @@ class GroupMembershipSender internal constructor(
             )
         }
 
-        val keyCopy = keyCopyOf(groupUuid = group.uuid, groupKey = groupKey) ?: run {
+        val keyCopy = keyCopyOf(groupUuid = group.uuid, groupKey = groupKey, keyGeneration = keyGeneration) ?: run {
             resendScheduler.resendAfter(seconds = UNANSWERED_RESEND_SECONDS)
 
             return
         }
 
         val keyMessage = try {
-            client.encryptApplicationMessage(mlsGroupId = group.heldMlsGroupId(), payload = groupKeyMessageOf(groupKey))
+            client.encryptApplicationMessage(
+                mlsGroupId = group.heldMlsGroupId(),
+                payload = groupKeyMessageOf(groupKey = groupKey, keyGeneration = keyGeneration),
+            )
         } catch (exception: MlsException) {
             if (exception.isRetryable()) {
                 resendScheduler.resendAfter(seconds = UNANSWERED_RESEND_SECONDS)
@@ -398,6 +441,8 @@ class GroupMembershipSender internal constructor(
                 signature = sealedVersion.signature,
                 keyCopy = keyCopy,
                 previous = previous,
+                keyGeneration = keyGeneration,
+                previousKey = previousKey,
             ),
             groupKey = groupKey,
         )
@@ -410,15 +455,15 @@ class GroupMembershipSender internal constructor(
     }
 
     /**
-     * The creator's copy of [groupKey] as the new key of the group [groupUuid], see
-     * [GroupKeyCopies.seal], or null when the key ring cannot be read: a locked device's included,
-     * whose reads of it throw rather than fail. The removal the server took is made all the same,
-     * its rotation left to the next sync, where the throw would crash the removal the user asked
-     * for, or stop the sync's pass.
+     * The creator's copy of [groupKey] as the new key of the group [groupUuid], the generation
+     * [keyGeneration] of its keys, see [GroupKeyCopies.seal], or null when the key ring cannot be
+     * read: a locked device's included, whose reads of it throw rather than fail. The removal the
+     * server took is made all the same, its rotation left to the next sync, where the throw would
+     * crash the removal the user asked for, or stop the sync's pass.
      */
-    private suspend fun keyCopyOf(groupUuid: String, groupKey: ByteArray): EncryptedFieldDto? =
+    private suspend fun keyCopyOf(groupUuid: String, groupKey: ByteArray, keyGeneration: Long): EncryptedFieldDto? =
         try {
-            (sealKeyCopy(groupUuid, groupKey) as? Result.Success)?.data
+            (sealKeyCopy(groupUuid, groupKey, keyGeneration) as? Result.Success)?.data
         } catch (exception: CancellationException) {
             // The caller going away, which the catch below would otherwise take for a locked
             // device, a CancellationException being an IllegalStateException.

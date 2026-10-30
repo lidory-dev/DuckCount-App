@@ -48,6 +48,8 @@
     <string name="write_error_server_unreachable">Server is unreachable, please try again later</string>
     <string name="write_error_invalid_data">This expense is invalid</string>
     <string name="write_error_conflict">The maximum number of edits has been reached</string>
+    <string name="write_error_changed_meanwhile">Another member changed this expense in the meantime: check its latest version, then try again</string>
+    <string name="write_error_deleted_meanwhile">Another member deleted this expense in the meantime</string>
     <string name="write_error_unauthorized">Your session expired, please log in again</string>
     <string name="write_error_unknown">Something went wrong, please try again</string>
     <string name="unknown_person">Someone else</string>
@@ -61,6 +63,8 @@
         <item quantity="other">%1$d beneficiaries deleted their accounts</item>
     </plurals>
     <string name="write_error_group_left">You’re no longer a member of this group</string>
+    <string name="write_error_creation_pending">The group is still being created, please try again in a moment</string>
+    <string name="write_error_rate_limited">Too many changes, please try again later</string>
 
     <!-- ErrorCard -->
     <string name="no_beneficiaries">An expense must have at least one beneficiary</string>
@@ -96,4 +100,6 @@
 
     <!-- ExpenseHistoryScreen -->
     <string name="created_by">Created by %1$s</string>
+    <string name="deleted_by">Deleted by %1$s</string>
+    <string name="restored_by">Restored by %1$s</string>
 </resources>

@@ -61,7 +61,11 @@ class GroupSyncDepartedMembersTest {
     private val creation = alice.createGroup(
         groupUuid = GROUP,
         invitees = listOf(bob.inviteeKeyPackage(), carol.inviteeKeyPackage(), dave.inviteeKeyPackage()),
-        welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
+        welcomePayload = welcomePayloadOf(
+            groupKey = groupKey,
+            keyGeneration = FIRST_KEY_GENERATION,
+            profileKeys = emptyMap(),
+        ),
     )
 
     /**
@@ -126,8 +130,10 @@ class GroupSyncDepartedMembersTest {
         savePending = { change -> pending[change.groupUuid] = change },
         dropPending = { pending.remove(it) },
         replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
-        adoptKey = { groupUuid, key ->
-            groups[groupUuid] = groups.getValue(groupUuid).with(groupKey = key)
+        recordSignatureKeys = {},
+        rebuildWakeList = {},
+        adoptKey = { groupUuid, key, keyGeneration ->
+            groups[groupUuid] = groups.getValue(groupUuid).with(groupKey = key, keyGeneration = keyGeneration)
             pending.remove(groupUuid)
         },
         client = { Result.Success(alice) },
@@ -181,10 +187,11 @@ class GroupSyncDepartedMembersTest {
         leave = { error("Alice declines nothing here.") },
         isUnblockedContact = { it in setOf(BOB, CAROL, DAVE) },
         client = { Result.Success(alice) },
-        save = { _, _ -> error("Alice joins nothing here.") },
+        save = { _, _, _, _ -> error("Alice joins nothing here.") },
         memberUuidsOf = { groupUuid -> members[groupUuid].orEmpty().map { it.userUuid } },
         replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
-        updateKey = { _, _ -> error("Nobody hands Alice a key here.") },
+        recordSignatureKeys = {},
+        takeKeys = { _, _ -> error("Nobody hands Alice a key here.") },
         updateInformation = { _, _ -> error("Alice edits nothing here.") },
         markLeft = { error("Nobody removes Alice here.") },
         recordDeclined = { error("Alice declines nothing here.") },
@@ -200,6 +207,7 @@ class GroupSyncDepartedMembersTest {
         readMemberNames = { Result.Success(Unit) },
         backUpMemberProfiles = { Result.Success(Unit) },
         handOutProfileKey = { Result.Success(Unit) },
+        rebuildWakeList = {},
         resendScheduler = resends,
     )
 
@@ -408,7 +416,11 @@ class GroupSyncDepartedMembersTest {
             val bobsCreation = bob.createGroup(
                 groupUuid = OTHER_GROUP,
                 invitees = listOf(alice.inviteeKeyPackage(), carol.inviteeKeyPackage()),
-                welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = emptyMap()),
+                welcomePayload = welcomePayloadOf(
+                    groupKey = groupKey,
+                    keyGeneration = FIRST_KEY_GENERATION,
+                    profileKeys = emptyMap(),
+                ),
             )
             val aliceInBobs = alice.joinGroup(
                 welcome = bobsCreation.welcome,
@@ -481,6 +493,7 @@ class GroupSyncDepartedMembersTest {
         ownerUuid = ownerUuid,
         mlsGroupId = mlsGroupId,
         groupKey = groupKey,
+        keyGeneration = FIRST_KEY_GENERATION,
         isBackedUp = true,
         isLeft = false,
         handedProfileKeyHash = null,
@@ -494,7 +507,7 @@ private fun rowsOf(vararg userUuids: String, groupUuid: String = GROUP, creatorU
     userUuids.map { GroupMemberEntity(userUuid = it, groupUuid = groupUuid, isAdmin = it == creatorUuid) }
 
 /** [this] as `GroupDao.adoptRotatedKey` leaves it. */
-private fun GroupEntity.with(groupKey: ByteArray) = GroupEntity(
+private fun GroupEntity.with(groupKey: ByteArray, keyGeneration: Long) = GroupEntity(
     uuid = uuid,
     title = title,
     description = description,
@@ -503,6 +516,7 @@ private fun GroupEntity.with(groupKey: ByteArray) = GroupEntity(
     ownerUuid = ownerUuid,
     mlsGroupId = mlsGroupId,
     groupKey = groupKey,
+    keyGeneration = keyGeneration,
     isBackedUp = false,
     isLeft = isLeft,
     handedProfileKeyHash = handedProfileKeyHash,

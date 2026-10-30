@@ -427,6 +427,7 @@ class GroupEditorTest {
         ownerUuid = ALICE,
         mlsGroupId = mlsGroupId,
         groupKey = groupKey,
+        keyGeneration = FIRST_KEY_GENERATION,
         isBackedUp = true,
         isLeft = false,
         handedProfileKeyHash = null,

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "3065c976acd560576846074e07ba61c9",
+    "identityHash": "a68fce3e8ea5469c22f40589931d8a49",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -42,7 +42,7 @@
       },
       {
         "tableName": "ExpenseEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `timestamp` TEXT NOT NULL, `description` TEXT NOT NULL, `amount` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `isSettlement` INTEGER NOT NULL, `currency` TEXT NOT NULL, `groupUuid` TEXT, `isDeleted` INTEGER NOT NULL, `revision` INTEGER, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `timestamp` TEXT NOT NULL, `description` TEXT NOT NULL, `amount` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `isSettlement` INTEGER NOT NULL, `currency` TEXT NOT NULL, `groupUuid` TEXT, `isDeleted` INTEGER NOT NULL, `revision` INTEGER, `authorUuid` TEXT, PRIMARY KEY(`uuid`))",
         "fields": [
           {
             "fieldPath": "uuid",
@@ -107,6 +107,11 @@
             "fieldPath": "revision",
             "columnName": "revision",
             "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "authorUuid",
+            "columnName": "authorUuid",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -191,7 +196,7 @@
       },
       {
         "tableName": "GroupEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `currency` TEXT NOT NULL, `infoRevision` INTEGER NOT NULL, `ownerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `groupKey` BLOB NOT NULL, `isBackedUp` INTEGER NOT NULL, `isLeft` INTEGER NOT NULL, `handedProfileKeyHash` TEXT, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `currency` TEXT NOT NULL, `infoRevision` INTEGER NOT NULL, `ownerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `groupKey` BLOB NOT NULL, `keyGeneration` INTEGER NOT NULL, `isBackedUp` INTEGER NOT NULL, `isLeft` INTEGER NOT NULL, `handedProfileKeyHash` TEXT, `hasTakenInExpenses` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
         "fields": [
           {
             "fieldPath": "uuid",
@@ -241,6 +246,12 @@
             "notNull": true
           },
           {
+            "fieldPath": "keyGeneration",
+            "columnName": "keyGeneration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
             "fieldPath": "isBackedUp",
             "columnName": "isBackedUp",
             "affinity": "INTEGER",
@@ -256,6 +267,12 @@
             "fieldPath": "handedProfileKeyHash",
             "columnName": "handedProfileKeyHash",
             "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "hasTakenInExpenses",
+            "columnName": "hasTakenInExpenses",
+            "affinity": "INTEGER",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -293,6 +310,68 @@
           "columnNames": [
             "userUuid",
             "groupUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "GroupKeyEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `generation` INTEGER NOT NULL, `groupKey` BLOB NOT NULL, PRIMARY KEY(`groupUuid`, `generation`))",
+        "fields": [
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generation",
+            "columnName": "generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "groupKey",
+            "columnName": "groupKey",
+            "affinity": "BLOB",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "groupUuid",
+            "generation"
+          ]
+        }
+      },
+      {
+        "tableName": "GroupMemberSignatureKeyEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `userUuid` TEXT NOT NULL, `signatureKey` BLOB NOT NULL, PRIMARY KEY(`groupUuid`, `userUuid`))",
+        "fields": [
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userUuid",
+            "columnName": "userUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "signatureKey",
+            "columnName": "signatureKey",
+            "affinity": "BLOB",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "groupUuid",
+            "userUuid"
           ]
         }
       },
@@ -649,7 +728,7 @@
         }
       },
       {
-        "tableName": "OneTimeExpenseRevisionEntity",
+        "tableName": "ExpenseRevisionEntity",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `newestRevision` INTEGER NOT NULL, PRIMARY KEY(`expenseUuid`))",
         "fields": [
           {
@@ -888,6 +967,62 @@
         }
       },
       {
+        "tableName": "ListedGroupExpenseEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `expenseUuid` TEXT NOT NULL, `json` TEXT NOT NULL, PRIMARY KEY(`groupUuid`, `expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "groupUuid",
+            "expenseUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "UnreadableGroupExpenseEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `expenseUuid` TEXT NOT NULL, PRIMARY KEY(`groupUuid`, `expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "groupUuid",
+            "expenseUuid"
+          ]
+        }
+      },
+      {
         "tableName": "ChangeFeedEntity",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`feed` TEXT NOT NULL, `token` TEXT NOT NULL, PRIMARY KEY(`feed`))",
         "fields": [
@@ -996,7 +1131,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3065c976acd560576846074e07ba61c9')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a68fce3e8ea5469c22f40589931d8a49')"
     ]
   }
 }

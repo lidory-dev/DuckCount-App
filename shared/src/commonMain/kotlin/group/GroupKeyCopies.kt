@@ -19,8 +19,12 @@ import vault.unsealBound
  * once read: without these, nothing would open a group's fields again.
  *
  * Each copy is the bare key, sealed under the user's [VaultEntryKey.GROUP_MASTER_KEY] key, which
- * only their key ring holds, and bound to its group, see [copyContextOf]. The server lists the
- * user's own with each group, see [GroupDto.keyCopy], and never reads one.
+ * only their key ring holds, and bound to its group and to the generation it is of the group's
+ * keys, see [copyContextOf]. The server lists the user's own with each group, with that
+ * generation, see [GroupDto.keyCopy] and [GroupDto.keyCopyGeneration], and never reads one. One
+ * copy per group, of the newest key the user held as it went up: the older generations a copy
+ * brought back does not hold are got back through the chain of links that leads back from it, see
+ * [GroupKeyChain].
  *
  * The creator's copy goes up with the group as it is created, see [CreateGroupBody.keyCopy], and
  * with every key rotation they make, see [RotateGroupKeyBody.keyCopy]. Every other member puts up
@@ -33,7 +37,11 @@ import vault.unsealBound
  */
 class GroupKeyCopies internal constructor(
     private val sealingKey: suspend () -> Result<ByteArray, VaultError>,
-    private val saveCopy: suspend (groupUuid: String, keyCopy: EncryptedFieldDto) -> EmptyResult<NetworkError>,
+    private val saveCopy: suspend (
+        groupUuid: String,
+        keyCopy: EncryptedFieldDto,
+        keyGeneration: Long,
+    ) -> EmptyResult<NetworkError>,
     private val storedGroups: suspend () -> List<GroupEntity>,
     private val markBackedUp: suspend (groupUuid: String) -> Unit,
 ) {
@@ -49,34 +57,39 @@ class GroupKeyCopies internal constructor(
     )
 
     /**
-     * Seals [groupKey] as the user's copy of the key of the group [groupUuid], for the server to
-     * keep with it.
+     * Seals [groupKey], the generation [keyGeneration] of the keys of the group [groupUuid], as the
+     * user's copy of its key, for the server to keep with it.
      *
      * The key ring holds the key it is sealed under before the copy can leave this device, see
      * [VaultRepository.getOrCreatePartKey]: one sealed under a key that exists only in memory would
      * open for nobody, ever.
      */
-    suspend fun seal(groupUuid: String, groupKey: ByteArray): Result<EncryptedFieldDto, VaultError> {
+    suspend fun seal(
+        groupUuid: String,
+        groupKey: ByteArray,
+        keyGeneration: Long,
+    ): Result<EncryptedFieldDto, VaultError> {
         val key = when (val read = sealingKey()) {
             is Result.Success -> read.data
             is Result.Error -> return read
         }
 
-        return sealKeyCopy(sealingKey = key, groupUuid = groupUuid, groupKey = groupKey)
+        return sealKeyCopy(sealingKey = key, groupUuid = groupUuid, groupKey = groupKey, keyGeneration = keyGeneration)
             ?.let { Result.Success(it) }
             ?: Result.Error(VaultError.Crypto)
     }
 
     /**
-     * The key each of [groups] carries the user's copy of, by group UUID, of those whose copy opens
-     * as that group's: one the server moved there from another group does not, see
-     * [copyContextOf], nor one tampered with, and either is left out, as though the server held
-     * none.
+     * The key each of [groups] carries the user's copy of, with the generation the server lists it
+     * as, by group UUID, of those whose copy opens as that group's key of that generation: one the
+     * server moved there from another group does not, see [copyContextOf], nor one it lists as
+     * another generation than its own, nor one tampered with, and each is left out, as though the
+     * server held none.
      *
      * Reads the key ring only when one of them carries a copy: most syncs bring nothing back.
      */
-    suspend fun open(groups: List<GroupDto>): Result<Map<String, ByteArray>, VaultError> {
-        val copies = groups.mapNotNull { group -> group.keyCopy?.let { group.uuid to it } }
+    internal suspend fun open(groups: List<GroupDto>): Result<Map<String, GroupKeyGeneration>, VaultError> {
+        val copies = groups.filter { it.keyCopy != null }
 
         if (copies.isEmpty()) return Result.Success(emptyMap())
 
@@ -86,8 +99,12 @@ class GroupKeyCopies internal constructor(
         }
 
         return Result.Success(
-            copies.mapNotNull { (groupUuid, copy) ->
-                copy.openKeyCopy(sealingKey = key, groupUuid = groupUuid)?.let { groupUuid to it }
+            copies.mapNotNull { group ->
+                val keyGeneration = group.keyCopyGeneration ?: return@mapNotNull null
+
+                group.keyCopy
+                    ?.openKeyCopy(sealingKey = key, groupUuid = group.uuid, keyGeneration = keyGeneration)
+                    ?.let { group.uuid to GroupKeyGeneration(generation = keyGeneration, key = it) }
             }.toMap(),
         )
     }
@@ -132,10 +149,14 @@ class GroupKeyCopies internal constructor(
         }
 
         for (group in owed) {
-            val copy = sealKeyCopy(sealingKey = key, groupUuid = group.uuid, groupKey = group.groupKey)
-                ?: return Result.Error(GroupSyncError.Vault(VaultError.Crypto))
+            val copy = sealKeyCopy(
+                sealingKey = key,
+                groupUuid = group.uuid,
+                groupKey = group.groupKey,
+                keyGeneration = group.keyGeneration,
+            ) ?: return Result.Error(GroupSyncError.Vault(VaultError.Crypto))
 
-            when (val saved = saveCopy(group.uuid, copy)) {
+            when (val saved = saveCopy(group.uuid, copy, group.keyGeneration)) {
                 is Result.Success -> markBackedUp(group.uuid)
 
                 // Out of this group alone, see above: the next one is seen to all the same.
@@ -150,23 +171,34 @@ class GroupKeyCopies internal constructor(
 }
 
 /**
- * What the user's copy of the key of the group [groupUuid] is bound to, see [sealBound].
+ * What the user's copy of the generation [keyGeneration] of the key of the group [groupUuid] is
+ * bound to, see [sealBound].
  *
  * Every copy of theirs is sealed under the same key, so without it the server could list one
  * group's copy with another group, and it would open all the same, as the key of a group it is not.
+ * Naming the generation does the same for the generation the server lists it as, see
+ * [GroupDto.keyCopyGeneration]: the key would otherwise be taken for that of another generation,
+ * under which nothing it was sealed for opens, and the group sealed under it as that one.
  */
-private fun copyContextOf(groupUuid: String) = "group_key_copy:$groupUuid"
+private fun copyContextOf(groupUuid: String, keyGeneration: Long) = "group_key_copy:$groupUuid:$keyGeneration"
 
 /**
- * Seals [groupKey] under [sealingKey] as the user's copy of the key of the group [groupUuid], see
- * [GroupKeyCopies], or returns null when [sealingKey] is not a 32-byte key.
+ * Seals [groupKey], the generation [keyGeneration] of the keys of the group [groupUuid], under
+ * [sealingKey] as the user's copy of its key, see [GroupKeyCopies], or returns null when
+ * [sealingKey] is not a 32-byte key.
  */
-internal fun sealKeyCopy(sealingKey: ByteArray, groupUuid: String, groupKey: ByteArray): EncryptedFieldDto? =
-    sealBound(key = sealingKey, context = copyContextOf(groupUuid), plaintext = groupKey)
+internal fun sealKeyCopy(
+    sealingKey: ByteArray,
+    groupUuid: String,
+    groupKey: ByteArray,
+    keyGeneration: Long,
+): EncryptedFieldDto? =
+    sealBound(key = sealingKey, context = copyContextOf(groupUuid, keyGeneration), plaintext = groupKey)
 
 /**
- * Opens this copy of the key of the group [groupUuid] with [sealingKey], or returns null when it
- * does not open as that group's, see [GroupKeyCopies.open].
+ * Opens this copy of the generation [keyGeneration] of the key of the group [groupUuid] with
+ * [sealingKey], or returns null when it does not open as that group's key of that generation, see
+ * [GroupKeyCopies.open].
  */
-internal fun EncryptedFieldDto.openKeyCopy(sealingKey: ByteArray, groupUuid: String): ByteArray? =
-    unsealBound(key = sealingKey, context = copyContextOf(groupUuid), content = this)
+internal fun EncryptedFieldDto.openKeyCopy(sealingKey: ByteArray, groupUuid: String, keyGeneration: Long): ByteArray? =
+    unsealBound(key = sealingKey, context = copyContextOf(groupUuid, keyGeneration), content = this)

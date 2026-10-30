@@ -23,6 +23,9 @@ import uniffi.lib_duckcount.Currency as CurrencyUniffi
 import expense.OneTimeExpenseHistoryError
 import expense.OneTimeExpenseVersion
 import expense.OneTimeExpenseWriteError
+import group.GroupExpenseHistoryEntry
+import group.GroupExpenseHistoryError
+import group.GroupExpenseWriteError
 import mls.MlsIdentityError
 import vault.VaultError
 
@@ -155,6 +158,87 @@ fun OneTimeExpenseHistoryError.toExpenseHistoryError(isOnline: Boolean): Expense
         OneTimeExpenseHistoryError.Unreadable -> ExpenseHistoryError.UNKNOWN
     }
 
+/**
+ * Why a write of a group expense failed, as the UI explains it, with the wordings the form and the
+ * detail screen have for a one-time expense's, and what has no wording of its own as unknown: a
+ * settlement written by anybody but its recipient among them, which the screens never offer. A
+ * group the user is no longer in has one, and so has another member's edit made first, the device
+ * showing their version from then on, and so have a creation the group waits on and the server's
+ * limit, which the user waits out.
+ */
+fun GroupExpenseWriteError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError =
+    when (this) {
+        is GroupExpenseWriteError.Network -> error.toExpenseWriteError(isOnline = isOnline)
+
+        // As for a one-time expense, the identity is where being offline shows first.
+        is GroupExpenseWriteError.Identity -> OneTimeExpenseWriteError.Identity(error).toExpenseWriteError(
+            isOnline = isOnline,
+        )
+
+        GroupExpenseWriteError.NoSession -> ExpenseWriteError.UNAUTHORIZED
+
+        GroupExpenseWriteError.NotMember -> ExpenseWriteError.GROUP_LEFT
+
+        GroupExpenseWriteError.Conflict -> ExpenseWriteError.CHANGED_MEANWHILE
+
+        GroupExpenseWriteError.CreationPending -> ExpenseWriteError.CREATION_PENDING
+
+        is GroupExpenseWriteError.RateLimited -> ExpenseWriteError.RATE_LIMITED
+
+        GroupExpenseWriteError.SettlementLocked,
+        GroupExpenseWriteError.NotShown,
+        GroupExpenseWriteError.Crypto,
+        GroupExpenseWriteError.KeyNotCurrent,
+            -> ExpenseWriteError.UNKNOWN
+    }
+
+/** Why saving the expense form of a group failed, as the form explains it, see [toExpenseWriteError]. */
+fun GroupExpenseWriteError.toExpenseSaveError(isOnline: Boolean): ExpenseSaveError =
+    when (this) {
+        GroupExpenseWriteError.NotMember -> ExpenseSaveError.GroupLeft
+        else -> ExpenseSaveError.Write(error = toExpenseWriteError(isOnline = isOnline))
+    }
+
+/** Why the history of a group expense could not be read, as the UI explains it, see [toExpenseHistoryError]. */
+fun GroupExpenseHistoryError.toExpenseHistoryError(isOnline: Boolean): ExpenseHistoryError =
+    when (this) {
+        is GroupExpenseHistoryError.Network -> OneTimeExpenseHistoryError.Network(error).toExpenseHistoryError(
+            isOnline = isOnline,
+        )
+
+        // Opening the user's identity reads the vault from the server, every time until it first
+        // opens in the process: a history asked for while the server has been out of reach since
+        // the app opened fails here, before any request of its own is sent.
+        is GroupExpenseHistoryError.Identity -> when (val identityError = error) {
+            is MlsIdentityError.Vault -> when (val vaultError = identityError.error) {
+                is VaultError.Network -> OneTimeExpenseHistoryError.Network(vaultError.error).toExpenseHistoryError(
+                    isOnline = isOnline,
+                )
+
+                else -> ExpenseHistoryError.UNKNOWN
+            }
+
+            MlsIdentityError.MissingSession,
+            MlsIdentityError.Crypto,
+                -> ExpenseHistoryError.UNKNOWN
+        }
+
+        GroupExpenseHistoryError.NoSession,
+        GroupExpenseHistoryError.NotShown,
+        GroupExpenseHistoryError.NotMember,
+        GroupExpenseHistoryError.Storage,
+            -> ExpenseHistoryError.UNKNOWN
+    }
+
+/** A version of a group expense as the history screen shows it, by whoever signed it. */
+fun GroupExpenseHistoryEntry.toExpenseListModel(): ExpenseVersion = ExpenseVersion(
+    revision = revision,
+    expense = expense.toExpenseListModel(),
+    authorUuid = authorUuid,
+    isCreation = isCreation,
+    madeAt = madeAt,
+)
+
 fun OneTimeExpenseVersion.toExpenseListModel(): ExpenseVersion = ExpenseVersion(
     revision = revision,
     expense = expense.toExpenseListModel(),
@@ -237,6 +321,7 @@ fun ExpenseWithBeneficiariesDB.toExpenseListModel(): ExpenseWithBeneficiaries = 
     isDeleted = isDeleted,
     isSettled = isSettled,
     settledAt = settledAt,
+    revision = revision,
 )
 
 fun ExpenseWithBeneficiaries.toDb(): ExpenseWithBeneficiariesDB = ExpenseWithBeneficiariesDB(
@@ -250,6 +335,7 @@ fun ExpenseWithBeneficiaries.toDb(): ExpenseWithBeneficiariesDB = ExpenseWithBen
     currency = currency.toDb(),
     beneficiaries = beneficiaries.map { it.toDb() },
     groupUuid = groupUuid,
+    revision = revision,
 )
 
 /** Runs shared expense validation and maps the resulting error to a string resource id, or null. */

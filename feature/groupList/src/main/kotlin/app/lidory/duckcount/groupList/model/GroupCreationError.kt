@@ -42,6 +42,18 @@ enum class GroupCreationFailure {
     /** The server is unreachable. */
     SERVER_UNREACHABLE,
 
+    /**
+     * The user is no longer a member of the group, which the server says as soon as its creator's
+     * removal is taken, before this device's next sync reads it and makes the group read-only.
+     */
+    GROUP_LEFT,
+
+    /**
+     * The server takes no more writes from the user for now, as many as it allows having come
+     * first: one goes through again once the time it says is up.
+     */
+    RATE_LIMITED,
+
     /** Anything else: nothing the user can act on, and nothing worth explaining in detail. */
     UNKNOWN,
 }
@@ -69,6 +81,8 @@ fun GroupCreationFailure.messageRes(): Int = when (this) {
     GroupCreationFailure.NO_INTERNET -> R.string.group_creation_error_no_internet
     GroupCreationFailure.TIMEOUT -> R.string.group_creation_error_timeout
     GroupCreationFailure.SERVER_UNREACHABLE -> R.string.group_creation_error_server_unreachable
+    GroupCreationFailure.GROUP_LEFT -> R.string.left_group_notice
+    GroupCreationFailure.RATE_LIMITED -> R.string.group_creation_error_rate_limited
     GroupCreationFailure.UNKNOWN -> R.string.group_creation_error_unknown
 }
 

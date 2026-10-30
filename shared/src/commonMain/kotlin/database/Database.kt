@@ -15,6 +15,7 @@ import database.data.local.dao.ExpenseDao
 import database.data.local.dao.GroupDao
 import database.data.local.dao.GroupMemberDao
 import database.data.local.dao.IdentityConflictDao
+import database.data.local.dao.ListedGroupExpenseDao
 import database.data.local.dao.ListedOneTimeExpenseDao
 import database.data.local.dao.LocalDataDao
 import database.data.local.dao.MemberProfileDao
@@ -32,15 +33,18 @@ import database.data.local.entity.CurrencyEntity
 import database.data.local.entity.DeclinedGroupEntity
 import database.data.local.entity.DirectChannelEntity
 import database.data.local.entity.ExpenseEntity
+import database.data.local.entity.ExpenseRevisionEntity
 import database.data.local.entity.GroupEntity
+import database.data.local.entity.GroupKeyEntity
 import database.data.local.entity.GroupMemberEntity
+import database.data.local.entity.GroupMemberSignatureKeyEntity
 import database.data.local.entity.IdentityConflictEntity
 import database.data.local.entity.KeyRequestBudgetEntity
+import database.data.local.entity.ListedGroupExpenseEntity
 import database.data.local.entity.ListedOneTimeExpenseEntity
 import database.data.local.entity.MemberProfileEntity
 import database.data.local.entity.MlsRecordEntity
 import database.data.local.entity.OneTimeExpenseKeyEntity
-import database.data.local.entity.OneTimeExpenseRevisionEntity
 import database.data.local.entity.OneTimeExpenseSettledMarkEntity
 import database.data.local.entity.OutgoingContactRequestEntity
 import database.data.local.entity.OwedExpenseKeyEntity
@@ -49,6 +53,7 @@ import database.data.local.entity.PendingGroupCreationEntity
 import database.data.local.entity.PendingMembershipChangeEntity
 import database.data.local.entity.PendingProfileKeyEntity
 import database.data.local.entity.ProfileKeyRequestBudgetEntity
+import database.data.local.entity.UnreadableGroupExpenseEntity
 import database.data.local.entity.UnverifiedExpenseKeyEntity
 import database.data.local.entity.UserEntity
 import eu.anifantakis.lib.ksafe.KSafe
@@ -66,6 +71,8 @@ import org.koin.mp.KoinPlatform.getKoin
         BeneficiaryEntity::class,
         GroupEntity::class,
         GroupMemberEntity::class,
+        GroupKeyEntity::class,
+        GroupMemberSignatureKeyEntity::class,
         PendingGroupCreationEntity::class,
         PendingMembershipChangeEntity::class,
         DeclinedGroupEntity::class,
@@ -76,7 +83,7 @@ import org.koin.mp.KoinPlatform.getKoin
         IdentityConflictEntity::class,
         OneTimeExpenseKeyEntity::class,
         UnverifiedExpenseKeyEntity::class,
-        OneTimeExpenseRevisionEntity::class,
+        ExpenseRevisionEntity::class,
         OneTimeExpenseSettledMarkEntity::class,
         PendingExpenseKeyEntity::class,
         KeyRequestBudgetEntity::class,
@@ -84,6 +91,8 @@ import org.koin.mp.KoinPlatform.getKoin
         ProfileKeyRequestBudgetEntity::class,
         OwedExpenseKeyEntity::class,
         ListedOneTimeExpenseEntity::class,
+        ListedGroupExpenseEntity::class,
+        UnreadableGroupExpenseEntity::class,
         ChangeFeedEntity::class,
         MlsRecordEntity::class,
         MemberProfileEntity::class,
@@ -108,6 +117,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract val pendingProfileKeyDao: PendingProfileKeyDao
     abstract val owedExpenseKeyDao: OwedExpenseKeyDao
     abstract val listedOneTimeExpenseDao: ListedOneTimeExpenseDao
+    abstract val listedGroupExpenseDao: ListedGroupExpenseDao
     abstract val mlsRecordDao: MlsRecordDao
     abstract val memberProfileDao: MemberProfileDao
 

@@ -93,7 +93,11 @@ class GroupCreator internal constructor(
     ) -> Unit,
     private val bookResend: suspend () -> Unit,
     private val send: suspend (pendingCreation: PendingGroupCreationEntity) -> GroupCreationAnswer,
-    private val sealKeyCopy: suspend (groupUuid: String, groupKey: ByteArray) -> Result<EncryptedFieldDto, VaultError>,
+    private val sealKeyCopy: suspend (
+        groupUuid: String,
+        groupKey: ByteArray,
+        keyGeneration: Long,
+    ) -> Result<EncryptedFieldDto, VaultError>,
     private val ownProfileKey: suspend () -> ByteArray?,
     private val contactProfileKey: suspend (userUuid: String) -> ByteArray?,
     private val learnedProfileKey: suspend (userUuid: String) -> ByteArray?,
@@ -189,7 +193,7 @@ class GroupCreator internal constructor(
         // The creator's copy of the key, which the creation carries, see CreateGroupBody.keyCopy:
         // sealed before any key package is asked for, which a key ring not answering would spend
         // for nothing.
-        val keyCopy = when (val sealed = sealKeyCopy(groupUuid, groupKey)) {
+        val keyCopy = when (val sealed = sealKeyCopy(groupUuid, groupKey, FIRST_KEY_GENERATION)) {
             is Result.Success -> sealed.data
             is Result.Error -> return Result.Error(GroupCreationError.Vault(sealed.error))
         }
@@ -272,9 +276,10 @@ class GroupCreator internal constructor(
 
     /**
      * Builds the MLS group of the user, [selfUuid], and the owners of [keyPackages], under the id
-     * the library derives from [groupUuid], handing them [groupKey] in the Welcome, with
-     * [profileKeys], the key to the profile of each member this device holds, see
-     * [welcomePayloadOf]: the id already binds the Welcome to [groupUuid], see [GroupSync]. Then
+     * the library derives from [groupUuid], handing them [groupKey] in the Welcome as the first
+     * generation of its keys, see [FIRST_KEY_GENERATION], with [profileKeys], the key to the
+     * profile of each member this device holds, see [welcomePayloadOf]: the id already binds the
+     * Welcome to [groupUuid], see [GroupSync]. Then
      * saves it as that group, see [GroupDao.insertCreated], holding the user's own key among
      * [profileKeys] for them, see [GroupEntity.handedProfileKeyHash], with the request that creates
      * it on the server, which it returns: sending [nonce], from which the server derives
@@ -302,7 +307,11 @@ class GroupCreator internal constructor(
             client.createGroupOf(
                 groupUuid = groupUuid,
                 invitees = keyPackages,
-                welcomePayload = welcomePayloadOf(groupKey = groupKey, profileKeys = profileKeys),
+                welcomePayload = welcomePayloadOf(
+                    groupKey = groupKey,
+                    keyGeneration = FIRST_KEY_GENERATION,
+                    profileKeys = profileKeys,
+                ),
             )
         } catch (exception: MlsException) {
             return Result.Error(
@@ -342,9 +351,14 @@ class GroupCreator internal constructor(
             ownerUuid = selfUuid,
             mlsGroupId = creation.mlsGroupId,
             groupKey = groupKey,
+            keyGeneration = FIRST_KEY_GENERATION,
             isBackedUp = false,
             isLeft = false,
             handedProfileKeyHash = profileKeys[selfUuid]?.let { profileEncryptionKeyPartialHash(it) },
+            // Nothing written in it the user has yet to see: none of its members writes anything
+            // before the server takes its creation, see GroupExpenseWriter, and whatever they write
+            // after is news to the user.
+            hasTakenInExpenses = true,
         )
 
         val members = listOf(GroupMemberEntity(userUuid = selfUuid, groupUuid = groupUuid, isAdmin = true)) +

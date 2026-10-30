@@ -399,6 +399,7 @@ class GroupHistoryTest {
         ownerUuid = ALICE,
         mlsGroupId = GROUP.encodeToByteArray(),
         groupKey = groupKey,
+        keyGeneration = FIRST_KEY_GENERATION,
         isBackedUp = true,
         isLeft = isLeft,
         handedProfileKeyHash = null,

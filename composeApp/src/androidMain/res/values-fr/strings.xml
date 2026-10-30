@@ -62,5 +62,25 @@
     <string name="push_group_removed_text">%1$s vient de vous retirer du groupe «\u00A0%2$s\u00A0»</string>
     <string name="push_group_removed_text_unknown">Quelqu’un vient de vous retirer du groupe «\u00A0%1$s\u00A0»</string>
     <string name="push_group_removed_text_locked">Quelqu’un vient de vous retirer d’un groupe</string>
+    <string name="push_group_expense_added_title">Nouvelle dépense de groupe</string>
+    <string name="push_group_expense_added_text_locked">Quelqu’un a ajouté une dépense dans l’un de vos groupes</string>
+    <string name="push_group_expense_changed_title">Dépense de groupe mise à jour</string>
+    <string name="push_group_expense_changed_text_locked">Une dépense de l’un de vos groupes a été mise à jour</string>
+    <string name="push_group_expense_added">%1$s a ajouté «\u00A0%2$s\u00A0» dans %3$s</string>
+    <string name="push_group_expense_added_unknown">Quelqu’un a ajouté «\u00A0%1$s\u00A0» dans %2$s</string>
+    <string name="push_group_expense_edited">%1$s a modifié «\u00A0%2$s\u00A0» dans %3$s</string>
+    <string name="push_group_expense_edited_unknown">Quelqu’un a modifié «\u00A0%1$s\u00A0» dans %2$s</string>
+    <string name="push_group_expense_deleted">%1$s a supprimé «\u00A0%2$s\u00A0» dans %3$s</string>
+    <string name="push_group_expense_deleted_unknown">Quelqu’un a supprimé «\u00A0%1$s\u00A0» dans %2$s</string>
+    <string name="push_group_expense_restored">%1$s a restauré «\u00A0%2$s\u00A0» dans %3$s</string>
+    <string name="push_group_expense_restored_unknown">Quelqu’un a restauré «\u00A0%1$s\u00A0» dans %2$s</string>
+    <string name="push_group_settlement_added">%1$s a enregistré votre remboursement de %2$s dans %3$s</string>
+    <string name="push_group_settlement_added_unknown">Quelqu’un a enregistré votre remboursement de %1$s dans %2$s</string>
+    <string name="push_group_settlement_deleted">%1$s a supprimé votre remboursement de %2$s dans %3$s</string>
+    <string name="push_group_settlement_deleted_unknown">Quelqu’un a supprimé votre remboursement de %1$s dans %2$s</string>
+    <plurals name="push_group_expense_summary">
+        <item quantity="one">%1$d dépense de groupe mise à jour</item>
+        <item quantity="other">%1$d dépenses de groupe mises à jour</item>
+    </plurals>
     <string name="settings">Paramètres</string>
 </resources>

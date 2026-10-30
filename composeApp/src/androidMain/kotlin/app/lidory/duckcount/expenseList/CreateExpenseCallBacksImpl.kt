@@ -21,7 +21,6 @@ import database.domain.currencyDisplayName
 import expense.OneTimeExpenseWriteError
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import util.Result
 
@@ -57,18 +56,13 @@ class CreateExpenseCallBacksImpl(
     }
 
     override suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseSaveError? {
-        // Group expense: local-only write. Returning early is essential, the one-time
-        // branch below must not also run (it would POST the expense to the server and
-        // insert a second local copy).
         val groupUuid = expenseWithBeneficiaries.groupUuid
 
         if (groupUuid != null) {
-            // Read-only once the user is no longer a member of the group, removed or left, which
-            // a sync can read with the form open.
-            if (groupRepository.isLeft(uuid = groupUuid).first()) return ExpenseSaveError.GroupLeft
-
-            expenseRepository.insertWithBeneficiaries(expenseWithBeneficiaries.toDb())
-            return null
+            return when (val result = expenseRepository.createGroupExpense(groupUuid, expenseWithBeneficiaries.toDb())) {
+                is Result.Success -> null
+                is Result.Error -> result.error.toExpenseSaveError(isOnline = networkConnectivity.isOnline())
+            }
         }
 
         // One-time expense: online-first write-through.
@@ -91,17 +85,13 @@ class CreateExpenseCallBacksImpl(
     }
 
     override suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseSaveError? {
-        // Group expense: local-only write. Returning early is essential, the one-time
-        // branch below must not also run (it would PUT the expense to the server).
         val groupUuid = expenseWithBeneficiaries.groupUuid
 
         if (groupUuid != null) {
-            // Read-only once the user is no longer a member of the group, removed or left, which
-            // a sync can read with the form open.
-            if (groupRepository.isLeft(uuid = groupUuid).first()) return ExpenseSaveError.GroupLeft
-
-            expenseRepository.updateWithBeneficiaries(expenseWithBeneficiaries.toDb())
-            return null
+            return when (val result = expenseRepository.updateGroupExpense(groupUuid, expenseWithBeneficiaries.toDb())) {
+                is Result.Success -> null
+                is Result.Error -> result.error.toExpenseSaveError(isOnline = networkConnectivity.isOnline())
+            }
         }
 
         // One-time expense: online-first write-through.
