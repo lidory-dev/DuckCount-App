@@ -18,10 +18,11 @@ private const val GROUP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 private const val OTHER_GROUP = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 
 /**
- * The pages of a group's list of expenses, see [ExpenseDao.groupPagingSource], read from the
- * database itself one after another, as the list reads them.
+ * The pages of the lists of expenses, a group's, see [ExpenseDao.groupPagingSource], and the
+ * one-time one, see [ExpenseDao.pagingSource], read from the database itself one after another, as
+ * the lists read them.
  */
-class GroupExpensePagingTest {
+class ExpensePagingTest {
 
     @Test
     fun `a group's list holds its own expenses newest first and the deleted ones too`() = runBlocking<Unit> {
@@ -66,6 +67,37 @@ class GroupExpensePagingTest {
                 assertEquals(
                     listOf("newest", "a", "b", "c", "d", "e", "oldest"),
                     database.expenseDao.groupPagingSource(groupUuid = GROUP).readAll(pageSize = pageSize),
+                    "Pages of $pageSize",
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `the one-time list holds the one-time expenses newest first and no group's`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.expenseDao.insert(expenseOf(uuid = "older", timestamp = "2026-10-29T08:00:00", groupUuid = null))
+            database.expenseDao.insert(expenseOf(uuid = "group", timestamp = "2026-10-30T19:45:00"))
+            database.expenseDao.insert(expenseOf(uuid = "newest", timestamp = "2026-10-30T21:10:00", groupUuid = null))
+
+            assertEquals(listOf("newest", "older"), database.expenseDao.pagingSource().readAll(pageSize = 20))
+        }
+    }
+
+    /** The same pages as a group's list is read in, above, and for the same reason. */
+    @Test
+    fun `one-time expenses of the same time come once each and in one order whatever the pages`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.expenseDao.insert(expenseOf(uuid = "newest", timestamp = "2026-10-30T21:10:00", groupUuid = null))
+            listOf("d", "b", "e", "a", "c").forEach { uuid ->
+                database.expenseDao.insert(expenseOf(uuid = uuid, timestamp = "2026-10-30T19:45:00", groupUuid = null))
+            }
+            database.expenseDao.insert(expenseOf(uuid = "oldest", timestamp = "2026-10-29T08:00:00", groupUuid = null))
+
+            (1..4).forEach { pageSize ->
+                assertEquals(
+                    listOf("newest", "a", "b", "c", "d", "e", "oldest"),
+                    database.expenseDao.pagingSource().readAll(pageSize = pageSize),
                     "Pages of $pageSize",
                 )
             }

@@ -19,8 +19,13 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ExpenseDao {
+    /**
+     * The one-time expenses, newest first.
+     *
+     * Two made at the same time are ordered by UUID, as a group's are, see [groupPagingSource].
+     */
     @Transaction
-    @Query("SELECT * FROM ExpenseEntity WHERE groupUuid IS NULL ORDER BY timestamp DESC")
+    @Query("SELECT * FROM ExpenseEntity WHERE groupUuid IS NULL ORDER BY timestamp DESC, uuid")
     fun pagingSource(): PagingSource<Int, ExpenseWithBeneficiariesEntity>
 
     /**
