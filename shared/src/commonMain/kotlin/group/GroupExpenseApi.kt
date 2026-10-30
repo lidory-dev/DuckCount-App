@@ -30,7 +30,7 @@ private val conflictJson = Json { ignoreUnknownKeys = true }
 /**
  * Remote data source for the expenses of the caller's groups: creating one, updating one with its
  * next version, a deletion and a restore among them, reading a group's listing whole and then what
- * changed in it, and the versions an expense's updates replaced.
+ * changed in it, and the versions of an expense the server keeps.
  *
  * Every version is sealed on its author's device under the group's key, which the server never
  * holds, and signed by them, see [sealGroupExpense], so the server learns which groups have how
@@ -78,16 +78,17 @@ class GroupExpenseApi(
         )
 
     /**
-     * The versions of the expense [expenseUuid] of the group [groupUuid] its updates replaced,
-     * newest first, nine at most, each sealed under its own generation of the group's key. A `404`
-     * is a caller who is no current member of the group, an expense the group does not have, or the
-     * proxy in front of the server answering as it is redeployed.
+     * The versions of the expense [expenseUuid] of the group [groupUuid] the server keeps, see
+     * [GroupExpenseHistoryResponse]: the one it stands at and the nine its updates last replaced,
+     * newest first, each sealed under its own generation of the group's key, with when the server
+     * took it. A `404` is a caller who is no current member of the group, an expense the group does
+     * not have, or the proxy in front of the server answering as it is redeployed.
      */
     suspend fun history(
         groupUuid: String,
         expenseUuid: String,
-    ): Result<List<GroupExpenseHistoryVersionDto>, NetworkError> =
-        client.get<List<GroupExpenseHistoryVersionDto>>(
+    ): Result<GroupExpenseHistoryResponse, NetworkError> =
+        client.get<GroupExpenseHistoryResponse>(
             route = DuckCountRoutes.Group.EXPENSE_HISTORY,
             pathParams = mapOf("group_uuid" to groupUuid, "expense_uuid" to expenseUuid),
         )

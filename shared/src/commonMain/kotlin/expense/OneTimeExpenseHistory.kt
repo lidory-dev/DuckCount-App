@@ -131,10 +131,11 @@ internal fun oneTimeExpenseHistory(
 /**
  * This instant in [timeZone], or null when no date can be written for it there: an instant
  * parses up to a billion years either way, further than a date goes, and the server's word is
- * all that says when an edit was made.
+ * all that says when an edit was made, of a one-time expense as of a group's, see
+ * [group.GroupExpenseHistory].
  */
 @OptIn(ExperimentalTime::class)
-private fun Instant.toLocalDateTimeOrNull(timeZone: TimeZone): LocalDateTime? =
+internal fun Instant.toLocalDateTimeOrNull(timeZone: TimeZone): LocalDateTime? =
     try {
         toLocalDateTime(timeZone)
     } catch (_: DateTimeArithmeticException) {

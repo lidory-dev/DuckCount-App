@@ -16,6 +16,12 @@ internal val GROUP_CURRENCY = CurrencyCatalog.defaultCurrency
 
 private val listingJson = Json { encodeDefaults = true }
 
+/** When the server takes a version a test gives no time for, as the API writes every time it serves. */
+private const val REVISED_AT = "2026-10-30T19:45:00.000Z"
+
+/** How many of the versions an expense's updates replaced the server keeps, the newest. */
+private const val KEPT_PREVIOUS_VERSIONS = 9
+
 /**
  * An expense of the group [groupUuid] paid by [creditorUuid], [amount] split between [shares],
  * each fixed or not: what a member's form makes of one.
@@ -76,9 +82,10 @@ internal fun ExpenseWithBeneficiaries.listedAs(
 /**
  * What the server holds of the expenses of one group, and serves as the API does: the listing,
  * newest first, and its feed of changes, each on one page or [pageSize] at a time, the feed made by
- * the first listing and answering `409` for any token until then or once it [restartFeed]s, and
- * the writes, taken as the API takes them, a create's UUID derived from its nonce as
- * [uuidsByNonce] says the caller's device drew it.
+ * the first listing and answering `409` for any token until then or once it [restartFeed]s, each
+ * expense's history, the version it stands at and the nine its updates last replaced, each with
+ * when it was taken, and the writes, taken as the API takes them, a create's UUID derived from its
+ * nonce as [uuidsByNonce] says the caller's device drew it.
  */
 internal class GroupExpenseServer {
 
@@ -88,7 +95,10 @@ internal class GroupExpenseServer {
     /** The version each expense stands at, by UUID, in the order the creates were taken. */
     val expenses = linkedMapOf<String, ListedGroupExpenseDto>()
 
-    /** The versions each expense's updates replaced, newest first. */
+    /** When the server took the version each expense stands at, by UUID. */
+    private val takenAt = mutableMapOf<String, String>()
+
+    /** The versions each expense's updates replaced, newest first, each with when the server took it. */
     val history = mutableMapOf<String, MutableList<GroupExpenseHistoryVersionDto>>()
 
     /** The UUID each nonce derives, as the caller's device drew the two. */
@@ -122,20 +132,17 @@ internal class GroupExpenseServer {
         changes.clear()
     }
 
-    /** Takes [version] as the one its expense stands at, the one before it kept in its history, and records it in the feed. */
-    fun put(version: ListedGroupExpenseDto) {
+    /**
+     * Takes [version] as the one its expense stands at, at [revisedAt], the one before it kept in
+     * its history, and records it in the feed.
+     */
+    fun put(version: ListedGroupExpenseDto, revisedAt: String = REVISED_AT) {
         expenses[version.uuid]?.let { replaced ->
-            history.getOrPut(version.uuid) { mutableListOf() }.add(
-                0,
-                GroupExpenseHistoryVersionDto(
-                    revision = replaced.revision,
-                    keyGeneration = replaced.keyGeneration,
-                    content = replaced.content,
-                ),
-            )
+            history.getOrPut(version.uuid) { mutableListOf() }.add(0, replaced.asVersion(revisedAt = takenAt.getValue(version.uuid)))
         }
 
         expenses[version.uuid] = version
+        takenAt[version.uuid] = revisedAt
         changes += version.uuid
     }
 
@@ -228,12 +235,17 @@ internal class GroupExpenseServer {
         return answered()
     }
 
-    fun history(expenseUuid: String): Result<List<GroupExpenseHistoryVersionDto>, NetworkError> =
-        if (expenseUuid in expenses) {
-            Result.Success(history[expenseUuid].orEmpty().toList())
-        } else {
-            Result.Error(NetworkError.NOT_FOUND)
-        }
+    /** The version the expense [expenseUuid] stands at, and those its updates replaced that the server keeps. */
+    fun history(expenseUuid: String): Result<GroupExpenseHistoryResponse, NetworkError> {
+        val current = expenses[expenseUuid] ?: return Result.Error(NetworkError.NOT_FOUND)
+
+        return Result.Success(
+            GroupExpenseHistoryResponse(
+                current = current.asVersion(revisedAt = takenAt.getValue(expenseUuid)),
+                previous = history[expenseUuid].orEmpty().take(KEPT_PREVIOUS_VERSIONS),
+            ),
+        )
+    }
 
     /** The page of the listing from the expense at [position] on, and the cursor of the next one, if any. */
     private fun listingFrom(position: Int): Pair<List<JsonObject>, String?> {
@@ -255,4 +267,12 @@ internal class GroupExpenseServer {
 
     private fun ListedGroupExpenseDto.toJson() =
         listingJson.encodeToJsonElement(ListedGroupExpenseDto.serializer(), this).jsonObject
+
+    /** This version as the history serves it, taken at [revisedAt]. */
+    private fun ListedGroupExpenseDto.asVersion(revisedAt: String) = GroupExpenseHistoryVersionDto(
+        revision = revision,
+        keyGeneration = keyGeneration,
+        content = content,
+        revisedAt = revisedAt,
+    )
 }

@@ -7,17 +7,21 @@ import database.data.local.entity.ExpenseWithBeneficiariesEntity
 import database.data.local.entity.GroupEntity
 import database.data.mappers.toExpenseWithBeneficiaries
 import database.domain.ExpenseWithBeneficiaries
+import expense.toLocalDateTimeOrNull
 import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
 import mls.MlsIdentityError
 import mls.MlsIdentityRepository
 import uniffi.lib_duckcount.MlsClient
 import util.Error
 import util.NetworkError
 import util.Result
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 /**
  * One version of a group expense as its history tells it: what it said, which revision it is, who
- * wrote it, whether it is the expense as it was created, and, for that one, when, see
+ * wrote it, whether it is the expense as it was created, and when it was made, see
  * [GroupExpenseHistory].
  */
 class GroupExpenseHistoryEntry(
@@ -34,7 +38,9 @@ class GroupExpenseHistoryEntry(
 
     /**
      * For the version created, the expense's own date, as its author's clock read it, written with
-     * no time zone; null for any other: the server says nothing of when an update was made.
+     * no time zone. For any other, when the server says it took it, in the device's time zone, see
+     * [GroupExpenseHistoryVersionDto.revisedAt]. Null when not known: the server lists that version
+     * no longer, or what it says is not a time.
      */
     val madeAt: LocalDateTime?,
 )
@@ -79,13 +85,23 @@ sealed interface GroupExpenseHistoryError : Error {
  * and none from after the version shown: the server answers with what it holds now, which can be
  * ahead of what this device has caught up with.
  *
+ * The version the expense was created as was made when its own date says. Any other was made when
+ * the server says it took it, which it lists for the version the expense stands at as for those it
+ * keeps from before, see [GroupExpenseHistoryResponse]: the version shown is one or the other, as
+ * this device is up to date with the expense or behind it, and is made at no known time once the
+ * server keeps it no longer, this device being more than nine revisions behind. The two are not
+ * told on the same clock: the expense's date carries no time zone, so it is taken as written, while
+ * the server's is an instant, told in [timeZone]. They disagree for somebody whose time zone is not
+ * the author's.
+ *
  * Read from the server every time, as a group's information's is, see [GroupHistory], and under no
  * lock, as it writes nothing but the keys the chain leads back to, see [GroupKeyChain].
  *
  * [userUuid] is [getAuthenticatedUserUuid], [shown] is [ExpenseDao.getWithBeneficiaries], [group]
  * is [GroupDao.get], [client] is [MlsIdentityRepository.client], [history] is
- * [GroupExpenseApi.history], [keyOf] is [GroupKeyChain.keyOf] and [recorded] is
- * [GroupDao.getMemberSignatureKey], or what a test stands in for any of them.
+ * [GroupExpenseApi.history], [keyOf] is [GroupKeyChain.keyOf], [recorded] is
+ * [GroupDao.getMemberSignatureKey] and [timeZone] is [TimeZone.currentSystemDefault], or what a
+ * test stands in for any of them.
  */
 class GroupExpenseHistory internal constructor(
     private val userUuid: () -> String?,
@@ -95,9 +111,10 @@ class GroupExpenseHistory internal constructor(
     private val history: suspend (
         groupUuid: String,
         expenseUuid: String,
-    ) -> Result<List<GroupExpenseHistoryVersionDto>, NetworkError>,
+    ) -> Result<GroupExpenseHistoryResponse, NetworkError>,
     private val keyOf: suspend (groupUuid: String, generation: Long) -> Result<ByteArray, GroupKeyChainError>,
     private val recorded: suspend (groupUuid: String, userUuid: String) -> ByteArray?,
+    private val timeZone: () -> TimeZone,
 ) {
     constructor(
         groupExpenseApi: GroupExpenseApi,
@@ -113,6 +130,7 @@ class GroupExpenseHistory internal constructor(
         history = groupExpenseApi::history,
         keyOf = groupKeyChain::keyOf,
         recorded = groupDao::getMemberSignatureKey,
+        timeZone = { TimeZone.currentSystemDefault() },
     )
 
     /** The versions of the group expense [expenseUuid] its history shows, see [GroupExpenseHistory]. */
@@ -144,7 +162,7 @@ class GroupExpenseHistory internal constructor(
             recorded = recorded,
         )
 
-        val earlier = listed
+        val earlier = listed.previous
             .filter { it.revision < shownRevision }
             .mapNotNull { version ->
                 val opening = opener.open(
@@ -169,6 +187,11 @@ class GroupExpenseHistory internal constructor(
             OpenedGroupExpense(expense = shown.toExpenseWithBeneficiaries(), revision = shownRevision, authorUuid = shownAuthor),
         ) + earlier
 
+        // When the server took each version, the one the expense stands at included: the version
+        // shown, when this device is up to date.
+        val timed = listOf(listed.current) + listed.previous
+        val timeZone = timeZone()
+
         return Result.Success(
             versions.map { version ->
                 val isCreation = version.revision == FIRST_GROUP_EXPENSE_REVISION
@@ -178,9 +201,21 @@ class GroupExpenseHistory internal constructor(
                     revision = version.revision,
                     authorUuid = version.authorUuid,
                     isCreation = isCreation,
-                    madeAt = if (isCreation) LocalDateTime.Formats.ISO.parseOrNull(version.expense.timestamp) else null,
+                    madeAt = if (isCreation) {
+                        LocalDateTime.Formats.ISO.parseOrNull(version.expense.timestamp)
+                    } else {
+                        timed.firstOrNull { it.revision == version.revision }?.revisedAtIn(timeZone)
+                    },
                 )
             },
         )
     }
 }
+
+/**
+ * When the server says it took this version, in [timeZone], or null when what it says is not a
+ * time, see [GroupExpenseHistoryVersionDto.revisedAt].
+ */
+@OptIn(ExperimentalTime::class)
+private fun GroupExpenseHistoryVersionDto.revisedAtIn(timeZone: TimeZone): LocalDateTime? =
+    Instant.parseOrNull(revisedAt)?.toLocalDateTimeOrNull(timeZone)

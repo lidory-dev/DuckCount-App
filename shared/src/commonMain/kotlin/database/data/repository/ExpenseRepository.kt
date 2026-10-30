@@ -496,7 +496,7 @@ class ExpenseRepository(
 
     /**
      * The versions of the group expense [uuid]: the one this device shows, then each one from
-     * before it that the server keeps, newest first, each with who wrote it, see
+     * before it that the server keeps, newest first, each with who wrote it and when, see
      * [GroupExpenseHistory].
      */
     suspend fun getGroupExpenseHistory(

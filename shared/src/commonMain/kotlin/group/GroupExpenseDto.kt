@@ -119,9 +119,21 @@ data class ListGroupExpenseChangesResponse(
 )
 
 /**
- * Mirrors the server's `GroupExpenseVersion`: a version of a group expense one of its updates
- * replaced, as `GET /groups/{group_uuid}/expenses/{expense_uuid}/history` lists them, sealed as it
- * was stored, under its own generation of the group's key, see [ListedGroupExpenseDto].
+ * Body of `GET /groups/{group_uuid}/expenses/{expense_uuid}/history`: the versions of a group
+ * expense the server keeps, [current], the one its listing and changes list, and [previous], those
+ * its updates replaced, newest first, the last nine of them, see [GroupExpenseHistory].
+ */
+@Serializable
+data class GroupExpenseHistoryResponse(
+    val current: GroupExpenseHistoryVersionDto,
+
+    val previous: List<GroupExpenseHistoryVersionDto>,
+)
+
+/**
+ * Mirrors the server's `GroupExpenseVersion`: one version of a group expense as its history holds
+ * it, see [GroupExpenseHistoryResponse], sealed as it was stored, under its own generation of the
+ * group's key, see [ListedGroupExpenseDto], and when the server took it.
  */
 @Serializable
 data class GroupExpenseHistoryVersionDto(
@@ -131,6 +143,14 @@ data class GroupExpenseHistoryVersionDto(
     val keyGeneration: Long,
 
     val content: EncryptedFieldDto,
+
+    /**
+     * When the server took this version, as the expense was created or the update that made it
+     * was, RFC 3339 in UTC to the millisecond, as the API writes it: the server's word, which
+     * nothing signs.
+     */
+    @SerialName("revised_at")
+    val revisedAt: String,
 )
 
 /**
