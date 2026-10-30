@@ -32,4 +32,13 @@ public extension CreateExpenseFormState {
 
     /// `description` without the whitespace around it, as `trimmedTitle` is `title`.
     var trimmedDescription: String { description.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// How long `trimmedTitle` is against `maxTitleLength`: in UTF-16 units, the unit every text
+    /// limit of the app is counted in, as Android counts it and a receiving device checks it. Not
+    /// in `Character`s, of which an emoji is one but two units, and a flag one but four, so that a
+    /// title within the limit here would be past it everywhere else.
+    var titleLength: Int { trimmedTitle.utf16.count }
+
+    /// How long `trimmedDescription` is against `maxDescriptionLength`, counted as `titleLength`.
+    var descriptionLength: Int { trimmedDescription.utf16.count }
 }

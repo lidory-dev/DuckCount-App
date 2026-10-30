@@ -28,15 +28,15 @@ public struct CreateExpenseView<ViewModel: CreateExpenseFormState>: View {
                         Spacer()
                         // Counted as it is saved, without the whitespace around it, as Save
                         // counts it, see canSave.
-                        Text("\(viewModel.trimmedTitle.count) / \(viewModel.maxTitleLength)")
+                        Text("\(viewModel.titleLength) / \(viewModel.maxTitleLength)")
                             .monospacedDigit()
                             .foregroundStyle(
-                                viewModel.trimmedTitle.count > viewModel.maxTitleLength
+                                viewModel.titleLength > viewModel.maxTitleLength
                                     ? Color.red
                                     : Color.secondary
                             )
                             .contentTransition(.numericText())
-                            .animation(.snappy, value: viewModel.trimmedTitle.count)
+                            .animation(.snappy, value: viewModel.titleLength)
                     }
                 }
 
@@ -94,15 +94,15 @@ public struct CreateExpenseView<ViewModel: CreateExpenseFormState>: View {
                     HStack {
                         Spacer()
                         // Counted as the title is.
-                        Text("\(viewModel.trimmedDescription.count) / \(viewModel.maxDescriptionLength)")
+                        Text("\(viewModel.descriptionLength) / \(viewModel.maxDescriptionLength)")
                             .monospacedDigit()
                             .foregroundStyle(
-                                viewModel.trimmedDescription.count > viewModel.maxDescriptionLength
+                                viewModel.descriptionLength > viewModel.maxDescriptionLength
                                     ? Color.red
                                     : Color.secondary
                             )
                             .contentTransition(.numericText())
-                            .animation(.snappy, value: viewModel.trimmedDescription.count)
+                            .animation(.snappy, value: viewModel.descriptionLength)
                     }
                 }
 
@@ -172,8 +172,8 @@ public struct CreateExpenseView<ViewModel: CreateExpenseFormState>: View {
 
     private var canSave: Bool {
         viewModel.error == nil
-            && (1...viewModel.maxTitleLength) ~= viewModel.trimmedTitle.count
-            && (0...viewModel.maxDescriptionLength) ~= viewModel.trimmedDescription.count
+            && (1...viewModel.maxTitleLength) ~= viewModel.titleLength
+            && (0...viewModel.maxDescriptionLength) ~= viewModel.descriptionLength
             && !viewModel.amount.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
