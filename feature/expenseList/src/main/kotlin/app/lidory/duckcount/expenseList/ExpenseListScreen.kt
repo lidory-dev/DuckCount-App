@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
@@ -47,32 +46,20 @@ fun ExpenseListScreen(
     viewModel: ExpenseListViewModel = expenseListViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val oneTimeExpenses = viewModel.oneTimeExpenses
 
-    if (oneTimeExpenses != null) {
-        PagedOneTimeExpenseList(
-            modifier = modifier,
-            lazyItems = oneTimeExpenses.collectAsLazyPagingItems(),
-            connectedUserUuid = state.connectedUserUuid,
-            onExpenseClicked = onExpenseClicked,
-            viewModel = viewModel,
-        )
-    } else {
-        // Group tab: plain (non-paged) list.
-        // TODO: It should be paged too.
-        GroupedExpenseList(
-            modifier = modifier,
-            expenses = state.expenses,
-            connectedUserUuid = state.connectedUserUuid,
-            onExpenseClicked = onExpenseClicked,
-            viewModel = viewModel,
-        )
-    }
+    PagedExpenseList(
+        modifier = modifier,
+        lazyItems = viewModel.expenses.collectAsLazyPagingItems(),
+        connectedUserUuid = state.connectedUserUuid,
+        onExpenseClicked = onExpenseClicked,
+        viewModel = viewModel,
+    )
 }
 
+/** The one-time expenses or a group's, as [ExpenseListViewModel.expenses] pages them. */
 @OptIn(ExperimentalUuidApi::class)
 @Composable
-private fun PagedOneTimeExpenseList(
+private fun PagedExpenseList(
     modifier: Modifier,
     lazyItems: LazyPagingItems<ExpenseWithBeneficiaries>,
     connectedUserUuid: String,
@@ -81,20 +68,23 @@ private fun PagedOneTimeExpenseList(
 ) {
     val listState = rememberLazyListState()
 
-    // The first item is the newest day's header, which stays first when an expense arrives:
-    // see its key below.
-    //
-    // A value rather than a delegate, so the effect below takes down what it put up. Through
-    // a delegate, its clean-up would read the value as it is by then, which is the opposite.
-    val showsNewest = remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }.value
+    // Of the one-time expenses alone, see [ExpenseListViewModel.onNewestShown].
+    if (viewModel.isOneTime) {
+        // The first item is the newest day's header, which stays first when an expense arrives:
+        // see its key below.
+        //
+        // A value rather than a delegate, so the effect below takes down what it put up. Through
+        // a delegate, its clean-up would read the value as it is by then, which is the opposite.
+        val showsNewest = remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }.value
 
-    // Only while the newest expenses are on screen, since that is where an arriving one goes
-    // in. Scrolled down, it goes in out of sight, and a notification is how the user learns
-    // of it.
-    LifecycleResumeEffect(viewModel, showsNewest) {
-        if (showsNewest) viewModel.onNewestShown()
+        // Only while the newest expenses are on screen, since that is where an arriving one goes
+        // in. Scrolled down, it goes in out of sight, and a notification is how the user learns
+        // of it.
+        LifecycleResumeEffect(viewModel, showsNewest) {
+            if (showsNewest) viewModel.onNewestShown()
 
-        onPauseOrDispose { if (showsNewest) viewModel.onNewestHidden() }
+            onPauseOrDispose { if (showsNewest) viewModel.onNewestHidden() }
+        }
     }
 
     when {
@@ -182,73 +172,12 @@ private fun PagedOneTimeExpenseList(
  * tells somebody with a hundred of them that they have none. When that copy is empty, the
  * server has to have answered too: that is somebody who just signed in, and their expenses
  * are on the way.
+ *
+ * A group's list has no mediator to wait for: opening the group syncs its expenses, and what
+ * that stores comes in as it is stored.
  */
 private val CombinedLoadStates.isSettled: Boolean
     get() = source.refresh is LoadState.NotLoading && mediator?.refresh !is LoadState.Loading
-
-@OptIn(ExperimentalUuidApi::class)
-@Composable
-private fun GroupedExpenseList(
-    modifier: Modifier,
-    expenses: List<ExpenseWithBeneficiaries>,
-    connectedUserUuid: String,
-    onExpenseClicked: (String, String?) -> Unit,
-    viewModel: ExpenseListViewModel,
-) {
-    // The groupBy convert the timestamp on LocalDate object during grouping.
-    val groupedExpenseList = remember(expenses) {
-        expenses
-            .sortedByDescending { it.timestamp }
-            .groupBy { LocalDateTime.parse(it.timestamp).date }
-    }
-
-    if (expenses.isEmpty()) {
-        EmptyContentContainer(
-            icon = androidUiR.drawable.ic_receipt_long,
-            text = R.string.no_expenses_yet,
-        )
-    } else {
-        LazyColumn(
-            modifier = modifier
-                .clipScrollableContainer(orientation = Orientation.Vertical)
-                .padding(
-                    top = Padding.medium,
-                    start = Padding.medium,
-                    end = Padding.medium,
-                ),
-        ) {
-            groupedExpenseList.forEach { (date, expensesForDate) ->
-                stickyHeader {
-                    StickyHeaderElevated(
-                        modifier = Modifier
-                            .padding(bottom = Padding.medium),
-                        date = date,
-                    )
-                }
-
-                items(
-                    items = expensesForDate,
-                    key = { expense -> expense.uuid },
-                ) { expense ->
-                    ExpenseListItem(
-                        expense = expense,
-                        connectedUserUuid = connectedUserUuid,
-                        onExpenseClicked = onExpenseClicked,
-                        viewModel = viewModel,
-                    )
-                }
-
-                item {
-                    Spacer(modifier = Modifier.padding(bottom = Padding.large))
-                }
-            }
-
-            item {
-                Spacer(modifier = Modifier.padding(bottom = 70.dp))
-            }
-        }
-    }
-}
 
 @Composable
 private fun ExpenseListItem(

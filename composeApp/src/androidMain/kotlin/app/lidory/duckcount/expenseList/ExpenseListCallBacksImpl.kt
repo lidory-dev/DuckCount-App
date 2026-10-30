@@ -28,6 +28,11 @@ class ExpenseListCallBacksImpl(
             .map { pagingData -> pagingData.pagingMap { it.toExpenseListModel() } }
     }
 
+    override fun getGroupExpensesPaged(groupUuid: String): Flow<PagingData<ExpenseWithBeneficiaries>> {
+        return expenseRepository.getGroupExpensesPaged(groupUuid = groupUuid)
+            .map { pagingData -> pagingData.pagingMap { it.toExpenseListModel() } }
+    }
+
     override suspend fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries> {
         return expenseRepository.getWithBeneficiaries(uuid = uuid).filterNotNull().map { it.toExpenseListModel() }
     }
@@ -55,10 +60,6 @@ class ExpenseListCallBacksImpl(
 
     override fun getAllExpensesWithoutGroup(): Flow<List<ExpenseWithBeneficiaries>> {
         return expenseRepository.getAllWithoutGroup().map { expenses -> expenses.map { it.toExpenseListModel() } }
-    }
-
-    override fun getAllExpensesFromGroup(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> {
-        return expenseRepository.getAllFromGroup(groupUuid).map { expenses -> expenses.map { it.toExpenseListModel() } }
     }
 
     override fun getUserFullName(userUuid: String): Flow<String?> {

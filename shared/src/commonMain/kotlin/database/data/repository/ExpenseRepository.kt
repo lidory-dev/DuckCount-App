@@ -78,13 +78,30 @@ class ExpenseRepository(
     fun getOneTimeExpensesPaged(): Flow<PagingData<ExpenseWithBeneficiaries>> =
         Pager(
             config = PagingConfig(
-                pageSize = ONE_TIME_PAGE_SIZE,
+                pageSize = PAGE_SIZE,
                 // The UI early-returns on null items, so placeholder rows would render as
                 // empty gaps and skew the initial scroll position. We don't render them.
                 enablePlaceholders = false,
             ),
             remoteMediator = ExpenseRemoteMediator(oneTimeExpenseSync = oneTimeExpenseSync),
             pagingSourceFactory = { expenseDao.pagingSource() },
+        ).flow.map { pagingData ->
+            pagingData.pagingMap { it.toExpenseWithBeneficiaries() }
+        }
+
+    /**
+     * Paged expenses of the group [groupUuid], deleted ones included, backed by the local DB, see
+     * [ExpenseDao.groupPagingSource].
+     *
+     * With no mediator, unlike [getOneTimeExpensesPaged]: the group's sync reads every page the
+     * server lists, and runs as the group opens, on a push and with the list of groups, see
+     * `group.GroupExpenseSync`. What it stores, a list on screen shows as it is stored.
+     */
+    fun getGroupExpensesPaged(groupUuid: String): Flow<PagingData<ExpenseWithBeneficiaries>> =
+        Pager(
+            // As for the one-time expenses, see getOneTimeExpensesPaged.
+            config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false),
+            pagingSourceFactory = { expenseDao.groupPagingSource(groupUuid = groupUuid) },
         ).flow.map { pagingData ->
             pagingData.pagingMap { it.toExpenseWithBeneficiaries() }
         }
@@ -526,12 +543,6 @@ class ExpenseRepository(
         }
     }
 
-    fun getAllFromGroup(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> {
-        return expenseDao.getAllFromGroupAsFlow(groupUuid).map { expense ->
-            expense.map { it.toExpenseWithBeneficiaries() }
-        }
-    }
-
     fun getAllFromGroupWithoutDeletedOnes(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> {
         return expenseDao.getAllFromGroupWithoutDeletedOnesAsFlow(groupUuid).map { expense ->
             expense.map { it.toExpenseWithBeneficiaries() }
@@ -551,9 +562,10 @@ class ExpenseRepository(
     }
 
     private companion object {
-        // A refresh brings the device's copy of the server's list up to date, see
-        // ExpenseRemoteMediator; this only sizes local paging windows.
-        const val ONE_TIME_PAGE_SIZE = 20
+        // Of the one-time expenses as of a group's. A sync brings the device's copy of the
+        // server's list up to date, see ExpenseRemoteMediator and group.GroupExpenseSync; this
+        // only sizes local paging windows.
+        const val PAGE_SIZE = 20
     }
 
     fun getCurrency(expenseUuid: String): Flow<Currency?> {

@@ -19,10 +19,20 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ExpenseDao {
-    // TODO: The same for group expenses.
     @Transaction
     @Query("SELECT * FROM ExpenseEntity WHERE groupUuid IS NULL ORDER BY timestamp DESC")
     fun pagingSource(): PagingSource<Int, ExpenseWithBeneficiariesEntity>
+
+    /**
+     * The expenses of the group [groupUuid], newest first, deleted ones included: the group's list
+     * shows them struck through.
+     *
+     * Two made at the same time are ordered by UUID. Read a page at a time, by offset, a list that
+     * left their order to the database could show one of them on two pages and the other on none.
+     */
+    @Transaction
+    @Query("SELECT * FROM ExpenseEntity WHERE groupUuid = :groupUuid ORDER BY timestamp DESC, uuid")
+    fun groupPagingSource(groupUuid: String): PagingSource<Int, ExpenseWithBeneficiariesEntity>
 
     @Insert
     suspend fun insert(expenseEntity: ExpenseEntity)
@@ -251,10 +261,6 @@ interface ExpenseDao {
 
     @Query("SELECT count(*) FROM ExpenseEntity WHERE isDeleted = false")
     suspend fun count(): Int
-
-    @Transaction
-    @Query("SELECT * FROM ExpenseEntity WHERE groupUuid = :groupUuid")
-    fun getAllFromGroupAsFlow(groupUuid: String): Flow<List<ExpenseWithBeneficiariesEntity>>
 
     @Transaction
     @Query("SELECT * FROM ExpenseEntity WHERE groupUuid = :groupUuid AND isDeleted = false")

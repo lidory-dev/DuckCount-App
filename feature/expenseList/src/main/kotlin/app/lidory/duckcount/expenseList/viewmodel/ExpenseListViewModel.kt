@@ -7,13 +7,10 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import app.lidory.duckcount.expenseList.callBacks.ExpenseListCallBacks
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -22,34 +19,21 @@ class ExpenseListViewModel(
     private val expenseListCallBacks: ExpenseListCallBacks,
     groupUuid: String?,
 ) : ViewModel() {
-    private val _groupUuid = MutableStateFlow(groupUuid)
-
     private val _state = MutableStateFlow(ExpenseListScreenState())
 
-    /**
-     * Paged, server-synced one-time expenses.
-     * TODO: Group expenses still come through [state] as a plain list.
-     */
-    val oneTimeExpenses: Flow<PagingData<ExpenseWithBeneficiaries>>? =
-        if (groupUuid.isNullOrBlank()) {
-            expenseListCallBacks.getOneTimeExpensesPaged().cachedIn(viewModelScope)
-        } else {
-            null
-        }
+    /** Whether the list is of the one-time expenses rather than of the group [groupUuid]'s. */
+    val isOneTime: Boolean = groupUuid.isNullOrBlank()
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val state = _groupUuid.flatMapLatest { uuid ->
-        val connectedUserUuid = expenseListCallBacks.getAuthenticatedUserUuid() ?: ""
-        if (uuid.isNullOrBlank()) {
-            flowOf(ExpenseListScreenState(connectedUserUuid = connectedUserUuid))
+    /** Paged expenses: the one-time ones, server-synced, or the group [groupUuid]'s. */
+    val expenses: Flow<PagingData<ExpenseWithBeneficiaries>> =
+        if (groupUuid.isNullOrBlank()) {
+            expenseListCallBacks.getOneTimeExpensesPaged()
         } else {
-            expenseListCallBacks.getAllExpensesFromGroup(uuid).map { expenses ->
-                ExpenseListScreenState(
-                    expenses = expenses,
-                    connectedUserUuid = connectedUserUuid,
-                )
-            }
-        }
+            expenseListCallBacks.getGroupExpensesPaged(groupUuid = groupUuid)
+        }.cachedIn(viewModelScope)
+
+    val state = flow {
+        emit(ExpenseListScreenState(connectedUserUuid = expenseListCallBacks.getAuthenticatedUserUuid() ?: ""))
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000L),
@@ -75,7 +59,6 @@ class ExpenseListViewModel(
 
 data class ExpenseListScreenState(
     val isLoading: Boolean = false,
-    val expenses: List<ExpenseWithBeneficiaries> = emptyList(),
     val connectedUserUuid: String = "",
 )
 

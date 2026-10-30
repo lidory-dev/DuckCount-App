@@ -13,6 +13,12 @@ interface ExpenseListCallBacks {
     /** Paged one-time expenses, server-synced and backed by the local DB. */
     fun getOneTimeExpensesPaged(): Flow<PagingData<ExpenseWithBeneficiaries>>
 
+    /**
+     * Paged expenses of the group [groupUuid], deleted ones included, backed by the local DB, which
+     * opening the group brings up to date.
+     */
+    fun getGroupExpensesPaged(groupUuid: String): Flow<PagingData<ExpenseWithBeneficiaries>>
+
     suspend fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries>
 
     suspend fun insert(expense: Expense)
@@ -26,8 +32,6 @@ interface ExpenseListCallBacks {
     fun validateExpense(amount: String, currency: Currency, beneficiaries: List<Beneficiary>): Int?
 
     fun getAllExpensesWithoutGroup(): Flow<List<ExpenseWithBeneficiaries>>
-
-    fun getAllExpensesFromGroup(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>>
 
     /** Emits the name to show for [userUuid] as it changes, see [CreateExpenseCallBacks.getUserFullName]. */
     fun getUserFullName(userUuid: String): Flow<String?>
