@@ -78,9 +78,14 @@
     <string name="push_group_settlement_added_unknown">Quelqu’un a enregistré votre remboursement de %1$s dans %2$s</string>
     <string name="push_group_settlement_deleted">%1$s a supprimé votre remboursement de %2$s dans %3$s</string>
     <string name="push_group_settlement_deleted_unknown">Quelqu’un a supprimé votre remboursement de %1$s dans %2$s</string>
-    <plurals name="push_group_expense_summary">
-        <item quantity="one">%1$d dépense de groupe mise à jour</item>
-        <item quantity="other">%1$d dépenses de groupe mises à jour</item>
+    <string name="push_group_expenses_changed_title">Dépenses de groupe mises à jour</string>
+    <plurals name="push_group_expense_summary_in_group">
+        <item quantity="one">%1$d dépense mise à jour dans %2$s</item>
+        <item quantity="other">%1$d dépenses mises à jour dans %2$s</item>
+    </plurals>
+    <plurals name="push_group_expense_summary_locked">
+        <item quantity="one">%1$d dépense mise à jour dans l’un de vos groupes</item>
+        <item quantity="other">%1$d dépenses mises à jour dans l’un de vos groupes</item>
     </plurals>
     <string name="settings">Paramètres</string>
 </resources>

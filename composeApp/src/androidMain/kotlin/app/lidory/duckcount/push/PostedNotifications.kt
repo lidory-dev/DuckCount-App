@@ -25,8 +25,8 @@ internal class PostedNotifications(context: Context) {
     /**
      * The ids recorded under [tag], forgetting them.
      *
-     * The caller is about to take them down. One the user already dismissed is among them,
-     * and taking it down again does nothing.
+     * The caller is about to take them down, or records again those it leaves up. One the user
+     * already dismissed is among them, and taking it down again does nothing.
      */
     @Synchronized
     fun takeAll(tag: String): Set<Int> {

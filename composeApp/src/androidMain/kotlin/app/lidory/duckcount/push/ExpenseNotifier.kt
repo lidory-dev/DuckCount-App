@@ -62,16 +62,17 @@ private const val EXPENSE_CHANGE_SUMMARY_NOTIFICATION = 5
 private const val UNNAMED_EXPENSE_CHANGE_NOTIFICATION = 6
 
 /**
- * What the notifications about an expense of one of the user's groups are about, see
- * [ExpenseNotifier.notifyGroupExpenses].
+ * Ties the expenses of one group told one each together under a heading of that group's, naming it,
+ * the group's UUID following it, see [groupExpenseGroupOf]. A heading per group rather than one over
+ * them all, which could only count them across groups.
  */
-private const val GROUP_EXPENSE_TAG = "group-expense"
+private const val GROUP_EXPENSE_GROUP = "group-expenses:"
 
-/** Ties them together under a heading of their own. */
-private const val GROUP_EXPENSE_GROUP = "group-expenses"
-
-/** The id of the notification that heads them. */
-private const val GROUP_EXPENSE_SUMMARY_NOTIFICATION = 9
+/**
+ * What the heading of each group is about, under the group's UUID's hash as its id: a tag of its
+ * own, so that it never takes the id of an expense's notification.
+ */
+private const val GROUP_EXPENSE_HEADING_TAG = "group-expense-heading"
 
 /**
  * What tells the intent of each form that names nobody apart from the named ones', which only ever
@@ -80,6 +81,23 @@ private const val GROUP_EXPENSE_SUMMARY_NOTIFICATION = 9
  */
 private const val UNNAMED_GROUP_EXPENSE_ADDED_REQUEST_CODE = 10
 private const val UNNAMED_GROUP_EXPENSE_CHANGED_REQUEST_CODE = 11
+
+/**
+ * What the one notification each group's many updates in a sync are told in is about, under the
+ * group's UUID's hash as its id, see [MANY_GROUP_EXPENSE_UPDATES]: one per group, so that a later
+ * catch-up of that group replaces it rather than going up beside it, and a tag of its own, so that it
+ * never takes the id of an expense's notification.
+ */
+private const val GROUP_EXPENSES_TAG = "group-expenses"
+
+/**
+ * What tells the intent of the form of a heading or a catch-up that names no group, for the reasons
+ * [UNNAMED_GROUP_EXPENSE_ADDED_REQUEST_CODE] gives, see [ExpenseNotifier.namelessGroupExpensesNotification].
+ */
+private const val UNNAMED_GROUP_EXPENSES_REQUEST_CODE = 13
+
+/** The group of notifications the expenses of the group [groupUuid] told one each are tied together in. */
+private fun groupExpenseGroupOf(groupUuid: String): String = GROUP_EXPENSE_GROUP + groupUuid
 
 /**
  * How many people may be named in one sync before the rest are left to the summary.
@@ -100,8 +118,9 @@ private const val MAX_CREDITORS_ANNOUNCED = 4
  * expense: marking it as settled or not, editing it, removing it, see [notifyChanges].
  *
  * So is what a member of one of the user's groups does to an expense of it that the user paid for
- * or shares in, one notification per expense too: adding it, editing it, deleting it or restoring
- * it, see [notifyGroupExpenses].
+ * or shares in, adding it, editing it, deleting it or restoring it: one notification per expense
+ * too, but for a sync bringing many of one group at once, which are told in one for that group, see
+ * [notifyGroupExpenses].
  *
  * A locked device is told as much as the signal says, and no more. Nothing on a locked
  * phone can read the app's storage, so there is no finding out who shared what: the server
@@ -297,13 +316,24 @@ class ExpenseNotifier(
     }
 
     /**
-     * Puts up one notification per expense of the user's groups that a member changed, saying what
-     * they did, see [expense.GroupExpenseUpdates]: only those the user paid for or shares in, and
-     * that somebody else wrote.
+     * Tells the user about the expenses of their groups that a member changed, see
+     * [expense.GroupExpenseUpdates]: only those the user paid for or shares in, and that somebody
+     * else wrote.
      *
-     * Per expense, as [notifyChanges] puts them up and for the same reasons: a later update to an
-     * expense whose notification is still up replaces it without ringing again. These go up whatever
-     * is on screen, too: [newestShown] is about the one-time expenses alone.
+     * Told group by group, see [groupExpenseAnnouncementsOf], and never counted across groups: how
+     * many expenses were updated in the user's groups says neither where to look nor whose they are.
+     *
+     * One notification per expense, saying what was done to it, as [notifyChanges] puts them up and
+     * for the same reasons: a later update to an expense whose notification is still up replaces it
+     * without ringing again. Those of one group go under a heading of that group's, naming it, when
+     * the sync brought two or three of it. Unless the sync brought many of one group, see
+     * [MANY_GROUP_EXPENSE_UPDATES], as one catching up after a time offline does: those are told in
+     * one notification for that group, saying how many and naming it, which takes the place of what
+     * was said of each of them one by one before, which may no longer be so, see
+     * [groupExpenseTakedownOf]. Tapped, it opens the groups, whose expenses say what each was better
+     * than a shadeful of near-identical rows would.
+     *
+     * These go up whatever is on screen, too: [newestShown] is about the one-time expenses alone.
      *
      * Never from a signal alone: the signal says neither which group nor whether the expense
      * concerns the user at all, so a locked device puts nothing up, and the sync that tells both
@@ -315,28 +345,116 @@ class ExpenseNotifier(
 
         createChannel()
 
-        updates.forEach { update ->
-            post(
-                tag = GROUP_EXPENSE_TAG,
-                // One per expense, replaced rather than stacked.
-                id = update.expenseUuid.hashCode(),
-                notification = groupExpenseNotificationFor(update = update),
-            )
+        groupExpenseAnnouncementsOf(updates = updates).forEach { announcement ->
+            when (announcement) {
+                is GroupExpenseAnnouncement.OneEach -> notifyEachGroupExpense(announcement = announcement)
+                is GroupExpenseAnnouncement.InOne -> postGroupExpenses(announcement = announcement)
+            }
+        }
+    }
+
+    /**
+     * Puts up one notification per update of [announcement], under a heading of its group's when
+     * there are several.
+     */
+    private fun notifyEachGroupExpense(announcement: GroupExpenseAnnouncement.OneEach) {
+        val tag = groupExpenseTagOf(groupUuid = announcement.groupUuid)
+
+        announcement.updates.forEach { update ->
+            // One per expense, replaced rather than stacked.
+            val id = update.expenseUuid.hashCode()
+
+            // Recorded once up, under its group's tag, for a sync telling many of that group in one
+            // to take it down, see [takeDownEachGroupExpense].
+            if (post(tag = tag, id = id, notification = groupExpenseNotificationFor(update = update))) {
+                posted.record(tag = tag, id = id)
+            }
         }
 
-        if (updates.size > 1) {
+        if (announcement.hasHeading) {
+            val count = announcement.updates.size
+
             postSummary(
-                tag = GROUP_EXPENSE_TAG,
-                id = GROUP_EXPENSE_SUMMARY_NOTIFICATION,
-                group = GROUP_EXPENSE_GROUP,
+                tag = GROUP_EXPENSE_HEADING_TAG,
+                id = announcement.groupUuid.hashCode(),
+                group = groupExpenseGroupOf(groupUuid = announcement.groupUuid),
                 title = R.string.push_group_expense_changed_title,
                 text = context.resources.getQuantityString(
-                    R.plurals.push_group_expense_summary,
-                    updates.size,
-                    updates.size,
+                    R.plurals.push_group_expense_summary_in_group,
+                    count,
+                    count,
+                    announcement.groupTitle,
                 ),
-                contentIntent = groupsIntent(requestCode = GROUP_EXPENSE_SUMMARY_NOTIFICATION),
+                contentIntent = groupsIntent(requestCode = announcement.groupUuid.hashCode()),
+                publicVersion = namelessGroupExpensesNotification(
+                    title = R.string.push_group_expense_changed_title,
+                    count = count,
+                ),
             )
+        }
+    }
+
+    /**
+     * Puts up the one notification for the updates of [announcement], of a group the sync brought
+     * many of, see [MANY_GROUP_EXPENSE_UPDATES], and takes down what syncs before it told of each of
+     * them one by one, see [takeDownEachGroupExpense].
+     *
+     * A notification of its own rather than a heading: a heading with nothing under it may not show
+     * at all. And in no group, not even the one its group's expenses told one by one go under: that
+     * heading counts them alone, and would be wrong with this under it.
+     */
+    private fun postGroupExpenses(announcement: GroupExpenseAnnouncement.InOne) {
+        val count = announcement.count
+
+        val notification = NotificationCompat.Builder(context, EXPENSES_CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.push_group_expenses_changed_title))
+            .setContentText(
+                context.resources.getQuantityString(
+                    R.plurals.push_group_expense_summary_in_group,
+                    count,
+                    count,
+                    announcement.groupTitle,
+                ),
+            )
+            .setContentIntent(groupsIntent(requestCode = announcement.groupUuid.hashCode()))
+            .setCategory(NotificationCompat.CATEGORY_SOCIAL)
+            // Which group is the user's business and nobody else's, so a lockscreen set to hide
+            // notification content shows the nameless form instead of this one.
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(
+                namelessGroupExpensesNotification(title = R.string.push_group_expenses_changed_title, count = count),
+            )
+            // Rings every time it goes up, deliberately without `setOnlyAlertOnce`: a later catch-up
+            // of the group replacing the one still up is more expenses updated, which is more news
+            // rather than the same news, as [notificationFor] reasons. There is no stand-in to have
+            // rung for them either, a locked device putting none up for a group's expense.
+            .setAutoCancel(true)
+            .build()
+
+        post(tag = GROUP_EXPENSES_TAG, id = announcement.groupUuid.hashCode(), notification = notification)
+
+        // Only once this is up, so that there is no moment with neither.
+        takeDownEachGroupExpense(announcement = announcement)
+    }
+
+    /**
+     * Takes down the notification an earlier sync put up for each expense of [announcement] told one
+     * by one, and the heading of its group once nothing recorded of that group is left under it, see
+     * [groupExpenseTakedownOf]. What is recorded of every other group is not read, let alone taken
+     * down, each group's going up under a tag of its own, see [groupExpenseTagOf].
+     */
+    private fun takeDownEachGroupExpense(announcement: GroupExpenseAnnouncement.InOne) {
+        val manager = NotificationManagerCompat.from(context)
+
+        val takedown = groupExpenseTakedownOf(announcement = announcement, takeRecorded = posted::takeAll)
+
+        takedown.ids.forEach { manager.cancel(takedown.tag, it) }
+
+        if (takedown.takesDownHeading) {
+            manager.cancel(GROUP_EXPENSE_HEADING_TAG, announcement.groupUuid.hashCode())
+        } else {
+            takedown.left.forEach { posted.record(tag = takedown.tag, id = it) }
         }
     }
 
@@ -621,11 +739,12 @@ class ExpenseNotifier(
             .setContentText(text)
             .setContentIntent(groupsIntent(requestCode = update.expenseUuid.hashCode()))
             .setCategory(NotificationCompat.CATEGORY_SOCIAL)
-            .setGroup(GROUP_EXPENSE_GROUP)
+            // Under its own group's heading, never another's.
+            .setGroup(groupExpenseGroupOf(groupUuid = update.groupUuid))
             // Who did what in which group is the user's business and nobody else's, so a lockscreen
             // set to hide notification content shows the nameless form instead of this one.
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-            .setPublicVersion(namelessGroupExpenseNotification(isAdded = isAdded))
+            .setPublicVersion(namelessGroupExpenseNotification(isAdded = isAdded, groupUuid = update.groupUuid))
             // Rings once per expense: another update to it while this is still up is the same
             // expense to look at, and goes up in its place without a sound.
             .setOnlyAlertOnce(true)
@@ -637,9 +756,10 @@ class ExpenseNotifier(
      * The form of [groupExpenseNotificationFor] that names nobody: an expense was added to one of
      * the user's groups, when [isAdded], or one was updated, and nothing about which, whose or by
      * whom. Only ever carried by a named one as its public version, for the reasons
-     * [namelessNotification] gives.
+     * [namelessNotification] gives, and tied in the named one's group, that of [groupUuid], which
+     * shows nowhere.
      */
-    private fun namelessGroupExpenseNotification(isAdded: Boolean): Notification {
+    private fun namelessGroupExpenseNotification(isAdded: Boolean, groupUuid: String): Notification {
         val title = if (isAdded) R.string.push_group_expense_added_title else R.string.push_group_expense_changed_title
         val text = if (isAdded) {
             R.string.push_group_expense_added_text_locked
@@ -658,12 +778,32 @@ class ExpenseNotifier(
             .setContentText(context.getString(text))
             .setContentIntent(groupsIntent(requestCode = requestCode))
             .setCategory(NotificationCompat.CATEGORY_SOCIAL)
-            .setGroup(GROUP_EXPENSE_GROUP)
+            .setGroup(groupExpenseGroupOf(groupUuid = groupUuid))
             // It carries no name and no title, so there is nothing here to hide.
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .build()
     }
+
+    /**
+     * The form of a group's heading, or of [postGroupExpenses]' notification, that names no group,
+     * under [title]: [count] expenses of one of the user's groups were updated, and nothing about
+     * which group, whose or by whom. Only ever carried by one of them as its public version, for the
+     * reasons [namelessNotification] gives.
+     */
+    private fun namelessGroupExpensesNotification(title: Int, count: Int): Notification =
+        NotificationCompat.Builder(context, EXPENSES_CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(title))
+            .setContentText(
+                context.resources.getQuantityString(R.plurals.push_group_expense_summary_locked, count, count),
+            )
+            .setContentIntent(groupsIntent(requestCode = UNNAMED_GROUP_EXPENSES_REQUEST_CODE))
+            .setCategory(NotificationCompat.CATEGORY_SOCIAL)
+            // It carries a count and nothing else, so there is nothing here to hide.
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setAutoCancel(true)
+            .build()
 
     /**
      * What a member did to an expense of a group, naming them, the expense and the group. A
@@ -699,7 +839,11 @@ class ExpenseNotifier(
         GroupExpenseUpdate.Kind.RESTORED -> R.string.push_group_expense_restored_unknown
     }
 
-    /** Puts up the heading of [group], under [title], saying [text], opening [contentIntent]. */
+    /**
+     * Puts up the heading of [group], under [title], saying [text], opening [contentIntent], with
+     * [publicVersion] standing for it on a lockscreen that hides notification content when [text]
+     * names what is the user's business alone.
+     */
     private fun postSummary(
         tag: String,
         id: Int,
@@ -707,6 +851,7 @@ class ExpenseNotifier(
         title: Int,
         text: String,
         contentIntent: PendingIntent,
+        publicVersion: Notification? = null,
     ) {
         val notification = NotificationCompat.Builder(context, EXPENSES_CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
@@ -715,6 +860,11 @@ class ExpenseNotifier(
             .setContentIntent(contentIntent)
             .setGroup(group)
             .setGroupSummary(true)
+            // Private, as Android has a notification by default: a lockscreen set to hide
+            // notification content shows [publicVersion] instead, or the app's name alone for a
+            // heading without one.
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion)
             // The summary is a heading over the ones that carry the news, so it is the
             // children that ring. Left to itself it would ring too, which for one sync
             // means being told twice.
@@ -770,13 +920,20 @@ class ExpenseNotifier(
         )
     }
 
-    /** Posts one notification, see [postIfPermitted], and records it once up when it is an arrival. */
-    private fun post(tag: String, id: Int, notification: Notification) {
-        // Only the arrivals are taken back down from the record, see [clearExpenses]: a change
-        // stays up whatever is on screen, so nothing would ever read its ids.
-        if (context.postIfPermitted(tag = tag, id = id, notification = notification) && tag == EXPENSE_TAG) {
-            posted.record(tag = tag, id = id)
-        }
+    /**
+     * Posts one notification, see [postIfPermitted], records it once up when it is an arrival, and
+     * says whether it went up.
+     */
+    private fun post(tag: String, id: Int, notification: Notification): Boolean {
+        val isUp = context.postIfPermitted(tag = tag, id = id, notification = notification)
+
+        // Only the arrivals are taken back down from the record whole, see [clearExpenses]: a change
+        // stays up whatever is on screen, so nothing would ever read its ids. The expenses of a group
+        // told one each are recorded where they go up, under their group's tag and apart from the
+        // heading over them, see [notifyEachGroupExpense].
+        if (isUp && tag == EXPENSE_TAG) posted.record(tag = tag, id = id)
+
+        return isUp
     }
 }
 

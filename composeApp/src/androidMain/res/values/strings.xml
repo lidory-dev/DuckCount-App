@@ -78,9 +78,14 @@
     <string name="push_group_settlement_added_unknown">Someone recorded your settlement of %1$s in %2$s</string>
     <string name="push_group_settlement_deleted">%1$s deleted your settlement of %2$s in %3$s</string>
     <string name="push_group_settlement_deleted_unknown">Someone deleted your settlement of %1$s in %2$s</string>
-    <plurals name="push_group_expense_summary">
-        <item quantity="one">%1$d group expense updated</item>
-        <item quantity="other">%1$d group expenses updated</item>
+    <string name="push_group_expenses_changed_title">Group expenses updated</string>
+    <plurals name="push_group_expense_summary_in_group">
+        <item quantity="one">%1$d expense updated in %2$s</item>
+        <item quantity="other">%1$d expenses updated in %2$s</item>
+    </plurals>
+    <plurals name="push_group_expense_summary_locked">
+        <item quantity="one">%1$d expense updated in one of your groups</item>
+        <item quantity="other">%1$d expenses updated in one of your groups</item>
     </plurals>
     <string name="settings">Settings</string>
 </resources>
