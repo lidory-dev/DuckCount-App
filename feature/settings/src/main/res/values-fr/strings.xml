@@ -32,7 +32,7 @@
     <string name="reserve_username_disclaimer">Réservez le nom d’utilisateur que vos contacts utiliseront pour vous ajouter.\n\nSeule une empreinte de celui-ci parvient à nos serveurs. Nous ne connaissons donc jamais le nom d’utilisateur lui-même, seule une personne qui le connaît déjà peut vous trouver.</string>
     <string name="change_username_disclaimer">Choisissez le nouveau nom d’utilisateur que vos contacts utiliseront pour vous ajouter.\n\nCelui que vous détenez actuellement est libéré dès que le nouveau est réservé. Les personnes qui chercheraient encore l’ancien ne vous trouveront plus.</string>
     <string name="save">Enregistrer</string>
-    <string name="trademarks_of_lidory">© 2026 Lidory SASU. Tous droits réservés.\nDuckCount® et Lidory® sont des marques déposées de Lidory SASU.</string>
+    <string name="trademarks_of_lidory">© 2026 Lidory SAS. Tous droits réservés.\nDuckCount® et Lidory® sont des marques déposées de Lidory SAS.</string>
 
     <string name="discovery_username_error_must_start_with_letter">Doit commencer par une lettre</string>
     <string name="discovery_username_error_invalid_character">Lettres et chiffres uniquement</string>

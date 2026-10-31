@@ -31,7 +31,7 @@
     <string name="reserve_username_disclaimer">Reserve the username your contacts will use to add you.\n\nOnly a fingerprint of it reaches our servers, so we never learn the username itself — only somebody who already knows it can find you.</string>
     <string name="change_username_disclaimer">Choose the new username your contacts will use to add you.\n\nThe one you hold now is released as soon as the new one is reserved, so anybody still looking for the old one will no longer find you.</string>
     <string name="save">Save</string>
-    <string name="trademarks_of_lidory">© 2026 Lidory SASU. All rights reserved.\nDuckCount® and Lidory® are trademarks of Lidory SASU.</string>
+    <string name="trademarks_of_lidory">© 2026 Lidory SAS. All rights reserved.\nDuckCount® and Lidory® are trademarks of Lidory SAS.</string>
     <string name="discovery_username">Username</string>
 
     <string name="discovery_username_error_must_start_with_letter">Must start with a letter</string>
