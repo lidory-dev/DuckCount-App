@@ -24,56 +24,41 @@ private const val DAVE = "44444444-4444-4444-4444-444444444444"
  */
 class GroupProfileKeysTest {
 
-    private val groupKey = ByteArray(32) { 1 }
     private val aliceKey = ByteArray(32) { 2 }
     private val bobKey = ByteArray(32) { 3 }
 
+    /** No group key: each member derives it from the epoch the Welcome lets them in at. */
     @Test
     fun `the Welcome payload is written with the names the members read`() {
         val payload = Json.parseToJsonElement(
-            welcomePayloadOf(groupKey = groupKey, keyGeneration = 3, profileKeys = mapOf(ALICE to aliceKey))
-                .decodeToString(),
+            welcomePayloadOf(profileKeys = mapOf(ALICE to aliceKey)).decodeToString(),
         ).jsonObject
 
-        assertEquals(setOf("group_key", "key_generation", "profile_keys"), payload.keys)
-        assertEquals("3", payload.getValue("key_generation").toString())
+        assertEquals(setOf("profile_keys"), payload.keys)
         assertEquals(setOf(ALICE), payload.getValue("profile_keys").jsonObject.keys)
     }
 
     @Test
-    fun `the Welcome payload reads back as the group key of its generation and every member's key`() {
-        val payload = welcomePayloadOf(
-            groupKey = groupKey,
-            keyGeneration = 3,
-            profileKeys = mapOf(ALICE to aliceKey, BOB to bobKey),
-        )
+    fun `the Welcome payload reads back as every member's key`() {
+        val payload = welcomePayloadOf(profileKeys = mapOf(ALICE to aliceKey, BOB to bobKey))
         val handover = assertNotNull(welcomeHandoverOf(payload))
 
-        assertContentEquals(groupKey, handover.groupKey.key)
-        assertEquals(3L, handover.groupKey.generation)
         assertEquals(setOf(ALICE, BOB), handover.profileKeys.keys)
         assertContentEquals(aliceKey, handover.profileKeys[ALICE])
         assertContentEquals(bobKey, handover.profileKeys[BOB])
     }
 
-    /** As a Welcome handing over no key. */
     @Test
     fun `a Welcome payload that is not one reads as nothing`() {
-        val key = Base64.Default.encode(groupKey)
-
-        assertNull(welcomeHandoverOf(groupKey))
-        assertNull(
-            welcomeHandoverOf("""{"group_key":"not Base64!","key_generation":1,"profile_keys":{}}""".encodeToByteArray()),
-        )
-        assertNull(welcomeHandoverOf("""{"group_key":"$key","key_generation":1}""".encodeToByteArray()))
-        assertNull(welcomeHandoverOf("""{"group_key":"$key","profile_keys":{}}""".encodeToByteArray()))
-        assertNull(welcomeHandoverOf("""{"group_key":"$key","key_generation":0,"profile_keys":{}}""".encodeToByteArray()))
+        assertNull(welcomeHandoverOf(aliceKey))
+        assertNull(welcomeHandoverOf("""{"profile_keys":"not a map"}""".encodeToByteArray()))
+        assertNull(welcomeHandoverOf("""{}""".encodeToByteArray()))
     }
 
     /** Whatever the creator wrote: only a 32-byte key opens a profile. */
     @Test
     fun `entries that are no profile key are left out and the others kept`() {
-        val payload = """{"group_key":"${Base64.Default.encode(groupKey)}","key_generation":1,"profile_keys":{""" +
+        val payload = """{"profile_keys":{""" +
             """"$ALICE":"${Base64.Default.encode(aliceKey)}",""" +
             """"$BOB":"${Base64.Default.encode(bobKey + 0)}",""" +
             """"$CAROL":"not Base64!"}}"""
@@ -96,7 +81,6 @@ class GroupProfileKeysTest {
 
         assertEquals(setOf(ALICE, BOB), read.keys)
         assertContentEquals(bobKey, read[BOB])
-        assertNull(groupKeyOf(message))
         assertNull(ownProfileKeyOf(message))
     }
 
@@ -106,20 +90,11 @@ class GroupProfileKeysTest {
 
         assertContentEquals(bobKey, ownProfileKeyOf(message))
         assertNull(profileKeysOf(message))
-        assertNull(groupKeyOf(message))
     }
 
     @Test
     fun `a member's own key that is no profile key is not read`() {
         assertNull(ownProfileKeyOf(ProfileKeyUpdate(profileEncryptionKey = bobKey + 0).serialize()))
-    }
-
-    @Test
-    fun `the group's key handed over is no profile key`() {
-        val message = groupKeyMessageOf(groupKey, keyGeneration = 2)
-
-        assertNull(profileKeysOf(message))
-        assertNull(ownProfileKeyOf(message))
     }
 
     /** Dave is no longer a contact, and was learned through a group; Carol neither. */

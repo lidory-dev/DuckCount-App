@@ -291,7 +291,7 @@ class GroupExpenseSealingTest {
             group = groupEntity(),
             selfUuid = BOB,
             client = bob,
-            keyOf = { _, _ -> Result.Error(GroupKeyChainError.NotHeld) },
+            keyOf = { _, _, _ -> Result.Error(GroupKeyChainError.NotHeld) },
             recorded = { _, _ -> null },
         )
 
@@ -307,7 +307,7 @@ class GroupExpenseSealingTest {
             group = groupEntity(),
             selfUuid = BOB,
             client = bob,
-            keyOf = { _, generation -> if (generation == 1L) Result.Success(groupKey) else Result.Error(GroupKeyChainError.NotHeld) },
+            keyOf = { _, generation, _ -> if (generation == 1L) Result.Success(groupKey) else Result.Error(GroupKeyChainError.NotHeld) },
             recorded = { _, _ -> null },
         )
 

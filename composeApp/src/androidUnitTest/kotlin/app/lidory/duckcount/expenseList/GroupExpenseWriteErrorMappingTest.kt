@@ -85,6 +85,31 @@ class GroupExpenseWriteErrorMappingTest {
         )
     }
 
+    /**
+     * A Commit every member's device refused keeps this device in the epoch before it until the
+     * owner's device replaces it: writing again at once fails the same way.
+     */
+    @Test
+    fun `a group waiting for its owner is told as such on the screens and the form`() {
+        assertEquals(
+            ExpenseWriteError.AWAITING_OWNER,
+            GroupExpenseWriteError.AwaitingOwner.toExpenseWriteError(isOnline = true),
+        )
+        assertEquals(
+            ExpenseSaveError.Write(error = ExpenseWriteError.AWAITING_OWNER),
+            GroupExpenseWriteError.AwaitingOwner.toExpenseSaveError(isOnline = true),
+        )
+    }
+
+    /** Past a Commit the sync could not read yet: nothing the user can act on. */
+    @Test
+    fun `a key this device has yet to derive is unknown`() {
+        assertEquals(
+            ExpenseWriteError.UNKNOWN,
+            GroupExpenseWriteError.KeyNotCurrent.toExpenseWriteError(isOnline = true),
+        )
+    }
+
     /** No screen offers it: only its recipient sees a settlement's delete button. */
     @Test
     fun `a settlement written by somebody other than its recipient is unknown`() {

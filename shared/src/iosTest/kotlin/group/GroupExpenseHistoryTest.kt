@@ -88,7 +88,7 @@ class GroupExpenseHistoryTest {
         groupDao.upsertWithMembers(
             group = groupOf(groupKey = groupKey, keyGeneration = keyGeneration),
             members = emptyList(),
-            olderKeys = emptyList(),
+            keys = listOf(groupOf(groupKey = groupKey, keyGeneration = keyGeneration).currentKey()),
             signatureKeys = listOf(
                 GroupMemberSignatureKeyEntity(groupUuid = GROUP, userUuid = CAROL, signatureKey = carol.signaturePublicKey()),
             ),
@@ -318,7 +318,7 @@ class GroupExpenseHistoryTest {
     }
 
     /**
-     * A device holding the group's second key alone, as one that joined after the rotation does:
+     * A device holding the group's second key alone, as one that joined at the second epoch does:
      * the version sealed under the first is read through the link back to it.
      */
     @Test
@@ -327,6 +327,7 @@ class GroupExpenseHistoryTest {
             database.holdingTheGroup(groupKey = secondKey, keyGeneration = 2)
             links += GroupKeyLinkDto(
                 generation = 2,
+                publisherUuid = BOB,
                 previousKey = assertNotNull(sealKeyLink(previousKey = firstKey, groupKey = secondKey, groupUuid = GROUP, generation = 2)),
             )
 

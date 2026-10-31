@@ -112,6 +112,17 @@ class GroupSyncEditsTest {
         recordDeclined = { error("Bob declines nothing here.") },
         forgetDeclined = { error("Bob declines nothing here.") },
         removeDeparted = { _, _ -> error("Nobody left a group of Bob's here.") },
+        replaceRefused = { _, _ -> error("No Commit is refused for good here.") },
+        remakeOutdated = { Result.Success(null) },
+        settleUnlisted = { _, _ -> Result.Success(Unit) },
+        // Every version under the key of the first generation, the one Bob's device holds.
+        keyOf = { _, generation, _ ->
+            if (generation == FIRST_KEY_GENERATION) Result.Success(groupKey) else Result.Error(GroupKeyChainError.NotHeld)
+        },
+        checkKeyLinks = { Result.Success(Unit) },
+        setAwaitingOwner = { _, _ -> },
+        keyLinks = { Result.Success(emptyList()) },
+        now = { error("Nobody departed from a group here.") },
         fullName = { null },
         hasPendingChange = { false },
         isBlocked = { false },
@@ -204,7 +215,7 @@ class GroupSyncEditsTest {
         assertTrue(shown.isEmpty())
     }
 
-    /** The version shown, as a key rotation seals it again: nothing to show anew. */
+    /** The version shown, listed again unchanged at every sync: nothing to show anew. */
     @Test
     fun `the version shown listed again is left as it is`() = runBlocking<Unit> {
         groups[GROUP] = heldGroup(fields = EDITED, infoRevision = 2)
@@ -307,11 +318,7 @@ class GroupSyncEditsTest {
     private fun bobCreates(): ByteArray = bob.createGroup(
         groupUuid = GROUP,
         invitees = listOf(alice.inviteeKeyPackage(), carol.inviteeKeyPackage()),
-        welcomePayload = welcomePayloadOf(
-            groupKey = groupKey,
-            keyGeneration = FIRST_KEY_GENERATION,
-            profileKeys = emptyMap(),
-        ),
+        welcomePayload = welcomePayloadOf(profileKeys = emptyMap()),
     ).mlsGroupId
 
     /** That the group shows [fields] as [revision], its currency the one it was created in. */

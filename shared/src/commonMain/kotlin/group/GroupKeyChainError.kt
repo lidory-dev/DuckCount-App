@@ -8,9 +8,11 @@ sealed interface GroupKeyChainError : Error {
 
     /**
      * This device holds no such group, or no key of the generation asked for nor of any after it:
-     * the chain only leads back, and a later generation is the group's creator's to hand over, over
-     * MLS, which the sync reads, see [GroupSync]. A group brought back after a log-out, which reads
-     * nothing sent in it, never gets past the generation the user's copy held, see [GroupKeyCopies].
+     * the chain only leads back, and a later generation is derived as the group's Commits are read,
+     * see [GroupSync]. A group brought back after a log-out, which reads nothing sent in it, never
+     * gets past the generation the user's copy held, see [GroupKeyCopies]. Nor does anything sealed
+     * at a generation a Commit nobody could apply led to, which the creator's replacement of it
+     * undid, see [ReplaceGroupCommitBody]: no member holds its key.
      */
     data object NotHeld : GroupKeyChainError
 
@@ -22,10 +24,12 @@ sealed interface GroupKeyChainError : Error {
     data object NotMember : GroupKeyChainError
 
     /**
-     * The links the server keeps do not lead there: one is missing, or does not open under the key
-     * after it as that link of that group, see [openKeyLink]. Every rotation is taken with the
-     * link it makes, see [RotateGroupKeyBody.previousKey], so the server is holding one back, or
-     * serving one it was never given.
+     * The links the server keeps do not lead there: none at a generation on the way opens under the
+     * key after it as that link of that group, see [openKeyLink], to a key something sealed under
+     * it opens under, see [recoverKeys]. Every Commit is taken with the link it makes, see
+     * [AddGroupMembersBody.previousKey], and every member reaching its epoch publishes its own when
+     * that one leads nowhere, so the server is holding them back, or serving ones it was never
+     * given.
      */
     data object Unreadable : GroupKeyChainError
 

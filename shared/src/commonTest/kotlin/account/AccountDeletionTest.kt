@@ -465,7 +465,6 @@ class AccountDeletionTest {
 
     private suspend fun finish(userUuid: String, body: FinishAccountDeletionRequestBody): Result<Unit, NetworkError> {
         assertEquals(USER, userUuid)
-        assertEquals(emptyList(), body.groupCommits)
         assertTrue(isDeletionOut)
 
         events += "finish"

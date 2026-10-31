@@ -27,9 +27,10 @@ import vault.unsealBound
  * [GroupKeyChain].
  *
  * The creator's copy goes up with the group as it is created, see [CreateGroupBody.keyCopy], and
- * with every key rotation they make, see [RotateGroupKeyBody.keyCopy]. Every other member puts up
- * their own as they join the group, and as they read a new key in it, see [putUp]. The server
- * drops a member's copy as its creator removes them, or as they leave, see [GroupLeaver].
+ * every committer's with each Commit they make, see [AddGroupMembersBody.keyCopy]. Every other
+ * member puts up their own as they join the group, and as each Commit they read takes it to a new
+ * epoch, see [putUp]. The server drops a member's copy as a Commit removes them, or as they leave,
+ * see [GroupLeaver].
  *
  * [sealingKey] is [VaultRepository.getOrCreatePartKey] for [VaultEntryKey.GROUP_MASTER_KEY],
  * [saveCopy] is [GroupApi.saveKeyCopy], [storedGroups] and [markBackedUp] are [GroupDao.getAll] and
@@ -57,27 +58,19 @@ class GroupKeyCopies internal constructor(
     )
 
     /**
-     * Seals [groupKey], the generation [keyGeneration] of the keys of the group [groupUuid], as the
-     * user's copy of its key, for the server to keep with it.
+     * What seals the user's copies of their groups' keys, for the server to keep with each, see
+     * [KeyCopySealer]: read before the group or the Commit a copy goes with is built, so that a key
+     * ring not answering stops it with nothing built, and nothing spent.
      *
-     * The key ring holds the key it is sealed under before the copy can leave this device, see
+     * The key ring holds the key they are sealed under before a copy can leave this device, see
      * [VaultRepository.getOrCreatePartKey]: one sealed under a key that exists only in memory would
      * open for nobody, ever.
      */
-    suspend fun seal(
-        groupUuid: String,
-        groupKey: ByteArray,
-        keyGeneration: Long,
-    ): Result<EncryptedFieldDto, VaultError> {
-        val key = when (val read = sealingKey()) {
-            is Result.Success -> read.data
-            is Result.Error -> return read
+    internal suspend fun sealer(): Result<KeyCopySealer, VaultError> =
+        when (val read = sealingKey()) {
+            is Result.Success -> Result.Success(KeyCopySealer(sealingKey = read.data))
+            is Result.Error -> read
         }
-
-        return sealKeyCopy(sealingKey = key, groupUuid = groupUuid, groupKey = groupKey, keyGeneration = keyGeneration)
-            ?.let { Result.Success(it) }
-            ?: Result.Error(VaultError.Crypto)
-    }
 
     /**
      * The key each of [groups] carries the user's copy of, with the generation the server lists it
@@ -114,8 +107,8 @@ class GroupKeyCopies internal constructor(
      * device holds and the user is still in, see [GroupEntity.isLeft], when the listing shows none
      * of theirs, or this device does not know the one it shows to be of the key it holds, see
      * [GroupEntity.isBackedUp]: a group just joined, one the server dropped the copy of as its
-     * creator removed the user and added them back, and one whose creator handed over a new key in
-     * it since, see [GroupSync].
+     * creator removed the user and added them back, and one a Commit read took to a new epoch, see
+     * [GroupSync].
      *
      * The listing decides, as for the copies of one-time expense keys, see
      * [expense.OneTimeExpenseKeyRepository.backUp], rather than a record of what was sent, which the
@@ -168,6 +161,17 @@ class GroupKeyCopies internal constructor(
 
         return Result.Success(Unit)
     }
+}
+
+/** Seals the user's copies of their groups' keys under [sealingKey], the key their key ring holds for them. */
+internal class KeyCopySealer(private val sealingKey: ByteArray) {
+
+    /**
+     * [groupKey], the generation [keyGeneration] of the keys of the group [groupUuid], sealed as the
+     * user's copy of its key, or null when the key ring's key is not a 32-byte key.
+     */
+    fun seal(groupUuid: String, groupKey: ByteArray, keyGeneration: Long): EncryptedFieldDto? =
+        sealKeyCopy(sealingKey = sealingKey, groupUuid = groupUuid, groupKey = groupKey, keyGeneration = keyGeneration)
 }
 
 /**

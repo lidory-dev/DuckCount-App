@@ -9,7 +9,7 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * Who may wake the user: their contacts, blocked ones aside, whoever they sent a contact
- * request still waiting for its answer, and, with an expense of a group alone, whoever shares a
+ * request still waiting for its answer, and, with what concerns a group alone, whoever shares a
  * group they are still in with them, see [PushSignal.mayWake].
  *
  * The server keeps no record of who is whose contact, so it pushes whatever anybody sends the
@@ -30,14 +30,17 @@ import kotlinx.coroutines.sync.withLock
  * session ends, see [SessionLeftovers].
  *
  * Whoever shares a group with the user is kept on it the same way, rebuilt after every group sync
- * and in the flows that change who is in one: the creator's own additions and removals, see
+ * and in the flows that change who is in one: the user's own Commits, see
  * `group.GroupMembershipSender`, and the user leaving one, see `group.GroupLeaver`. Only the
- * members of the groups the user is still in, blocked ones aside: the server takes an expense from
- * a current member alone, and a group the user left or was removed from takes no more of them. A
- * member who is no contact wakes the user with an expense alone, see
- * [PushSignal.Kind.GROUP_EXPENSE], which they may well have paid for the user: anything else of
- * theirs is a stranger's. The user is among them, a member of each, which changes nothing: the
- * server wakes every member but the writer.
+ * members of the groups the user is still in, blocked ones aside: the server takes an expense, a
+ * change and a leave from a current member alone, and a group the user left or was removed from
+ * takes no more of them. A member who is no contact wakes the user with those alone: an expense,
+ * see [PushSignal.Kind.GROUP_EXPENSE], which they may well have paid for the user, a change, see
+ * [PushSignal.Kind.GROUP_CHANGED], their removal of those who departed included, and their leave,
+ * see [PushSignal.Kind.GROUP_MEMBER_LEFT], whose leaf the user's device may be the one to remove.
+ * They stay among the members as this device holds them until a Commit removes them, so the leave
+ * still finds them here. Anything else of theirs is a stranger's. The user is among them, a member
+ * of each, which changes nothing: the server wakes every member but the one who acted.
  *
  * A request keeps its recipient on it for as long as this device holds it, which for one
  * refused is for good, its sender never being told. That lets them wake the user with one

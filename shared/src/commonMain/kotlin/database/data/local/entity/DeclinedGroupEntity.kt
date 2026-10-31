@@ -6,11 +6,13 @@ import androidx.room.PrimaryKey
 /**
  * A leave owed to the server: for a group the user was invited to and that this device declined,
  * without ever joining it, or for one the user left, see `group.GroupLeaver`. Declined when its
- * Welcome came from somebody who may not add the user to a group, or could not be joined, or
- * handed over no key that opens the group the server lists, or was not waiting at all, with no copy
- * of the group's key listed with it that opens either, see `group.GroupSync`. Left from the group's settings, the
- * group then kept on this device, read-only, see [GroupEntity.isLeft], marked so in the same
- * transaction, see `GroupDao.markLeftAndOweLeave`.
+ * Welcome came from somebody who may not add the user to a group, or could not be joined, or let
+ * the user in where the keys its epoch and the Commits after it give, with the chain of links back
+ * from them, do not open the version of the group's information the server lists to one its creator
+ * signed, or was not waiting at all, with no copy of the group's key listed with it that opens
+ * either, see `group.GroupSync`. Left from the group's settings, the group then kept on this device,
+ * read-only, see [GroupEntity.isLeft], marked so in the same transaction, see
+ * `GroupDao.markLeftAndOweLeave`.
  *
  * The server keeps the user a member until they leave, whatever they made of the Welcome, and
  * every message sent in the group would wait for them there ever after, never to be acknowledged.

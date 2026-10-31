@@ -11,6 +11,7 @@ import group.GroupExpenseWriter
 import group.GroupHistory
 import group.GroupKeyChain
 import group.GroupKeyCopies
+import group.GroupKeyLinks
 import group.GroupLeaver
 import group.GroupMembershipChanger
 import group.GroupMembershipSender
@@ -25,6 +26,8 @@ val groupModule = module {
     single { GroupKeyCopies(vaultRepository = get(), groupApi = get(), groupDao = get()) }
 
     single { GroupKeyChain(groupApi = get(), groupDao = get()) }
+
+    single { GroupKeyLinks(groupApi = get(), groupDao = get()) }
 
     single {
         MemberProfileRepository(
@@ -73,7 +76,6 @@ val groupModule = module {
         GroupMembershipSender(
             groupApi = get(),
             groupDao = get(),
-            groupKeyCopies = get(),
             mlsIdentityRepository = get(),
             directMessageSender = get(),
             wakeList = get(),
@@ -87,11 +89,15 @@ val groupModule = module {
             contactDao = get(),
             identityConflictDao = get(),
             mlsIdentityRepository = get(),
+            groupKeyCopies = get(),
             keyPackageApi = get(),
             groupDao = get(),
             groupMembershipSender = get(),
             profileKeyVault = get(),
             memberProfileRepository = get(),
+            // The sync removes those who departed through this very changer.
+            groupSync = lazy { get<GroupSync>() },
+            groupSyncAnnouncer = get(),
         )
     }
 
@@ -99,6 +105,9 @@ val groupModule = module {
         GroupEditor(
             groupApi = get(),
             groupDao = get(),
+            groupKeyChain = get(),
+            groupSync = get(),
+            groupSyncAnnouncer = get(),
             mlsIdentityRepository = get(),
         )
     }
@@ -107,6 +116,7 @@ val groupModule = module {
         GroupHistory(
             groupApi = get(),
             groupDao = get(),
+            groupKeyChain = get(),
             mlsIdentityRepository = get(),
         )
     }
@@ -164,6 +174,8 @@ val groupModule = module {
             groupMembershipSender = get(),
             groupMembershipChanger = get(),
             groupKeyCopies = get(),
+            groupKeyChain = get(),
+            groupKeyLinks = get(),
             groupProfileKeyDelivery = get(),
             memberProfileRepository = get(),
             contactRepository = get(),

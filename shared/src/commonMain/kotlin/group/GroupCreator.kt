@@ -9,7 +9,6 @@ import database.data.local.dao.IdentityConflictDao
 import database.data.local.entity.GroupEntity
 import database.data.local.entity.GroupMemberEntity
 import database.data.local.entity.PendingGroupCreationEntity
-import database.data.remote.EncryptedFieldDto
 import database.data.repository.ContactRepository
 import database.domain.Currency
 import kotlinx.coroutines.NonCancellable
@@ -20,11 +19,11 @@ import mls.MlsIdentityError
 import mls.MlsIdentityRepository
 import mls.createGroupOf
 import mls.deleteGroupQuietly
+import mls.epochKeyIn
 import mls.isRetryable
 import uniffi.lib_duckcount.InviteeKeyPackage
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
-import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import uniffi.lib_duckcount.newGroupId
 import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
 import util.EmptyResult
@@ -36,24 +35,26 @@ import kotlin.io.encoding.Base64
 
 /**
  * Creates a group of the user's contacts, and sends it to the server, which hands its one Welcome
- * to every invitee: they join it at their next sync, and read its fields with the key the Welcome
- * carries.
+ * to every invitee: they join it at their next sync, and read its fields with the key they derive
+ * from the epoch the Welcome lets them in at, see [GroupKeyChain].
  *
  * In this order:
  * 1. The invitees are checked: at most [GroupLimits.MAX_MEMBERS] members with the user, once the
  *    session is read and before any key package is asked for, and then, under [withGroupsLock]
  *    like everything after, every one of them a contact this device pinned an identity for, none
  *    of them blocked, see [refusalOf].
- * 2. The group's key is drawn, its fields, the title and description taken without the whitespace
- *    around them, signed by the user as its first version, see [FIRST_GROUP_REVISION], and sealed
- *    under it, and the creator's copy of it sealed for the server to keep, see
- *    [GroupKeyCopies.seal], which reads the key ring: a key ring not answering stops everything
- *    here, with no key package spent. Then a key package is asked for each of them, a few at a
- *    time, see [fetchKeyPackages]. Any of them without one stops everything here, every one of
- *    them named, with nothing saved.
- * 3. The group is built with the library, its key travelling in the Welcome with the key to every
- *    member's profile this device holds, see [build] and [profileKeysToHandOut], and saved with its
- *    members and the request that will create it, the creator's copy of its key in it, see
+ * 2. The key ring the creator's copy of the group's key is sealed under is read, see
+ *    [GroupKeyCopies.sealer]: a key ring not answering stops everything here, with no key package
+ *    spent. Then a key package is asked for each of them, a few at a time, see
+ *    [fetchKeyPackages]. Any of them without one stops everything here, every one of them named,
+ *    with nothing saved.
+ * 3. The group is built with the library, the key to every member's profile this device holds
+ *    travelling in the Welcome, see [build] and [profileKeysToHandOut]. Its key is the one MLS
+ *    derives in the epoch the creation leaves it at, the first generation, see
+ *    [FIRST_KEY_GENERATION]: its fields, the title and description taken without the whitespace
+ *    around them, are signed by the user as its first version, see [FIRST_GROUP_REVISION], and
+ *    sealed under it, and the creator's copy of it sealed for the server to keep. It is saved with
+ *    its members and the request that will create it, the creator's copy of its key in it, see
  *    [CreateGroupBody.keyCopy], in one transaction, before anything is sent. Its UUID is derived
  *    from the user's own and a nonce this device draws, as the server derives it, see
  *    `group_uuid` in lib-duckcount, so nobody else's request can create a group under it, and the
@@ -73,8 +74,8 @@ import kotlin.io.encoding.Base64
  * [contacts] and [blocked] are [ContactDao.getUserUuids] and [IdentityConflictDao.getBlocked],
  * [client] is [MlsIdentityRepository.client], [consumeKeyPackage] is
  * [KeyPackageApi.consumeKeyPackage], [save] is [GroupDao.insertCreated], [bookResend] and [send]
- * are [GroupCreationSender.bookResend] and [GroupCreationSender.send], [sealKeyCopy] is
- * [GroupKeyCopies.seal], [ownProfileKey] is [ProfileKeyVault.getOrCreateProfileEncryptionKey],
+ * are [GroupCreationSender.bookResend] and [GroupCreationSender.send], [keyCopySealer] is
+ * [GroupKeyCopies.sealer], [ownProfileKey] is [ProfileKeyVault.getOrCreateProfileEncryptionKey],
  * null when it fails, [contactProfileKey] is the key [ContactDao.get] holds and
  * [learnedProfileKey] is [MemberProfileRepository.keyFor], or what a test stands in for any of
  * them.
@@ -93,11 +94,7 @@ class GroupCreator internal constructor(
     ) -> Unit,
     private val bookResend: suspend () -> Unit,
     private val send: suspend (pendingCreation: PendingGroupCreationEntity) -> GroupCreationAnswer,
-    private val sealKeyCopy: suspend (
-        groupUuid: String,
-        groupKey: ByteArray,
-        keyGeneration: Long,
-    ) -> Result<EncryptedFieldDto, VaultError>,
+    private val keyCopySealer: suspend () -> Result<KeyCopySealer, VaultError>,
     private val ownProfileKey: suspend () -> ByteArray?,
     private val contactProfileKey: suspend (userUuid: String) -> ByteArray?,
     private val learnedProfileKey: suspend (userUuid: String) -> ByteArray?,
@@ -123,7 +120,7 @@ class GroupCreator internal constructor(
         save = groupDao::insertCreated,
         bookResend = groupCreationSender::bookResend,
         send = groupCreationSender::send,
-        sealKeyCopy = groupKeyCopies::seal,
+        keyCopySealer = groupKeyCopies::sealer,
         ownProfileKey = { (profileKeyVault.getOrCreateProfileEncryptionKey() as? Result.Success)?.data },
         contactProfileKey = { userUuid -> contactDao.get(userUuid = userUuid)?.profileEncryptionKey },
         learnedProfileKey = memberProfileRepository::keyFor,
@@ -182,20 +179,13 @@ class GroupCreator internal constructor(
         val groupId = newGroupId(creatorUuid = selfUuid)
             ?: return Result.Error(GroupCreationError.Crypto)
         val groupUuid = groupId.uuid
-        val groupKey = generateSymmetricEncryptionKey()
 
-        // Signed once and sealed with the fields, as the key copy is, so that every resend of the
-        // creation carries the same version, see CreateGroupBody.signature.
-        val sealedVersion = fields.signedAs(client = client, groupUuid = groupUuid, revision = FIRST_GROUP_REVISION)
-            ?.seal(groupKey = groupKey, groupUuid = groupUuid)
-            ?: return Result.Error(GroupCreationError.Crypto)
-
-        // The creator's copy of the key, which the creation carries, see CreateGroupBody.keyCopy:
-        // sealed before any key package is asked for, which a key ring not answering would spend
-        // for nothing.
-        val keyCopy = when (val sealed = sealKeyCopy(groupUuid, groupKey, FIRST_KEY_GENERATION)) {
-            is Result.Success -> sealed.data
-            is Result.Error -> return Result.Error(GroupCreationError.Vault(sealed.error))
+        // What seals the creator's copy of the key, which the creation carries, see
+        // CreateGroupBody.keyCopy: read before any key package is asked for, which a key ring not
+        // answering would spend for nothing.
+        val keyCopySealer = when (val read = keyCopySealer()) {
+            is Result.Success -> read.data
+            is Result.Error -> return Result.Error(GroupCreationError.Vault(read.error))
         }
 
         val keyPackages = when (
@@ -228,9 +218,7 @@ class GroupCreator internal constructor(
                     nonce = groupId.nonce,
                     selfUuid = selfUuid,
                     fields = fields,
-                    groupKey = groupKey,
-                    sealedVersion = sealedVersion,
-                    keyCopy = keyCopy,
+                    keyCopySealer = keyCopySealer,
                     keyPackages = keyPackages,
                     profileKeys = profileKeys,
                 ).also { saved ->
@@ -276,20 +264,21 @@ class GroupCreator internal constructor(
 
     /**
      * Builds the MLS group of the user, [selfUuid], and the owners of [keyPackages], under the id
-     * the library derives from [groupUuid], handing them [groupKey] in the Welcome as the first
-     * generation of its keys, see [FIRST_KEY_GENERATION], with [profileKeys], the key to the
-     * profile of each member this device holds, see [welcomePayloadOf]: the id already binds the
-     * Welcome to [groupUuid], see [GroupSync]. Then
+     * the library derives from [groupUuid], handing them [profileKeys], the key to the profile of
+     * each member this device holds, in the Welcome, see [welcomePayloadOf]: the id already binds
+     * the Welcome to [groupUuid], see [GroupSync]. Then seals [fields] as the group's first version,
+     * signed once, so that every resend of the creation carries the same version, see
+     * [CreateGroupBody.signature], under the key MLS derives in the epoch the creation leaves the
+     * group at, see [epochKeyIn], and the creator's copy of that key with [keyCopySealer], and
      * saves it as that group, see [GroupDao.insertCreated], holding the user's own key among
      * [profileKeys] for them, see [GroupEntity.handedProfileKeyHash], with the request that creates
      * it on the server, which it returns: sending [nonce], from which the server derives
-     * [groupUuid] as this device did, [sealedVersion], [fields] as the group's first version, and
-     * [keyCopy], the user's copy of [groupKey].
+     * [groupUuid] as this device did.
      *
      * Those of [keyPackages] the library cannot use, an expired one say, are named as having none,
      * as [fetchKeyPackages] names those who have none at all.
      *
-     * A group that could not be saved is deleted again: nothing would ever send its Welcome.
+     * A group that could not be sealed or saved is deleted again: nothing would ever send its Welcome.
      */
     private suspend fun build(
         client: MlsClient,
@@ -297,9 +286,7 @@ class GroupCreator internal constructor(
         nonce: ByteArray,
         selfUuid: String,
         fields: GroupFields,
-        groupKey: ByteArray,
-        sealedVersion: SealedGroupVersion,
-        keyCopy: EncryptedFieldDto,
+        keyCopySealer: KeyCopySealer,
         keyPackages: List<InviteeKeyPackage>,
         profileKeys: Map<String, ByteArray>,
     ): Result<PendingGroupCreationEntity, GroupCreationError> {
@@ -307,11 +294,7 @@ class GroupCreator internal constructor(
             client.createGroupOf(
                 groupUuid = groupUuid,
                 invitees = keyPackages,
-                welcomePayload = welcomePayloadOf(
-                    groupKey = groupKey,
-                    keyGeneration = FIRST_KEY_GENERATION,
-                    profileKeys = profileKeys,
-                ),
+                welcomePayload = welcomePayloadOf(profileKeys = profileKeys),
             )
         } catch (exception: MlsException) {
             return Result.Error(
@@ -326,6 +309,25 @@ class GroupCreator internal constructor(
                     else -> GroupCreationError.Crypto
                 },
             )
+        }
+
+        val groupKey = try {
+            client.epochKeyIn(mlsGroupId = creation.mlsGroupId, groupUuid = groupUuid)
+        } catch (exception: MlsException) {
+            client.deleteGroupQuietly(mlsGroupId = creation.mlsGroupId)
+
+            return Result.Error(if (exception.isRetryable()) GroupCreationError.Storage else GroupCreationError.Crypto)
+        }
+
+        val sealedVersion = fields.signedAs(client = client, groupUuid = groupUuid, revision = FIRST_GROUP_REVISION)
+            ?.seal(groupKey = groupKey.key, groupUuid = groupUuid)
+
+        val keyCopy = keyCopySealer.seal(groupUuid = groupUuid, groupKey = groupKey.key, keyGeneration = groupKey.epoch)
+
+        if (sealedVersion == null || keyCopy == null) {
+            client.deleteGroupQuietly(mlsGroupId = creation.mlsGroupId)
+
+            return Result.Error(GroupCreationError.Crypto)
         }
 
         val pendingCreation = pendingCreationOf(
@@ -350,8 +352,8 @@ class GroupCreator internal constructor(
             infoRevision = sealedVersion.revision,
             ownerUuid = selfUuid,
             mlsGroupId = creation.mlsGroupId,
-            groupKey = groupKey,
-            keyGeneration = FIRST_KEY_GENERATION,
+            groupKey = groupKey.key,
+            keyGeneration = groupKey.epoch,
             isBackedUp = false,
             isLeft = false,
             handedProfileKeyHash = profileKeys[selfUuid]?.let { profileEncryptionKeyPartialHash(it) },

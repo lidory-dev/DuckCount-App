@@ -14,7 +14,6 @@ import mls.addMembersTo
 import mls.applyPendingCommitIn
 import mls.encryptApplicationMessage
 import mls.inviteeKeyPackage
-import mls.processGroupMessageIn
 import mls.removeMembersFrom
 import profile.InMemoryProfileStore
 import profile.ProfileRepository
@@ -117,7 +116,7 @@ class GroupSyncProfileKeysTest {
         markRestored = { toRestore = false },
     )
 
-    /** Alice's MLS group, the key she last handed over, and the fields as the server holds them. */
+    /** Alice's MLS group, the key of the epoch she created it at, and the fields as the server holds them. */
     private var aliceGroupId: ByteArray? = null
     private var groupKey = generateSymmetricEncryptionKey()
     private var serverVersion: SealedGroupVersion? = null
@@ -207,6 +206,14 @@ class GroupSyncProfileKeysTest {
         recordDeclined = { error("Nothing is declined here.") },
         forgetDeclined = { error("Nothing is declined here.") },
         removeDeparted = { _, _ -> error("Nobody leaves a group here.") },
+        replaceRefused = { _, _ -> error("No Commit is refused for good here.") },
+        remakeOutdated = { Result.Success(null) },
+        settleUnlisted = { _, _ -> Result.Success(Unit) },
+        keyOf = { _, _, _ -> error("No key is got back through the chain here.") },
+        checkKeyLinks = { Result.Success(Unit) },
+        setAwaitingOwner = { _, _ -> },
+        keyLinks = { Result.Success(emptyList()) },
+        now = { error("Nobody departed from a group here.") },
         fullName = { null },
         hasPendingChange = { it in pending },
         isBlocked = { it in blocked },
@@ -602,15 +609,12 @@ class GroupSyncProfileKeysTest {
         val creation = alice.createGroup(
             groupUuid = GROUP,
             invitees = listOf(bob.inviteeKeyPackage(), carol.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(
-                groupKey = groupKey,
-                keyGeneration = FIRST_KEY_GENERATION,
-                profileKeys = aliceHoldsOf(listOf(ALICE, BOB, CAROL)) + extraKeys,
-            ),
+            welcomePayload = welcomePayloadOf(profileKeys = aliceHoldsOf(listOf(ALICE, BOB, CAROL)) + extraKeys),
         )
 
         aliceGroupId = creation.mlsGroupId
         carolsWelcome = creation.welcome
+        groupKey = alice.contentKeyIn(mlsGroupId = creation.mlsGroupId, groupUuid = GROUP)
         serverMembers += listOf(ALICE, BOB, CAROL)
         serverVersion = FIELDS.sealedAs(creator = alice, groupKey = groupKey, groupUuid = GROUP)
 
@@ -641,14 +645,9 @@ class GroupSyncProfileKeysTest {
         val addition = alice.addMembersTo(
             mlsGroupId = aliceGroup(),
             invitees = invitees.map { it.inviteeKeyPackage() },
-            welcomePayload = welcomePayloadOf(
-                groupKey = groupKey,
-                keyGeneration = FIRST_KEY_GENERATION,
-                profileKeys = profileKeys,
-            ),
-        )
+            welcomePayload = welcomePayloadOf(profileKeys = profileKeys))
 
-        alice.applyPendingCommitIn(mlsGroupId = aliceGroup())
+        alice.applyPendingCommitIn(mlsGroupId = aliceGroup(), groupUuid = GROUP)
         serverMembers += invitees.map { it.userUuid() }
         additionsWelcome = addition.welcome
 
@@ -667,7 +666,7 @@ class GroupSyncProfileKeysTest {
     private suspend fun aliceRemoves(userUuid: String): String {
         val commit = alice.removeMembersFrom(mlsGroupId = aliceGroup(), userUuids = listOf(userUuid))
 
-        alice.applyPendingCommitIn(mlsGroupId = aliceGroup())
+        alice.applyPendingCommitIn(mlsGroupId = aliceGroup(), groupUuid = GROUP)
 
         val delivered = post(sender = ALICE, ciphertext = commit)
 
@@ -689,7 +688,8 @@ class GroupSyncProfileKeysTest {
     /** What Carol reads in [post], one of Bob's, as the key to his profile. */
     private suspend fun readByCarol(post: ByteArray): ByteArray? {
         val read = assertIs<ProcessedMessage.ApplicationMessage>(
-            carol.processGroupMessageIn(mlsGroupId = carolJoins(), message = post, creatorUuid = ALICE).processed,
+            carol.processUnderPolicy(mlsGroupId = carolJoins(), message = post, groupUuid = GROUP, creatorUuid = ALICE)
+                .processed,
         )
 
         assertEquals(BOB, read.senderUserUuid)
@@ -700,9 +700,10 @@ class GroupSyncProfileKeysTest {
     /** What Erin reads in [post], one of Bob's, as the key to his profile, once she joined. */
     private suspend fun readByErin(post: ByteArray): ByteArray? {
         val read = assertIs<ProcessedMessage.ApplicationMessage>(
-            erin.processGroupMessageIn(
+            erin.processUnderPolicy(
                 mlsGroupId = joinAddition(erin, otherMembers = listOf(ALICE, BOB, CAROL)),
                 message = post,
+                groupUuid = GROUP,
                 creatorUuid = ALICE,
             ).processed,
         )
@@ -749,6 +750,7 @@ class GroupSyncProfileKeysTest {
             senderUserUuid = sender,
             ciphertext = Base64.Default.encode(ciphertext),
             createdAt = "2026-10-27T12:${(seconds / 60).twoDigits()}:${(seconds % 60).twoDigits()}.000Z",
+            departedMemberUuids = emptyList(),
         )
 
         return uuid

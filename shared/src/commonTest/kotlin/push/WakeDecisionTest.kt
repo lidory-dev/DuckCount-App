@@ -88,32 +88,43 @@ class WakeDecisionTest {
         assertFalse(signal(PushSignal.Kind.GROUP_EXPENSE, from = null).mayWake(wakeList))
     }
 
-    /** Sharing a group lets her through with an expense of it, and with nothing else of hers. */
+    /**
+     * Sharing a group lets her through with what concerns it, an expense, a change and a leave,
+     * and with nothing else of hers.
+     */
     @Test
-    fun `nothing but an expense of a group from a member who is no contact wakes the user`() {
-        (PushSignal.Kind.entries - PushSignal.Kind.GROUP_EXPENSE - PushSignal.Kind.CONTACT_REQUEST).forEach { kind ->
+    fun `nothing but what concerns a group from a member who is no contact wakes the user`() {
+        val ofGroups = setOf(
+            PushSignal.Kind.GROUP_EXPENSE,
+            PushSignal.Kind.GROUP_CHANGED,
+            PushSignal.Kind.GROUP_MEMBER_LEFT,
+        )
+
+        (PushSignal.Kind.entries - ofGroups - PushSignal.Kind.CONTACT_REQUEST).forEach { kind ->
             assertFalse(signal(kind, from = CAROL).mayWake(wakeList), "$kind")
         }
     }
 
     /**
-     * Sent by the server for the group's owner, whom a removed member may have no contact with
-     * by now: their removal is read at the next sync all the same.
+     * Sent by whoever changed the group: its creator, or any member removing those who departed,
+     * who may be no contact of the user's.
      */
     @Test
-    fun `a group change wakes the user from a contact alone`() {
+    fun `a group change wakes the user from a contact or a member`() {
         assertTrue(signal(PushSignal.Kind.GROUP_CHANGED, from = BOB).mayWake(wakeList))
+        assertTrue(signal(PushSignal.Kind.GROUP_CHANGED, from = CAROL).mayWake(wakeList))
         assertFalse(signal(PushSignal.Kind.GROUP_CHANGED, from = MALLORY).mayWake(wakeList))
         assertFalse(signal(PushSignal.Kind.GROUP_CHANGED, from = null).mayWake(wakeList))
     }
 
     /**
-     * Sent by the server to the owner of a group for the member who left it, whom the creator may
-     * have no contact with by now: their leaf goes at the creator's next sync all the same.
+     * Sent by the server to every member who remains for the member who left, whom this device
+     * may be the one to remove, and who is still a member here until a Commit removes them.
      */
     @Test
-    fun `a member leaving a group wakes the user from a contact alone`() {
+    fun `a member leaving a group wakes the user from a contact or a member`() {
         assertTrue(signal(PushSignal.Kind.GROUP_MEMBER_LEFT, from = BOB).mayWake(wakeList))
+        assertTrue(signal(PushSignal.Kind.GROUP_MEMBER_LEFT, from = CAROL).mayWake(wakeList))
         assertFalse(signal(PushSignal.Kind.GROUP_MEMBER_LEFT, from = MALLORY).mayWake(wakeList))
         assertFalse(signal(PushSignal.Kind.GROUP_MEMBER_LEFT, from = null).mayWake(wakeList))
     }

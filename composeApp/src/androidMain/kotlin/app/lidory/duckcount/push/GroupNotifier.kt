@@ -34,15 +34,16 @@ private const val UNNAMED_GROUP_REQUEST_CODE = 7
 private const val UNNAMED_GROUP_REMOVAL_REQUEST_CODE = 8
 
 /**
- * Tells the user about the groups a contact added them to, and those whose creator removed them,
- * one notification per group.
+ * Tells the user about the groups a contact added them to, and those they were removed from, one
+ * notification per group.
  *
  * What a push carries is a signal with no content, so everything said here comes from what the
  * group sync read and decrypted for itself: who wrote the Welcome, or the Commit removing the
  * user, and the title the group opened to, see [group.GroupSync]. Only a contact can add the user,
- * the sync declining anybody else's group without a word, and only the creator of a group removes
- * anybody from it. A group the user left is never one the sync reports them removed from, see
- * [group.GroupLeaver]: they know already.
+ * the sync declining anybody else's group without a word. Whoever made the Commit is who removed
+ * them, named as MLS says, see [GroupRemoval.removerUuid]: the group's creator, for anything but
+ * the removal of a member who departed, which any member makes. A group the user left is never one
+ * the sync reports them removed from, see [group.GroupLeaver]: they know already.
  *
  * Nothing goes up while the device is locked. Being added to a group, or removed from one, asks
  * nothing of the user, and the signal alone could not say which group, or whose: the sync that

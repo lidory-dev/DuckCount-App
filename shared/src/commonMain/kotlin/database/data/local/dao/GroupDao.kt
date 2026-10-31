@@ -21,6 +21,10 @@ private const val HAS_PENDING_CHANGE = """SELECT
     EXISTS (SELECT 1 FROM PendingGroupCreationEntity WHERE groupUuid = :groupUuid)
     OR EXISTS (SELECT 1 FROM PendingMembershipChangeEntity WHERE groupUuid = :groupUuid)"""
 
+private const val HAS_CHANGE_ON_SERVER = """SELECT
+    EXISTS (SELECT 1 FROM PendingGroupCreationEntity WHERE groupUuid = :groupUuid)
+    OR EXISTS (SELECT 1 FROM PendingMembershipChangeEntity WHERE groupUuid = :groupUuid AND isOutdated = false)"""
+
 @Dao
 interface GroupDao {
     @Insert
@@ -180,23 +184,23 @@ interface GroupDao {
 
     /**
      * Records a group the user joined, joined again once added back, or brought back after a
-     * log-out, with its [members] in place of any it had, its key as the generation it is and the
-     * [olderKeys] read with it, see [GroupKeyEntity], and the [signatureKeys] of the members its
-     * tree held, see [GroupMemberSignatureKeyEntity], in one transaction: a group listed without
-     * its members would show nobody in it, one joined again would show those it had when the user
-     * was removed, and one saved without its keys could not read what was sealed under them. The
-     * generations and signature keys it held already stay, but for those read again.
+     * log-out, with its [members] in place of any it had, the [keys] read with it, its own among
+     * them, see [GroupKeyEntity], and the [signatureKeys] of the members its tree held, see
+     * [GroupMemberSignatureKeyEntity], in one transaction: a group listed without its members
+     * would show nobody in it, one joined again would show those it had when the user was removed,
+     * and one saved without its keys could not read what was sealed under them. The generations
+     * and signature keys it held already stay, but for those read again.
      */
     @Transaction
     suspend fun upsertWithMembers(
         group: GroupEntity,
         members: List<GroupMemberEntity>,
-        olderKeys: List<GroupKeyEntity>,
+        keys: List<GroupKeyEntity>,
         signatureKeys: List<GroupMemberSignatureKeyEntity>,
     ) {
         upsert(groupEntity = group)
         replaceMembers(groupUuid = group.uuid, members = members)
-        upsertKeys(keys = olderKeys + group.currentKey())
+        upsertKeys(keys = keys)
         upsertSignatureKeys(signatureKeys = signatureKeys)
     }
 
@@ -221,11 +225,17 @@ interface GroupDao {
      * no leave owed would keep the user a member on the server for good, nothing ever sending it,
      * and a leave owed for a group still current would have a sync drain it and report a removal
      * once the leave lands.
+     *
+     * The change to its members pending for it goes with it, see [PendingMembershipChangeEntity]: a
+     * removal of those who departed, the one change a member who may leave makes, which the leave
+     * makes moot whether or not the server took it. Left, it would be sent again by every sync, from
+     * a group whose MLS state the leave deletes.
      */
     @Transaction
     suspend fun markLeftAndOweLeave(groupUuid: String) {
         markLeft(uuid = groupUuid)
         insertDeclined(declined = DeclinedGroupEntity(groupUuid = groupUuid))
+        deleteMembershipChange(groupUuid = groupUuid)
     }
 
     /**
@@ -254,27 +264,65 @@ interface GroupDao {
     )
     suspend fun getOwedProfileKey(profileKeyHash: String): List<GroupEntity>
 
-    /**
-     * Records [change] as the one pending for its group, see [PendingMembershipChangeEntity],
-     * replacing the removal a key rotation comes after.
-     */
+    /** Records [change] as the one pending for its group, see [PendingMembershipChangeEntity]. */
     @Upsert
     suspend fun upsertMembershipChange(change: PendingMembershipChangeEntity)
 
     /**
-     * Every change to the members of a group the server has not been heard to take, or whose
-     * taking this device has yet to act on, see [PendingMembershipChangeEntity].
+     * Every Commit of the user's the server has not been heard to take, or whose taking this device
+     * has yet to act on, see [PendingMembershipChangeEntity].
      */
     @Query("SELECT * FROM PendingMembershipChangeEntity")
     suspend fun getMembershipChanges(): List<PendingMembershipChangeEntity>
 
-    /** Drops the change pending for the group [groupUuid], once nothing is left to do about it. */
-    @Query("DELETE FROM PendingMembershipChangeEntity WHERE groupUuid = :groupUuid")
+    /**
+     * Drops the change pending for the group [groupUuid] that waits on the server, once nothing is
+     * left to do about it. One to make again stays, see [PendingMembershipChangeEntity.isOutdated].
+     */
+    @Query("DELETE FROM PendingMembershipChangeEntity WHERE groupUuid = :groupUuid AND isOutdated = false")
     suspend fun deleteMembershipChange(groupUuid: String)
 
-    /** Whether a change to the group [groupUuid] is waiting on the server: its creation, or a change to its members. */
+    /**
+     * Records the change pending for the group [groupUuid] that waits on the server as one to make
+     * again, its Commit refused for its epoch and discarded, see
+     * [PendingMembershipChangeEntity.isOutdated], in place of any to make again already: the one it
+     * was made again from, which a process that did not live to drop it left, see
+     * `group.GroupMembershipChanger.remakeOutdatedUnderGroupsLock`.
+     */
+    @Transaction
+    suspend fun markMembershipChangeOutdated(groupUuid: String) {
+        deleteOutdatedMembershipChange(groupUuid = groupUuid)
+        setMembershipChangeOutdated(groupUuid = groupUuid)
+    }
+
+    /** See [markMembershipChangeOutdated], which makes room for it first. */
+    @Query(
+        """UPDATE PendingMembershipChangeEntity SET isOutdated = true
+        WHERE groupUuid = :groupUuid AND isOutdated = false""",
+    )
+    suspend fun setMembershipChangeOutdated(groupUuid: String)
+
+    /**
+     * Drops the change pending for the group [groupUuid] if it is one to make again, see
+     * [PendingMembershipChangeEntity.isOutdated]: made again since, or with nothing left to make.
+     */
+    @Query("DELETE FROM PendingMembershipChangeEntity WHERE groupUuid = :groupUuid AND isOutdated = true")
+    suspend fun deleteOutdatedMembershipChange(groupUuid: String)
+
+    /**
+     * Whether a change to the group [groupUuid] is pending: its creation, or a change to its
+     * members, waiting on the server or to be made again, see [PendingMembershipChangeEntity.isOutdated].
+     */
     @Query(HAS_PENDING_CHANGE)
     suspend fun hasPendingChange(groupUuid: String): Boolean
+
+    /**
+     * Whether a change to the group [groupUuid] is waiting on the server: its creation, or a change
+     * to its members but one to make again, which is nowhere but on this device, see
+     * [PendingMembershipChangeEntity.isOutdated].
+     */
+    @Query(HAS_CHANGE_ON_SERVER)
+    suspend fun hasChangeOnServer(groupUuid: String): Boolean
 
     /** See [hasPendingChange]. */
     @Query(HAS_PENDING_CHANGE)
@@ -295,31 +343,23 @@ interface GroupDao {
     @Upsert
     suspend fun upsertKeys(keys: List<GroupKeyEntity>)
 
-    /**
-     * Records those of [keys] this device holds no key of the same generation for, see
-     * [insertRecoveredKeys] and [takeHandedKeys].
-     */
+    /** Records those of [keys] this device holds no key of the same generation for, see [insertRecoveredKeys]. */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertMissingKeys(keys: List<GroupKeyEntity>)
 
     /**
-     * Takes [keys], at least one, which the creator of the group [groupUuid] handed over in it,
-     * among the generations of its key, see [GroupKeyEntity], none in place of a key this device
-     * holds of the same generation, and the one of the highest generation as its key, see
-     * [updateGroupKey], when it is past the group's, in one transaction: the group would otherwise
-     * seal under a key whose generation this device does not hold, or hold one it never seals
-     * under.
-     *
-     * Never one behind the group's key, whatever order they come in: the server can hold a key
-     * message back and list it after the next rotation's, which MLS still opens for a few epochs,
-     * and taken as the group's key it would have every expense the user writes sealed for good under
-     * a key a member removed since holds, see `group.GroupExpenseWriter`.
+     * Takes [keys], at least one, which the group [groupUuid] gave this device as Commits read in
+     * it took it from epoch to epoch, see `group.GroupSync`, among the generations of its key, see
+     * [GroupKeyEntity], and the one of the highest generation as its key, see [updateGroupKey],
+     * when it is past the group's, in one transaction: the group would otherwise seal under a key
+     * whose generation this device does not hold, or hold one it never seals under. A key derived
+     * replaces whatever was held at its generation, MLS being what every member derives it from.
      */
     @Transaction
-    suspend fun takeHandedKeys(groupUuid: String, keys: List<GroupKeyEntity>) {
+    suspend fun takeDerivedKeys(groupUuid: String, keys: List<GroupKeyEntity>) {
         val newest = keys.maxBy { it.generation }
 
-        insertMissingKeys(keys = keys)
+        upsertKeys(keys = keys)
 
         val held = get(uuid = groupUuid) ?: return
 
@@ -329,23 +369,43 @@ interface GroupDao {
     }
 
     /**
-     * Takes [groupKey] as the key of the group [groupUuid], of the generation [keyGeneration], once
-     * the server took the key rotation handing it over, records the group as backed up, the rotation
-     * having carried the creator's copy of it, see `group.RotateGroupKeyBody.keyCopy`, and drops that
-     * rotation, in one transaction: a rotation dropped without its key taken would lose the key the
-     * members now read the group with, while one whose key is taken and that is sent again only hears
-     * it was taken already. The key it replaces stays among the group's generations, see
-     * [GroupKeyEntity].
+     * Takes [key] as the key of its group once the server took the Commit of the user's leading to
+     * its generation and this device applied it, records the group as backed up, the Commit having
+     * carried the user's copy of it, see `group.AddGroupMembersBody.keyCopy`, and drops the change
+     * that made it, see [PendingMembershipChangeEntity], in one transaction: a change dropped
+     * without its key taken would leave the group sealing under a key of an epoch it left, while one
+     * whose key is taken and that is sent again only hears it was taken already. The key it replaces
+     * stays among the group's generations, see [GroupKeyEntity].
      */
     @Transaction
-    suspend fun adoptRotatedKey(groupUuid: String, groupKey: ByteArray, keyGeneration: Long) {
-        val key = GroupKeyEntity(groupUuid = groupUuid, generation = keyGeneration, groupKey = groupKey)
-
+    suspend fun takeCommittedKey(key: GroupKeyEntity) {
         upsertKeys(keys = listOf(key))
-        updateGroupKey(uuid = groupUuid, groupKey = groupKey, keyGeneration = keyGeneration)
-        markBackedUp(uuid = groupUuid)
-        deleteMembershipChange(groupUuid = groupUuid)
+        updateGroupKey(uuid = key.groupUuid, groupKey = key.groupKey, keyGeneration = key.generation)
+        markBackedUp(uuid = key.groupUuid)
+        deleteMembershipChange(groupUuid = key.groupUuid)
     }
+
+    /**
+     * Every generation of the keys of the groups the user is still in, whose MLS group this device
+     * holds, that owes the server a look at its links, see [GroupKeyEntity.isLinkOwed].
+     */
+    @Query(
+        """SELECT * FROM GroupKeyEntity WHERE isLinkOwed = true
+        AND groupUuid IN (SELECT uuid FROM GroupEntity WHERE isLeft = false AND mlsGroupId IS NOT NULL)""",
+    )
+    suspend fun getKeysOwingLinks(): List<GroupKeyEntity>
+
+    /**
+     * Records that the server holds a link at the generation [generation] of the keys of the group
+     * [groupUuid] that leads back to the key before it this device holds, see
+     * [GroupKeyEntity.isLinkOwed].
+     */
+    @Query("UPDATE GroupKeyEntity SET isLinkOwed = false WHERE groupUuid = :groupUuid AND generation = :generation")
+    suspend fun markLinkSeen(groupUuid: String, generation: Long)
+
+    /** Records whether the group [uuid] waits for its creator's device, see [GroupEntity.isAwaitingOwner]. */
+    @Query("UPDATE GroupEntity SET isAwaitingOwner = :isAwaitingOwner WHERE uuid = :uuid")
+    suspend fun setAwaitingOwner(uuid: String, isAwaitingOwner: Boolean)
 
     /** Every generation of the key of the group [groupUuid] this device holds, see [GroupKeyEntity]. */
     @Query("SELECT * FROM GroupKeyEntity WHERE groupUuid = :groupUuid")
@@ -354,7 +414,7 @@ interface GroupDao {
     /**
      * Records [keys], generations of the key of the group [groupUuid] got back through the links
      * the server keeps, see `group.GroupKeyChain`, in one transaction: none in place of a key this
-     * device holds of the same generation, which its creator handed over or the user's copy held,
+     * device holds of the same generation, which MLS gave it or the user's copy held,
      * and none for a group this device no longer holds, its creation refused while the links were
      * read, which would outlive it until a log-out.
      */

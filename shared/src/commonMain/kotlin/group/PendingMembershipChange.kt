@@ -8,31 +8,43 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 /**
- * A change to the members of a group the user created, kept until the server takes it and this
- * device acted on that, see [PendingMembershipChangeEntity], read for what it is.
+ * A Commit of the user's to a group, kept until the server takes it and this device acted on that,
+ * see [PendingMembershipChangeEntity], read for what it is. Each was built in [commitEpoch].
  */
 internal sealed interface PendingMembershipChange {
     val groupUuid: String
 
-    /** Members added, by the Commit [body] carries, built in [commitEpoch]. */
+    val commitEpoch: Long
+
+    /** Members added by the creator, by the Commit [body] carries. */
     class Addition(
         override val groupUuid: String,
         val body: AddGroupMembersBody,
-        val commitEpoch: Long,
+        override val commitEpoch: Long,
     ) : PendingMembershipChange
 
-    /** Members removed, by the Commit [body] carries, built in [commitEpoch]. */
+    /** Members removed by the creator, by the Commit [body] carries. */
     class Removal(
         override val groupUuid: String,
         val body: RemoveGroupMembersBody,
-        val commitEpoch: Long,
+        override val commitEpoch: Long,
     ) : PendingMembershipChange
 
-    /** The key rotation after a removal, handing the members who remain [groupKey]. */
-    class KeyRotation(
+    /**
+     * Departed members removed by any member, the creator included, through the server's route for
+     * them, by the Commit [body] carries, see [GroupMembershipChanger.removeDepartedUnderGroupsLock].
+     */
+    class DepartedRemoval(
         override val groupUuid: String,
-        val body: RotateGroupKeyBody,
-        val groupKey: ByteArray,
+        val body: RemoveDepartedMembersBody,
+        override val commitEpoch: Long,
+    ) : PendingMembershipChange
+
+    /** The creator's Commit in place of one nobody could apply, which [body] carries. */
+    class Replacement(
+        override val groupUuid: String,
+        val body: ReplaceGroupCommitBody,
+        override val commitEpoch: Long,
     ) : PendingMembershipChange
 }
 
@@ -44,7 +56,6 @@ internal fun PendingMembershipChange.toEntity(): PendingMembershipChangeEntity =
             kind = MembershipChangeKind.ADDITION,
             body = Json.encodeToString(AddGroupMembersBody.serializer(), body),
             commitEpoch = commitEpoch,
-            groupKey = null,
         )
 
         is PendingMembershipChange.Removal -> PendingMembershipChangeEntity(
@@ -52,15 +63,20 @@ internal fun PendingMembershipChange.toEntity(): PendingMembershipChangeEntity =
             kind = MembershipChangeKind.REMOVAL,
             body = Json.encodeToString(RemoveGroupMembersBody.serializer(), body),
             commitEpoch = commitEpoch,
-            groupKey = null,
         )
 
-        is PendingMembershipChange.KeyRotation -> PendingMembershipChangeEntity(
+        is PendingMembershipChange.DepartedRemoval -> PendingMembershipChangeEntity(
             groupUuid = groupUuid,
-            kind = MembershipChangeKind.KEY_ROTATION,
-            body = Json.encodeToString(RotateGroupKeyBody.serializer(), body),
-            commitEpoch = null,
-            groupKey = groupKey,
+            kind = MembershipChangeKind.DEPARTED_REMOVAL,
+            body = Json.encodeToString(RemoveDepartedMembersBody.serializer(), body),
+            commitEpoch = commitEpoch,
+        )
+
+        is PendingMembershipChange.Replacement -> PendingMembershipChangeEntity(
+            groupUuid = groupUuid,
+            kind = MembershipChangeKind.REPLACEMENT,
+            body = Json.encodeToString(ReplaceGroupCommitBody.serializer(), body),
+            commitEpoch = commitEpoch,
         )
     }
 
@@ -70,26 +86,32 @@ internal fun PendingMembershipChangeEntity.toChange(): PendingMembershipChange =
         MembershipChangeKind.ADDITION -> PendingMembershipChange.Addition(
             groupUuid = groupUuid,
             body = Json.decodeFromString(AddGroupMembersBody.serializer(), body),
-            commitEpoch = checkNotNull(commitEpoch) { "An addition is kept with the epoch of its Commit." },
+            commitEpoch = commitEpoch,
         )
 
         MembershipChangeKind.REMOVAL -> PendingMembershipChange.Removal(
             groupUuid = groupUuid,
             body = Json.decodeFromString(RemoveGroupMembersBody.serializer(), body),
-            commitEpoch = checkNotNull(commitEpoch) { "A removal is kept with the epoch of its Commit." },
+            commitEpoch = commitEpoch,
         )
 
-        MembershipChangeKind.KEY_ROTATION -> PendingMembershipChange.KeyRotation(
+        MembershipChangeKind.DEPARTED_REMOVAL -> PendingMembershipChange.DepartedRemoval(
             groupUuid = groupUuid,
-            body = Json.decodeFromString(RotateGroupKeyBody.serializer(), body),
-            groupKey = checkNotNull(groupKey) { "A key rotation is kept with the key it hands over." },
+            body = Json.decodeFromString(RemoveDepartedMembersBody.serializer(), body),
+            commitEpoch = commitEpoch,
+        )
+
+        MembershipChangeKind.REPLACEMENT -> PendingMembershipChange.Replacement(
+            groupUuid = groupUuid,
+            body = Json.decodeFromString(ReplaceGroupCommitBody.serializer(), body),
+            commitEpoch = commitEpoch,
         )
     }
 
 /**
  * The nonce naming a new change to a group's members, Base64 encoded: 16 bytes of a random UUID,
  * drawn from the platform's secure generator. The server derives the change's UUID from it and the
- * creator's, which only a resend of this very change repeats.
+ * committer's, which only a resend of this very change repeats.
  */
 @OptIn(ExperimentalUuidApi::class)
 internal fun newChangeNonce(): String = Base64.Default.encode(Uuid.random().toByteArray())

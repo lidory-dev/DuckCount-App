@@ -54,11 +54,20 @@ sealed interface GroupExpenseWriteError : Error {
 
     /**
      * The server takes writes in the group under a newer generation of its key than this device
-     * holds, and syncing the group did not bring it: the message handing it over is still on its
-     * way, or this device cannot read it, as for a group brought back after a log-out, see
+     * holds, and syncing the group did not bring it: a Commit leading there could not be read yet,
+     * or this device cannot read it, as for a group brought back after a log-out, see
      * [GroupKeyChainError.NotHeld]. Nothing was written.
      */
     data object KeyNotCurrent : GroupExpenseWriteError
+
+    /**
+     * The group waits for its owner: this device refused a Commit every member's device refuses,
+     * and stays in the epoch before it while the server is past it, see
+     * [database.data.local.entity.GroupEntity.isAwaitingOwner], so that nothing it seals is taken.
+     * The group's creator replaces that Commit as their device next syncs, see [GroupSync], and the
+     * group can be written in again once this device read their Commit. Nothing was written.
+     */
+    data object AwaitingOwner : GroupExpenseWriteError
 
     /**
      * Another member changed the expense meanwhile: the server holds a later version than the one

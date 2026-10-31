@@ -82,7 +82,11 @@ class GroupEditMappingTest {
         )
     }
 
-    /** Nothing the user can act on: what the settings offer no edit of among it. */
+    /**
+     * Nothing the user can act on: what the settings offer no edit of among it, and a key of an
+     * epoch this device has yet to reach, which its own sync sees to, the user being the group's
+     * creator.
+     */
     @Test
     fun `every other failure is told as one the user cannot act on`() {
         listOf(
@@ -90,6 +94,7 @@ class GroupEditMappingTest {
             SharedGroupEditError.DeviceLocked,
             SharedGroupEditError.NotHeld,
             SharedGroupEditError.NotCreator,
+            SharedGroupEditError.KeyNotCurrent,
             SharedGroupEditError.Crypto,
             SharedGroupEditError.Identity(MlsIdentityError.Crypto),
             SharedGroupEditError.Network(NetworkError.TOO_MANY_REQUESTS),

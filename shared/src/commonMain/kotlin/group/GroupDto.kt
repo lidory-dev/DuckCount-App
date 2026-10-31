@@ -19,7 +19,11 @@ data class CreateGroupBody(
     /** 16 random bytes, Base64 encoded, see `group_uuid` in lib-duckcount. */
     val nonce: String,
 
-    /** The three fields sealed under the group's key, each bound to itself and the group, see [GroupFields.seal]. */
+    /**
+     * The three fields sealed under the group's key of the epoch its creation leaves it at, the
+     * first generation, see [FIRST_KEY_GENERATION], each bound to itself and the group, see
+     * [GroupFields.seal].
+     */
     val title: EncryptedFieldDto,
 
     val description: EncryptedFieldDto,
@@ -35,8 +39,9 @@ data class CreateGroupBody(
     val signature: EncryptedFieldDto,
 
     /**
-     * The one MLS Welcome every invitee joins from, Base64 encoded, carrying the group's key and the
-     * key to every member's profile, see [welcomePayloadOf].
+     * The one MLS Welcome every invitee joins from, Base64 encoded, carrying the key to every
+     * member's profile, see [welcomePayloadOf]: the group's key each of them derives from the
+     * epoch the Welcome lets them in at, see [GroupKeyChain].
      */
     @SerialName("welcome_message")
     val welcomeMessage: String,
@@ -47,7 +52,7 @@ data class CreateGroupBody(
 
     /**
      * The creator's copy of the group's key, sealed under their key ring, see
-     * [GroupKeyCopies.seal], which the server stores with the group as it takes it: the key
+     * [GroupKeyCopies.sealer], which the server stores with the group as it takes it: the key
      * outlives a log-out from the moment the group exists. Sealed once, as the group is built, and
      * sent again with the rest of the body as it was.
      */
@@ -61,14 +66,18 @@ data class CreateGroupBody(
  * The change is named by [nonce] and the creator's UUID, as a creation is, and recorded with the
  * group, so that the same body sent again answers `409`, see
  * [database.data.local.entity.PendingMembershipChangeEntity]. A `410` names every new member with
- * no account, in a [DeletedInviteesResponse].
+ * no account, in a [DeletedInviteesResponse]. A Commit for an epoch the group has left is answered
+ * the JSON `409` naming the one it is at, see [GroupMembershipAnswer.KeyGenerationNotCurrent].
  */
 @Serializable
 data class AddGroupMembersBody(
     /** 16 random bytes, Base64 encoded, drawn for this change alone. */
     val nonce: String,
 
-    /** The MLS Commit adding them, Base64 encoded, for every member already in the group. */
+    /**
+     * The MLS Commit adding them, Base64 encoded, for every member already in the group, built in
+     * the epoch the group is at, which the server reads from its header and takes one further.
+     */
     @SerialName("commit_message")
     val commitMessage: String,
 
@@ -82,19 +91,37 @@ data class AddGroupMembersBody(
     val profileKeysMessage: String,
 
     /**
-     * The one MLS Welcome every new member joins from, Base64 encoded, carrying the group's key and
-     * the key to every member's profile, see [welcomePayloadOf].
+     * The one MLS Welcome every new member joins from, Base64 encoded, carrying the key to every
+     * member's profile, see [welcomePayloadOf].
      */
     @SerialName("welcome_message")
     val welcomeMessage: String,
 
     @SerialName("new_member_uuids")
     val newMemberUuids: List<String>,
+
+    /**
+     * The key of the epoch the Commit is built in sealed under the key of the epoch it leads to, as
+     * the link at that generation of the chain back through the group's keys, see [sealKeyLink],
+     * which the server stores with the Commit: a member added from then on, who derives the newer
+     * key alone, opens it to read what was sealed before. Every Commit carries its own, see
+     * [GroupKeyChain].
+     */
+    @SerialName("previous_key")
+    val previousKey: EncryptedFieldDto,
+
+    /**
+     * The committer's copy of the key of the epoch the Commit leads to, sealed under their key ring,
+     * see [GroupKeyCopies], which the server stores with the Commit in place of the one they had.
+     */
+    @SerialName("key_copy")
+    val keyCopy: EncryptedFieldDto,
 )
 
 /**
  * Body of `DELETE /groups/{group_uuid}/members`, which the creator alone may send, named by its
- * [nonce] as an addition is, see [AddGroupMembersBody].
+ * [nonce] as an addition is, and held to the group's epoch as an addition is, see
+ * [AddGroupMembersBody].
  */
 @Serializable
 data class RemoveGroupMembersBody(
@@ -110,100 +137,81 @@ data class RemoveGroupMembersBody(
 
     @SerialName("removed_member_uuids")
     val removedMemberUuids: List<String>,
+
+    /** The link back to the key of the epoch the Commit is built in, see [AddGroupMembersBody.previousKey]. */
+    @SerialName("previous_key")
+    val previousKey: EncryptedFieldDto,
+
+    /** The committer's copy of the key the Commit leads to, see [AddGroupMembersBody.keyCopy]. */
+    @SerialName("key_copy")
+    val keyCopy: EncryptedFieldDto,
 )
 
 /**
- * Body of `PUT /groups/{group_uuid}/key`, which the creator sends once a removal is applied,
- * named by its [nonce] as an addition is, see [AddGroupMembersBody]: the new key for the members
- * who remain, the generation it is, see [keyGeneration], the key it replaces sealed under it, see
- * [previousKey], and the group's information sealed under it in place of what a removed member can
- * open, the versions its history holds included, see [previous]. The server keeps the revision it
- * holds, which the rotation leaves as it was, and when it stored each version.
+ * Body of `DELETE /groups/{group_uuid}/departed`, which any current member may send: the removal
+ * of members who left the group, or whose account was deleted, and whom no Commit has removed yet,
+ * see [GroupDto.departed]. Named by its [nonce] and held to the group's epoch as an addition is,
+ * see [AddGroupMembersBody]. The server refuses with a `400` a target it does not list as departed.
+ *
+ * The one Commit the members' devices take from a member who is not the group's creator, and only
+ * when it removes exactly the members the server stored it as removing, see
+ * [GroupMessageDto.departedMemberUuids], and does nothing else.
  */
 @Serializable
-data class RotateGroupKeyBody(
+data class RemoveDepartedMembersBody(
     /** 16 random bytes, Base64 encoded, drawn for this change alone. */
     val nonce: String,
 
-    /**
-     * The MLS application message handing the new key over, Base64 encoded, see [groupKeyMessageOf],
-     * sent in the epoch the removal took the group to, which the members it removed are not in.
-     */
-    @SerialName("key_message")
-    val keyMessage: String,
+    /** The MLS Commit removing them, Base64 encoded, and nothing else. */
+    @SerialName("commit_message")
+    val commitMessage: String,
 
-    /** The group's fields as they are, sealed under the new key, see [GroupFields.seal]. */
-    val title: EncryptedFieldDto,
+    @SerialName("removed_member_uuids")
+    val removedMemberUuids: List<String>,
 
-    val description: EncryptedFieldDto,
-
-    val currency: EncryptedFieldDto,
-
-    /**
-     * The creator's signature over the fields as the revision the server holds, signed again and
-     * sealed under the new key, see [GroupVersion.seal], in place of the one sealed under the key
-     * it replaces.
-     */
-    val signature: EncryptedFieldDto,
-
-    /**
-     * The creator's copy of the new key, sealed under their key ring, see [GroupKeyCopies.seal],
-     * which replaces theirs as the server takes the rotation. The other members' copies stay as
-     * they are: each member puts up its own once it reads the new key in the group, see
-     * [GroupKeyCopies.putUp].
-     */
-    @SerialName("key_copy")
-    val keyCopy: EncryptedFieldDto,
-
-    /**
-     * The versions the group's history holds from before the current one, see [GroupHistory],
-     * sealed again under the new key, each at its revision, and none for a group never edited: a
-     * member added from now on holds that key alone, and reads the history with it. Only those the
-     * creator signed that opened under the key this one replaces, see [GroupMembershipSender]: the
-     * server drops every one it holds that this does not carry as it takes the rotation, sealed
-     * under a key no member added from now on gets.
-     */
-    val previous: List<PreviousGroupVersionBody>,
-
-    /**
-     * Which generation of the group's keys the new key is, see [GroupKeyChain]: one past the one
-     * it replaces, which the server takes the group to. Any other it refuses with a `409` naming
-     * the group's current generation, after the `409` a resend of a rotation it took hears, see
-     * [GroupMembershipAnswer.AlreadyMade]: never heard by this device, which draws the next from
-     * the generation it holds, every rotation of the group being its own, and each one it sends
-     * kept until the server took it, or refused it writing nothing, see [GroupMembershipSender].
-     */
-    @SerialName("key_generation")
-    val keyGeneration: Long,
-
-    /**
-     * The key the new one replaces, sealed under it as the link at [keyGeneration] of the chain
-     * back through the group's keys, see [sealKeyLink], which the server stores and lists to the
-     * current members, see [GroupApi.keyLinks]: nothing sealed under the old key is sealed again,
-     * a group's expenses each staying under the generation they were written in, and a member
-     * added from now on, holding the new key alone, opens it to read them.
-     */
+    /** The link back to the key of the epoch the Commit is built in, see [AddGroupMembersBody.previousKey]. */
     @SerialName("previous_key")
     val previousKey: EncryptedFieldDto,
+
+    /** The committer's copy of the key the Commit leads to, see [AddGroupMembersBody.keyCopy]. */
+    @SerialName("key_copy")
+    val keyCopy: EncryptedFieldDto,
 )
 
 /**
- * One version of a group's information from before the current one, sealed again under the new
- * key a rotation hands over, as [RotateGroupKeyBody.previous] carries it: its revision as the
- * server holds it, which names the version the server replaces with it, and its title, description
- * and the creator's signature over them, the currency staying the group's own, sealed as
- * [EditGroupBody]'s are, see [GroupVersion.seal]. Not signed again: what is signed is what the
- * fields open to, which the new key changes nothing of, see [signedAs].
+ * Body of `POST /groups/{group_uuid}/commits/replacement`, which the owner alone may send, and which
+ * only the creator's device sends: a Commit for the epoch its device is at, [replacesEpoch], in
+ * place of one every member's device refused there for good, and of every one stored after it, see
+ * [GroupSync]. Named by its [nonce] as an addition is, see [AddGroupMembersBody]. The server
+ * answers the plain `409` "Nothing to replace." when no other member's Commit is recorded for that
+ * epoch.
  */
 @Serializable
-data class PreviousGroupVersionBody(
-    val revision: Long,
+data class ReplaceGroupCommitBody(
+    /** 16 random bytes, Base64 encoded, drawn for this change alone. */
+    val nonce: String,
 
-    val title: EncryptedFieldDto,
+    /** The epoch the creator's device is at, the one the Commit is built in. */
+    @SerialName("replaces_epoch")
+    val replacesEpoch: Long,
 
-    val description: EncryptedFieldDto,
+    /**
+     * The MLS Commit, Base64 encoded, removing [removedMemberUuids]: those who sent the Commits it
+     * replaces and whoever departed, or nobody.
+     */
+    @SerialName("commit_message")
+    val commitMessage: String,
 
-    val signature: EncryptedFieldDto,
+    @SerialName("removed_member_uuids")
+    val removedMemberUuids: List<String>,
+
+    /** The link back to the key of the epoch the Commit is built in, see [AddGroupMembersBody.previousKey]. */
+    @SerialName("previous_key")
+    val previousKey: EncryptedFieldDto,
+
+    /** The committer's copy of the key the Commit leads to, see [AddGroupMembersBody.keyCopy]. */
+    @SerialName("key_copy")
+    val keyCopy: EncryptedFieldDto,
 )
 
 /**
@@ -212,21 +220,30 @@ data class PreviousGroupVersionBody(
  *
  * Nothing names the edit but its [revision]: the server takes it only when it comes after the
  * revision it holds, and answers `409` otherwise, so the same edit sent again is never taken twice,
- * nor one made over a version this device never saw.
+ * nor one made over a version this device never saw. Before that, a version sealed under a key
+ * that is not the group's current one is answered the JSON `409` naming the current generation,
+ * see [GroupEditAnswer.KeyGenerationNotCurrent].
  */
 @Serializable
 data class EditGroupBody(
     /** One more than the revision of the version edited, see [GroupVersion]. */
     val revision: Long,
 
-    /** Sealed under the group's key as [CreateGroupBody]'s are, see [GroupFields.seal]. */
+    /**
+     * Which generation of the group's keys the title, description and signature are sealed under,
+     * see [GroupKeyChain]: the group's current one, which the server stores the version with.
+     */
+    @SerialName("key_generation")
+    val keyGeneration: Long,
+
+    /** Sealed under the group's key of [keyGeneration], see [GroupFields.seal]. */
     val title: EncryptedFieldDto,
 
     val description: EncryptedFieldDto,
 
     /**
      * The creator's signature over the new title and description, with the group's currency, as
-     * [revision], sealed under the group's key, see [GroupVersion.seal].
+     * [revision], sealed under the group's key of [keyGeneration], see [GroupVersion.seal].
      */
     val signature: EncryptedFieldDto,
 )
@@ -237,17 +254,31 @@ data class EditGroupBody(
  */
 @Serializable
 data class SaveGroupKeyCopyBody(
-    /** Sealed under the caller's key ring, see [GroupKeyCopies.seal]: opaque to the server. */
+    /** Sealed under the caller's key ring, see [KeyCopySealer.seal]: opaque to the server. */
     @SerialName("key_copy")
     val keyCopy: EncryptedFieldDto,
 
     /**
      * Which generation of the group's keys the copy holds, see [GroupKeyChain], which the server
      * lists it with, see [GroupDto.keyCopyGeneration]: one it refuses with a `400` past the
-     * group's current one, which no member holds before the server took the rotation to it.
+     * group's current one, which no member reaches before the server stored the Commit leading
+     * there.
      */
     @SerialName("key_generation")
     val keyGeneration: Long,
+)
+
+/**
+ * Body of `PUT /groups/{group_uuid}/key-links/{generation}`, which any current member sends, see
+ * [GroupApi.publishKeyLink]: their own link at that generation of the chain back through the
+ * group's keys, once none the server lists there leads back to the key they hold before it, see
+ * [GroupSync].
+ */
+@Serializable
+data class PublishGroupKeyLinkBody(
+    /** The key of the generation before, sealed under the key of the generation, see [sealKeyLink]. */
+    @SerialName("previous_key")
+    val previousKey: EncryptedFieldDto,
 )
 
 /**
@@ -263,14 +294,15 @@ data class DeletedInviteesResponse(
 /**
  * Mirrors the server's `Group`: one group the caller is a member of, as `GET /groups` lists it.
  *
- * The three fields are sealed under the group's key, which the server never holds, see
- * [SealedGroupFields.unseal], with the creator's signature over them as [revision], see
- * [GroupVersion], and the caller's copy of that key under their key ring, see [keyCopy].
- * [ownerUuid], [creatorUuid] and [members] are the server's word, see [GroupSync]. Of a
- * group whose MLS state this device holds, they decide one thing alone: who is no longer a member,
- * whom its creator's device removes. A group brought back after a log-out, with no tree to tell
- * them, takes its creator and its members as they are listed. And a group this device declined is not left while the
- * server lists the user as its owner.
+ * The three fields are sealed under the group's keys, which the server never holds, see
+ * [SealedGroupVersion.unseal]: the title and description, with the creator's signature over them
+ * as [revision], see [GroupVersion], under the generation [informationKeyGeneration], and the
+ * currency under the first, as the group was created. The caller's copy of its key is sealed under
+ * their key ring, see [keyCopy]. [ownerUuid], [creatorUuid], [members] and [departed] are the
+ * server's word, see [GroupSync]. Of a group whose MLS state this device holds, they decide one
+ * thing alone: whom this device removes, of those still in its tree. A group brought back after a
+ * log-out, with no tree to tell them, takes its creator and its members as they are listed. And a
+ * group this device declined is not left while the server lists the user as its owner.
  */
 @Serializable
 data class GroupDto(
@@ -302,15 +334,36 @@ data class GroupDto(
      */
     val revision: Long,
 
-    /** The creator's signature over the three as [revision], sealed under the group's key, see [GroupVersion.seal]. */
+    /**
+     * The creator's signature over the three as [revision], sealed under the group's key of
+     * [informationKeyGeneration], see [GroupVersion.seal].
+     */
     val signature: EncryptedFieldDto,
+
+    /**
+     * Which generation of the group's keys the title, description and signature are sealed under:
+     * the epoch its creator edited them in, or the first for the information it was created with.
+     * Nothing is sealed again as the group moves on, so a member holding a later key gets this one
+     * back through the chain, see [GroupKeyChain]. The currency is under the first, always.
+     */
+    @SerialName("information_key_generation")
+    val informationKeyGeneration: Long,
 
     /**
      * Every current member, the caller and those invited who have not joined yet included: not
      * those who left the group, see [GroupApi.leave], nor accounts deleted since, both of whom stay
-     * in its tree until its creator's device removes them, see [GroupSync], nor those it removed.
+     * in its tree until a member's device removes them, see [departed], nor those a Commit removed.
      */
     val members: List<GroupMemberDto>,
+
+    /**
+     * The members who left the group, or whose account was deleted, and whom no Commit the server
+     * stored has removed from its MLS tree yet, oldest departure first: whom the creator's device
+     * removes at once, and any other member's once they left [DEPARTED_GRACE] ago, see
+     * [GroupSync]. Never what decides whether a Commit is taken, see
+     * [GroupMessageDto.departedMemberUuids].
+     */
+    val departed: List<DepartedMemberDto>,
 
     /**
      * The caller's own copy of the group's key, see [GroupKeyCopies], or null when the server holds
@@ -330,24 +383,46 @@ data class GroupDto(
     val keyCopyGeneration: Long?,
 
     /**
-     * Which generation of the group's keys is its current one, see [GroupKeyChain], which the
-     * server takes whatever is written in the group under: one more with each rotation its
-     * creator made, see [RotateGroupKeyBody.keyGeneration]. The server's word: a device holding an
-     * older one waits for the creator's message handing the newer one over, see [GroupSync].
+     * Which generation of the group's keys is its current one, see [GroupKeyChain]: the group's MLS
+     * epoch, which the server takes whatever is written in the group under, one more with every
+     * Commit it stores. The server's word: a device at an older epoch has Commits still to read,
+     * see [GroupSync], or refused one every member's device refused, and waits for the creator's
+     * device to replace it.
      */
     @SerialName("key_generation")
     val keyGeneration: Long,
 )
 
+/** One member listed among the [GroupDto.departed]. */
+@Serializable
+data class DepartedMemberDto(
+    @SerialName("user_uuid")
+    val userUuid: String,
+
+    /**
+     * When they left, or their account was deleted, RFC 3339 in UTC to the millisecond, as the API
+     * writes it: the server's word, which only decides when a member who is not the creator removes
+     * them, see [DEPARTED_GRACE].
+     */
+    @SerialName("left_at")
+    val leftAt: String,
+)
+
 /**
- * Mirrors the server's `GroupKeyLink`: one link of the chain back through a group's keys, as `GET
- * /groups/{group_uuid}/key-links` lists them, see [GroupKeyChain]: the key of the generation
- * before [generation], sealed under the key of [generation] by the creator's device as it rotated
- * the group's key to it, see [RotateGroupKeyBody.previousKey].
+ * Mirrors the server's `GroupKeyLink`: one candidate for a link of the chain back through a
+ * group's keys, as `GET /groups/{group_uuid}/key-links` lists them, see [GroupKeyChain]: the key of
+ * the generation before [generation], sealed under the key of [generation] by [publisherUuid],
+ * whose Commit led there, see [AddGroupMembersBody.previousKey], or who reached it and found no
+ * link leading back to the key they held, see [PublishGroupKeyLinkBody]. One per member and
+ * generation at most, and any member could publish one that leads nowhere: a candidate counts only
+ * once what it opens to opens something sealed under its own generation.
  */
 @Serializable
 data class GroupKeyLinkDto(
     val generation: Long,
+
+    @SerialName("publisher_uuid")
+    val publisherUuid: String,
 
     @SerialName("previous_key")
     val previousKey: EncryptedFieldDto,
@@ -375,12 +450,17 @@ data class GroupHistoryResponse(
 /**
  * One version of a group's information as its history holds it, see [GroupHistoryResponse]: its
  * title, description and the creator's signature over them as [revision], sealed under the group's
- * key as [GroupDto]'s are, and when the server stored it. No currency: no edit changes it, so the
- * group's own is what every version is checked with, see [GroupHistoryVersionDto.unseal].
+ * key of [keyGeneration] as [GroupDto]'s are, and when the server stored it. No currency: no edit
+ * changes it, so the group's own is what every version is checked with, see
+ * [GroupHistoryVersionDto.unseal].
  */
 @Serializable
 data class GroupHistoryVersionDto(
     val revision: Long,
+
+    /** Which generation of the group's keys the version is sealed under, see [GroupKeyChain]. */
+    @SerialName("key_generation")
+    val keyGeneration: Long,
 
     val title: EncryptedFieldDto,
 
@@ -391,7 +471,7 @@ data class GroupHistoryVersionDto(
     /**
      * When the server stored this version, as the group was created or the edit that made it was
      * taken, RFC 3339 in UTC to the millisecond, as the API writes it: the server's word, which
-     * nothing signs. A key rotation leaves it as it was.
+     * nothing signs.
      */
     @SerialName("revised_at")
     val revisedAt: String,
@@ -419,6 +499,16 @@ data class GroupMessageDto(
      */
     @SerialName("created_at")
     val createdAt: String,
+
+    /**
+     * For a Commit stored through `DELETE /groups/{group_uuid}/departed`, the members the server
+     * checked had departed as it stored it, see [RemoveDepartedMembersBody]; none for every other
+     * message. The one list a Commit from a member who is not the group's creator is held to, see
+     * [mls.processGroupMessageIn], so that every member's device decides alike about every Commit,
+     * whatever each of them makes of who departed.
+     */
+    @SerialName("departed_member_uuids")
+    val departedMemberUuids: List<String>,
 )
 
 /**

@@ -57,6 +57,23 @@ class GroupHistoryTest {
 
     private val groupKey = generateSymmetricEncryptionKey()
 
+    /**
+     * The keys of each generation the reader's device holds, or gets back through the chain, see
+     * [GroupKeyChain], and the generations asked for.
+     */
+    private val keys = mutableMapOf(FIRST_KEY_GENERATION to groupKey)
+    private var keyFailure: GroupKeyChainError? = null
+    private val keysAsked = mutableListOf<Long>()
+
+    /** What [GroupKeyChain.keyOf] gives here, see [keys]. */
+    private val keyOf: suspend (String, Long, (ByteArray) -> Boolean) -> Result<ByteArray, GroupKeyChainError> =
+        { _, generation, _ ->
+            keysAsked += generation
+            keyFailure?.let { Result.Error(it) }
+                ?: keys[generation]?.let { Result.Success(it) }
+                ?: Result.Error(GroupKeyChainError.NotHeld)
+        }
+
     /** The versions of the group as the server holds them, each signed by Alice and sealed under its key. */
     private val created = sealed(CREATED, revision = 1).inHistory(revisedAt = CREATED_AT)
     private val firstEdit = sealed(FIRST_EDIT, revision = 2).inHistory(revisedAt = FIRST_EDIT_AT)
@@ -98,6 +115,7 @@ class GroupHistoryTest {
             asked += groupUuid
             answer
         },
+        keyOf = keyOf,
     )
 
     init {
@@ -181,10 +199,7 @@ class GroupHistoryTest {
         assertEquals(listOf(3L, 1L), revisionsRead())
     }
 
-    /**
-     * One the server kept under a key the group had before, rather than delete it as the rotation
-     * that left it out was taken, see [RotateGroupKeyBody.previous].
-     */
+    /** One the server lists as of a generation it was not sealed under. */
     @Test
     fun `a version sealed under another key is left out`() = runBlocking<Unit> {
         val underAnotherKey = FIRST_EDIT.sealedAs(
@@ -202,27 +217,64 @@ class GroupHistoryTest {
     }
 
     /**
-     * A rotation taken since Bob's device last synced: the server sealed every version again under
-     * the key it handed over, which his device holds once its sync reads the message handing it to
-     * him, and reads the history with then.
+     * Edits made in later epochs, each opened under the key of the generation it names, which Bob's
+     * device holds, or gets back through the chain, see [GroupKeyChain]: nothing is sealed again as
+     * the group moves on. Each generation's key is asked for once.
      */
     @Test
-    fun `a history none of whose versions opens under the key the group holds is unreadable`() =
-        runBlocking<Unit> {
-            val rotated = generateSymmetricEncryptionKey()
+    fun `each version opens under the key of the generation it names`() = runBlocking<Unit> {
+        val second = generateSymmetricEncryptionKey()
+        val fourth = generateSymmetricEncryptionKey()
 
-            fun underRotated(fields: GroupFields, revision: Long) =
-                fields.sealedAs(creator = alice, groupKey = rotated, groupUuid = GROUP, revision = revision).inHistory()
+        keys[2] = second
+        keys[4] = fourth
 
-            answer = Result.Success(
-                GroupHistoryResponse(
-                    current = underRotated(SECOND_EDIT, 3),
-                    previous = listOf(underRotated(FIRST_EDIT, 2), underRotated(CREATED, 1)),
+        answer = Result.Success(
+            GroupHistoryResponse(
+                current = SECOND_EDIT.sealedAs(creator = alice, groupKey = fourth, groupUuid = GROUP, revision = 3)
+                    .inHistory(revisedAt = SECOND_EDIT_AT, keyGeneration = 4),
+                previous = listOf(
+                    FIRST_EDIT.sealedAs(creator = alice, groupKey = second, groupUuid = GROUP, revision = 2)
+                        .inHistory(revisedAt = FIRST_EDIT_AT, keyGeneration = 2),
+                    created,
+                    sealed(CREATED, revision = 1).inHistory(revisedAt = CREATED_AT),
                 ),
-            )
+            ),
+        )
 
-            assertEquals(Result.Error(GroupHistoryError.Unreadable), read())
-        }
+        assertEquals(listOf(3L, 2L, 1L), revisionsRead())
+        assertEquals(listOf(4L, 2L, FIRST_KEY_GENERATION), keysAsked)
+    }
+
+    /**
+     * Edits made in an epoch Bob's device has yet to reach, until its sync reads the Commit leading
+     * there: nothing is left to show.
+     */
+    @Test
+    fun `a history none of whose versions has a key this device can have is unreadable`() = runBlocking<Unit> {
+        val later = generateSymmetricEncryptionKey()
+
+        fun underLater(fields: GroupFields, revision: Long) =
+            fields.sealedAs(creator = alice, groupKey = later, groupUuid = GROUP, revision = revision)
+                .inHistory(keyGeneration = 5)
+
+        answer = Result.Success(
+            GroupHistoryResponse(
+                current = underLater(SECOND_EDIT, 3),
+                previous = listOf(underLater(FIRST_EDIT, 2), underLater(CREATED, 1)),
+            ),
+        )
+
+        assertEquals(Result.Error(GroupHistoryError.Unreadable), read())
+    }
+
+    /** The links of the chain could not be asked for: nothing is shown short of every version. */
+    @Test
+    fun `a history whose keys the server could not be asked for is a network failure`() = runBlocking<Unit> {
+        keyFailure = GroupKeyChainError.Network(NetworkError.NO_INTERNET)
+
+        assertEquals(Result.Error(GroupHistoryError.Network(NetworkError.NO_INTERNET)), read())
+    }
 
     /** Alice's latest edit, which Bob's device shows once its sync lists it. */
     @Test
@@ -303,6 +355,7 @@ class GroupHistoryTest {
             history = {
                 Result.Success(GroupHistoryResponse(current = secondEdit, previous = listOf(carols.inHistory())))
             },
+            keyOf = keyOf,
         )
 
         val versions = assertIs<Result.Success<List<GroupInformationVersion>>>(reader.versions(groupUuid = GROUP)).data

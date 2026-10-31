@@ -75,7 +75,11 @@ class GroupExpenseSyncTest {
         listExpenses: suspend (groupUuid: String) -> Result<ListGroupExpensesResponse, NetworkError> = {
             server.getExpenses()
         },
-        keyOf: suspend (groupUuid: String, generation: Long) -> Result<ByteArray, GroupKeyChainError> = GroupKeyChain(
+        keyOf: suspend (
+            groupUuid: String,
+            generation: Long,
+            opens: (key: ByteArray) -> Boolean,
+        ) -> Result<ByteArray, GroupKeyChainError> = GroupKeyChain(
             keyLinks = { Result.Success(emptyList()) },
             group = database.groupDao::get,
             heldKeys = database.groupDao::getKeys,
@@ -98,7 +102,7 @@ class GroupExpenseSyncTest {
         groupDao.upsertWithMembers(
             group = groupOf(isLeft = isLeft),
             members = emptyList(),
-            olderKeys = emptyList(),
+            keys = listOf(groupOf(isLeft = isLeft).currentKey()),
             signatureKeys = listOf(
                 GroupMemberSignatureKeyEntity(groupUuid = GROUP, userUuid = CAROL, signatureKey = carol.signaturePublicKey()),
             ),
@@ -266,7 +270,7 @@ class GroupExpenseSyncTest {
     }
 
     /**
-     * Sealed under the key of a rotation Alice's device has yet to read: kept as not read yet,
+     * Sealed under the key of an epoch Alice's device has yet to reach: kept as not read yet,
      * opened once the key is held, the server sending nothing again.
      */
     @Test
@@ -283,8 +287,8 @@ class GroupExpenseSyncTest {
             assertEquals(1, database.listedGroupExpenseDao.countUnreadableAsFlow(groupUuid = GROUP).first())
             assertNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = TAXI))
 
-            // The group sync reads the rotation's key message.
-            database.groupDao.takeHandedKeys(
+            // The group sync reads the Commit leading to the second epoch.
+            database.groupDao.takeDerivedKeys(
                 groupUuid = GROUP,
                 keys = listOf(GroupKeyEntity(groupUuid = GROUP, generation = 2, groupKey = secondKey)),
             )
@@ -294,6 +298,39 @@ class GroupExpenseSyncTest {
             assertEquals(2, server.changeReads)
         }
     }
+
+    /**
+     * Carol's version sealed under a key of her own, which the chain leads to for it as well, and
+     * Bob's under the one the members derived: whichever is read first, the other is read all the
+     * same, each under the key the chain gives for it.
+     */
+    @Test
+    fun `a version sealed under a key of a member's own keeps none other of its generation from being read`() =
+        runBlocking<Unit> {
+            withInMemoryDatabase { database ->
+                database.holdingTheGroup()
+
+                val carolsKey = generateSymmetricEncryptionKey()
+
+                server.put(
+                    taxi.listedAs(revision = 1, author = carol, authorUuid = CAROL, groupKey = carolsKey, keyGeneration = 2),
+                )
+                server.put(
+                    dinner.listedAs(revision = 1, author = bob, authorUuid = BOB, groupKey = secondKey, keyGeneration = 2),
+                )
+
+                val pass = syncOf(
+                    database = database,
+                    keyOf = { _, _, opens ->
+                        listOf(carolsKey, secondKey).firstOrNull(opens)?.let { Result.Success(it) }
+                            ?: Result.Error(GroupKeyChainError.Unreadable)
+                    },
+                ).sync()
+
+                assertNull(pass.failure)
+                assertEquals(setOf(DINNER, TAXI), pass.changes.map { it.expense.uuid }.toSet())
+            }
+        }
 
     /** Carol's, who is no contact of Alice's, checked against the key the group's tree held for her. */
     @Test
@@ -415,7 +452,7 @@ class GroupExpenseSyncTest {
 
             var areLinksReachable = false
 
-            val sync = syncOf(database) { _, _ ->
+            val sync = syncOf(database) { _, _, _ ->
                 if (areLinksReachable) {
                     Result.Success(firstKey)
                 } else {

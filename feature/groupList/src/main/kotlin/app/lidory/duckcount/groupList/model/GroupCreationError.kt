@@ -54,6 +54,13 @@ enum class GroupCreationFailure {
      */
     RATE_LIMITED,
 
+    /**
+     * The group waits for its owner: a member's change to it is one no device could apply, and
+     * this device can write nothing the server would take in it until the owner's device has set
+     * it right, which it does as soon as it is online.
+     */
+    AWAITING_OWNER,
+
     /** Anything else: nothing the user can act on, and nothing worth explaining in detail. */
     UNKNOWN,
 }
@@ -83,6 +90,7 @@ fun GroupCreationFailure.messageRes(): Int = when (this) {
     GroupCreationFailure.SERVER_UNREACHABLE -> R.string.group_creation_error_server_unreachable
     GroupCreationFailure.GROUP_LEFT -> R.string.left_group_notice
     GroupCreationFailure.RATE_LIMITED -> R.string.group_creation_error_rate_limited
+    GroupCreationFailure.AWAITING_OWNER -> R.string.group_creation_error_awaiting_owner
     GroupCreationFailure.UNKNOWN -> R.string.group_creation_error_unknown
 }
 

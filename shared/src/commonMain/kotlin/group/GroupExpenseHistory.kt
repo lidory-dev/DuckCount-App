@@ -112,7 +112,11 @@ class GroupExpenseHistory internal constructor(
         groupUuid: String,
         expenseUuid: String,
     ) -> Result<GroupExpenseHistoryResponse, NetworkError>,
-    private val keyOf: suspend (groupUuid: String, generation: Long) -> Result<ByteArray, GroupKeyChainError>,
+    private val keyOf: suspend (
+        groupUuid: String,
+        generation: Long,
+        opens: (key: ByteArray) -> Boolean,
+    ) -> Result<ByteArray, GroupKeyChainError>,
     private val recorded: suspend (groupUuid: String, userUuid: String) -> ByteArray?,
     private val timeZone: () -> TimeZone,
 ) {

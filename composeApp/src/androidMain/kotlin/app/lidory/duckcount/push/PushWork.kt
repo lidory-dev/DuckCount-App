@@ -89,8 +89,9 @@ object PushWork {
     }
 
     /**
-     * Syncs again in [seconds], for what the server's limit on messages left unsent, unless a
-     * resend is booked sooner already, see [message.ResendScheduler].
+     * Syncs again in [seconds], for what the server's limit on messages left unsent, or a member
+     * who departed a group that this device may remove only then, unless a resend is booked sooner
+     * already, see [message.ResendScheduler].
      *
      * The booking is a [ResendWorker], under a name of its own, which starts the sync once due
      * rather than being it, see [enqueueSyncAfterResendWait]. A refusal mostly comes from inside

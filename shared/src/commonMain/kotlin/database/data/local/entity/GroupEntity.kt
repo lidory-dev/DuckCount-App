@@ -8,9 +8,9 @@ import database.domain.Currency
  * One group the user is a member of, or was, as this device holds it: its fields opened, which
  * version of them it shows, and what opens them and reaches its members.
  *
- * The server holds the same fields sealed under [groupKey], with its creator's signature over
- * them, see `group.GroupSealing`, and the group's MLS state belongs to `lib-duckcount`, which keeps
- * it sealed through `MlsRecordEntity`.
+ * The server holds the same fields sealed under the group's keys, with its creator's signature
+ * over them, see `group.GroupSealing`, and the group's MLS state belongs to `lib-duckcount`, which
+ * keeps it sealed through `MlsRecordEntity`.
  *
  * A plain class rather than a data class: its byte arrays would compare by identity.
  */
@@ -36,12 +36,13 @@ class GroupEntity(
 
     /**
      * Who created the group, the one member who adds and removes members, see
-     * `group.GroupMembershipChanger`, and edits its information, signed with their MLS identity,
-     * see `group.GroupEditor`: the user, for a group they created, and whoever wrote the
-     * Welcome, for one they joined, see `group.GroupSync`. Not the server's owner, which a deletion
-     * of the creator's account hands to somebody else, who could then not commit anything the
-     * members' devices would take: they take Commits, and versions of the group's information,
-     * from the creator alone.
+     * `group.GroupMembershipChanger`, edits its information, signed with their MLS identity,
+     * see `group.GroupEditor`, and replaces a Commit nobody could apply, see `group.GroupSync`: the
+     * user, for a group they created, and whoever wrote the Welcome, for one they joined. Not the
+     * server's owner, which a deletion of the creator's account hands to somebody else, who could
+     * then not commit anything the members' devices would take: they take Commits, and versions
+     * of the group's information, from the creator alone, but for any member's removal of those
+     * who departed.
      *
      * For a group brought back after a log-out, the creator the server lists, there being no
      * Welcome left to read it from, see `group.GroupDto.creatorUuid`: its creator still, for a
@@ -52,8 +53,8 @@ class GroupEntity(
     /**
      * The MLS group the members talk in, or null for a group brought back after a log-out, which
      * takes every MLS group with it: its fields open with [groupKey] from the user's copy the
-     * server kept, see `group.GroupKeyCopies`, but nothing the members send in it can be read any
-     * more.
+     * server kept, see `group.GroupKeyCopies`, and the keys before it the chain leads back to, but
+     * nothing the members send in it can be read any more, nor any key after it derived.
      *
      * Kept once the user is no longer in the group, see [isLeft], although its MLS state is gone:
      * a direct message naming it is still one never to be read, see `message.DirectMessageSync`.
@@ -61,11 +62,11 @@ class GroupEntity(
     val mlsGroupId: ByteArray?,
 
     /**
-     * The key the group's fields are sealed under on the server, 32 random bytes, the newest this
-     * device holds of the group's keys: handed to the invitees inside the Welcome that lets them
-     * in, and backed up as the user's own copy, which the server keeps with the group, see
-     * `group.GroupKeyCopies`. Replaced by the creator once they remove somebody, see
-     * `group.GroupMembershipSender`, the members who remain being handed the new one over MLS.
+     * The key of the MLS epoch the group is in on this device, 32 bytes, which everything written
+     * in it from this device is sealed under: what MLS derives in that epoch for every member, see
+     * `group.GroupKeyChain`, and backed up as the user's own copy, which the server keeps with the
+     * group, see `group.GroupKeyCopies`. Replaced as each Commit takes the group to the next epoch,
+     * see `group.GroupSync` and `group.GroupMembershipSender`.
      *
      * The one replaced is kept all the same, as every generation this device holds is, see
      * [GroupKeyEntity], this one included.
@@ -73,19 +74,19 @@ class GroupEntity(
     val groupKey: ByteArray,
 
     /**
-     * Which generation of the group's keys [groupKey] is, see `group.GroupKeyChain`:
-     * `group.FIRST_KEY_GENERATION` for the key the group was created with, one more for each key
-     * its creator handed over since. The group's current one as far as this device knows, which
-     * the server takes whatever is written in the group under, and the rotation of the user's own
-     * after a removal is made one past, see `group.GroupMembershipSender`.
+     * Which generation of the group's keys [groupKey] is, see `group.GroupKeyChain`: the epoch it is
+     * the key of, `group.FIRST_KEY_GENERATION` for the epoch the group's creation leaves it at. The
+     * group's current one as far as this device knows, which the server takes whatever is written
+     * in the group under.
      */
     val keyGeneration: Long,
 
     /**
      * Whether the server holds the user's copy of [groupKey], this key and not one it replaced:
      * false from the moment the key changes, see
-     * [database.data.local.dao.GroupDao.takeHandedKeys], until the copy of the new one went up,
-     * which the sync sees to, see `group.GroupKeyCopies.putUp`.
+     * [database.data.local.dao.GroupDao.takeDerivedKeys], until the copy of the new one went up,
+     * which the sync sees to, see `group.GroupKeyCopies.putUp`, or true as soon as it changes for a
+     * Commit of the user's, which carried their copy of the new one.
      */
     val isBackedUp: Boolean,
 
@@ -129,4 +130,15 @@ class GroupEntity(
      * the group, and a feed started over and not read again would have it announce nothing.
      */
     val hasTakenInExpenses: Boolean = false,
+
+    /**
+     * Whether this device refused a Commit every member's device refuses, read nothing after it,
+     * and stays in the epoch before while the server is past it, see `group.GroupSync`: it can
+     * write nothing the server would take, sealing under a key of an epoch the group has left, and
+     * waits for the group's creator to replace that Commit, which their device does as it finds
+     * itself in the same place. Not for the creator's own device, which replaces it, nor for a
+     * group brought back after a log-out, which follows no epoch at all. Cleared once the device is
+     * in step with the server again.
+     */
+    val isAwaitingOwner: Boolean = false,
 )

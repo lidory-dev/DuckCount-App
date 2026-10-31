@@ -14,31 +14,19 @@ private const val PROFILE_KEY_LENGTH = 32
 
 /**
  * What the Welcome to a group hands the members it seats, written by its creator, see
- * [GroupCreator] and [GroupMembershipChanger]: the group's key, which its fields are sealed under,
- * with the generation it is of the group's keys, and the key to the profile of every member of the
- * group once they are in, theirs included, as the creator's device holds them, see
- * [profileKeysToHandOut].
+ * [GroupCreator] and [GroupMembershipChanger]: the key to the profile of every member of the group
+ * once they are in, theirs included, as the creator's device holds them, see
+ * [profileKeysToHandOut]. Not the group's key, which each of them derives from the epoch the
+ * Welcome lets them in at, see [GroupKeyChain].
  *
- * The current key alone, the one the group is under as they are seated: those before it are got
- * back through the chain of links the server keeps, see [GroupKeyChain], which leads back from it.
- *
- * JSON, `{"group_key":"<Base64>","key_generation":<n>,"profile_keys":{"<user UUID>":"<Base64>", ...}}`.
- * Nobody but the creator can have written it, the library reading it out of the Welcome he signed,
- * see `WelcomeInspection.welcomePayload`, and it is his word all the same, as the rest of the
- * Welcome is: the group's key has to open the fields, see [SealedGroupFields.unseal], and the keys
- * to the members' profiles only ever fill in for a member nothing is held for, see
- * [MemberProfileRepository.fillGap], his own aside.
+ * JSON, `{"profile_keys":{"<user UUID>":"<Base64>", ...}}`. Nobody but the creator can have written
+ * it, the library reading it out of the Welcome he signed, see `WelcomeInspection.welcomePayload`,
+ * and it is his word all the same, as the rest of the Welcome is: the keys to the members' profiles
+ * only ever fill in for a member nothing is held for, see [MemberProfileRepository.fillGap], his
+ * own aside.
  */
 @Serializable
 private class WelcomePayload(
-    /** The group's key, Base64 encoded. */
-    @SerialName("group_key")
-    val groupKey: String,
-
-    /** Which generation of the group's keys [groupKey] is, see [GroupKeyChain]. */
-    @SerialName("key_generation")
-    val keyGeneration: Long,
-
     /** The key to each member's profile, Base64 encoded, by user UUID. */
     @SerialName("profile_keys")
     val profileKeys: Map<String, String>,
@@ -52,8 +40,7 @@ private class WelcomePayload(
  * the secrets of a few epochs past, see [GroupMembershipChanger].
  *
  * JSON, `{"type":"profile_keys","profile_encryption_keys":{"<user UUID>":"<Base64>", ...}}`, told
- * apart from the group's key, see [groupKeyOf], and from a member's own, see [ProfileKeyUpdate],
- * by its [type].
+ * apart from a member's own, see [ProfileKeyUpdate], by its [type].
  */
 @Serializable
 private class ProfileKeysMessage(
@@ -66,51 +53,27 @@ private class ProfileKeysMessage(
 
 /** What the Welcome to a group handed over, see [welcomeHandoverOf]. */
 internal class WelcomeHandover(
-    /**
-     * The group's key, which [SealedGroupFields.unseal] refuses unless it is 32 bytes, with the
-     * generation it is of the group's keys.
-     */
-    val groupKey: GroupKeyGeneration,
-
     /** The key to each member's profile, by user UUID, those that are no profile key left out. */
     val profileKeys: Map<String, ByteArray>,
 )
 
-/**
- * The payload of the Welcome to a group, handing over [groupKey], the generation [keyGeneration] of
- * the group's keys, and [profileKeys], see [WelcomePayload].
- */
-internal fun welcomePayloadOf(
-    groupKey: ByteArray,
-    keyGeneration: Long,
-    profileKeys: Map<String, ByteArray>,
-): ByteArray =
+/** The payload of the Welcome to a group, handing over [profileKeys], see [WelcomePayload]. */
+internal fun welcomePayloadOf(profileKeys: Map<String, ByteArray>): ByteArray =
     Json.encodeToString(
         WelcomePayload.serializer(),
-        WelcomePayload(
-            groupKey = Base64.Default.encode(groupKey),
-            keyGeneration = keyGeneration,
-            profileKeys = profileKeys.encoded(),
-        ),
+        WelcomePayload(profileKeys = profileKeys.encoded()),
     ).encodeToByteArray()
 
 /**
  * What [payload], read out of the Welcome to a group, hands over, see [WelcomePayload], or null when
- * it is not one: a Welcome that hands over no key, or no generation of one, which opens nothing.
+ * it is not one, which hands over nothing.
  */
 internal fun welcomeHandoverOf(payload: ByteArray): WelcomeHandover? {
     val read = runCatching {
         Json.decodeFromString(WelcomePayload.serializer(), payload.decodeToString())
     }.getOrNull() ?: return null
 
-    if (read.keyGeneration < FIRST_KEY_GENERATION) return null
-
-    val groupKey = runCatching { Base64.Default.decode(read.groupKey) }.getOrNull() ?: return null
-
-    return WelcomeHandover(
-        groupKey = GroupKeyGeneration(generation = read.keyGeneration, key = groupKey),
-        profileKeys = read.profileKeys.decoded(),
-    )
+    return WelcomeHandover(profileKeys = read.profileKeys.decoded())
 }
 
 /** The application message handing [profileKeys] to the members of a group, see [ProfileKeysMessage]. */

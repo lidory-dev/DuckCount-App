@@ -25,11 +25,11 @@ sealed interface GroupHistoryError : Error {
     data object NotMember : GroupHistoryError
 
     /**
-     * None of the versions the server keeps opens under the key this device holds for the group
-     * and was signed by its creator, see [GroupHistory]: those of a rotation taken since, sealed
-     * under the key it hands over, until this device holds that key too, which the sync reads from
-     * the message handing it over, see [GroupSync], and the creator's device keeps as the server
-     * takes the rotation, see [GroupMembershipSender]. The history reads as it should then.
+     * None of the versions the server keeps opens under the key of its generation this device holds,
+     * or gets back through the chain, see [GroupKeyChain], and was signed by its creator, see
+     * [GroupHistory]: those made in an epoch this device has yet to reach, until its sync reads the
+     * Commit leading there, see [GroupSync], or, for a group brought back after a log-out, ever. The
+     * history reads as it should then.
      */
     data object Unreadable : GroupHistoryError
 

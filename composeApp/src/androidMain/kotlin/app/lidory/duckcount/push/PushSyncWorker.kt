@@ -38,7 +38,10 @@ private const val TAG = "PushSyncWorker"
  * wrote it, member of the group as they are, once it concerns the user, see [GroupExpenseUpdates].
  *
  * Also run with no signal at all, once the server's limit on messages lets through again what
- * a sync left unsent, see [PushWork.enqueueResend]: the passes that send are part of a sync.
+ * a sync left unsent, see [PushWork.enqueueResend]: the passes that send are part of a sync. And
+ * so once a member's leave from a group the user did not create is old enough for this device to
+ * remove them, should the creator's device not have, see `group.DEPARTED_GRACE`: the group sync is
+ * what removes them.
  */
 class PushSyncWorker(
     context: Context,
@@ -129,7 +132,7 @@ class PushSyncWorker(
         val isLocked = groups.failure == GroupSyncError.DeviceLocked
         val expenses = if (isLocked) null else oneTimeExpenseSync.sync()
 
-        // After the groups, which read the key of any rotation the expenses are sealed under since.
+        // After the groups, whose Commits give the key of every epoch the expenses are sealed in since.
         val groupExpenses = if (isLocked) null else groupExpenseSync.sync()
 
         // Whatever did arrive, or change, is worth showing even when a later step failed,

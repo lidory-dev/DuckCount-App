@@ -6,6 +6,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import uniffi.lib_duckcount.AddMembersOutput
+import uniffi.lib_duckcount.CommitPolicy
 import uniffi.lib_duckcount.GroupCreation
 import uniffi.lib_duckcount.InviteeKeyPackage
 import uniffi.lib_duckcount.MemberInfo
@@ -95,6 +96,13 @@ internal suspend fun MlsClient.encryptApplicationMessage(
     group.encryptApplicationMessage(payload = payload)
 }
 
+/**
+ * The content key of an epoch of a group of several members, see [MlsGroup.contentKey]: what
+ * everything written in the group in [epoch] is sealed under, the generation of the group's keys
+ * numbered as the epoch is, 32 bytes.
+ */
+internal class EpochKey(val epoch: Long, val key: ByteArray)
+
 /** What a message waiting in a group of several members came to, see [processGroupMessageIn]. */
 internal class ProcessedGroupMessage(
     val processed: ProcessedMessage,
@@ -105,13 +113,21 @@ internal class ProcessedGroupMessage(
      * for anything else.
      */
     val membersAfterCommit: List<MemberInfo>?,
+
+    /**
+     * The content key of the epoch the Commit took the group to, derived as it was applied, when
+     * it was a Commit the user is still in the group after; null for anything else. Derived then or
+     * never: MLS gives the key of the epoch the group is in alone, see [MlsGroup.contentKey].
+     */
+    val keyAfterCommit: EpochKey?,
 )
 
 /**
- * Processes [message], one waiting for the user in the group of several members [mlsGroupId],
- * taking a Commit from [creatorUuid] alone and a Proposal from nobody, see
- * [MlsGroup.processIncomingMessage]: only the creator of a group the server holds changes its
- * members, see [group.GroupMembershipChanger]. Anything else changing the group is refused with
+ * Processes [message], one waiting for the user in the group of several members [mlsGroupId], the
+ * one the server holds as [groupUuid], under [policy], see [MlsGroup.processIncomingMessage]: a
+ * Commit is taken from the group's creator, and from any other member only when it removes exactly
+ * the members the server stored it as removing, those who departed, and does nothing else; a
+ * Proposal from nobody. Anything else changing the group is refused with
  * [MlsException.UnauthorizedChange], and stores nothing.
  *
  * Messages are processed in the order the server lists them, as a Commit read out of order is
@@ -122,15 +138,50 @@ internal class ProcessedGroupMessage(
 internal suspend fun MlsClient.processGroupMessageIn(
     mlsGroupId: ByteArray,
     message: ByteArray,
-    creatorUuid: String,
+    groupUuid: String,
+    policy: CommitPolicy,
 ): ProcessedGroupMessage = withGroup(mlsGroupId = mlsGroupId) { group ->
-    val processed = group.processIncomingMessage(message = message, allowedCommitter = creatorUuid)
+    val processed = group.processIncomingMessage(message = message, policy = policy)
 
-    // Read from the same copy, the tree the Commit left, before anything else can reach it.
-    val members = if (processed is ProcessedMessage.Commit && !processed.removedSelf) group.members() else null
+    val isStillIn = processed is ProcessedMessage.Commit && !processed.removedSelf
 
-    ProcessedGroupMessage(processed = processed, membersAfterCommit = members)
+    // Read from the same copy, the tree the Commit left and the epoch it took the group to, before
+    // anything else can reach it.
+    ProcessedGroupMessage(
+        processed = processed,
+        membersAfterCommit = if (isStillIn) group.members() else null,
+        keyAfterCommit = if (isStillIn) group.epochKey(groupUuid = groupUuid) else null,
+    )
 }
+
+/**
+ * The content key of the epoch the group [mlsGroupId], the one the server holds as [groupUuid], is
+ * in, see [EpochKey]: what a group just created or joined seals under, and what a group whose key
+ * this device did not keep as it reached that epoch derives still.
+ */
+internal suspend fun MlsClient.epochKeyIn(mlsGroupId: ByteArray, groupUuid: String): EpochKey =
+    withGroup(mlsGroupId = mlsGroupId) { group -> group.epochKey(groupUuid = groupUuid) }
+
+/**
+ * The keys of a Commit of the user's pending in a group, see [commitKeysIn]: [current], the key of
+ * the epoch it was built in, [epoch], and [next], the key of the epoch it leads to, one past it.
+ */
+internal class CommitKeys(val epoch: Long, val current: ByteArray, val next: ByteArray)
+
+/**
+ * The keys of the Commit of the user's pending in the group [mlsGroupId], the one the server holds
+ * as [groupUuid], see [CommitKeys]: what the request storing it carries for the generation it leads
+ * to, the link back to the key before and the user's copy of the key after, see
+ * [MlsGroup.contentKeyAfterPendingCommit]. Nothing is stored, and the Commit stays pending.
+ */
+internal suspend fun MlsClient.commitKeysIn(mlsGroupId: ByteArray, groupUuid: String): CommitKeys =
+    withGroup(mlsGroupId = mlsGroupId) { group ->
+        CommitKeys(
+            epoch = group.epoch().toLong(),
+            current = group.contentKey(groupUuid = groupUuid),
+            next = group.contentKeyAfterPendingCommit(groupUuid = groupUuid),
+        )
+    }
 
 /** Who is in a group, as far as changing its members goes, see [rosterOf]. */
 internal class GroupRoster(
@@ -186,15 +237,32 @@ internal suspend fun MlsClient.removeMembersFrom(mlsGroupId: ByteArray, userUuid
     withGroup(mlsGroupId = mlsGroupId) { group -> group.removeMembers(userUuids = userUuids) }
 
 /**
- * Applies the Commit of the user's pending in the group [mlsGroupId], once the server took it, and
- * returns every member the group holds then, the user included, as its tree holds them, see
- * [MemberInfo].
+ * Builds a Commit in the group [mlsGroupId] that changes none of its members, see
+ * [MlsGroup.update]: the replacement of a Commit nobody could apply, when there is nobody to remove
+ * with it, see [group.GroupSync]. It stays pending until [applyPendingCommitIn] or
+ * [discardPendingCommitIn].
  */
-internal suspend fun MlsClient.applyPendingCommitIn(mlsGroupId: ByteArray): List<MemberInfo> =
+internal suspend fun MlsClient.updateIn(mlsGroupId: ByteArray): ByteArray =
+    withGroup(mlsGroupId = mlsGroupId) { group -> group.update() }
+
+/** What applying a Commit of the user's left a group as, see [applyPendingCommitIn]. */
+internal class AppliedCommit(
+    /** Every member the group holds then, the user included, as its tree holds them, see [MemberInfo]. */
+    val members: List<MemberInfo>,
+
+    /** The content key of the epoch it took the group to, see [EpochKey]. */
+    val key: EpochKey,
+)
+
+/**
+ * Applies the Commit of the user's pending in the group [mlsGroupId], the one the server holds as
+ * [groupUuid], once the server took it, and returns what the group is then, see [AppliedCommit].
+ */
+internal suspend fun MlsClient.applyPendingCommitIn(mlsGroupId: ByteArray, groupUuid: String): AppliedCommit =
     withGroup(mlsGroupId = mlsGroupId) { group ->
         group.applyPendingCommit()
 
-        group.members()
+        AppliedCommit(members = group.members(), key = group.epochKey(groupUuid = groupUuid))
     }
 
 /**
@@ -493,6 +561,60 @@ internal suspend fun <T> withPeerLock(peerUuid: String, block: suspend () -> T):
 
     return lock.withLock { block() }
 }
+
+/** The content key of the epoch this group is in, see [EpochKey]. */
+private fun MlsGroup.epochKey(groupUuid: String) =
+    EpochKey(epoch = epoch().toLong(), key = contentKey(groupUuid = groupUuid))
+
+/**
+ * The epoch the MLS Commit [message] was built in, read from its cleartext header, or null when
+ * it is no Commit encrypted to a group: what the server reads of a Commit to hold it to the group's
+ * epoch, see [group.GroupSync]. Nothing is decrypted or checked, and the header is whatever its
+ * sender wrote: what this tells of a message the library refused is only ever what its sender
+ * claimed, to tell a Commit refused from anything else refused.
+ *
+ * RFC 9420, §6: the protocol version, `mls10`, and the wire format, `mls_private_message`, as
+ * 16-bit integers, then the group id, a vector whose length is a variable-length integer of one,
+ * two or four bytes as its first two bits say, the epoch as a 64-bit integer, and the content type,
+ * `commit` being 3. All big-endian.
+ */
+internal fun commitEpochOf(message: ByteArray): Long? {
+    var at = 0
+
+    fun take(count: Int): ByteArray? =
+        if (at + count > message.size) null else message.copyOfRange(at, at + count).also { at += count }
+
+    fun ByteArray.toNumber(): Long = fold(0L) { number, byte -> (number shl 8) or (byte.toLong() and 0xff) }
+
+    if (take(2)?.toNumber() != MLS_10 || take(2)?.toNumber() != PRIVATE_MESSAGE) return null
+
+    val first = take(1)?.toNumber() ?: return null
+
+    val groupIdLength = when (first shr 6) {
+        0L -> first and 0x3f
+        1L -> ((first and 0x3f) shl 8) or (take(1)?.toNumber() ?: return null)
+        2L -> ((first and 0x3f) shl 24) or (take(3)?.toNumber() ?: return null)
+        else -> return null
+    }
+
+    take(groupIdLength.toInt()) ?: return null
+
+    val epoch = take(8)?.toNumber() ?: return null
+
+    // An epoch past what a signed 64-bit integer holds is one no group reaches.
+    if (epoch < 0 || take(1)?.toNumber() != COMMIT) return null
+
+    return epoch
+}
+
+/** The only MLS protocol version, `mls10`, see [commitEpochOf]. */
+private const val MLS_10 = 1L
+
+/** The wire format of a `PrivateMessage`, which every member's message travels as, see [commitEpochOf]. */
+private const val PRIVATE_MESSAGE = 2L
+
+/** The content type of a Commit, see [commitEpochOf]. */
+private const val COMMIT = 3L
 
 /**
  * Whether the operation that threw may succeed if tried again later.

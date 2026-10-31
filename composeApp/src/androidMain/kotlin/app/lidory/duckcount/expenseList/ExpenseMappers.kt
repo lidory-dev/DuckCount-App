@@ -163,8 +163,9 @@ fun OneTimeExpenseHistoryError.toExpenseHistoryError(isOnline: Boolean): Expense
  * detail screen have for a one-time expense's, and what has no wording of its own as unknown: a
  * settlement written by anybody but its recipient among them, which the screens never offer. A
  * group the user is no longer in has one, and so has another member's edit made first, the device
- * showing their version from then on, and so have a creation the group waits on and the server's
- * limit, which the user waits out.
+ * showing their version from then on, and so have a creation the group waits on, the server's
+ * limit and a group waiting for its owner, which the user waits out: writing again at once fails
+ * the same way.
  */
 fun GroupExpenseWriteError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError =
     when (this) {
@@ -182,6 +183,8 @@ fun GroupExpenseWriteError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteE
         GroupExpenseWriteError.Conflict -> ExpenseWriteError.CHANGED_MEANWHILE
 
         GroupExpenseWriteError.CreationPending -> ExpenseWriteError.CREATION_PENDING
+
+        GroupExpenseWriteError.AwaitingOwner -> ExpenseWriteError.AWAITING_OWNER
 
         is GroupExpenseWriteError.RateLimited -> ExpenseWriteError.RATE_LIMITED
 

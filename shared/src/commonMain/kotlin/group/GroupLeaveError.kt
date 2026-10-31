@@ -28,7 +28,8 @@ sealed interface GroupLeaveError : Error {
     /**
      * The user created the group, as this device records it, see
      * [database.data.local.entity.GroupEntity.ownerUuid], and its creator never leaves: nobody
-     * else could change its members, the members' devices taking Commits from the creator alone.
+     * else could add anybody to it, the members' devices taking Commits from the creator alone,
+     * but for a removal of those who departed.
      * The server refuses its owner the leave anyway.
      */
     data object IsCreator : GroupLeaveError

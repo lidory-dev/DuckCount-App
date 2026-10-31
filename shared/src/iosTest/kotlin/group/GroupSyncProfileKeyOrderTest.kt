@@ -75,11 +75,7 @@ class GroupSyncProfileKeyOrderTest {
     private val carolKey = generateSymmetricEncryptionKey()
     private val daveKey = generateSymmetricEncryptionKey()
 
-    /** Each group's key, and its fields as the server holds them, sealed under it. */
-    private val groupKeys = mapOf(
-        FIRST_GROUP to generateSymmetricEncryptionKey(),
-        SECOND_GROUP to generateSymmetricEncryptionKey(),
-    )
+    /** Each group's fields as the server holds them, sealed under the key of its first epoch. */
     private val serverVersions = mutableMapOf<String, SealedGroupVersion>()
 
     /** Alice's and Bob's MLS group for each group. */
@@ -287,12 +283,21 @@ class GroupSyncProfileKeyOrderTest {
             memberUuidsOf = { groupUuid -> members[groupUuid].orEmpty().map { it.userUuid } },
             replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
             recordSignatureKeys = {},
-            takeKeys = { _, _ -> error("Alice rotates no group's key here.") },
+            // What becomes of the keys each epoch gives is GroupSyncMembershipTest's.
+            takeKeys = { _, _ -> },
             updateInformation = { _, _ -> error("Alice edits nothing here.") },
             markLeft = { error("Carol stays in every group.") },
             recordDeclined = { error("Nothing is declined here.") },
             forgetDeclined = { error("Nothing is declined here.") },
             removeDeparted = { _, _ -> error("Nobody leaves a group here.") },
+            replaceRefused = { _, _ -> error("No Commit is refused for good here.") },
+            remakeOutdated = { Result.Success(null) },
+            settleUnlisted = { _, _ -> Result.Success(Unit) },
+            keyOf = { _, _, _ -> error("No key is got back through the chain here.") },
+            checkKeyLinks = { Result.Success(Unit) },
+            setAwaitingOwner = { _, _ -> },
+            keyLinks = { Result.Success(emptyList()) },
+            now = { error("Nobody departed from a group here.") },
             fullName = { null },
             hasPendingChange = { false },
             isBlocked = { false },
@@ -314,20 +319,19 @@ class GroupSyncProfileKeyOrderTest {
      * Carol.
      */
     private suspend fun aliceCreates(groupUuid: String, aliceOwnKey: ByteArray = aliceKey): GroupMessageDto {
-        val groupKey = groupKeys.getValue(groupUuid)
         val creation = alice.createGroup(
             groupUuid = groupUuid,
             invitees = listOf(bob.inviteeKeyPackage(), carol.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(
-                groupKey = groupKey,
-                keyGeneration = FIRST_KEY_GENERATION,
-                profileKeys = mapOf(ALICE to aliceOwnKey, BOB to bobKey, CAROL to carolKey),
-            ),
+            welcomePayload = welcomePayloadOf(profileKeys = mapOf(ALICE to aliceOwnKey, BOB to bobKey, CAROL to carolKey)),
         )
 
         aliceGroupIds[groupUuid] = creation.mlsGroupId
         serverMembers[groupUuid] = mutableListOf(ALICE, BOB, CAROL)
-        serverVersions[groupUuid] = FIELDS.sealedAs(creator = alice, groupKey = groupKey, groupUuid = groupUuid)
+        serverVersions[groupUuid] = FIELDS.sealedAs(
+            creator = alice,
+            groupKey = alice.contentKeyIn(mlsGroupId = creation.mlsGroupId, groupUuid = groupUuid),
+            groupUuid = groupUuid,
+        )
         bobGroupIds[groupUuid] = bob.joinGroup(
             welcome = creation.welcome,
             expectedGroupUuid = groupUuid,
@@ -376,14 +380,9 @@ class GroupSyncProfileKeyOrderTest {
         val addition = alice.addMembersTo(
             mlsGroupId = aliceGroupId,
             invitees = listOf(dave.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(
-                groupKey = groupKeys.getValue(groupUuid),
-                keyGeneration = FIRST_KEY_GENERATION,
-                profileKeys = profileKeys,
-            ),
-        )
+            welcomePayload = welcomePayloadOf(profileKeys = profileKeys))
 
-        alice.applyPendingCommitIn(mlsGroupId = aliceGroupId)
+        alice.applyPendingCommitIn(mlsGroupId = aliceGroupId, groupUuid = groupUuid)
         serverMembers.getValue(groupUuid) += DAVE
 
         val keys = post(groupUuid, sender = ALICE, ciphertext = keysMessage)
@@ -398,7 +397,7 @@ class GroupSyncProfileKeyOrderTest {
         val aliceGroupId = aliceGroupIds.getValue(groupUuid)
         val commit = alice.removeMembersFrom(mlsGroupId = aliceGroupId, userUuids = listOf(BOB))
 
-        alice.applyPendingCommitIn(mlsGroupId = aliceGroupId)
+        alice.applyPendingCommitIn(mlsGroupId = aliceGroupId, groupUuid = groupUuid)
         serverMembers.getValue(groupUuid) -= BOB
 
         post(groupUuid, sender = ALICE, ciphertext = commit)
@@ -415,6 +414,7 @@ class GroupSyncProfileKeyOrderTest {
             senderUserUuid = sender,
             ciphertext = Base64.Default.encode(ciphertext),
             createdAt = "2026-10-28T09:${(seconds / 60).twoDigits()}:${(seconds % 60).twoDigits()}.000Z",
+            departedMemberUuids = emptyList(),
         )
 
         waiting.getOrPut(groupUuid) { mutableListOf() } += message

@@ -48,8 +48,9 @@ sealed interface GroupSyncError : Error {
     data class Network(val error: NetworkError) : GroupSyncError
 
     /**
-     * The removal of those the server no longer lists from a group the user created could not be
-     * made, see [GroupMembershipError]: the next sync builds it again.
+     * A Commit the sync makes could not be: the removal of those the server lists as departed from
+     * a group, or the creator's replacement of a Commit nobody could apply, see
+     * [GroupMembershipError]. The next sync builds it again.
      */
     data class Membership(val error: GroupMembershipError) : GroupSyncError
 

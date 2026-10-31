@@ -45,6 +45,13 @@ enum class ExpenseWriteError {
      */
     CREATION_PENDING,
 
+    /**
+     * The expense is one of a group that waits for its owner: a member's change to it is one no
+     * device could apply, and this device can write nothing the server would take until the
+     * owner's device has set it right, which it does as soon as it is online.
+     */
+    AWAITING_OWNER,
+
     /** The server's limit on the group expenses one user writes is reached for now. */
     RATE_LIMITED,
 
@@ -72,6 +79,7 @@ fun ExpenseWriteError.messageRes(): Int = when (this) {
     ExpenseWriteError.UNAUTHORIZED -> R.string.write_error_unauthorized
     ExpenseWriteError.GROUP_LEFT -> R.string.write_error_group_left
     ExpenseWriteError.CREATION_PENDING -> R.string.write_error_creation_pending
+    ExpenseWriteError.AWAITING_OWNER -> R.string.write_error_awaiting_owner
     ExpenseWriteError.RATE_LIMITED -> R.string.write_error_rate_limited
     ExpenseWriteError.KEY_MISSING -> R.string.write_error_key_missing
     ExpenseWriteError.UNKNOWN -> R.string.write_error_unknown

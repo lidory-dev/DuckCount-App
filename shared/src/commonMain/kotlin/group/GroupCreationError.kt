@@ -57,7 +57,7 @@ sealed interface GroupCreationError : Error {
 
     /**
      * The key ring could not be read, which the creator's copy of the group's key is sealed under,
-     * see [GroupKeyCopies.seal]: the group is not created without it, the copy going with its
+     * see [GroupKeyCopies.sealer]: the group is not created without it, the copy going with its
      * creation.
      */
     data class Vault(val error: VaultError) : GroupCreationError

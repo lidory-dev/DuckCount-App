@@ -25,9 +25,9 @@ import mls.encryptApplicationMessage
 import mls.holdsGroup
 import mls.inviteeKeyPackage
 import mls.joinGroupFrom
-import mls.processGroupMessageIn
 import mls.readApplicationMessage
 import mls.removeMembersFrom
+import mls.updateIn
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.MlsNamespace
@@ -101,9 +101,13 @@ class GroupSyncTest {
 
     private val names = mapOf(ALICE to "Alice", DAVE to "Dave")
 
-    /** The groups the server lists for Bob, and whether it can be asked at all. */
+    /**
+     * The groups the server lists for Bob, whether it can be asked at all, and the links back
+     * through their keys the creators' Commits stored, see [GroupKeyChain].
+     */
     private val listed = mutableListOf<GroupDto>()
     private var isServerReachable = true
+    private val serverLinks = mutableListOf<GroupKeyLinkDto>()
 
     /** What waits for Bob in each group, and the groups whose messages cannot be asked for. */
     private val waiting = mutableMapOf<String, MutableList<GroupMessageDto>>()
@@ -241,12 +245,12 @@ class GroupSyncTest {
             it in contacts && it !in blocked
         },
         client = { Result.Success(bob) },
-        save = { group, groupMembers, olderKeys, groupSignatureKeys ->
+        save = { group, groupMembers, keys, groupSignatureKeys ->
             onSave()
             check(!isDatabaseFailing) { "The database is failing." }
             groups[group.uuid] = group
             members[group.uuid] = groupMembers
-            heldKeys[group.uuid] = (olderKeys.map { it.generation } + group.keyGeneration).toSet()
+            heldKeys[group.uuid] = keys.map { it.generation }.toSet()
             signatureKeys[group.uuid] = groupSignatureKeys.associate { it.userUuid to it.signatureKey }
         },
         memberUuidsOf = { groupUuid -> members[groupUuid].orEmpty().map { it.userUuid } },
@@ -256,12 +260,22 @@ class GroupSyncTest {
                 signatureKeys[it.groupUuid] = signatureKeys[it.groupUuid].orEmpty() + (it.userUuid to it.signatureKey)
             }
         },
-        takeKeys = { _, _ -> error("No group here is handed a new key.") },
+        takeKeys = { groupUuid, keys ->
+            heldKeys[groupUuid] = heldKeys[groupUuid].orEmpty() + keys.map { it.generation }
+        },
         updateInformation = { _, _ -> error("Alice edits nothing here.") },
         markLeft = { error("Nobody is removed from a group here.") },
         recordDeclined = { groupUuid -> declined += groupUuid },
         forgetDeclined = { groupUuid -> declined -= groupUuid },
         removeDeparted = { _, _ -> error("No group Bob created is listed here.") },
+        replaceRefused = { _, _ -> error("No Commit is refused for good here.") },
+        remakeOutdated = { Result.Success(null) },
+        settleUnlisted = { _, _ -> Result.Success(Unit) },
+        keyOf = { _, _, _ -> error("No key is got back through the chain here.") },
+        checkKeyLinks = { Result.Success(Unit) },
+        setAwaitingOwner = { _, _ -> },
+        keyLinks = { Result.Success(serverLinks.toList()) },
+        now = { error("Nobody departed from a group here.") },
         fullName = { names[it] },
         hasPendingChange = { it in pending || it in pendingChanges },
         isBlocked = { it in blocked },
@@ -328,27 +342,22 @@ class GroupSyncTest {
     }
 
     /**
-     * As for a group whose creator rotated its key before adding Bob: the Welcome hands over the
-     * key of the generation the group is at, and the tree it seats him in each member's identity.
+     * The key of the epoch the Welcome lets Bob in at, which his device derives as Alice's did, as its
+     * generation, and the tree it seats him in each member's identity.
      */
     @Test
-    fun `a group joined holds the key the Welcome hands over as its generation and each member's signature key`() =
+    fun `a group joined holds the key of the epoch it is joined at as its generation and each member's signature key`() =
         runBlocking<Unit> {
-            val groupKey = generateSymmetricEncryptionKey()
-
-            invite(
-                creator = alice,
-                groupKey = groupKey,
-                welcomePayload = welcomePayloadOf(groupKey = groupKey, keyGeneration = 2, profileKeys = emptyMap()),
-            )
+            val groupKey = invite(creator = alice)
 
             assertNull(groupSync.sync(contactsTakenIn = true).failure)
 
             val group = assertNotNull(groups[GROUP])
 
-            assertEquals(2L, group.keyGeneration)
-            assertEquals(setOf(2L), heldKeys[GROUP])
-            assertEquals(2L, server.generationOf(GROUP))
+            assertEquals(FIRST_KEY_GENERATION, group.keyGeneration)
+            assertContentEquals(groupKey, group.groupKey)
+            assertEquals(setOf(FIRST_KEY_GENERATION), heldKeys[GROUP])
+            assertEquals(FIRST_KEY_GENERATION, server.generationOf(GROUP))
             assertEquals(setOf(ALICE, BOB, CAROL), signatureKeys[GROUP]?.keys)
             assertContentEquals(alice.signaturePublicKey(), signatureKeys[GROUP]?.get(ALICE))
             assertContentEquals(carol.signaturePublicKey(), signatureKeys[GROUP]?.get(CAROL))
@@ -584,11 +593,7 @@ class GroupSyncTest {
         val davesGroup = dave.createGroup(
             groupUuid = GROUP,
             invitees = listOf(bob.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(
-                groupKey = davesGroupKey,
-                keyGeneration = FIRST_KEY_GENERATION,
-                profileKeys = emptyMap(),
-            ),
+            welcomePayload = welcomePayloadOf(profileKeys = emptyMap()),
         )
 
         waiting[GROUP] = mutableListOf(
@@ -598,53 +603,50 @@ class GroupSyncTest {
                 senderUserUuid = DAVE,
                 ciphertext = Base64.Default.encode(davesGroup.welcome),
                 createdAt = "2026-10-23T12:05:00Z",
+                departedMemberUuids = emptyList(),
             ),
         )
 
         assertDeclinedStoringNothing()
     }
 
-    /** Refused by the fields, which open under nothing but a 32-byte key, see [SealedGroupFields.unseal]. */
+    /**
+     * Nothing for the key: Bob derives it from the epoch the Welcome lets him in at. Nor any key to a
+     * member's profile, which every member posts of their own once seated.
+     */
     @Test
-    fun `a key that is not 32 bytes is refused before anything is joined`() = runBlocking<Unit> {
-        val groupKey = generateSymmetricEncryptionKey()
-
-        invite(
-            creator = alice,
-            groupKey = groupKey,
-            welcomePayload = welcomePayloadOf(
-                groupKey = groupKey + 0,
-                keyGeneration = FIRST_KEY_GENERATION,
-                profileKeys = emptyMap(),
-            ),
-        )
-
-        assertDeclinedStoringNothing()
-    }
-
-    @Test
-    fun `a Welcome handing over no key is refused before anything is joined`() = runBlocking<Unit> {
+    fun `a Welcome handing over nothing is joined all the same`() = runBlocking<Unit> {
         invite(creator = alice, welcomePayload = null)
 
-        assertDeclinedStoringNothing()
+        val pass = groupSync.sync(contactsTakenIn = true)
+
+        assertNull(pass.failure)
+        assertEquals(listOf(GROUP), pass.joined.map { it.groupUuid })
+        assertTrue(relayedKeys.isEmpty())
     }
 
-    /** The group's key alone, say: what the Welcome hands over is to name the members' profile keys too. */
+    /** Its payload, whatever it holds, says nothing of the key, and hands no key to anybody's profile. */
     @Test
-    fun `a Welcome whose payload does not read as one is refused before anything is joined`() = runBlocking<Unit> {
-        val groupKey = generateSymmetricEncryptionKey()
+    fun `a Welcome whose payload does not read as one is joined with nothing taken from it`() = runBlocking<Unit> {
+        invite(creator = alice, welcomePayload = ByteArray(32) { 9 })
 
-        invite(creator = alice, groupKey = groupKey, welcomePayload = groupKey)
+        val pass = groupSync.sync(contactsTakenIn = true)
 
-        assertDeclinedStoringNothing()
+        assertNull(pass.failure)
+        assertEquals(listOf(GROUP), pass.joined.map { it.groupUuid })
+        assertTrue(relayedKeys.isEmpty())
+        assertTrue(ownerKeys.isEmpty())
     }
 
-    /** The server serving one group's fields under another group's UUID. */
+    /**
+     * The server serving one group's fields under another group's UUID: the key is the epoch's,
+     * known once joined alone, and the group joined is deleted again, declined and left.
+     */
     @Test
-    fun `fields sealed for another group are refused before anything is joined`() = runBlocking<Unit> {
+    fun `fields sealed for another group are refused once joined`() = runBlocking<Unit> {
         invite(creator = alice, sealedFor = OTHER_GROUP)
 
-        assertDeclinedStoringNothing()
+        assertRefusedOnceJoined()
     }
 
     /**
@@ -653,10 +655,92 @@ class GroupSyncTest {
      * not open are.
      */
     @Test
-    fun `a version its creator did not sign is refused before anything is joined`() = runBlocking<Unit> {
+    fun `a version its creator did not sign is refused once joined`() = runBlocking<Unit> {
         invite(creator = alice, signer = carol)
 
-        assertDeclinedStoringNothing()
+        assertRefusedOnceJoined()
+    }
+
+    /** Fields under a key of no epoch of the group's, which no member could have sealed them under. */
+    @Test
+    fun `fields sealed under a key the group does not give are refused once joined`() = runBlocking<Unit> {
+        invite(creator = alice, groupKey = generateSymmetricEncryptionKey())
+
+        assertRefusedOnceJoined()
+    }
+
+    /**
+     * Alice moved the group on before adding Bob, editing it in the second epoch: he joins at the
+     * third, and gets the second's key, which the information is sealed under, and the first's, the
+     * currency's, back through the links her Commits stored, before anything is joined.
+     */
+    @Test
+    fun `a group joined past its first epoch opens its information through the chain`() = runBlocking<Unit> {
+        val creation = alice.createGroup(
+            groupUuid = GROUP,
+            invitees = listOf(carol.inviteeKeyPackage()),
+            welcomePayload = welcomePayloadOf(profileKeys = emptyMap()),
+        )
+        val keys = mutableMapOf(1L to alice.contentKeyIn(mlsGroupId = creation.mlsGroupId, groupUuid = GROUP))
+
+        suspend fun aliceApplies() {
+            val applied = alice.applyPendingCommitIn(mlsGroupId = creation.mlsGroupId, groupUuid = GROUP)
+
+            keys[applied.key.epoch] = applied.key.key
+            serverLinks += GroupKeyLinkDto(
+                generation = applied.key.epoch,
+                publisherUuid = ALICE,
+                previousKey = assertNotNull(
+                    sealKeyLink(
+                        previousKey = keys.getValue(applied.key.epoch - 1),
+                        groupKey = applied.key.key,
+                        groupUuid = GROUP,
+                        generation = applied.key.epoch,
+                    ),
+                ),
+            )
+        }
+
+        alice.updateIn(mlsGroupId = creation.mlsGroupId)
+        aliceApplies()
+
+        val addition = alice.addMembersTo(
+            mlsGroupId = creation.mlsGroupId,
+            invitees = listOf(bob.inviteeKeyPackage()),
+            welcomePayload = welcomePayloadOf(profileKeys = emptyMap()),
+        )
+
+        aliceApplies()
+
+        listed += listedGroupOf(
+            uuid = GROUP,
+            ownerUuid = ALICE,
+            version = FIELDS.sealedAs(
+                creator = alice,
+                groupKey = keys.getValue(2),
+                groupUuid = GROUP,
+                revision = 2,
+                currencyKey = keys.getValue(1),
+            ),
+            memberUuids = listOf(ALICE, BOB, CAROL),
+            keyGeneration = 3,
+            informationKeyGeneration = 2,
+        )
+        waiting[GROUP] = mutableListOf(
+            groupMessageOf(uuid = welcomeOf(GROUP), senderUuid = ALICE, message = addition.welcome),
+        )
+
+        val pass = groupSync.sync(contactsTakenIn = true)
+
+        assertNull(pass.failure)
+        assertEquals(listOf(GROUP), pass.joined.map { it.groupUuid })
+
+        val group = assertNotNull(groups[GROUP])
+
+        assertEquals(3L, group.keyGeneration)
+        assertContentEquals(keys.getValue(3), group.groupKey)
+        assertEquals(2L, group.infoRevision)
+        assertEquals(setOf(1L, 2L, 3L), heldKeys[GROUP])
     }
 
     /** Signed by Alice as she wrote the Welcome, which is whose versions Bob's device shows from then on. */
@@ -967,10 +1051,21 @@ class GroupSyncTest {
         runBlocking<Unit> {
             val groupKey = generateSymmetricEncryptionKey()
 
-            list(owner = ALICE, groupKey = groupKey)
-            listed[0] = listed[0].copy(keyGeneration = 3)
+            val firstKey = generateSymmetricEncryptionKey()
+            val secondKey = generateSymmetricEncryptionKey()
+
+            list(owner = ALICE, groupKey = groupKey, currencyKey = firstKey, informationKeyGeneration = 3)
             server.copies[GROUP] = server.copyOf(groupKey = groupKey, sealedFor = GROUP, keyGeneration = 3)
             server.generations[GROUP] = 3
+            serverLinks += listOf(2L to (firstKey to secondKey), 3L to (secondKey to groupKey)).map { (generation, keys) ->
+                GroupKeyLinkDto(
+                    generation = generation,
+                    publisherUuid = ALICE,
+                    previousKey = assertNotNull(
+                        sealKeyLink(previousKey = keys.first, groupKey = keys.second, groupUuid = GROUP, generation = generation),
+                    ),
+                )
+            }
 
             assertNull(groupSync.sync(contactsTakenIn = true).failure)
 
@@ -978,7 +1073,8 @@ class GroupSyncTest {
 
             assertEquals(3L, group.keyGeneration)
             assertContentEquals(groupKey, group.groupKey)
-            assertEquals(setOf(3L), heldKeys[GROUP])
+            // The first, the currency's, got back on the way, and the one between.
+            assertEquals(setOf(1L, 2L, 3L), heldKeys[GROUP])
             assertTrue(server.putUp.isEmpty())
         }
 
@@ -1328,29 +1424,47 @@ class GroupSyncTest {
 
         val daveGroup = assertNotNull(mlsGroupId)
 
+        // Each of Dave's Commits stores the link back from the key of the epoch it leads to.
+        var previous = groupKey
+
+        suspend fun daveApplies() {
+            val applied = dave.applyPendingCommitIn(mlsGroupId = daveGroup, groupUuid = GROUP)
+
+            serverLinks += GroupKeyLinkDto(
+                generation = applied.key.epoch,
+                publisherUuid = DAVE,
+                previousKey = assertNotNull(
+                    sealKeyLink(
+                        previousKey = previous,
+                        groupKey = applied.key.key,
+                        groupUuid = GROUP,
+                        generation = applied.key.epoch,
+                    ),
+                ),
+            )
+            previous = applied.key.key
+        }
+
         dave.removeMembersFrom(mlsGroupId = daveGroup, userUuids = listOf(BOB))
-        dave.applyPendingCommitIn(mlsGroupId = daveGroup)
+        daveApplies()
 
         val addition = dave.addMembersTo(
             mlsGroupId = daveGroup,
             invitees = listOf(bob.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(
-                groupKey = groupKey,
-                keyGeneration = FIRST_KEY_GENERATION,
-                profileKeys = emptyMap(),
-            ),
+            welcomePayload = welcomePayloadOf(profileKeys = emptyMap()),
         )
 
-        dave.applyPendingCommitIn(mlsGroupId = daveGroup)
+        daveApplies()
         bob.pinIdentity(userUuid = DAVE, signatureKey = dave.signaturePublicKey())
 
-        list(owner = DAVE, groupKey = groupKey)
+        list(owner = DAVE, groupKey = groupKey, keyGeneration = 3)
         waiting[GROUP] = mutableListOf(
             GroupMessageDto(
                 uuid = "welcome-back",
                 senderUserUuid = DAVE,
                 ciphertext = Base64.Default.encode(addition.welcome),
                 createdAt = "2026-10-24T12:00:00Z",
+                departedMemberUuids = emptyList(),
             ),
         )
 
@@ -1427,16 +1541,12 @@ class GroupSyncTest {
             val addition = bob.addMembersTo(
                 mlsGroupId = bobGroupId,
                 invitees = listOf(dave.inviteeKeyPackage()),
-                welcomePayload = welcomePayloadOf(
-                    groupKey = groups.getValue(GROUP).groupKey,
-                    keyGeneration = FIRST_KEY_GENERATION,
-                    profileKeys = emptyMap(),
-                ),
+                welcomePayload = welcomePayloadOf(profileKeys = emptyMap()),
             )
 
             pendingChanges += GROUP
 
-            alice.processGroupMessageIn(mlsGroupId = aliceGroupId, message = addition.commit, creatorUuid = BOB)
+            alice.processUnderPolicy(mlsGroupId = aliceGroupId, message = addition.commit, groupUuid = GROUP, creatorUuid = BOB)
 
             val aliceKey = generateSymmetricEncryptionKey()
             val post = alice.encryptApplicationMessage(
@@ -1450,6 +1560,7 @@ class GroupSyncTest {
                     senderUserUuid = ALICE,
                     ciphertext = Base64.Default.encode(post),
                     createdAt = "2026-10-27T12:00:00Z",
+                    departedMemberUuids = emptyList(),
                 ),
             )
 
@@ -1460,7 +1571,7 @@ class GroupSyncTest {
             assertTrue(ownerKeys.isEmpty())
 
             // As the next resend hears 409, see GroupMembershipSender.
-            bob.applyPendingCommitIn(mlsGroupId = bobGroupId)
+            bob.applyPendingCommitIn(mlsGroupId = bobGroupId, groupUuid = GROUP)
             pendingChanges -= GROUP
 
             val pass = groupSync.sync(contactsTakenIn = true)
@@ -1514,20 +1625,17 @@ class GroupSyncTest {
     /**
      * Has [creator] create the group [GROUP] with [invitees], handing [welcomePayload] in the
      * Welcome, its fields signed by [signer], [creator] unless a test says otherwise, as [revision]
-     * and sealed under [groupKey] for the group [sealedFor], and the server list it with
-     * [listedMembers] and the Welcome waiting for Bob, as sent by [creator]. The Welcome is sealed
-     * to Bob's last-resort key package when [sealedToLastResort], to a one-time one otherwise.
-     * Returns [groupKey].
+     * and sealed under [groupKey] for the group [sealedFor], the key of the epoch the creation leaves
+     * the group at unless a test says otherwise, and the server list it with [listedMembers] and the
+     * Welcome waiting for Bob, as sent by [creator]. The Welcome is sealed to Bob's last-resort key
+     * package when [sealedToLastResort], to a one-time one otherwise. Returns the key the fields are
+     * sealed under.
      */
     private fun invite(
         creator: MlsClient,
         invitees: List<MlsClient> = listOf(bob, carol),
-        groupKey: ByteArray = generateSymmetricEncryptionKey(),
-        welcomePayload: ByteArray? = welcomePayloadOf(
-            groupKey = groupKey,
-            keyGeneration = FIRST_KEY_GENERATION,
-            profileKeys = emptyMap(),
-        ),
+        groupKey: ByteArray? = null,
+        welcomePayload: ByteArray? = welcomePayloadOf(profileKeys = emptyMap()),
         sealedFor: String = GROUP,
         listedMembers: List<String> = (listOf(creator) + invitees).map { it.userUuid() },
         sealedToLastResort: Boolean = false,
@@ -1539,10 +1647,11 @@ class GroupSyncTest {
             invitees = invitees.map { it.inviteeKeyPackage(isLastResort = sealedToLastResort && it == bob) },
             welcomePayload = welcomePayload,
         )
+        val sealingKey = groupKey ?: creator.contentKeyIn(mlsGroupId = creation.mlsGroupId, groupUuid = GROUP)
 
         list(
             owner = creator.userUuid(),
-            groupKey = groupKey,
+            groupKey = sealingKey,
             sealedFor = sealedFor,
             members = listedMembers,
             signer = signer,
@@ -1559,16 +1668,19 @@ class GroupSyncTest {
                 senderUserUuid = creator.userUuid(),
                 ciphertext = Base64.Default.encode(creation.welcome),
                 createdAt = "2026-10-23T12:00:00Z",
+                departedMemberUuids = emptyList(),
             ),
         )
 
-        return groupKey
+        return sealingKey
     }
 
     /**
      * Has the server list [groupUuid], owned by [owner], with [members], its [fields] as [revision],
-     * signed by [signer], [owner] unless a test says otherwise, and sealed under [groupKey] for the
-     * group [sealedFor], and whatever copy of its key it holds for Bob, see [ServerKeyCopies].
+     * signed by [signer], [owner] unless a test says otherwise, and sealed under [groupKey], of the
+     * generation [informationKeyGeneration], for the group [sealedFor], the currency under
+     * [currencyKey], at the epoch [keyGeneration], and whatever copy of its key it holds for Bob, see
+     * [ServerKeyCopies].
      */
     private fun list(
         owner: String,
@@ -1580,6 +1692,9 @@ class GroupSyncTest {
         creator: String = owner,
         signer: MlsClient = clientOf(creator),
         revision: Long = FIRST_GROUP_REVISION,
+        currencyKey: ByteArray = groupKey,
+        informationKeyGeneration: Long = FIRST_KEY_GENERATION,
+        keyGeneration: Long = informationKeyGeneration,
     ) {
         listed += listedGroupOf(
             uuid = groupUuid,
@@ -1590,8 +1705,11 @@ class GroupSyncTest {
                 groupKey = groupKey,
                 groupUuid = sealedFor,
                 revision = revision,
+                currencyKey = currencyKey,
             ),
             memberUuids = members,
+            keyGeneration = keyGeneration,
+            informationKeyGeneration = informationKeyGeneration,
         )
     }
 
@@ -1635,6 +1753,7 @@ class GroupSyncTest {
                 senderUserUuid = DAVE,
                 ciphertext = Base64.Default.encode(assertNotNull(welcome)),
                 createdAt = "2026-10-23T12:05:00Z",
+                departedMemberUuids = emptyList(),
             ),
         )
     }
@@ -1675,11 +1794,7 @@ class GroupSyncTest {
         val creation = bob.createGroup(
             groupUuid = GROUP,
             invitees = listOf(alice.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(
-                groupKey = groupKey,
-                keyGeneration = FIRST_KEY_GENERATION,
-                profileKeys = emptyMap(),
-            ),
+            welcomePayload = welcomePayloadOf(profileKeys = emptyMap()),
         )
         val sealed = FIELDS.sealedAs(creator = bob, groupKey = groupKey, groupUuid = GROUP)
 
@@ -1724,11 +1839,7 @@ class GroupSyncTest {
         val creation = bob.createGroup(
             groupUuid = GROUP,
             invitees = listOf(alice.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(
-                groupKey = groupKey,
-                keyGeneration = FIRST_KEY_GENERATION,
-                profileKeys = emptyMap(),
-            ),
+            welcomePayload = welcomePayloadOf(profileKeys = emptyMap()),
         )
 
         groups[GROUP] = GroupEntity(
@@ -1766,6 +1877,7 @@ class GroupSyncTest {
         senderUserUuid = ALICE,
         ciphertext = Base64.Default.encode(ByteArray(64) { 5 }),
         createdAt = "2026-10-23T11:00:00Z",
+        departedMemberUuids = emptyList(),
     )
 
     /**
@@ -1843,6 +1955,16 @@ class GroupSyncTest {
             }
         }
         .toMap()
+
+    /**
+     * That a sync joins [GROUP], refuses it, deletes it again and declines it for good, see
+     * [assertNothingJoined]: what it lists opens to nothing its creator signed under the keys the
+     * group gives, which only joining it tells.
+     */
+    private suspend fun assertRefusedOnceJoined() {
+        assertNothingJoined(groupSync.sync(contactsTakenIn = true))
+        assertTrue(bobStore.keys(namespace_ = MlsNamespace.GROUP_STATE).isEmpty())
+    }
 
     /**
      * That a sync declines [GROUP] for good, see [assertNothingJoined], and leaves Bob's store as it

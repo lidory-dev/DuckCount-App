@@ -161,7 +161,7 @@ sealed interface GroupExpenseWriteAnswer {
 
     /**
      * The JSON `409` of a version sealed under a generation of the group's key that is not its
-     * current one, [keyGeneration]: a rotation this device has yet to read the key of, see
+     * current one, [keyGeneration]: a Commit this device has yet to read the key it leads to of, see
      * [GroupSync]. Checked ahead of the expense, its revision and the nonce.
      */
     data class KeyGenerationNotCurrent(val keyGeneration: Long) : GroupExpenseWriteAnswer

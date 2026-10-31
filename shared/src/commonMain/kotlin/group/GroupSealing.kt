@@ -11,14 +11,14 @@ import vault.unsealBound
 /**
  * What each sealed field of a group is bound to.
  *
- * Every field of one group is sealed under the same key, so without this they would be
- * interchangeable: the server could put the description where the title was, and both would open
- * perfectly. Naming the field binds that. The creator's signature over a version of the fields is
+ * Every field of one version of a group's information is sealed under the same key, and so is
+ * every version sealed in the same epoch, so without this they would be interchangeable: the
+ * server could put the description where the title was, and both would open perfectly. Naming the field binds that. The creator's signature over a version of the fields is
  * sealed as one more field, see [GroupVersion], so that nothing else the group holds passes for it.
  *
  * Naming the group is a second check. A Welcome the server serves under another group's UUID is
  * refused for its id, which the library derives from the UUID of the group it was written for, see
- * [GroupSync], and each group has a key of its own, under which no other group's fields open.
+ * [GroupSync], and each group has keys of its own, under which no other group's fields open.
  * Bound to the group they were sealed for, the fields open as no other group's even under a key
  * two groups were given.
  */
@@ -39,7 +39,11 @@ internal class GroupFields(
     val currency: Currency,
 )
 
-/** A group's fields as the server holds them, sealed under the group's key, see [GroupFields.seal]. */
+/**
+ * A group's fields as the server holds them, sealed under the group's keys, see [GroupFields.seal]:
+ * the title and description under the generation the version they are of was written in, and the
+ * currency under the first, as the group was created, no edit changing it.
+ */
 internal class SealedGroupFields(
     val title: EncryptedFieldDto,
     val description: EncryptedFieldDto,
@@ -60,8 +64,8 @@ internal class GroupVersion(
 
 /**
  * A [GroupVersion] as the server holds it: its fields and its signature sealed under the group's
- * key, see [GroupVersion.seal], and its revision as it is, which the server reads to refuse an edit
- * that does not come after the version it holds.
+ * keys, see [GroupVersion.seal] and [SealedGroupFields], and its revision as it is, which the
+ * server reads to refuse an edit that does not come after the version it holds.
  */
 internal class SealedGroupVersion(
     val fields: SealedGroupFields,
@@ -76,8 +80,8 @@ internal class SealedGroupVersion(
  * catalogue gives it, and nothing else.
  *
  * Returns null only when [groupKey] is not a 32-byte key, a caller bug rather than a state: every
- * group key comes from `generateSymmetricEncryptionKey`, or out of the Welcome or the message that
- * handed it over, or out of the user's copy the server kept of it, see [GroupKeyCopies].
+ * group key comes from MLS, see [mls.EpochKey], or out of a link that led back to it, see
+ * [GroupKeyChain], or out of the user's copy the server kept of it, see [GroupKeyCopies].
  */
 internal fun GroupFields.seal(groupKey: ByteArray, groupUuid: String): SealedGroupFields? =
     SealedGroupFields(
@@ -89,28 +93,36 @@ internal fun GroupFields.seal(groupKey: ByteArray, groupUuid: String): SealedGro
     )
 
 /**
- * Opens these fields of the group [groupUuid] with [groupKey], or returns null when any of them
- * does not open, as that field of that group, under that key.
+ * Opens these fields of the group [groupUuid], the title and description with [groupKey] and the
+ * currency with [currencyKey], the key of the first generation, see [SealedGroupFields], or returns
+ * null when any of them does not open, as that field of that group, under that key.
  *
  * All or nothing, as for a one-time expense: a group half opened would be listed under a real
  * title with a currency made up. So is one whose title or description is longer than the form
  * allows, or whose currency is not one the app ships with: the screens read these values as the
  * app writes them, and the group list is among the first things the app shows.
  */
-internal fun SealedGroupFields.unseal(groupKey: ByteArray, groupUuid: String): GroupFields? =
+internal fun SealedGroupFields.unseal(groupKey: ByteArray, currencyKey: ByteArray, groupUuid: String): GroupFields? =
     GroupFields(
         title = openTitle(groupKey = groupKey, groupUuid = groupUuid, sealed = title) ?: return null,
         description = openDescription(groupKey = groupKey, groupUuid = groupUuid, sealed = description)
             ?: return null,
-        currency = unsealBound(groupKey, Context.currency(groupUuid), currency)?.toCurrency() ?: return null,
+        currency = openCurrency(currencyKey = currencyKey, groupUuid = groupUuid, sealed = currency) ?: return null,
     )
+
+/**
+ * The currency [sealed] opens to as that of the group [groupUuid] under [currencyKey], the key of
+ * the first generation, see [SealedGroupFields], or null when it does not, or is one the app does
+ * not ship with: what a group just joined, or brought back after a log-out, is shown in.
+ */
+internal fun openCurrency(currencyKey: ByteArray, groupUuid: String, sealed: EncryptedFieldDto): Currency? =
+    unsealBound(currencyKey, Context.currency(groupUuid), sealed)?.toCurrency()
 
 /**
  * Seals this version under [groupKey] for the group [groupUuid]: its fields as [GroupFields.seal]
  * does, and its signature as one more field, the raw bytes the library signed. Ready for `POST
- * /groups`, an edit, see [EditGroupBody], and a key rotation, which seals the same version again
- * under the new key, see [RotateGroupKeyBody], and each one its history holds, see
- * [PreviousGroupVersionBody].
+ * /groups`, under the key of the first generation, and for an edit, see [EditGroupBody], under the
+ * key of the group's current one, which leaves the currency as it was sealed at the creation.
  *
  * Returns null only when [groupKey] is not a 32-byte key, as for [GroupFields.seal].
  */
@@ -122,17 +134,47 @@ internal fun GroupVersion.seal(groupKey: ByteArray, groupUuid: String): SealedGr
     )
 
 /**
- * Opens this version of the group [groupUuid] with [groupKey], or returns null when its fields do
- * not open, see [SealedGroupFields.unseal], or its signature does not, as the signature of that
- * group, under that key: all or nothing again, a version with no signature being one nobody can
- * tell the writer of.
+ * Opens this version of the group [groupUuid], its title, description and signature with
+ * [groupKey], the key of the generation it was written in, and its currency with [currencyKey], see
+ * [SealedGroupFields.unseal], or returns null when any of them does not open, the signature as the
+ * signature of that group, under that key: all or nothing again, a version with no signature being
+ * one nobody can tell the writer of.
  *
  * Opened is not checked: whose signature it holds is for the caller to check against the group's
  * creator, see [openSigned].
  */
-internal fun SealedGroupVersion.unseal(groupKey: ByteArray, groupUuid: String): GroupVersion? =
+internal fun SealedGroupVersion.unseal(groupKey: ByteArray, currencyKey: ByteArray, groupUuid: String): GroupVersion? =
     GroupVersion(
-        fields = fields.unseal(groupKey = groupKey, groupUuid = groupUuid) ?: return null,
+        fields = fields.unseal(groupKey = groupKey, currencyKey = currencyKey, groupUuid = groupUuid) ?: return null,
+        revision = revision,
+        signature = openSignature(groupKey = groupKey, groupUuid = groupUuid, sealed = signature) ?: return null,
+    )
+
+/**
+ * Whether this version's title, description and signature open under [groupKey] as those of the
+ * group [groupUuid], see [SealedGroupVersion.unseal]: what tells the key of the generation it was
+ * written in from any other, see [GroupKeyChain].
+ */
+internal fun SealedGroupVersion.opensUnder(groupKey: ByteArray, groupUuid: String): Boolean =
+    openTitle(groupKey = groupKey, groupUuid = groupUuid, sealed = fields.title) != null &&
+        openDescription(groupKey = groupKey, groupUuid = groupUuid, sealed = fields.description) != null &&
+        openSignature(groupKey = groupKey, groupUuid = groupUuid, sealed = signature) != null
+
+/**
+ * Opens this version of the group [groupUuid] with [groupKey], the key of the generation it was
+ * written in, as [SealedGroupVersion.unseal] does, but for its currency, [currency], the group's
+ * own, which no edit changes: what a group this device holds is held to, as its history is, see
+ * [GroupHistoryVersionDto.unseal]. The creator signed the currency with every version, see
+ * [GroupVersion], so a version of another currency does not verify as theirs.
+ */
+internal fun SealedGroupVersion.unseal(groupKey: ByteArray, groupUuid: String, currency: Currency): GroupVersion? =
+    GroupVersion(
+        fields = GroupFields(
+            title = openTitle(groupKey = groupKey, groupUuid = groupUuid, sealed = fields.title) ?: return null,
+            description = openDescription(groupKey = groupKey, groupUuid = groupUuid, sealed = fields.description)
+                ?: return null,
+            currency = currency,
+        ),
         revision = revision,
         signature = openSignature(groupKey = groupKey, groupUuid = groupUuid, sealed = signature) ?: return null,
     )
@@ -147,8 +189,9 @@ internal fun SealedGroupVersion.unseal(groupKey: ByteArray, groupUuid: String): 
  * The history holds no currency, which no edit changes: the group's own is what the creator signed
  * with every version, see [GroupVersion], so a version is checked with it, see [openSigned].
  * Opened is not checked here either, and the signature is what holds each field to its version:
- * every version of a group is sealed under the same key, with the same contexts, so a field moved
- * from one to another opens all the same, and only fails to verify as the version it was moved to.
+ * every version of a group sealed in the same epoch is sealed under the same key, with the same
+ * contexts, so a field moved from one to another opens all the same, and only fails to verify as
+ * the version it was moved to.
  */
 internal fun GroupHistoryVersionDto.unseal(groupKey: ByteArray, groupUuid: String, currency: Currency): GroupVersion? =
     GroupVersion(

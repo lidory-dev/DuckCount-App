@@ -152,7 +152,7 @@ class GroupCreatorTest {
         save = { group, groupMembers, pendingCreation -> saveRows(group, groupMembers, pendingCreation) },
         bookResend = sender::bookResend,
         send = sender::send,
-        sealKeyCopy = keyCopies::seal,
+        keyCopySealer = keyCopies::sealer,
         ownProfileKey = { aliceProfileKey },
         contactProfileKey = { contactProfileKeys[it] },
         learnedProfileKey = { learnedProfileKeys[it] },
@@ -212,12 +212,19 @@ class GroupCreatorTest {
         )
     }
 
-    /** The server takes the group to that generation as it creates it. */
+    /**
+     * The server takes the group to that generation as it creates it: the epoch the creation leaves
+     * its MLS group at, whose key the library derives for every member alike.
+     */
     @Test
-    fun `a group is created at the first generation of its key`() = runBlocking<Unit> {
+    fun `a group is created at the first generation of its key the key of its first epoch`() = runBlocking<Unit> {
         val groupUuid = assertIs<Result.Success<String>>(create()).data
+        val group = groups.getValue(groupUuid)
+        val mlsGroupId = assertNotNull(group.mlsGroupId)
 
-        assertEquals(FIRST_KEY_GENERATION, groups.getValue(groupUuid).keyGeneration)
+        assertEquals(FIRST_KEY_GENERATION, group.keyGeneration)
+        assertEquals(FIRST_KEY_GENERATION, alice.epochIn(mlsGroupId = mlsGroupId))
+        assertContentEquals(alice.contentKeyIn(mlsGroupId = mlsGroupId, groupUuid = groupUuid), group.groupKey)
     }
 
     /** Whatever its members write in it is news to its creator, none of it written before they could see it. */
@@ -243,7 +250,11 @@ class GroupCreatorTest {
                 fields = SealedGroupFields(title = body.title, description = body.description, currency = body.currency),
                 revision = FIRST_GROUP_REVISION,
                 signature = body.signature,
-            ).unseal(groupKey = groups.getValue(groupUuid).groupKey, groupUuid = groupUuid),
+            ).unseal(
+                groupKey = groups.getValue(groupUuid).groupKey,
+                currencyKey = groups.getValue(groupUuid).groupKey,
+                groupUuid = groupUuid,
+            ),
         )
 
         assertEquals("Ski trip", version.fields.title)
@@ -275,7 +286,11 @@ class GroupCreatorTest {
                 fields = SealedGroupFields(title = body.title, description = body.description, currency = body.currency),
                 revision = FIRST_GROUP_REVISION,
                 signature = body.signature,
-            ).unseal(groupKey = groups.getValue(groupUuid).groupKey, groupUuid = groupUuid),
+            ).unseal(
+                groupKey = groups.getValue(groupUuid).groupKey,
+                currencyKey = groups.getValue(groupUuid).groupKey,
+                groupUuid = groupUuid,
+            ),
         )
 
         assertEquals("Ski trip", version.fields.title)
@@ -323,9 +338,13 @@ class GroupCreatorTest {
         assertEquals(listOf(60L), resends.seconds)
     }
 
-    /** What each invitee makes of the request: the group's key in the Welcome, which opens its fields. */
+    /**
+     * What each invitee makes of the request: the key of the epoch the Welcome lets them in at,
+     * which they derive themselves, opens its fields. The creation leaves the group at epoch 1, the
+     * first generation the server starts every group at.
+     */
     @Test
-    fun `every invitee joins from the one Welcome and opens the fields with the key it hands them`() =
+    fun `every invitee joins from the one Welcome and opens the fields with the key the epoch gives them`() =
         runBlocking<Unit> {
             val groupUuid = assertIs<Result.Success<String>>(create()).data
             val body = posted.single().body
@@ -335,22 +354,21 @@ class GroupCreatorTest {
 
             assertEquals(ALICE, inspection.committerUserUuid)
 
-            val handedOver = assertNotNull(welcomeHandoverOf(payload = assertNotNull(inspection.welcomePayload)))
-                .groupKey
-            val groupKey = handedOver.key
-
-            assertContentEquals(groups.getValue(groupUuid).groupKey, groupKey)
-            assertEquals(FIRST_KEY_GENERATION, handedOver.generation)
-
-            bob.joinGroup(
+            val bobGroupId = bob.joinGroup(
                 welcome = welcome,
                 expectedGroupUuid = groupUuid,
                 expectedMembers = listOf(ALICE, CAROL),
                 pinMembers = false,
             )
 
+            val groupKey = bob.contentKeyIn(mlsGroupId = bobGroupId, groupUuid = groupUuid)
+
+            assertEquals(FIRST_KEY_GENERATION, bob.epochIn(mlsGroupId = bobGroupId))
+            assertEquals(FIRST_KEY_GENERATION, groups.getValue(groupUuid).keyGeneration)
+            assertContentEquals(groups.getValue(groupUuid).groupKey, groupKey)
+
             val fields = SealedGroupFields(title = body.title, description = body.description, currency = body.currency)
-                .unseal(groupKey = groupKey, groupUuid = groupUuid)
+                .unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = groupUuid)
 
             assertEquals("Ski trip", fields?.title)
 

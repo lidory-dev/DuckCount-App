@@ -166,7 +166,10 @@ fun SharedMembershipChangeOutcome.toMembershipChangeResult(): MembershipChangeRe
  * group's settings offer no change for: a group the user did not create, is no longer in, or
  * that this device does not hold, see [GroupWithMembersDb.canChangeMembers], one with a change
  * waiting on the server, see [GroupWithMembersDb.hasPendingChange], and more members than the
- * picker lets the user pick.
+ * picker lets the user pick. And so is a change built in an epoch the group had left by the time
+ * it reached the server, and again once the groups were synced, another member's Commit having
+ * come first, see [SharedGroupMembershipError.Outdated]: asking again is all there is to do, which
+ * is what the message says.
  */
 suspend fun SharedGroupMembershipError.toMembershipChangeError(
     isOnline: Boolean,
@@ -197,12 +200,16 @@ suspend fun SharedGroupMembershipError.toMembershipChangeError(
         is SharedGroupMembershipError.Identity ->
             MembershipChangeError.Failure(error.toGroupCreationFailure(isOnline = isOnline))
 
+        is SharedGroupMembershipError.Vault ->
+            MembershipChangeError.Failure(error.toGroupCreationFailure(isOnline = isOnline))
+
         SharedGroupMembershipError.NoSession,
         SharedGroupMembershipError.DeviceLocked,
         SharedGroupMembershipError.NotCreator,
         SharedGroupMembershipError.NotHeld,
         SharedGroupMembershipError.ChangePending,
         SharedGroupMembershipError.TooManyMembers,
+        SharedGroupMembershipError.Outdated,
         SharedGroupMembershipError.Storage,
         SharedGroupMembershipError.Crypto,
             -> MembershipChangeError.Failure(GroupCreationFailure.UNKNOWN)
@@ -219,7 +226,12 @@ suspend fun SharedGroupMembershipError.toMembershipChangeError(
  * [GroupCreationFailure.UNKNOWN], as is nobody being signed in, and the device locking as the edit
  * waited for a sync, as for a change to a group's members, see [toMembershipChangeError]. So is
  * what the group's settings offer no edit of: a group the user did not create, see
- * [GroupWithMembersDb.canEdit], or that this device no longer holds.
+ * [GroupWithMembersDb.canEdit], or that this device no longer holds. And so is an edit the server
+ * refused for the generation of the group's key it was sealed under, even once the groups were
+ * synced, see [SharedGroupEditError.KeyNotCurrent]: past a Commit the sync could not read yet, or
+ * one nobody could apply, which the user's own device replaces as it syncs, the user being the
+ * group's creator, saving again is all there is to do, and a group brought back after a log-out,
+ * which follows no epoch, leaves the user nothing to do at all.
  */
 fun SharedGroupEditError.toGroupEditError(isOnline: Boolean): GroupEditError = when (this) {
     SharedGroupEditError.ChangePending -> GroupEditError.ChangePending
@@ -236,6 +248,7 @@ fun SharedGroupEditError.toGroupEditError(isOnline: Boolean): GroupEditError = w
     SharedGroupEditError.DeviceLocked,
     SharedGroupEditError.NotHeld,
     SharedGroupEditError.NotCreator,
+    SharedGroupEditError.KeyNotCurrent,
     SharedGroupEditError.Crypto,
         -> GroupEditError.Failure(GroupCreationFailure.UNKNOWN)
 }
@@ -319,9 +332,9 @@ private suspend fun namesOf(
  * the words of a creation's failures: what kept the server from being reached, the identity that
  * signs it included, a group they are no longer in, which the screen offers no settling in once
  * this device read the removal, though the server refuses it from the moment it was taken, and the
- * server's limit on what the user writes in their groups, which the expense screens tell too, and
- * an immediate retry runs into again; or else [GroupCreationFailure.UNKNOWN], nothing else being
- * anything the user can act on.
+ * server's limit on what the user writes in their groups, and a group waiting for its owner, which
+ * the expense screens tell too, and an immediate retry runs into again; or else
+ * [GroupCreationFailure.UNKNOWN], nothing else being anything the user can act on.
  */
 fun GroupExpenseWriteError.toGroupCreationFailure(isOnline: Boolean): GroupCreationFailure = when (this) {
     is GroupExpenseWriteError.Network -> error.toGroupCreationFailure(isOnline = isOnline)
@@ -331,6 +344,8 @@ fun GroupExpenseWriteError.toGroupCreationFailure(isOnline: Boolean): GroupCreat
     GroupExpenseWriteError.NotMember -> GroupCreationFailure.GROUP_LEFT
 
     is GroupExpenseWriteError.RateLimited -> GroupCreationFailure.RATE_LIMITED
+
+    GroupExpenseWriteError.AwaitingOwner -> GroupCreationFailure.AWAITING_OWNER
 
     GroupExpenseWriteError.NoSession,
     GroupExpenseWriteError.CreationPending,

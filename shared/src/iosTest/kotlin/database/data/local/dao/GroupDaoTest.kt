@@ -52,7 +52,8 @@ private const val OLDER_HASH = "older"
  * a group's keys it keeps, see [GroupKeyEntity], and which signature keys of its members, see
  * [GroupMemberSignatureKeyEntity], which `group.GroupKeyChain` and the checks of what the members
  * write rely on. And whose members may wake the user with an expense of their group, see
- * [GroupMemberDao.getUnblockedCurrentMemberUuids], which `push.WakeList` writes down whole.
+ * [GroupMemberDao.getUnblockedCurrentMemberUuids], which `push.WakeList` writes down whole. And
+ * which changes to a group's members are kept, see [PendingMembershipChangeEntity].
  */
 class GroupDaoTest {
 
@@ -139,7 +140,6 @@ class GroupDaoTest {
                         kind = MembershipChangeKind.ADDITION,
                         body = "{}",
                         commitEpoch = 1,
-                        groupKey = null,
                     ),
                 )
 
@@ -165,6 +165,31 @@ class GroupDaoTest {
         }
     }
 
+    /** A removal of those who departed waiting on the server, which the leave makes moot. */
+    @Test
+    fun `a group the user leaves takes the change to its members pending with it`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.groupDao.insert(groupOf(GROUP))
+            database.groupDao.insert(groupOf(OTHER_GROUP))
+
+            for (groupUuid in listOf(GROUP, OTHER_GROUP)) {
+                database.groupDao.upsertMembershipChange(
+                    PendingMembershipChangeEntity(
+                        groupUuid = groupUuid,
+                        kind = MembershipChangeKind.DEPARTED_REMOVAL,
+                        body = "{}",
+                        commitEpoch = 1,
+                    ),
+                )
+            }
+
+            database.groupDao.markLeftAndOweLeave(groupUuid = GROUP)
+
+            assertEquals(listOf(OTHER_GROUP), database.groupDao.getMembershipChanges().map { it.groupUuid })
+            assertFalse(database.groupDao.hasPendingChange(groupUuid = GROUP))
+        }
+    }
+
     /**
      * A trigger stands in for the database failing as the leave is recorded owed: a group left
      * with no leave owed would keep the user a member on the server for good.
@@ -187,60 +212,31 @@ class GroupDaoTest {
     }
 
     @Test
-    fun `a key handed over in the group is not backed up until its own copy goes up`() = runBlocking<Unit> {
+    fun `a key an epoch gave is not backed up until its own copy goes up`() = runBlocking<Unit> {
         withInMemoryDatabase { database ->
             database.groupDao.insert(groupOf(GROUP, groupKey = OLD_KEY, isBackedUp = true))
 
-            database.groupDao.takeHandedKeys(groupUuid = GROUP, keys = listOf(keyOf(generation = 2, NEW_KEY)))
+            database.groupDao.takeDerivedKeys(groupUuid = GROUP, keys = listOf(keyOf(generation = 2, NEW_KEY)))
 
             assertFalse(database.groupDao.isBackedUp())
             assertContentEquals(NEW_KEY, assertNotNull(database.groupDao.get(uuid = GROUP)).groupKey)
         }
     }
 
-    /** Two read in one pass, as for a member who missed a sync. */
+    /** Two Commits read in one pass, as for a member who missed a sync. */
     @Test
-    fun `the keys handed over in the group are kept with their generations the last one its key`() =
-        runBlocking<Unit> {
-            withInMemoryDatabase { database ->
-                database.groupDao.insertCreated(
-                    group = groupOf(GROUP, groupKey = OLD_KEY),
-                    members = emptyList(),
-                    pendingCreation = PendingGroupCreationEntity(groupUuid = GROUP, body = "{}"),
-                )
-
-                database.groupDao.takeHandedKeys(
-                    groupUuid = GROUP,
-                    keys = listOf(keyOf(generation = 2, NEW_KEY), keyOf(generation = 3, NEWER_KEY)),
-                )
-
-                val group = assertNotNull(database.groupDao.get(uuid = GROUP))
-
-                assertContentEquals(NEWER_KEY, group.groupKey)
-                assertEquals(3L, group.keyGeneration)
-                assertEquals(
-                    mapOf(1L to OLD_KEY.toList(), 2L to NEW_KEY.toList(), 3L to NEWER_KEY.toList()),
-                    database.groupDao.keysOf(),
-                )
-            }
-        }
-
-    /**
-     * The key message of a rotation the server held back and listed after the next one's, which MLS
-     * still opens: kept as its generation, and never the group's key in place of the newer one.
-     */
-    @Test
-    fun `a key handed over after a newer one is kept without becoming the group's key`() = runBlocking<Unit> {
+    fun `the keys the epochs gave are kept with their generations the last one its key`() = runBlocking<Unit> {
         withInMemoryDatabase { database ->
-            database.groupDao.upsertWithMembers(
+            database.groupDao.insertCreated(
                 group = groupOf(GROUP, groupKey = OLD_KEY),
                 members = emptyList(),
-                olderKeys = emptyList(),
-                signatureKeys = emptyList(),
+                pendingCreation = PendingGroupCreationEntity(groupUuid = GROUP, body = "{}"),
             )
 
-            database.groupDao.takeHandedKeys(groupUuid = GROUP, keys = listOf(keyOf(generation = 3, NEWER_KEY)))
-            database.groupDao.takeHandedKeys(groupUuid = GROUP, keys = listOf(keyOf(generation = 2, NEW_KEY)))
+            database.groupDao.takeDerivedKeys(
+                groupUuid = GROUP,
+                keys = listOf(keyOf(generation = 2, NEW_KEY), keyOf(generation = 3, NEWER_KEY)),
+            )
 
             val group = assertNotNull(database.groupDao.get(uuid = GROUP))
 
@@ -253,92 +249,155 @@ class GroupDaoTest {
         }
     }
 
-    /** Both read in one pass, the newer first. */
+    /**
+     * What MLS derives every member derives alike: one a link led to before is of no other key, and
+     * the epoch's own replaces it.
+     */
     @Test
-    fun `the keys handed over in one pass make the newest the group's key whatever their order`() =
-        runBlocking<Unit> {
-            withInMemoryDatabase { database ->
-                database.groupDao.insert(groupOf(GROUP, groupKey = OLD_KEY))
-
-                database.groupDao.takeHandedKeys(
-                    groupUuid = GROUP,
-                    keys = listOf(keyOf(generation = 3, NEWER_KEY), keyOf(generation = 2, NEW_KEY)),
-                )
-
-                val group = assertNotNull(database.groupDao.get(uuid = GROUP))
-
-                assertContentEquals(NEWER_KEY, group.groupKey)
-                assertEquals(3L, group.keyGeneration)
-            }
-        }
-
-    /** What was sealed under the key held of that generation stays readable with it. */
-    @Test
-    fun `a key handed over for a generation held already does not replace it`() = runBlocking<Unit> {
+    fun `a key an epoch gave replaces one held at its generation`() = runBlocking<Unit> {
         withInMemoryDatabase { database ->
             database.groupDao.upsertWithMembers(
                 group = groupOf(GROUP, groupKey = OLD_KEY),
                 members = emptyList(),
-                olderKeys = emptyList(),
+                keys = listOf(keyOf(generation = 1, OLD_KEY), keyOf(generation = 2, ByteArray(32) { 9 })),
                 signatureKeys = emptyList(),
             )
-            database.groupDao.takeHandedKeys(groupUuid = GROUP, keys = listOf(keyOf(generation = 2, NEW_KEY)))
 
-            database.groupDao.takeHandedKeys(groupUuid = GROUP, keys = listOf(keyOf(generation = 2, NEWER_KEY)))
+            database.groupDao.takeDerivedKeys(groupUuid = GROUP, keys = listOf(keyOf(generation = 2, NEW_KEY)))
 
-            assertContentEquals(NEW_KEY, assertNotNull(database.groupDao.get(uuid = GROUP)).groupKey)
             assertEquals(mapOf(1L to OLD_KEY.toList(), 2L to NEW_KEY.toList()), database.groupDao.keysOf())
         }
     }
 
-    /** The rotation carried the creator's copy of the key it hands over. */
+    /** The user's own Commit carried their copy of the key it leads to. */
     @Test
-    fun `a key rotation taken backs the group up and is dropped`() = runBlocking<Unit> {
+    fun `a key a Commit of the user's led to backs the group up and drops the change`() = runBlocking<Unit> {
         withInMemoryDatabase { database ->
-            database.groupDao.insert(groupOf(GROUP, groupKey = OLD_KEY, isBackedUp = true))
+            database.groupDao.insertCreated(
+                group = groupOf(GROUP, groupKey = OLD_KEY, isBackedUp = false),
+                members = emptyList(),
+                pendingCreation = PendingGroupCreationEntity(groupUuid = GROUP, body = "{}"),
+            )
+            database.groupDao.deletePendingCreation(groupUuid = GROUP)
             database.groupDao.upsertMembershipChange(
                 PendingMembershipChangeEntity(
                     groupUuid = GROUP,
-                    kind = MembershipChangeKind.KEY_ROTATION,
+                    kind = MembershipChangeKind.DEPARTED_REMOVAL,
                     body = "{}",
-                    commitEpoch = null,
-                    groupKey = NEW_KEY,
+                    commitEpoch = 1,
                 ),
             )
 
-            database.groupDao.adoptRotatedKey(groupUuid = GROUP, groupKey = NEW_KEY, keyGeneration = 2)
+            database.groupDao.takeCommittedKey(key = keyOf(generation = 2, NEW_KEY))
 
-            assertTrue(database.groupDao.isBackedUp())
-            assertContentEquals(NEW_KEY, assertNotNull(database.groupDao.get(uuid = GROUP)).groupKey)
-            assertEquals(2L, assertNotNull(database.groupDao.get(uuid = GROUP)).keyGeneration)
+            val group = assertNotNull(database.groupDao.get(uuid = GROUP))
+
+            assertTrue(group.isBackedUp)
+            assertContentEquals(NEW_KEY, group.groupKey)
+            assertEquals(2L, group.keyGeneration)
+            assertEquals(mapOf(1L to OLD_KEY.toList(), 2L to NEW_KEY.toList()), database.groupDao.keysOf())
             assertTrue(database.groupDao.getMembershipChanges().isEmpty())
         }
     }
 
-    /** What was sealed under it stays sealed under it, see `group.GroupKeyChain`. */
+    /**
+     * A change to be made again, see [PendingMembershipChangeEntity.isOutdated], waits beside the
+     * creator's replacement made ahead of it, and stays once the server took that one.
+     */
     @Test
-    fun `a key rotation taken keeps the key it replaces as its generation`() = runBlocking<Unit> {
+    fun `a change to be made again stays beside the one sent after it once that one is taken`() =
+        runBlocking<Unit> {
+            withInMemoryDatabase { database ->
+                database.groupDao.insert(groupOf(GROUP, groupKey = OLD_KEY))
+                database.groupDao.upsertMembershipChange(changeOf(MembershipChangeKind.REMOVAL, commitEpoch = 1))
+                database.groupDao.markMembershipChangeOutdated(groupUuid = GROUP)
+
+                assertFalse(database.groupDao.hasChangeOnServer(groupUuid = GROUP))
+
+                database.groupDao.upsertMembershipChange(changeOf(MembershipChangeKind.REPLACEMENT, commitEpoch = 1))
+
+                assertTrue(database.groupDao.hasChangeOnServer(groupUuid = GROUP))
+                assertEquals(2, database.groupDao.getMembershipChanges().size)
+
+                database.groupDao.takeCommittedKey(key = keyOf(generation = 2, NEW_KEY))
+
+                val kept = database.groupDao.getMembershipChanges().single()
+
+                assertEquals(MembershipChangeKind.REMOVAL, kept.kind)
+                assertTrue(kept.isOutdated)
+                assertTrue(database.groupDao.hasPendingChange(groupUuid = GROUP))
+                assertFalse(database.groupDao.hasChangeOnServer(groupUuid = GROUP))
+            }
+        }
+
+    /**
+     * Made again, and refused for its epoch once more before the one it was made from was dropped,
+     * the process going away between the two: it takes that one's place.
+     */
+    @Test
+    fun `a change refused for its epoch takes the place of the one to be made again before it`() =
+        runBlocking<Unit> {
+            withInMemoryDatabase { database ->
+                database.groupDao.insert(groupOf(GROUP))
+                database.groupDao.upsertMembershipChange(changeOf(MembershipChangeKind.REMOVAL, commitEpoch = 1))
+                database.groupDao.markMembershipChangeOutdated(groupUuid = GROUP)
+                database.groupDao.upsertMembershipChange(changeOf(MembershipChangeKind.REMOVAL, commitEpoch = 2))
+
+                database.groupDao.markMembershipChangeOutdated(groupUuid = GROUP)
+
+                val kept = database.groupDao.getMembershipChanges().single()
+
+                assertEquals(2L, kept.commitEpoch)
+                assertTrue(kept.isOutdated)
+            }
+        }
+
+    /** Owed for a key a Commit read gave, until the server is seen to hold a link to it. */
+    @Test
+    fun `a key owing a look at its links is listed until it is seen`() = runBlocking<Unit> {
         withInMemoryDatabase { database ->
-            database.groupDao.insertCreated(
-                group = groupOf(GROUP, groupKey = OLD_KEY),
-                members = emptyList(),
-                pendingCreation = PendingGroupCreationEntity(groupUuid = GROUP, body = "{}"),
+            database.groupDao.insert(groupOf(GROUP, groupKey = OLD_KEY))
+            database.groupDao.insert(groupOf(OTHER_GROUP, isLeft = true))
+            database.groupDao.takeDerivedKeys(
+                groupUuid = GROUP,
+                keys = listOf(keyOf(generation = 2, NEW_KEY, isLinkOwed = true), keyOf(generation = 3, NEWER_KEY)),
+            )
+            database.groupDao.takeDerivedKeys(
+                groupUuid = OTHER_GROUP,
+                keys = listOf(keyOf(generation = 2, NEW_KEY, isLinkOwed = true, groupUuid = OTHER_GROUP)),
             )
 
-            database.groupDao.adoptRotatedKey(groupUuid = GROUP, groupKey = NEW_KEY, keyGeneration = 2)
+            assertEquals(listOf(GROUP to 2L), database.groupDao.getKeysOwingLinks().map { it.groupUuid to it.generation })
 
-            assertEquals(mapOf(1L to OLD_KEY.toList(), 2L to NEW_KEY.toList()), database.groupDao.keysOf())
+            database.groupDao.markLinkSeen(groupUuid = GROUP, generation = 2)
+
+            assertTrue(database.groupDao.getKeysOwingLinks().isEmpty())
         }
     }
 
-    /** One the creator handed over, which the server cannot have forged, against one a link gave. */
+    @Test
+    fun `a group is recorded as waiting for its owner and in step again`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.groupDao.insert(groupOf(GROUP))
+
+            database.groupDao.setAwaitingOwner(uuid = GROUP, isAwaitingOwner = true)
+
+            assertTrue(assertNotNull(database.groupDao.get(uuid = GROUP)).isAwaitingOwner)
+
+            database.groupDao.setAwaitingOwner(uuid = GROUP, isAwaitingOwner = false)
+
+            assertFalse(assertNotNull(database.groupDao.get(uuid = GROUP)).isAwaitingOwner)
+        }
+    }
+
+    /** One an epoch gave, which the server cannot have forged, against one a link gave. */
     @Test
     fun `a key got back through the chain never replaces one held`() = runBlocking<Unit> {
         withInMemoryDatabase { database ->
             database.groupDao.upsertWithMembers(
                 group = groupOf(GROUP, groupKey = NEWER_KEY, keyGeneration = 3),
                 members = emptyList(),
-                olderKeys = listOf(keyOf(generation = 2, NEW_KEY)),
+                keys = listOf(keyOf(generation = 2, NEW_KEY), keyOf(generation = 3, NEWER_KEY)),
                 signatureKeys = emptyList(),
             )
 
@@ -371,7 +430,7 @@ class GroupDaoTest {
             database.groupDao.upsertWithMembers(
                 group = groupOf(GROUP),
                 members = listOf(memberOf(ALICE), memberOf(BOB)),
-                olderKeys = emptyList(),
+                keys = emptyList(),
                 signatureKeys = listOf(signatureKeyOf(ALICE, OLD_KEY), signatureKeyOf(BOB, NEW_KEY)),
             )
 
@@ -508,8 +567,12 @@ private suspend fun GroupDao.keysOf(): Map<Long, List<Byte>> =
     getKeys(groupUuid = GROUP).associate { it.generation to it.groupKey.toList() }
 
 /** [groupKey] as the generation [generation] of the keys of the group [GROUP]. */
-private fun keyOf(generation: Long, groupKey: ByteArray) =
-    GroupKeyEntity(groupUuid = GROUP, generation = generation, groupKey = groupKey)
+private fun keyOf(generation: Long, groupKey: ByteArray, isLinkOwed: Boolean = false, groupUuid: String = GROUP) =
+    GroupKeyEntity(groupUuid = groupUuid, generation = generation, groupKey = groupKey, isLinkOwed = isLinkOwed)
+
+/** A change of [kind] to the members of the group [GROUP], built in [commitEpoch], waiting on the server. */
+private fun changeOf(kind: MembershipChangeKind, commitEpoch: Long) =
+    PendingMembershipChangeEntity(groupUuid = GROUP, kind = kind, body = "{}", commitEpoch = commitEpoch)
 
 private fun memberOf(userUuid: String) = GroupMemberEntity(userUuid = userUuid, groupUuid = GROUP, isAdmin = userUuid == ALICE)
 

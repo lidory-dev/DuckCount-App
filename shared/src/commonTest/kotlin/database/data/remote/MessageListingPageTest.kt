@@ -13,7 +13,7 @@ class MessageListingPageTest {
     private val json = Json { ignoreUnknownKeys = true }
 
     private val message =
-        """{"uuid":"8d1e5823-c00c-83b7-8212-500089e3b975","sender_user_uuid":"11111111-1111-1111-1111-111111111111","ciphertext":"Y2lwaGVy","created_at":"2026-10-28T12:00:00.123Z"}"""
+        """{"uuid":"8d1e5823-c00c-83b7-8212-500089e3b975","sender_user_uuid":"11111111-1111-1111-1111-111111111111","ciphertext":"Y2lwaGVy","created_at":"2026-10-28T12:00:00.123Z","departed_member_uuids":[]}"""
 
     private val cursor = "1761652800123456_8d1e5823-c00c-83b7-8212-500089e3b975"
 

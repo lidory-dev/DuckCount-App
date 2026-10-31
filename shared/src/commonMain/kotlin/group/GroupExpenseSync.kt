@@ -69,7 +69,7 @@ class GroupExpenseSyncPass(
 /**
  * Brings the expenses of the user's groups on this device in line with what the server holds:
  * every group the user is a current member of, after the group sync has read what waits in them,
- * see [GroupSync], so that the key of a rotation it read is held. Never a group the user left or
+ * see [GroupSync], so that the key of every epoch a Commit it read led to is held. Never a group the user left or
  * was removed from: the server lists its expenses to its current members alone, and this device
  * keeps what it had of them, read-only, see [GroupEntity.isLeft]. Nor one whose creation the server
  * has yet to take, which holds none.
@@ -110,7 +110,11 @@ class GroupExpenseSync internal constructor(
         groupUuid: String,
         since: String,
     ) -> Result<ListGroupExpenseChangesResponse, NetworkError>,
-    private val keyOf: suspend (groupUuid: String, generation: Long) -> Result<ByteArray, GroupKeyChainError>,
+    private val keyOf: suspend (
+        groupUuid: String,
+        generation: Long,
+        opens: (key: ByteArray) -> Boolean,
+    ) -> Result<ByteArray, GroupKeyChainError>,
     private val groupDao: GroupDao,
     private val expenseDao: ExpenseDao,
     private val listedDao: ListedGroupExpenseDao,

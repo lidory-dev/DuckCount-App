@@ -13,12 +13,14 @@ import kotlinx.coroutines.sync.withLock
  * sent again alongside it, or the copy of a group's key put up just after a leave took it down,
  * see [GroupLeaver]: a log-out before the server hears the leave would bring the group back with
  * it, as one the user is still in. An edit of a group's information takes it as well, see
- * [GroupEditor]: a key rotation built alongside it would put back the version it replaced.
+ * [GroupEditor]: it is sealed under the key of the epoch the group is in, which a Commit read or
+ * made alongside would move it past.
  *
  * Process-wide, like the store the groups live in: one MLS client is opened per process, see
  * [mls.MlsIdentityRepository]. Not reentrant, so nothing called under it may take it again,
- * [GroupCreationSender.send] included, which is why it takes none itself, nor does
- * [GroupMembershipChanger.removeUnderGroupsLock], which the sync removes members with.
+ * [GroupCreationSender.send] included, which is why it takes none itself, nor do
+ * [GroupMembershipChanger.removeDepartedUnderGroupsLock] and
+ * [GroupMembershipChanger.replaceUnderGroupsLock], which the sync makes its own Commits with.
  */
 internal suspend fun <T> withGroupsLock(block: suspend () -> T): T = groupsLock.withLock { block() }
 

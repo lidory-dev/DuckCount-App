@@ -41,8 +41,13 @@ class GroupExpenseWriterTest {
 
     private val server = GroupExpenseServer()
 
-    /** What the group sync reads when the writer has it run: the key of a rotation, or nothing. */
-    private var rotationRead: GroupKeyEntity? = null
+    /**
+     * What the group sync reads when the writer has it run: the key of the epoch a Commit leads to,
+     * or nothing, and whether it leaves the group waiting for its owner, see
+     * [database.data.local.entity.GroupEntity.isAwaitingOwner].
+     */
+    private var epochRead: GroupKeyEntity? = null
+    private var isLeftAwaitingOwner = false
     private var groupSyncs = 0
 
     /** Alice paid 90.00 for dinner, half of it each for her and Bob. */
@@ -95,7 +100,8 @@ class GroupExpenseWriterTest {
             update = { _, expenseUuid, body -> server.update(expenseUuid = expenseUuid, body = body) },
             syncGroups = {
                 groupSyncs++
-                rotationRead?.let { database.groupDao.takeHandedKeys(groupUuid = GROUP, keys = listOf(it)) }
+                epochRead?.let { database.groupDao.takeDerivedKeys(groupUuid = GROUP, keys = listOf(it)) }
+                if (isLeftAwaitingOwner) database.groupDao.setAwaitingOwner(uuid = GROUP, isAwaitingOwner = true)
             },
             syncExpenses = sync::syncGroup,
             newId = { authorUuid ->
@@ -119,7 +125,12 @@ class GroupExpenseWriterTest {
     }
 
     private suspend fun AppDatabase.holdingTheGroup() {
-        groupDao.upsertWithMembers(group = groupOf(), members = emptyList(), olderKeys = emptyList(), signatureKeys = emptyList())
+        groupDao.upsertWithMembers(
+            group = groupOf(),
+            members = emptyList(),
+            keys = listOf(groupOf().currentKey()),
+            signatureKeys = emptyList(),
+        )
     }
 
     @Test
@@ -140,8 +151,9 @@ class GroupExpenseWriterTest {
     }
 
     /**
-     * Sealed under the key the group had before a rotation Alice's device had yet to read: the
-     * group sync reads it, and the create goes again, once, under it, with the same nonce.
+     * Sealed under the key of an epoch the group left, a Commit Alice's device had yet to read: the
+     * group sync reads it, and the create goes again, once, under the key it derives, with the same
+     * nonce.
      */
     @Test
     fun `a create sealed under a replaced key is sealed again under the new one and sent once more`() =
@@ -149,7 +161,7 @@ class GroupExpenseWriterTest {
             withInMemoryDatabase { database ->
                 database.holdingTheGroup()
                 server.keyGeneration = 2
-                rotationRead = GroupKeyEntity(groupUuid = GROUP, generation = 2, groupKey = secondKey)
+                epochRead = GroupKeyEntity(groupUuid = GROUP, generation = 2, groupKey = secondKey)
 
                 assertEquals(Result.Success(Unit), writerOf(database).create(groupUuid = GROUP, expense = dinner))
 
@@ -164,7 +176,7 @@ class GroupExpenseWriterTest {
             }
         }
 
-    /** As for a create: sealed again under the key the group sync reads, at the same revision. */
+    /** As for a create: sealed again under the key the group sync derives, at the same revision. */
     @Test
     fun `an edit sealed under a replaced key is sealed again under the new one and sent once more`() =
         runBlocking<Unit> {
@@ -178,7 +190,7 @@ class GroupExpenseWriterTest {
                 val uuid = server.expenses.keys.single()
 
                 server.keyGeneration = 2
-                rotationRead = GroupKeyEntity(groupUuid = GROUP, generation = 2, groupKey = secondKey)
+                epochRead = GroupKeyEntity(groupUuid = GROUP, generation = 2, groupKey = secondKey)
 
                 assertEquals(
                     Result.Success(Unit),
@@ -207,13 +219,60 @@ class GroupExpenseWriterTest {
         }
     }
 
-    /** Two rotations Alice's device was behind on, the group sync having read only the first: once only. */
+    /**
+     * Alice's device refused a Commit every member's device refused, and stays in the epoch before
+     * while the server is past it: nothing it seals is taken until the group's creator replaces
+     * that Commit, which the writer says.
+     */
+    @Test
+    fun `a write in a group waiting for its owner fails as such`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+            server.keyGeneration = 2
+            isLeftAwaitingOwner = true
+
+            assertEquals(
+                Result.Error(GroupExpenseWriteError.AwaitingOwner),
+                writerOf(database).create(groupUuid = GROUP, expense = dinner),
+            )
+
+            assertEquals(1, server.creates.size)
+            assertEquals(1, groupSyncs)
+            assertTrue(server.expenses.isEmpty())
+        }
+    }
+
+    /** An edit as much as a create: no version is taken under a key of an epoch the server left. */
+    @Test
+    fun `an edit in a group waiting for its owner fails as such`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+
+            server.keyGeneration = 2
+            isLeftAwaitingOwner = true
+
+            assertEquals(
+                Result.Error(GroupExpenseWriteError.AwaitingOwner),
+                writer.edit(groupUuid = GROUP, expense = dinner.copy(uuid = uuid, title = "Dinner", revision = 1)),
+            )
+
+            assertEquals(listOf(1L), server.updates.map { it.keyGeneration })
+        }
+    }
+
+    /** Two Commits Alice's device was behind on, the group sync having read only the first: once only. */
     @Test
     fun `a create is sealed again once at most`() = runBlocking<Unit> {
         withInMemoryDatabase { database ->
             database.holdingTheGroup()
             server.keyGeneration = 3
-            rotationRead = GroupKeyEntity(groupUuid = GROUP, generation = 2, groupKey = secondKey)
+            epochRead = GroupKeyEntity(groupUuid = GROUP, generation = 2, groupKey = secondKey)
 
             assertEquals(
                 Result.Error(GroupExpenseWriteError.KeyNotCurrent),
@@ -668,7 +727,7 @@ class GroupExpenseWriterTest {
                 listExpenses = { server.getExpenses() },
                 listExpensesFrom = { _, _ -> error("One page") },
                 listChanges = { _, since -> server.getChanges(since = since) },
-                keyOf = { _, _ -> Result.Success(firstKey) },
+                keyOf = { _, _, _ -> Result.Success(firstKey) },
                 groupDao = database.groupDao,
                 expenseDao = database.expenseDao,
                 listedDao = database.listedGroupExpenseDao,

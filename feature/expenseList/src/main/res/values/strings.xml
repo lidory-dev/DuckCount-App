@@ -64,6 +64,7 @@
     </plurals>
     <string name="write_error_group_left">You’re no longer a member of this group</string>
     <string name="write_error_creation_pending">The group is still being created, please try again in a moment</string>
+    <string name="write_error_awaiting_owner">The group is waiting for its owner to come online, please try again later</string>
     <string name="write_error_rate_limited">Too many changes, please try again later</string>
 
     <!-- ErrorCard -->

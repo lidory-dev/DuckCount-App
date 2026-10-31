@@ -6,8 +6,10 @@ import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 private const val GROUP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 private const val OTHER_GROUP = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
@@ -30,7 +32,7 @@ class GroupSealingTest {
 
     @Test
     fun `the fields open under the group they were sealed for`() {
-        val opened = assertNotNull(sealed.unseal(groupKey = groupKey, groupUuid = GROUP))
+        val opened = assertNotNull(sealed.unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = GROUP))
 
         assertEquals("Ski trip", opened.title)
         assertEquals("Chalet and lift passes", opened.description)
@@ -40,7 +42,7 @@ class GroupSealingTest {
     /** As a server serving one group's fields under another group's UUID would leave a member. */
     @Test
     fun `the fields do not open as another group's`() {
-        assertNull(sealed.unseal(groupKey = groupKey, groupUuid = OTHER_GROUP))
+        assertNull(sealed.unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = OTHER_GROUP))
     }
 
     @Test
@@ -51,12 +53,41 @@ class GroupSealingTest {
             currency = sealed.currency,
         )
 
-        assertNull(swapped.unseal(groupKey = groupKey, groupUuid = GROUP))
+        assertNull(swapped.unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = GROUP))
     }
 
     @Test
     fun `the fields do not open under another key`() {
-        assertNull(sealed.unseal(groupKey = generateSymmetricEncryptionKey(), groupUuid = GROUP))
+        val anotherKey = generateSymmetricEncryptionKey()
+
+        assertNull(sealed.unseal(groupKey = anotherKey, currencyKey = groupKey, groupUuid = GROUP))
+        assertNull(sealed.unseal(groupKey = groupKey, currencyKey = anotherKey, groupUuid = GROUP))
+    }
+
+    /**
+     * An edit made in a later epoch: its title, description and signature under that epoch's key,
+     * the currency as it was sealed at the creation, under the first.
+     */
+    @Test
+    fun `a version edited in a later epoch opens with the currency under the first generation`() {
+        val laterKey = generateSymmetricEncryptionKey()
+        val edited = sealedVersion(groupKey = laterKey)
+        val listed = SealedGroupVersion(
+            fields = SealedGroupFields(
+                title = edited.fields.title,
+                description = edited.fields.description,
+                currency = sealed.currency,
+            ),
+            revision = edited.revision,
+            signature = edited.signature,
+        )
+
+        val opened = assertNotNull(listed.unseal(groupKey = laterKey, currencyKey = groupKey, groupUuid = GROUP))
+
+        assertEquals(currency, opened.fields.currency)
+        assertTrue(listed.opensUnder(groupKey = laterKey, groupUuid = GROUP))
+        assertFalse(listed.opensUnder(groupKey = groupKey, groupUuid = GROUP))
+        assertNull(listed.unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = GROUP))
     }
 
     /** Only the catalogue's UUID is sealed, which every currency's is the same length of. */
@@ -79,7 +110,7 @@ class GroupSealingTest {
                 .seal(groupKey = groupKey, groupUuid = GROUP),
         )
 
-        assertNull(tooLong.unseal(groupKey = groupKey, groupUuid = GROUP))
+        assertNull(tooLong.unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = GROUP))
     }
 
     @Test
@@ -92,7 +123,7 @@ class GroupSealingTest {
             ).seal(groupKey = groupKey, groupUuid = GROUP),
         )
 
-        assertNull(tooLong.unseal(groupKey = groupKey, groupUuid = GROUP))
+        assertNull(tooLong.unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = GROUP))
     }
 
     /** As a creator on a release whose catalogue has currencies this one does not would leave it. */
@@ -105,12 +136,12 @@ class GroupSealingTest {
                 .seal(groupKey = groupKey, groupUuid = GROUP),
         )
 
-        assertNull(sealed.unseal(groupKey = groupKey, groupUuid = GROUP))
+        assertNull(sealed.unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = GROUP))
     }
 
     @Test
     fun `a version opens under the group it was sealed for with its revision and signature`() {
-        val opened = assertNotNull(sealedVersion().unseal(groupKey = groupKey, groupUuid = GROUP))
+        val opened = assertNotNull(sealedVersion().unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = GROUP))
 
         assertEquals("Ski trip", opened.fields.title)
         assertEquals(currency, opened.fields.currency)
@@ -131,8 +162,8 @@ class GroupSealingTest {
             signature = elsewhere.signature,
         )
 
-        assertNotNull(mixed.fields.unseal(groupKey = groupKey, groupUuid = GROUP))
-        assertNull(mixed.unseal(groupKey = groupKey, groupUuid = GROUP))
+        assertNotNull(mixed.fields.unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = GROUP))
+        assertNull(mixed.unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = GROUP))
     }
 
     @Test
@@ -140,7 +171,7 @@ class GroupSealingTest {
         val version = sealedVersion()
         val swapped = SealedGroupVersion(fields = version.fields, revision = 3, signature = version.fields.title)
 
-        assertNull(swapped.unseal(groupKey = groupKey, groupUuid = GROUP))
+        assertNull(swapped.unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = GROUP))
     }
 
     @Test
@@ -156,7 +187,7 @@ class GroupSealingTest {
             signature = version.signature,
         )
 
-        assertNull(swapped.unseal(groupKey = groupKey, groupUuid = GROUP))
+        assertNull(swapped.unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = GROUP))
     }
 
     /** All or nothing: fields that open with no signature that does are a version nobody can tell the writer of. */
@@ -168,8 +199,8 @@ class GroupSealingTest {
             signature = sealedVersion(groupKey = generateSymmetricEncryptionKey()).signature,
         )
 
-        assertNotNull(mixed.fields.unseal(groupKey = groupKey, groupUuid = GROUP))
-        assertNull(mixed.unseal(groupKey = groupKey, groupUuid = GROUP))
+        assertNotNull(mixed.fields.unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = GROUP))
+        assertNull(mixed.unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = GROUP))
     }
 
     /**

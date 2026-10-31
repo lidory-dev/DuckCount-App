@@ -10,10 +10,13 @@ import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.Headers
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import networking.CURSOR_QUERY
 import networking.DuckCountClient
 import networking.DuckCountRoutes
@@ -34,14 +37,25 @@ import kotlin.io.encoding.Base64
 const val MAX_GROUP_ACKNOWLEDGEMENT_BATCH = 100
 
 /**
+ * The plain text of the `409` the owner's replacement of a Commit hears when the server records no
+ * Commit to replace, see [GroupApi.replaceCommit], told apart by it from the `409` of a nonce sent
+ * already.
+ */
+private const val NOTHING_TO_REPLACE = "Nothing to replace."
+
+/** How the JSON `409`s of the routes holding a write to the group's epoch are read. */
+private val conflictJson = Json { ignoreUnknownKeys = true }
+
+/**
  * Remote data source for the caller's groups: creating one, listing them, editing one and reading
  * the history of its edits, changing the members of one, leaving one, the caller's own copy of
  * each one's key, and the messages waiting in each, the Welcome that lets an invitee in among them.
  *
  * Every field of a group is sealed on the creator's device under a key the server never holds,
- * see [GroupFields.seal], and signed by them, see [GroupVersion], each member's copy of that key
- * under a key only they hold, see [GroupKeyCopies], and every message is MLS, so the server learns
- * who is in which group and nothing of what they share.
+ * see [GroupFields.seal], one the group's MLS epoch gives every member, see [GroupKeyChain], and
+ * signed by them, see [GroupVersion], each member's copy of that key under a key only they hold,
+ * see [GroupKeyCopies], and every message is MLS, so the server learns who is in which group and
+ * nothing of what they share.
  */
 class GroupApi(
     private val client: DuckCountClient,
@@ -85,28 +99,36 @@ class GroupApi(
     /**
      * Replaces the information of the group [groupUuid], which the caller owns, with the version
      * [body] carries, see [GroupEditor], and keeps the one it replaces in the group's history, see
-     * [history]. The server hands it to no member: each of their devices shows it once its next
-     * sync lists it, which the server wakes every other current member for, see
-     * [push.PushSignal.Kind.GROUP_CHANGED].
-     *
-     * A `409` is a [EditGroupBody.revision] that does not come after the one the server holds, a
-     * `403` a caller who is a member and not its owner, and a `404` one who is no member at all,
-     * or the proxy in front of the server answering as it is redeployed. Nothing is written but
-     * on the `204`.
+     * [history], with the generation each is sealed under. The server hands it to no member: each
+     * of their devices shows it once its next sync lists it, which the server wakes every other
+     * current member for, see [push.PushSignal.Kind.GROUP_CHANGED]. See [GroupEditAnswer] for what
+     * the server can answer.
      */
-    suspend fun edit(groupUuid: String, body: EditGroupBody): EmptyResult<NetworkError> =
-        client.put<Unit, EditGroupBody>(
-            route = DuckCountRoutes.Group.GROUP,
-            pathParams = mapOf("group_uuid" to groupUuid),
-            body = body,
-        )
+    suspend fun edit(groupUuid: String, body: EditGroupBody): GroupEditAnswer {
+        // Read off the response as it comes back, as for a creation.
+        var refusal: GroupEditAnswer? = null
+
+        val sent = client.execute<Unit> {
+            client.httpClient.put(urlString = DuckCountRoutes.Group.GROUP.replace(":group_uuid", groupUuid)) {
+                setBody(body)
+                contentType(ContentType.Application.Json)
+            }.also { response ->
+                refusal = editRefusalOf(status = response.status) { response.bodyAsText() }
+            }
+        }
+
+        return when (sent) {
+            is Result.Success -> GroupEditAnswer.Edited
+            is Result.Error -> refusal ?: GroupEditAnswer.Failed(error = sent.error)
+        }
+    }
 
     /**
      * The versions of the information of the group [groupUuid] the server keeps, see
      * [GroupHistoryResponse]: the current one and the last nine its edits replaced, the oldest
      * dropped as an edit comes in past them, see [GroupHistory]. The same for every member,
-     * those added since included, who read it with the key the group holds now: its creator's
-     * device seals every version again under each key it hands over, see [RotateGroupKeyBody].
+     * those added since included, who read each version with the key of the generation it names,
+     * which the chain leads back to from the key they hold, see [GroupKeyChain].
      *
      * A `404` is a caller who is no current member of the group, or the proxy in front of the
      * server answering as it is redeployed.
@@ -179,16 +201,31 @@ class GroupApi(
         }
 
     /**
-     * Hands the members of the group [groupUuid], which the caller created, the key [body] carries,
-     * takes the group to its generation, storing the link back to the key it replaces, see
-     * [RotateGroupKeyBody.previousKey], and replaces the group's fields and its creator's signature
-     * with those sealed under it, its revision as it was, the versions its history holds with those
-     * [body] carries sealed under it, dropping every other, see [RotateGroupKeyBody.previous], and
-     * the caller's copy of its key with the one [body] carries, see [GroupMembershipAnswer].
+     * Removes the members [body] names, who departed from the group [groupUuid] and whom no Commit
+     * removed yet, see [GroupDto.departed], which any current member may do, see
+     * [GroupMembershipAnswer]. Given as long as a removal.
      */
-    suspend fun rotateKey(groupUuid: String, body: RotateGroupKeyBody): GroupMembershipAnswer =
+    suspend fun removeDeparted(groupUuid: String, body: RemoveDepartedMembersBody): GroupMembershipAnswer =
         changeMembers {
-            client.httpClient.put(urlString = DuckCountRoutes.Group.KEY.replace(":group_uuid", groupUuid)) {
+            client.httpClient.delete(urlString = DuckCountRoutes.Group.DEPARTED.replace(":group_uuid", groupUuid)) {
+                timeout { requestTimeoutMillis = LARGE_BODY_TIMEOUT_MILLIS }
+                setBody(body)
+                contentType(ContentType.Application.Json)
+            }
+        }
+
+    /**
+     * Replaces the Commit stored in the group [groupUuid] for [ReplaceGroupCommitBody.replacesEpoch]
+     * that every member's device refused, and every one stored after it, with the one [body]
+     * carries, which the owner alone may do, see [GroupMembershipAnswer]. Given as long as a
+     * removal.
+     */
+    suspend fun replaceCommit(groupUuid: String, body: ReplaceGroupCommitBody): GroupMembershipAnswer =
+        changeMembers {
+            client.httpClient.post(
+                urlString = DuckCountRoutes.Group.COMMIT_REPLACEMENT.replace(":group_uuid", groupUuid),
+            ) {
+                timeout { requestTimeoutMillis = LARGE_BODY_TIMEOUT_MILLIS }
                 setBody(body)
                 contentType(ContentType.Application.Json)
             }
@@ -213,9 +250,11 @@ class GroupApi(
         )
 
     /**
-     * Every link of the chain back through the keys of the group [groupUuid], see [GroupKeyChain],
-     * ascending by generation, from the second to the group's current one, as its creator's
-     * rotations stored them, see [RotateGroupKeyBody.previousKey].
+     * Every candidate for a link of the chain back through the keys of the group [groupUuid], see
+     * [GroupKeyChain], ascending by generation, from the second to the group's current one, and
+     * oldest first within a generation: the committer's, stored with its Commit, see
+     * [AddGroupMembersBody.previousKey], first, and those its members published since, see
+     * [publishKeyLink].
      *
      * A `404` is a caller who is no current member of the group, a former one included, or the
      * proxy in front of the server answering as it is redeployed.
@@ -225,6 +264,29 @@ class GroupApi(
             route = DuckCountRoutes.Group.KEY_LINKS,
             pathParams = mapOf("group_uuid" to groupUuid),
         )
+
+    /**
+     * Publishes [previousKey] as the caller's own link at [generation] of the chain back through
+     * the keys of the group [groupUuid], see [GroupSync]. The empty `204` stores it, and a `409`
+     * says the caller published one there already, which is as good: the server keeps one per
+     * member and generation, and replaces none. A `404` is a caller who is no current member of the
+     * group, or the proxy in front of the server answering as it is redeployed.
+     */
+    suspend fun publishKeyLink(
+        groupUuid: String,
+        generation: Long,
+        previousKey: EncryptedFieldDto,
+    ): EmptyResult<NetworkError> =
+        when (
+            val sent = client.put<Unit, PublishGroupKeyLinkBody>(
+                route = DuckCountRoutes.Group.KEY_LINK,
+                pathParams = mapOf("group_uuid" to groupUuid, "generation" to generation.toString()),
+                body = PublishGroupKeyLinkBody(previousKey = previousKey),
+            )
+        ) {
+            is Result.Success -> sent
+            is Result.Error -> if (sent.error == NetworkError.CONFLICT) Result.Success(Unit) else sent
+        }
 
     /**
      * Drops the caller's own copy of the key of the group [groupUuid], as they leave it, see
@@ -243,8 +305,9 @@ class GroupApi(
      * waits for them there, the Welcome among it, which they would otherwise never acknowledge,
      * and their copy of its key.
      * Any member may leave but its owner, whom the server refuses. Their leaf stays in the group's
-     * tree until its creator's device removes it, see [GroupSync], which the server wakes for it as
-     * it takes a current member's leave, see [push.PushSignal.Kind.GROUP_MEMBER_LEFT].
+     * tree until a member's device removes it, the creator's at once and any other's once
+     * [DEPARTED_GRACE] has gone by, see [GroupSync], which the server wakes every current member
+     * for as it takes a current member's leave, see [push.PushSignal.Kind.GROUP_MEMBER_LEFT].
      */
     suspend fun leave(groupUuid: String): GroupLeaveAnswer =
         leaveAnswerOf(
@@ -261,7 +324,9 @@ class GroupApi(
 
         val sent = client.execute<Unit> {
             request().also { response ->
-                refusal = membershipRefusalOf(status = response.status, headers = response.headers) { response.body() }
+                refusal = membershipRefusalOf(status = response.status, headers = response.headers) {
+                    response.bodyAsText()
+                }
             }
         }
 
@@ -471,8 +536,9 @@ internal fun postAnswerOf(error: NetworkError): GroupPostAnswer =
 
 /**
  * What the server answered a change to the members of a group, `POST` or `DELETE
- * /groups/{group_uuid}/members`, or the key rotation after a removal, `PUT
- * /groups/{group_uuid}/key`.
+ * /groups/{group_uuid}/members`, the removal of its departed members, `DELETE
+ * /groups/{group_uuid}/departed`, or the owner's replacement of a Commit, `POST
+ * /groups/{group_uuid}/commits/replacement`: every route that stores a Commit.
  *
  * The server writes nothing unless it takes the whole change, so every refusal is final for that
  * request, and only [Failed] leaves open whether the change was stored.
@@ -487,11 +553,20 @@ sealed interface GroupMembershipAnswer {
      * change, whose answer never came back, since every change gets a nonce of its own. As good as
      * [Made].
      *
-     * Checked once the caller is known to be the group's owner, and ahead of [DeletedMembers],
-     * [RateLimited] and the refusals of what the change names, so that a resend of a change the
-     * server stored hears so whatever became of its members or the limit since.
+     * Checked once the caller is known to be allowed the change, and ahead of
+     * [KeyGenerationNotCurrent], [DeletedMembers], [RateLimited] and the refusals of what the change
+     * names, so that a resend of a change the server stored hears so whatever became of the group,
+     * its members or the limit since.
      */
     data object AlreadyMade : GroupMembershipAnswer
+
+    /**
+     * The JSON `409` of a Commit built in an epoch that is not the group's current one,
+     * [keyGeneration]: another member's Commit for that epoch got there first, the server storing
+     * one per epoch, see [GroupSync]. Nothing was written, and the Commit is of no use any more:
+     * the members apply the other one.
+     */
+    data class KeyGenerationNotCurrent(val keyGeneration: Long) : GroupMembershipAnswer
 
     /**
      * The `410` of an addition naming every new member with no account, whether they deleted it
@@ -500,15 +575,16 @@ sealed interface GroupMembershipAnswer {
     data class DeletedMembers(val userUuids: List<String>) : GroupMembershipAnswer
 
     /**
-     * The `429` of the server's limit on the changes one user makes to groups, the three kinds
+     * The `429` of the server's limit on the changes one user makes to groups, every kind
      * together, which lets one through again in [retryAfterSeconds], the `Retry-After` it carries.
      * Nothing was written.
      */
     data class RateLimited(val retryAfterSeconds: Long) : GroupMembershipAnswer
 
     /**
-     * The server refused the change itself, whose body it could not take: nothing was written, and
-     * the same request would be refused again.
+     * The server refused the change itself: a body it could not take, a target it does not list as
+     * departed, or a replacement with nothing to replace, its `409` read as a `CONFLICT`. Nothing was
+     * written, and the same request would be refused again.
      */
     data class Refused(val error: NetworkError) : GroupMembershipAnswer
 
@@ -524,16 +600,31 @@ sealed interface GroupMembershipAnswer {
 /**
  * What a change to a group's members that answered with [status] and [headers] comes to, for the
  * answers read off the response itself, or null for the others, see [membershipAnswerOf]: the
- * `410`, naming whom its body, which [deleted] reads, says has no account, and the `429`, with its
- * `Retry-After`.
+ * `409`s, told apart by their body, which [body] reads, JSON for an epoch, the plain text of a
+ * replacement with nothing to replace, and any other plain text for a nonce sent already; the
+ * `410`, naming whom its body says has no account; and the `429`, with its `Retry-After`.
  */
 internal suspend fun membershipRefusalOf(
     status: HttpStatusCode,
     headers: Headers,
-    deleted: suspend () -> DeletedInviteesResponse,
+    body: suspend () -> String,
 ): GroupMembershipAnswer? =
     when (status) {
-        HttpStatusCode.Gone -> GroupMembershipAnswer.DeletedMembers(userUuids = deleted().deletedUserUuids)
+        HttpStatusCode.Conflict -> {
+            val text = body()
+
+            when {
+                text.trim() == NOTHING_TO_REPLACE -> GroupMembershipAnswer.Refused(error = NetworkError.CONFLICT)
+
+                else -> keyGenerationConflictOf(body = text)
+                    ?.let { GroupMembershipAnswer.KeyGenerationNotCurrent(keyGeneration = it) }
+                    ?: GroupMembershipAnswer.AlreadyMade
+            }
+        }
+
+        HttpStatusCode.Gone -> GroupMembershipAnswer.DeletedMembers(
+            userUuids = conflictJson.decodeFromString(DeletedInviteesResponse.serializer(), body()).deletedUserUuids,
+        )
 
         HttpStatusCode.TooManyRequests -> GroupMembershipAnswer.RateLimited(
             retryAfterSeconds = headers.retryAfterSeconds(),
@@ -546,12 +637,14 @@ internal suspend fun membershipRefusalOf(
  * What a change to a group's members that failed with [error] answered, for the answers whose
  * response carries nothing more, see [membershipRefusalOf].
  *
- * A `400`, `413` or `422` is the server refusing the body, which it does before writing anything.
- * A `404` is no refusal, as for a creation: the server answers one only for a group it no longer
- * holds, which the app never deletes, or a caller who is no member of it, which its creator always
- * is, while the proxy in front of it answers one to every request while it is being redeployed.
- * Taken for a refusal, the Commit of a change the server stored, its answer lost, would be
- * discarded on this device alone, leaving it in an epoch every member left.
+ * A `400`, `413` or `422` is the server refusing the body, which it does before writing anything,
+ * or a target the route does not take. A `404` is no refusal, as for a creation: the server
+ * answers one for a group it no longer holds, or a caller who is no member of it, a member removed
+ * as their change waited, whether or not it took the change, while the proxy in front of it
+ * answers one to every request while it is being redeployed. Taken for a refusal, the Commit of a
+ * change the server stored, its answer lost, would be discarded on this device alone, leaving it
+ * in an epoch every member left. A change pending in a group the server no longer lists is settled
+ * by the group sync instead, see [GroupMembershipSender.settleUnlisted].
  */
 internal fun membershipAnswerOf(error: NetworkError): GroupMembershipAnswer =
     when (error) {
@@ -564,6 +657,62 @@ internal fun membershipAnswerOf(error: NetworkError): GroupMembershipAnswer =
 
         else -> GroupMembershipAnswer.Failed(error = error)
     }
+
+/**
+ * What the server answered `PUT /groups/{group_uuid}`, an edit of a group's information, see
+ * [GroupApi.edit]. Nothing is written but on [Edited].
+ */
+sealed interface GroupEditAnswer {
+
+    /** The empty `204`: the server holds the version. */
+    data object Edited : GroupEditAnswer
+
+    /**
+     * The JSON `409` of a version sealed under a generation of the group's keys that is not its
+     * current one, [keyGeneration]: Commits this device has yet to read, see [GroupSync]. Checked
+     * ahead of the revision.
+     */
+    data class KeyGenerationNotCurrent(val keyGeneration: Long) : GroupEditAnswer
+
+    /**
+     * The plain `409` of a revision that does not come after the one the server holds: an earlier
+     * edit whose answer was lost, see [GroupEditor].
+     */
+    data object RevisionNotNewer : GroupEditAnswer
+
+    /**
+     * Any other answer: the `403` of a member who is not its owner, the `404` of one who is no
+     * member at all or of the proxy in front of the server as it is redeployed, a body it could not
+     * take, or no answer at all, which leaves open whether the edit was stored.
+     */
+    data class Failed(val error: NetworkError) : GroupEditAnswer
+}
+
+/**
+ * What an edit that answered with [status] comes to, for the answers read off the response
+ * itself, or null for the others: the `409`s, told apart by their body, which [body] reads, JSON
+ * for a generation and plain text for a revision.
+ */
+internal suspend fun editRefusalOf(status: HttpStatusCode, body: suspend () -> String): GroupEditAnswer? =
+    when (status) {
+        HttpStatusCode.Conflict -> keyGenerationConflictOf(body = body())
+            ?.let { GroupEditAnswer.KeyGenerationNotCurrent(keyGeneration = it) }
+            ?: GroupEditAnswer.RevisionNotNewer
+
+        else -> null
+    }
+
+/**
+ * The generation the JSON `409` [body] names as the group's current one, see
+ * [KeyGenerationConflictResponse], or null when it is a plain text `409`. A JSON body that does not
+ * read as the API writes it throws, which the client reads as one it could not read, see
+ * [networking.Client.execute].
+ */
+private fun keyGenerationConflictOf(body: String): Long? {
+    val fields = runCatching { conflictJson.parseToJsonElement(body) as? JsonObject }.getOrNull() ?: return null
+
+    return conflictJson.decodeFromJsonElement(KeyGenerationConflictResponse.serializer(), fields).keyGeneration
+}
 
 /**
  * What the server answered `DELETE /groups/{group_uuid}/membership`, see [GroupApi.leave]. It

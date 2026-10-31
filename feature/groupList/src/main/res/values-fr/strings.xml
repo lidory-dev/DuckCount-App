@@ -40,6 +40,7 @@
     <string name="group_creation_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
     <string name="group_creation_error_unknown">Une erreur est survenue, réessayez</string>
     <string name="group_creation_error_rate_limited">Trop de modifications, réessayez plus tard</string>
+    <string name="group_creation_error_awaiting_owner">Le groupe attend que son propriétaire soit en ligne, réessayez plus tard</string>
     <plurals name="group_creation_error_not_contacts">
         <item quantity="one" tools:ignore="ImpliedQuantity">Impossible d’ajouter %1$s à un groupe pour le moment</item>
         <item quantity="other">Impossible d’ajouter %1$s à un groupe pour le moment</item>

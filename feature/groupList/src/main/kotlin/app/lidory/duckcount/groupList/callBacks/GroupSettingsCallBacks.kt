@@ -46,8 +46,10 @@ interface GroupSettingsCallBacks {
     /**
      * Takes the user out of the group [groupUuid], which they did not create, see
      * [GroupWithMembers.canLeave]: on this device first, where the group stays, read-only, then on
-     * the server, which wakes its creator to remove them from it and change its key. Done once
-     * this device recorded it, whatever the network did: the server hears it when it can.
+     * the server, which wakes its members to remove them from it, the creator's device at once and
+     * any other's a few minutes later, should the creator's be offline, the group's key changing
+     * with it. Done once this device recorded it, whatever the network did: the server hears it
+     * when it can.
      */
     suspend fun leaveGroup(groupUuid: String): LeaveResult
 

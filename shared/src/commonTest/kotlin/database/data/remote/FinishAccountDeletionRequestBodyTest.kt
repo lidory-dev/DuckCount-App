@@ -9,11 +9,11 @@ class FinishAccountDeletionRequestBodyTest {
     /** As the client encodes every body, leaving out what is left at its default. */
     private val json = Json { ignoreUnknownKeys = true }
 
-    /** The server refuses a body without them, none being still something it has to be told. */
+    /** Nothing of the user's groups: their members' devices remove the user's leaf, see `group.GroupSync`. */
     @Test
-    fun `the group commits go out empty`() {
+    fun `the deletion carries the finalization alone`() {
         val body = json.encodeToString(FinishAccountDeletionRequestBody(credentialFinalizationBytes = "AAEC"))
 
-        assertEquals("""{"credential_finalization_bytes":"AAEC","group_commits":[]}""", body)
+        assertEquals("""{"credential_finalization_bytes":"AAEC"}""", body)
     }
 }

@@ -6,7 +6,6 @@ import kotlinx.coroutines.runBlocking
 import message.ResendsBooked
 import mls.InMemoryMlsStore
 import mls.inviteeKeyPackage
-import mls.processGroupMessageIn
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsNamespace
 import uniffi.lib_duckcount.ProcessedMessage
@@ -99,7 +98,8 @@ class GroupProfileKeyDeliveryTest {
 
         for ((client, mlsGroupId) in readers) {
             val read = assertIs<ProcessedMessage.ApplicationMessage>(
-                client.processGroupMessageIn(mlsGroupId = mlsGroupId, message = post, creatorUuid = ALICE).processed,
+                client.processUnderPolicy(mlsGroupId = mlsGroupId, message = post, groupUuid = GROUP, creatorUuid = ALICE)
+                    .processed,
             )
 
             assertEquals(BOB, read.senderUserUuid)
@@ -143,9 +143,10 @@ class GroupProfileKeyDeliveryTest {
         assertTrue(groups.values.all { it.handedProfileKeyHash == profileEncryptionKeyPartialHash(newKey) })
 
         val read = assertIs<ProcessedMessage.ApplicationMessage>(
-            alice.processGroupMessageIn(
+            alice.processUnderPolicy(
                 mlsGroupId = aliceGroups.getValue(OTHER_GROUP),
                 message = posts.last().second,
+                groupUuid = OTHER_GROUP,
                 creatorUuid = ALICE,
             ).processed,
         )
@@ -231,16 +232,10 @@ class GroupProfileKeyDeliveryTest {
      * returns his row of it, owed his key.
      */
     private fun joined(groupUuid: String, others: List<MlsClient>): GroupEntity {
-        val groupKey = generateSymmetricEncryptionKey()
         val creation = alice.createGroup(
             groupUuid = groupUuid,
             invitees = (listOf(bob) + others).map { it.inviteeKeyPackage() },
-            welcomePayload = welcomePayloadOf(
-                groupKey = groupKey,
-                keyGeneration = FIRST_KEY_GENERATION,
-                profileKeys = emptyMap(),
-            ),
-        )
+            welcomePayload = welcomePayloadOf(profileKeys = emptyMap()))
 
         aliceGroups[groupUuid] = creation.mlsGroupId
 
@@ -268,7 +263,7 @@ class GroupProfileKeyDeliveryTest {
             infoRevision = FIRST_GROUP_REVISION,
             ownerUuid = ALICE,
             mlsGroupId = bobGroupId,
-            groupKey = groupKey,
+            groupKey = bob.contentKeyIn(mlsGroupId = bobGroupId, groupUuid = groupUuid),
             keyGeneration = FIRST_KEY_GENERATION,
             isBackedUp = true,
             isLeft = false,

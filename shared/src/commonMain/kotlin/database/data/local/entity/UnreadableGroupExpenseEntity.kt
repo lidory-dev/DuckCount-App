@@ -5,8 +5,10 @@ import androidx.room.Entity
 /**
  * An expense of the group [groupUuid] the server lists at a version this device cannot read yet:
  * sealed under a generation of the group's key it neither holds nor can get back through the chain
- * of links the server keeps, see `group.GroupKeyChain`. A rotation's key the sync has yet to read,
- * say, or one a group brought back after a log-out never gets, see `group.GroupKeyCopies`.
+ * of links the server keeps, see `group.GroupKeyChain`. The key of an epoch the sync has yet to read
+ * the Commit leading to, say, or one a group brought back after a log-out never gets, see
+ * `group.GroupKeyCopies`, or one of an epoch the creator's replacement of a Commit undid, which no
+ * member holds, see `group.ReplaceGroupCommitBody`.
  *
  * Kept, rather than dropped, as the history of a group's information keeps a version it cannot
  * read yet, see `group.GroupHistoryError.Unreadable`: the expense exists, and the group's balances

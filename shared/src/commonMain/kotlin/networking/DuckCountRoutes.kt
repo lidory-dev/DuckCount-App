@@ -119,14 +119,26 @@ object DuckCountRoutes {
         /** `POST` adds members to one group, `DELETE` removes some, its creator alone. */
         val MEMBERS = "$GROUP_BASE_URL/:group_uuid/members"
 
-        /** `PUT` rotates the key of one group after a removal, its creator alone. */
-        val KEY = "$GROUP_BASE_URL/:group_uuid/key"
+        /**
+         * `DELETE` removes from one group members who departed from it and whom no Commit removed
+         * yet, any current member.
+         */
+        val DEPARTED = "$GROUP_BASE_URL/:group_uuid/departed"
 
         /**
-         * `GET` lists the links of the chain back through the keys of one group, each the key of a
-         * generation sealed under the next, any current member.
+         * `POST` replaces the Commit every member's device refused in one group, and every one
+         * stored after it, with the owner's, its owner alone.
+         */
+        val COMMIT_REPLACEMENT = "$GROUP_BASE_URL/:group_uuid/commits/replacement"
+
+        /**
+         * `GET` lists the candidates for the links of the chain back through the keys of one group,
+         * each the key of a generation sealed under the next, any current member.
          */
         val KEY_LINKS = "$GROUP_BASE_URL/:group_uuid/key-links"
+
+        /** `PUT` publishes the caller's own link at one generation of that chain, any current member. */
+        val KEY_LINK = "$GROUP_BASE_URL/:group_uuid/key-links/:generation"
 
         /**
          * The caller's own copy of the key of one group: `PUT` stores it, any current member,

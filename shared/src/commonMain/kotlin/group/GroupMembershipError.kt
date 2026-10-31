@@ -4,6 +4,7 @@ import contact.ContactSyncError
 import mls.MlsIdentityError
 import util.Error
 import util.NetworkError
+import vault.VaultError
 
 /**
  * Why members could not be added to a group, or removed from it, see [GroupMembershipChanger].
@@ -29,7 +30,8 @@ sealed interface GroupMembershipError : Error {
     /**
      * The user did not create the group, and only its creator adds and removes members: the
      * members' devices take Commits from nobody else, see
-     * [database.data.local.entity.GroupEntity.ownerUuid].
+     * [database.data.local.entity.GroupEntity.ownerUuid], but for the removal of those who
+     * departed, which the group sync makes, see [GroupSync].
      */
     data object NotCreator : GroupMembershipError
 
@@ -71,6 +73,20 @@ sealed interface GroupMembershipError : Error {
 
     /** The group would hold more than [app.lidory.duckcount.GroupLimits.MAX_MEMBERS] members. */
     data object TooManyMembers : GroupMembershipError
+
+    /**
+     * Another member's Commit reached the server first, for the epoch this device built the
+     * change in, see [GroupMembershipAnswer.KeyGenerationNotCurrent], and the change was refused
+     * once more after the groups were synced: the group moved on again meanwhile, or the sync could
+     * not read that Commit. Nothing was written, and the same change can be asked for again.
+     */
+    data object Outdated : GroupMembershipError
+
+    /**
+     * The key ring the user's copy of the group's next key is sealed under could not be read, see
+     * [GroupKeyCopies.sealer]: every Commit carries that copy.
+     */
+    data class Vault(val error: VaultError) : GroupMembershipError
 
     /** The user's contacts could not be brought back from the vault, as for a creation. */
     data class Contacts(val error: ContactSyncError) : GroupMembershipError

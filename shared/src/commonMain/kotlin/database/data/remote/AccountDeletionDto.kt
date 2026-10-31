@@ -1,7 +1,5 @@
 package database.data.remote
 
-import kotlinx.serialization.EncodeDefault
-import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -26,25 +24,12 @@ data class StartAccountDeletionResponse(
  * Body of `PUT /users/{user_uuid}/deletion`: the message finishing the login
  * [StartAccountDeletionRequestBody] started, Base64 encoded, which deletes the account once the
  * server has checked it.
+ *
+ * Nothing of the user's groups: the server lists the user as departed from each, and wakes their
+ * members, whose devices take the user's leaf out of its MLS group, see `group.GroupSync`.
  */
 @Serializable
 data class FinishAccountDeletionRequestBody(
     @SerialName("credential_finalization_bytes")
     val credentialFinalizationBytes: String,
-) {
-    /**
-     * The MLS commits taking the user out of the groups the server holds, at most one for each
-     * group they leave somebody behind in.
-     *
-     * Always none, which the server takes: a commit there is the client's to give or not, since
-     * an invitee who never joined a group has no MLS state to build one from, and the user leaves
-     * every group all the same, with nothing relayed to its members. Nothing here builds one: the
-     * creator of each group takes the user's leaf out at their device's next sync, the server no
-     * longer listing them, see `group.GroupSync`, and the groups the user created keep it, nobody
-     * else changing them.
-     */
-    @OptIn(ExperimentalSerializationApi::class)
-    @EncodeDefault
-    @SerialName("group_commits")
-    val groupCommits: List<Nothing> = emptyList()
-}
+)

@@ -7,7 +7,6 @@ import kotlinx.coroutines.CancellationException
 import mls.MlsIdentityError
 import mls.MlsIdentityRepository
 import uniffi.lib_duckcount.MlsClient
-import util.EmptyResult
 import util.NetworkError
 import util.Result
 
@@ -19,32 +18,36 @@ import util.Result
  * as a creation takes them, see [GroupCreator], for everything below.
  *
  * In this order, under [withGroupsLock] as a creation, a change to a group's members and the sync
- * are: the key rotation after a removal seals the version the server holds again, see
- * [GroupMembershipSender], and one built alongside an edit would put back the version the edit
- * replaced. The lock is not reentrant, so this is never called from under it: the screens call
- * it, the sync never does.
+ * are: the edit is sealed under the key of the epoch the group is in on this device, which a
+ * Commit read or made alongside would move it past. The lock is not reentrant, so this is never
+ * called from under it: the screens call it, the sync never does.
  * 1. The group is read again, as it stands now. One the user did not create is refused, see
  *    [GroupEditError.NotCreator], and so is one with a change waiting on the server, see
  *    [GroupEditError.ChangePending], and an edit to the title and description it shows already,
  *    see [GroupEditError.Unchanged], with nothing sent.
  * 2. The new title and description, with the group's currency, are signed by the user as the next
  *    revision, one more than the one this device shows, see [GroupEntity.infoRevision], and sealed
- *    under the group's key, see [GroupVersion.seal].
+ *    under the group's key, see [GroupVersion.seal], of the generation the server stores it with,
+ *    see [EditGroupBody.keyGeneration].
  * 3. It is sent, see [GroupApi.edit]. Taken, it is what this device shows from then on, and the
- *    server keeps the version it replaced in the group's history, see [GroupHistory]. Refused as
- *    outdated, the server holding a newer version, the version it lists is shown as the sync would
- *    show it, see [newerThan]. One with this edit's title and description is this very edit, sent
- *    before and taken, its answer lost, and saved again from the form that still showed it: it is
- *    made, and nothing more is sent, which would wake every member for nothing. Any other is one
- *    the edit is to be made again over, see [GroupEditError.Outdated]. Anything else leaves the
- *    group as it was on this device, whatever the server did: an edit is not sent again, and one
- *    it took whose answer was lost, or whose taking the caller going away cut short here, is shown
- *    once the next sync lists it, as the outdated one is.
+ *    server keeps the version it replaced in the group's history, see [GroupHistory]. Refused for
+ *    its generation, the group having moved to a later epoch this device has yet to read, the
+ *    groups are synced, with the lock let go of, and the edit made once more under the key the
+ *    sync gives, see [GroupEditError.KeyNotCurrent]. Refused as outdated, the server holding a
+ *    newer version, the version it lists is shown as the sync would show it, see [newerThan]. One
+ *    with this edit's title and description is this very edit, sent before and taken, its answer
+ *    lost, and saved again from the form that still showed it: it is made, and nothing more is
+ *    sent, which would wake every member for nothing. Any other is one the edit is to be made
+ *    again over, see [GroupEditError.Outdated]. Anything else leaves the group as it was on this
+ *    device, whatever the server did: an edit is not sent again, and one it took whose answer was
+ *    lost, or whose taking the caller going away cut short here, is shown once the next sync lists
+ *    it, as the outdated one is.
  *
  * Nobody is told: the server wakes every other current member, whose devices show the new version
- * as they sync, see [GroupSync], which they refuse unless the user signed it. Nothing of it needs
- * the group's MLS state, so a group brought back after a log-out is edited as well: the user's
- * identity is the vault's, which outlives a log-out, see [MlsIdentityRepository].
+ * as they sync, see [GroupSync], which they refuse unless the user signed it. Nothing of it but its
+ * key needs the group's MLS state, so a group brought back after a log-out is edited as well, until
+ * a Commit takes the group past the epoch of the key its copy held: the user's identity is the
+ * vault's, which outlives a log-out, see [MlsIdentityRepository].
  *
  * The edit can wait on a sync under way for as long as that sync takes, and the device can lock
  * meanwhile, which leaves nothing the vault holds readable: who is signed in, and the user's MLS
@@ -54,21 +57,32 @@ import util.Result
  *
  * [userUuid] is [getAuthenticatedUserUuid], [group] is [GroupDao.get], [hasPendingChange] is
  * [GroupDao.hasPendingChange], [client] is [MlsIdentityRepository.client], [send] and [listGroups]
- * are [GroupApi.edit] and [GroupApi.getGroups], and [updateInformation] is
- * [GroupDao.updateInformation], or what a test stands in for any of them.
+ * are [GroupApi.edit] and [GroupApi.getGroups], [updateInformation] is
+ * [GroupDao.updateInformation], [keyOf] is [GroupKeyChain.keyOf] and [syncGroups] is
+ * [GroupSync.sync], what it read told about through [GroupSyncAnnouncer], or what a test stands in
+ * for any of them.
  */
 class GroupEditor internal constructor(
     private val userUuid: () -> String?,
     private val group: suspend (groupUuid: String) -> GroupEntity?,
     private val hasPendingChange: suspend (groupUuid: String) -> Boolean,
     private val client: suspend () -> Result<MlsClient, MlsIdentityError>,
-    private val send: suspend (groupUuid: String, body: EditGroupBody) -> EmptyResult<NetworkError>,
+    private val send: suspend (groupUuid: String, body: EditGroupBody) -> GroupEditAnswer,
     private val listGroups: suspend () -> Result<List<GroupDto>, NetworkError>,
     private val updateInformation: suspend (groupUuid: String, version: GroupVersion) -> Unit,
+    private val keyOf: suspend (
+        groupUuid: String,
+        generation: Long,
+        opens: (key: ByteArray) -> Boolean,
+    ) -> Result<ByteArray, GroupKeyChainError>,
+    private val syncGroups: suspend () -> Unit,
 ) {
     constructor(
         groupApi: GroupApi,
         groupDao: GroupDao,
+        groupKeyChain: GroupKeyChain,
+        groupSync: GroupSync,
+        groupSyncAnnouncer: GroupSyncAnnouncer,
         mlsIdentityRepository: MlsIdentityRepository,
     ) : this(
         userUuid = ::getAuthenticatedUserUuid,
@@ -85,13 +99,30 @@ class GroupEditor internal constructor(
                 infoRevision = version.revision,
             )
         },
+        keyOf = groupKeyChain::keyOf,
+        // As for an expense, see GroupExpenseWriter: what it reads of the other groups is read
+        // once, so it is told about here, or never.
+        syncGroups = { groupSyncAnnouncer.announce(pass = groupSync.sync(contactsTakenIn = false)) },
     )
 
     /**
      * Gives the group [groupUuid] [title] and [description], each without the whitespace around
      * it, see [GroupEditor].
      */
-    suspend fun edit(groupUuid: String, title: String, description: String): Result<Unit, GroupEditError> =
+    suspend fun edit(groupUuid: String, title: String, description: String): Result<Unit, GroupEditError> {
+        val edited = editOnce(groupUuid = groupUuid, title = title.trim(), description = description.trim())
+
+        if ((edited as? Result.Error)?.error != GroupEditError.KeyNotCurrent) return edited
+
+        // Out of the lock, which the sync takes: once it read the Commits the group moved on by,
+        // the edit is sealed under the key they lead to.
+        syncGroups()
+
+        return editOnce(groupUuid = groupUuid, title = title.trim(), description = description.trim())
+    }
+
+    /** Makes the edit once, under [withGroupsLock], see [GroupEditor]. */
+    private suspend fun editOnce(groupUuid: String, title: String, description: String): Result<Unit, GroupEditError> =
         withGroupsLock {
             // Once the lock is held: the device may have locked as this waited for it, see above.
             val selfUuid = when (val read = unlockedOrError { userUuid() }) {
@@ -99,12 +130,7 @@ class GroupEditor internal constructor(
                 is Result.Error -> return@withGroupsLock read
             }
 
-            editLocked(
-                selfUuid = selfUuid,
-                groupUuid = groupUuid,
-                title = title.trim(),
-                description = description.trim(),
-            )
+            editLocked(selfUuid = selfUuid, groupUuid = groupUuid, title = title, description = description)
         }
 
     private suspend fun editLocked(
@@ -139,19 +165,22 @@ class GroupEditor internal constructor(
 
         val body = EditGroupBody(
             revision = sealed.revision,
+            keyGeneration = held.keyGeneration,
             title = sealed.fields.title,
             description = sealed.fields.description,
             signature = sealed.signature,
         )
 
-        return when (val sent = send(groupUuid, body)) {
-            is Result.Success -> {
+        return when (val answer = send(groupUuid, body)) {
+            GroupEditAnswer.Edited -> {
                 updateInformation(groupUuid, version)
 
                 Result.Success(Unit)
             }
 
-            is Result.Error -> if (sent.error == NetworkError.CONFLICT) {
+            is GroupEditAnswer.KeyGenerationNotCurrent -> Result.Error(GroupEditError.KeyNotCurrent)
+
+            GroupEditAnswer.RevisionNotNewer -> {
                 val shown = refresh(held = held, client = client)
 
                 // This very edit, sent before, its answer lost: saved again, it is made already.
@@ -160,9 +189,9 @@ class GroupEditor internal constructor(
                 } else {
                     Result.Error(GroupEditError.Outdated)
                 }
-            } else {
-                Result.Error(GroupEditError.Network(sent.error))
             }
+
+            is GroupEditAnswer.Failed -> Result.Error(GroupEditError.Network(answer.error))
         }
     }
 
@@ -176,8 +205,9 @@ class GroupEditor internal constructor(
     private suspend fun refresh(held: GroupEntity, client: MlsClient): GroupVersion? {
         val listed = (listGroups() as? Result.Success)?.data?.firstOrNull { it.uuid == held.uuid } ?: return null
 
-        return listed.newerThan(group = held, creatorKey = client.signaturePublicKey())
-            ?.also { version -> updateInformation(held.uuid, version) }
+        return listed.newerThan(group = held, creatorKey = client.signaturePublicKey()) { generation, opens ->
+            (keyOf(held.uuid, generation, opens) as? Result.Success)?.data
+        }?.also { version -> updateInformation(held.uuid, version) }
     }
 }
 

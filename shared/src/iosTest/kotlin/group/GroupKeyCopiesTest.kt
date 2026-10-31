@@ -13,6 +13,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 private const val ALICE = "11111111-1111-1111-1111-111111111111"
@@ -40,12 +41,11 @@ class GroupKeyCopiesTest {
     @Test
     fun `a copy opens as the key of the group it was sealed for`() = runBlocking<Unit> {
         val groupKey = generateSymmetricEncryptionKey()
-        val copy = assertIs<Result.Success<EncryptedFieldDto>>(
-            keyCopies.seal(groupUuid = GROUP, groupKey = groupKey, keyGeneration = FIRST_KEY_GENERATION),
-        )
+        val sealer = assertIs<Result.Success<KeyCopySealer>>(keyCopies.sealer()).data
+        val copy = assertNotNull(sealer.seal(groupUuid = GROUP, groupKey = groupKey, keyGeneration = FIRST_KEY_GENERATION))
 
         val opened = assertIs<Result.Success<Map<String, GroupKeyGeneration>>>(
-            keyCopies.open(listOf(listingOf(GROUP, keyCopy = copy.data))),
+            keyCopies.open(listOf(listingOf(GROUP, keyCopy = copy))),
         )
 
         assertEquals(setOf(GROUP), opened.data.keys)
@@ -116,14 +116,7 @@ class GroupKeyCopiesTest {
     fun `a key ring that does not answer seals no copy`() = runBlocking<Unit> {
         server.isKeyRingAnswering = false
 
-        assertEquals(
-            Result.Error(VaultError.Network(NetworkError.UNREACHABLE)),
-            keyCopies.seal(
-                groupUuid = GROUP,
-                groupKey = generateSymmetricEncryptionKey(),
-                keyGeneration = FIRST_KEY_GENERATION,
-            ),
-        )
+        assertEquals(Result.Error(VaultError.Network(NetworkError.UNREACHABLE)), keyCopies.sealer())
     }
 
     @Test
@@ -152,8 +145,8 @@ class GroupKeyCopiesTest {
     }
 
     /**
-     * The creator handed over a new key in the group: the copy the server lists holds the one it
-     * replaced, and the new one goes up as the generation it is.
+     * A Commit read took the group to a new epoch: the copy the server lists holds the key of the
+     * one before, and the new epoch's goes up as the generation it is.
      */
     @Test
     fun `a key that changed has its copy put up although the listing shows one`() = runBlocking<Unit> {
@@ -286,7 +279,9 @@ class GroupKeyCopiesTest {
         currency = SEALED,
         revision = FIRST_GROUP_REVISION,
         signature = SEALED,
+        informationKeyGeneration = FIRST_KEY_GENERATION,
         members = listOf(GroupMemberDto(userUuid = ALICE)),
+        departed = emptyList(),
         keyCopy = keyCopy,
         keyCopyGeneration = keyCopyGeneration,
         keyGeneration = keyGeneration,

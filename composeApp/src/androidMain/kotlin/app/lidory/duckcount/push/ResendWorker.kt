@@ -6,7 +6,8 @@ import androidx.work.WorkerParameters
 
 /**
  * Starts the sync a push starts, once the server's limit on messages lets through again what it
- * refused, see [PushWork.enqueueResend].
+ * refused, or a member who departed a group may be removed by this device, see
+ * [PushWork.enqueueResend].
  *
  * Nothing more: the sync is a [PushSyncWorker], run in the push's own unique work, so it waits
  * for an unlock and a network the way a push's does, and never runs alongside one. This is the

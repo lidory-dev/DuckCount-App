@@ -18,7 +18,9 @@ package message
  * A group creation the server has not taken books it too, refused for the limit on creations or
  * not answered at all, and before it first goes out, see `group.GroupCreationSender`: nothing else
  * would send it again before the next sync either. So does a group's leave the server did not
- * answer, see `group.GroupSync`.
+ * answer, see `group.GroupSync`, and a member's departure from a group too recent for a member who
+ * is not its creator to remove them yet, for the moment it no longer is, see
+ * `group.DEPARTED_GRACE`: the sync this runs is the one that removes them.
  *
  * Bound on Android, which runs the sync a push starts, see `PushWork.enqueueResend` in
  * `:composeApp`; a no-op on iOS, which sends no direct message yet.

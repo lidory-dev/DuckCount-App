@@ -40,6 +40,7 @@
     <string name="group_creation_error_server_unreachable">Server is unreachable, please try again later</string>
     <string name="group_creation_error_unknown">Something went wrong, please try again</string>
     <string name="group_creation_error_rate_limited">Too many changes, please try again later</string>
+    <string name="group_creation_error_awaiting_owner">The group is waiting for its owner to come online, please try again later</string>
     <plurals name="group_creation_error_not_contacts">
         <item quantity="one">%1$s can’t be added to a group yet</item>
         <item quantity="other">%1$s can’t be added to a group yet</item>

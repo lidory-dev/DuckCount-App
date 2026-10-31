@@ -15,6 +15,7 @@ import mls.encryptApplicationMessage
 import mls.holdsGroup
 import mls.inviteeKeyPackage
 import mls.removeMembersFrom
+import mls.updateIn
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsNamespace
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
@@ -91,13 +92,19 @@ class GroupLeaverTest {
     private var selfUuid: String? = BOB
 
     /**
-     * Alice's MLS group, the key she last handed over and its generation, and the group's
-     * information as the server holds it.
+     * Alice's MLS group, the key of each epoch her device reached and the epoch it is in, the
+     * group's information as the server holds it, sealed as the group was created, and the links
+     * back through the group's keys her Commits stored, see [GroupKeyChain].
      */
     private var aliceGroupId: ByteArray? = null
-    private var groupKey = generateSymmetricEncryptionKey()
+    private val aliceKeys = mutableMapOf<Long, ByteArray>()
     private var keyGeneration = FIRST_KEY_GENERATION
     private var serverVersion: SealedGroupVersion? = null
+    private val serverLinks = mutableListOf<GroupKeyLinkDto>()
+
+    /** The key of the epoch Alice's device is in, or one of no group's before she created it. */
+    private val groupKey: ByteArray
+        get() = aliceKeys[keyGeneration] ?: NO_GROUP_KEY
 
     /** Who the server holds as the group's current members. */
     private val serverMembers = mutableListOf<String>()
@@ -189,6 +196,14 @@ class GroupLeaverTest {
         recordDeclined = { groupUuid -> declined += groupUuid },
         forgetDeclined = { groupUuid -> declined -= groupUuid },
         removeDeparted = { _, _ -> error("Bob created no group the server lists here.") },
+        replaceRefused = { _, _ -> error("No Commit is refused for good here.") },
+        remakeOutdated = { Result.Success(null) },
+        settleUnlisted = { _, _ -> Result.Success(Unit) },
+        keyOf = { _, _, _ -> error("No key is got back through the chain here.") },
+        checkKeyLinks = { Result.Success(Unit) },
+        setAwaitingOwner = { _, _ -> },
+        keyLinks = { Result.Success(serverLinks.toList()) },
+        now = { error("Nobody departed from a group here.") },
         fullName = { names[it] },
         // What becomes of the keys to the members' profiles is GroupSyncProfileKeysTest's.
         hasPendingChange = { false },
@@ -394,7 +409,7 @@ class GroupLeaverTest {
             assertTrue(GROUP !in waiting)
 
             aliceRemoves(BOB)
-            aliceRotates()
+            aliceCommits()
             aliceAdds(bob)
 
             val rejoined = groupSync.sync(contactsTakenIn = true)
@@ -610,14 +625,14 @@ class GroupLeaverTest {
             assertTrue(groups.getValue(GROUP).isLeft)
         }
 
-    /** Alice's device removes him for leaving, rotating the key, and adds him back later. */
+    /** Alice's device removes him for leaving, the group moving on, and adds him back later. */
     @Test
     fun `the user added back after leaving joins again and is told about it`() = runBlocking<Unit> {
         joined()
         leaver.leave(GROUP)
 
         aliceRemoves(BOB)
-        aliceRotates()
+        aliceCommits()
 
         val welcome = assertNotNull(aliceAdds(bob))
 
@@ -654,7 +669,7 @@ class GroupLeaverTest {
         assertEquals(listOf(60L), resends.seconds)
 
         aliceRemoves(BOB)
-        aliceRotates()
+        aliceCommits()
         aliceAdds(bob)
 
         val pass = groupSync.sync(contactsTakenIn = true)
@@ -765,14 +780,11 @@ class GroupLeaverTest {
         val creation = alice.createGroup(
             groupUuid = GROUP,
             invitees = listOf(bob.inviteeKeyPackage(), carol.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(
-                groupKey = groupKey,
-                keyGeneration = keyGeneration,
-                profileKeys = emptyMap(),
-            ),
+            welcomePayload = welcomePayloadOf(profileKeys = emptyMap()),
         )
 
         aliceGroupId = creation.mlsGroupId
+        aliceKeys[FIRST_KEY_GENERATION] = alice.contentKeyIn(mlsGroupId = creation.mlsGroupId, groupUuid = GROUP)
         serverMembers += listOf(ALICE, BOB, CAROL)
         serverVersion = FIELDS.sealedAs(creator = alice, groupKey = groupKey, groupUuid = GROUP)
 
@@ -787,14 +799,10 @@ class GroupLeaverTest {
         val addition = alice.addMembersTo(
             mlsGroupId = aliceGroup(),
             invitees = listOf(invitee.inviteeKeyPackage()),
-            welcomePayload = welcomePayloadOf(
-                groupKey = groupKey,
-                keyGeneration = keyGeneration,
-                profileKeys = emptyMap(),
-            ),
+            welcomePayload = welcomePayloadOf(profileKeys = emptyMap()),
         )
 
-        alice.applyPendingCommitIn(mlsGroupId = aliceGroup())
+        aliceApplies()
 
         val delivered = deliver(addition.commit)
 
@@ -811,7 +819,7 @@ class GroupLeaverTest {
     private suspend fun aliceRemoves(userUuid: String) {
         val commit = alice.removeMembersFrom(mlsGroupId = aliceGroup(), userUuids = listOf(userUuid))
 
-        alice.applyPendingCommitIn(mlsGroupId = aliceGroup())
+        aliceApplies()
 
         deliver(commit)
 
@@ -821,21 +829,34 @@ class GroupLeaverTest {
     }
 
     /**
-     * Has Alice hand the members a new key as [GroupMembershipSender] does once a removal is applied,
-     * and the server hold the group's information sealed again under it.
+     * Has Alice make a Commit changing none of the members, as her replacement of one nobody could
+     * apply does, taking the group to the next epoch.
      */
-    private suspend fun aliceRotates() {
-        val newKey = generateSymmetricEncryptionKey()
-        val message = alice.encryptApplicationMessage(
-            mlsGroupId = aliceGroup(),
-            payload = groupKeyMessageOf(groupKey = newKey, keyGeneration = keyGeneration + 1),
+    private suspend fun aliceCommits() {
+        val commit = alice.updateIn(mlsGroupId = aliceGroup())
+
+        aliceApplies()
+
+        deliver(commit)
+    }
+
+    /**
+     * Has Alice apply the Commit she built, once the server took it, deriving the key of the epoch
+     * it takes the group to, and the server keep the link back from it to the key before.
+     */
+    private suspend fun aliceApplies() {
+        val previous = groupKey
+        val applied = alice.applyPendingCommitIn(mlsGroupId = aliceGroup(), groupUuid = GROUP)
+
+        keyGeneration = applied.key.epoch
+        aliceKeys[keyGeneration] = applied.key.key
+        serverLinks += GroupKeyLinkDto(
+            generation = keyGeneration,
+            publisherUuid = ALICE,
+            previousKey = assertNotNull(
+                sealKeyLink(previousKey = previous, groupKey = groupKey, groupUuid = GROUP, generation = keyGeneration),
+            ),
         )
-
-        deliver(message)
-
-        groupKey = newKey
-        keyGeneration += 1
-        serverVersion = FIELDS.sealedAs(creator = alice, groupKey = newKey, groupUuid = GROUP)
     }
 
     /** Has the server hand [message] from Alice to Bob, provided he is a current member, and returns its UUID then. */
@@ -850,6 +871,7 @@ class GroupLeaverTest {
             senderUserUuid = ALICE,
             ciphertext = Base64.Default.encode(ciphertext),
             createdAt = "2026-10-28T12:00:00Z",
+            departedMemberUuids = emptyList(),
         )
 
         return uuid
@@ -915,3 +937,6 @@ private fun GroupEntity.with(
     isLeft = isLeft,
     handedProfileKeyHash = handedProfileKeyHash,
 )
+
+/** What stands for the key of a group nobody created yet, see [GroupLeaverTest]. */
+private val NO_GROUP_KEY = ByteArray(32)

@@ -32,7 +32,8 @@ import util.Result
  *    tells them of the removal. One they created is refused, see [GroupLeaveError.IsCreator], with
  *    nothing written.
  * 2. The group is marked left and its leave recorded as owed, in one transaction, see
- *    [GroupDao.markLeftAndOweLeave] and [DeclinedGroupEntity]. This is what the leave comes to on
+ *    [GroupDao.markLeftAndOweLeave] and [DeclinedGroupEntity], which drops any removal of those
+ *    who departed this device has waiting on the server there. This is what the leave comes to on
  *    this device, whatever follows: from here no sync drains the group, gives it the members the
  *    server lists, or takes it for one its creator removed the user from, nor takes it in again
  *    while the leave is owed, see [GroupSync], so no removal is ever told about for it. Before
@@ -50,8 +51,9 @@ import util.Result
  *    forgets that it is, and the next session, finding the group listed with the copy still
  *    opening it, would bring it back as a group the user is in. With no copy there, it is declined
  *    and left again instead. Nothing else needs that copy: a group the user is no longer in is
- *    never brought back after a log-out, and the creator adding them back hands over the key the
- *    group has then, whose copy goes up as they rejoin, see [GroupKeyCopies.putUp].
+ *    never brought back after a log-out, and the creator adding them back lets them derive the key
+ *    of the epoch the group is at then, whose copy goes up as they rejoin, see
+ *    [GroupKeyCopies.putUp].
  * 5. The leave is sent, see [GroupApi.leave], and forgotten once the server took it. One the
  *    server was not heard to take is booked to go out again, see
  *    [UNANSWERED_LEAVE_RESEND_SECONDS]: the sync sends every leave owed, see
@@ -61,8 +63,8 @@ import util.Result
  *    groups to tell the proxy's from the server's own, this leaves it to the sync, which forgets
  *    the leave once the server lists the group no more. Forgotten here, the leave would never be
  *    sent again: the sync takes a group the user left back in, rather than leaving it, once no
- *    leave is owed for it, and the server would keep them a member, its owner never woken to
- *    remove them.
+ *    leave is owed for it, and the server would keep them a member, never listing them as
+ *    departed nor waking anybody, so that no member's device would ever remove their leaf.
  *
  * Done once the leave is recorded, whatever the server did: the leave is the user's from then on,
  * and the network only decides when the server hears it. From there to the answer is not
@@ -75,10 +77,11 @@ import util.Result
  * leaves the state as a deletion that failed does, and the leave goes out all the same: a request
  * the locked device cannot send reads as no answer, booked to go out again.
  *
- * As the server takes a current member's leave, it wakes the group's owner, see
- * [push.PushSignal.Kind.GROUP_MEMBER_LEFT], whose device then removes the user from the group's
- * MLS group and rotates its key, see [GroupSync]. Nobody else is told, as for a device declining
- * the group, which the creator's device cannot tell from a leave.
+ * As the server takes a current member's leave, it lists them as departed, and wakes every member
+ * who remains, see [push.PushSignal.Kind.GROUP_MEMBER_LEFT]: the creator's device removes the user
+ * from the group's MLS group at once, and any other member's once [DEPARTED_GRACE] has gone by,
+ * see [GroupSync], the key of the epoch that leads to being one the user never derives. Nobody is
+ * told, as for a device declining the group, which no member's device can tell from a leave.
  *
  * The creator is who this device recorded as the group's, see [GroupEntity.ownerUuid], not the
  * server's owner, which a deletion of the creator's account hands to another member. A member
@@ -86,8 +89,8 @@ import util.Result
  * refusal reads as no answer, and the sync booked for it leaves the leave owed without sending it
  * again, the server listing them as the group's owner, see [GroupSync.leaveDeclined], so the
  * request goes out once. The group shows as left on their device while the server keeps them its
- * owner, which changes nothing: no member ever takes a Commit from anybody but the group's
- * creator, so that group never changes again anyway.
+ * owner, which changes nothing: no member takes a Commit from anybody but the group's creator, but
+ * for a removal of those who departed, so that group changes no further than that anyway.
  *
  * [userUuid] is [getAuthenticatedUserUuid], [group] is [GroupDao.get], [markLeftAndOweLeave] and
  * [forgetOwedLeave] are [GroupDao.markLeftAndOweLeave] and [GroupDao.deleteDeclined],

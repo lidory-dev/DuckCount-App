@@ -205,10 +205,10 @@ class GroupListCallBacksImpl(
         // wait for the next refresh, or push, as in the push sync.
         if (groups.failure == GroupSyncError.DeviceLocked) return
 
-        // Then their expenses, the groups having read the key of any rotation they are sealed
-        // under: the first time after a sign-in, every group's, from the server. Those are not in
-        // front of the user either, the list showing none, so what concerns them is announced as
-        // the push sync would have. Telling what does reads the user's UUID, which the device
+        // Then their expenses, the groups having read the Commits that give the key of every epoch
+        // they are sealed in: the first time after a sign-in, every group's, from the server.
+        // Those are not in front of the user either, the list showing none, so what concerns them
+        // is announced as the push sync would have. Telling what does reads the user's UUID, which the device
         // locking as the sync ran leaves unreadable too: nothing is announced then, a locked phone
         // posting nothing, and what that pass stored is not told about later either.
         val updates = unlessLocked {

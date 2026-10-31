@@ -8,6 +8,7 @@ import database.data.local.dao.GroupDao
 import database.data.local.dao.IdentityConflictDao
 import database.data.local.entity.GroupEntity
 import database.data.local.entity.PendingMembershipChangeEntity
+import database.data.remote.EncryptedFieldDto
 import database.data.repository.ContactRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -18,11 +19,13 @@ import mls.KeyPackageApi
 import mls.MlsIdentityError
 import mls.MlsIdentityRepository
 import mls.addMembersTo
+import mls.commitKeysIn
 import mls.discardPendingCommitIn
 import mls.encryptApplicationMessage
 import mls.isRetryable
 import mls.removeMembersFrom
 import mls.rosterOf
+import mls.updateIn
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import util.EmptyResult
@@ -30,14 +33,14 @@ import util.NetworkError
 import util.Result
 import util.onError
 import vault.ProfileKeyVault
+import vault.VaultError
 import kotlin.io.encoding.Base64
 
 /** What a change to a group's members came to, when it did not fail, see [GroupMembershipChanger]. */
 enum class MembershipChangeOutcome {
     /**
      * The server took the change, or there was none to make: everybody named was a member
-     * already, or for a removal no member any more. For a removal, the key rotation after it may
-     * still be waiting on the server, see [GroupMembershipSender].
+     * already, or for a removal no member any more.
      */
     MADE,
 
@@ -53,7 +56,9 @@ enum class MembershipChangeOutcome {
  * Adds members to a group the user created, or removes some, and sends the change to the server,
  * which hands the Commit to the group's members and the Welcome to those it adds. Only the creator
  * changes a group's members: the members' devices take Commits from nobody else, see
- * [GroupEntity.ownerUuid].
+ * [GroupEntity.ownerUuid], but for any member's removal of those who departed from the group, see
+ * [removeDepartedUnderGroupsLock], and the creator's replacement of a Commit nobody could apply, see
+ * [replaceUnderGroupsLock], which the group sync makes.
  *
  * In this order:
  * 1. The group is checked, see [changeable]: the user created it, and so is still in it, a creator
@@ -65,52 +70,58 @@ enum class MembershipChangeOutcome {
  *    [inviteeRefusalOf], with at most [GroupLimits.MAX_MEMBERS] members once they are in, and a key
  *    package is asked for each of them, see [fetchKeyPackages]. Anybody named who is a member
  *    already, or for a removal who is no member, is left out: a change asked for twice is made
- *    once.
- * 3. The Commit is built with the library, an addition's Welcome handing the new members the
- *    group's current key with its generation, see [GroupKeyChain], and the key to every member's
- *    profile this device holds, see [profileKeysToHandOut], and saved with the request that will
- *    make it, see [PendingMembershipChangeEntity], before anything is sent. The members already
- *    in the group are handed the same keys in an application message of the epoch before the
- *    Commit's, see [AddGroupMembersBody.profileKeysMessage], which goes with it. An addition
- *    handing over none of the user's own leaves the group owed it, see
- *    [GroupEntity.handedProfileKeyHash].
+ *    once. The key ring the user's copy of the group's next key is sealed under is read first, see
+ *    [GroupKeyCopies.sealer].
+ * 3. The Commit is built with the library, an addition's Welcome handing the new members the key
+ *    to every member's profile this device holds, see [profileKeysToHandOut], and with it the link
+ *    back from the key of the epoch it leads to, which the library derives before anything is
+ *    applied, to the key of the epoch it is built in, see [AddGroupMembersBody.previousKey], and
+ *    the user's copy of the newer key, see [AddGroupMembersBody.keyCopy]. All of it is saved with
+ *    the request that will make it, see [PendingMembershipChangeEntity], before anything is sent.
+ *    The members already in the group are handed the same keys to the members' profiles in an
+ *    application message of the epoch before the Commit's, see
+ *    [AddGroupMembersBody.profileKeysMessage], which goes with it. An addition handing over none
+ *    of the user's own leaves the group owed it, see [GroupEntity.handedProfileKeyHash].
  * 4. It is sent, see [GroupMembershipSender.send], its resend booked first, see
  *    [GroupMembershipSender.bookResend]. Only a refusal undoes it; the server not answering, or
  *    answering that it cannot take it yet, leaves it to go out again, see
- *    [MembershipChangeOutcome.PENDING]. A removal taken is followed by the rotation of the group's
- *    key, which the sender sees to.
+ *    [MembershipChangeOutcome.PENDING]. Refused for its epoch, another member's Commit having got
+ *    there first, it is built once more once the group sync read that Commit, see [add] and
+ *    [remove], and by the group sync itself when it is refused so as it is sent again, see
+ *    [remakeOutdatedUnderGroupsLock].
  *
- * The user removes members by hand, and the group sync removes those the server no longer lists:
- * members who left the group, on purpose, see [GroupLeaver], or as a device declining it does, and
- * accounts deleted since, see [GroupSync]. Both go through the same removal, and the same key
- * rotation after it.
+ * The user removes members by hand, and the group sync removes those who departed, members who
+ * left the group, on purpose, see [GroupLeaver], or as a device declining it does, and accounts
+ * deleted since, through the server's route for them, see [removeDepartedUnderGroupsLock], which
+ * any member may take, the creator included.
  *
  * Everything that can fail without leaving anything behind comes before the Commit is built. From
  * there to the answer is not cancellable: a Commit built and never saved would hold the group's
  * next change back, and a change sent and left there would wait for the next sync to reach its
- * members, a removal its key rotation.
+ * members.
  *
  * A change can wait on a sync under way for as long as that sync takes, and the device can lock
  * meanwhile, which leaves nothing the vault holds readable: who is signed in, the user's MLS
- * identity until it is opened in this process, the contacts still to bring back, and the key to
- * the user's profile. Before the Commit is built, a change the user asked for is not made then,
- * see [GroupMembershipError.DeviceLocked], and an addition reads all of it before it asks for any
- * key package, which would be spent for nothing. The sync's own removals read the vault as is
- * instead, and its pass stops at the first read that throws, see [removeUnderGroupsLock]. After the
- * Commit is built, nothing reads the vault but the sealing of the creator's copy of a rotated key,
- * which leaves the rotation to the next sync when the key ring cannot be read, see
- * [GroupMembershipSender].
+ * identity until it is opened in this process, the contacts still to bring back, the key ring and
+ * the key to the user's profile. Before the Commit is built, a change the user asked for is not
+ * made then, see [GroupMembershipError.DeviceLocked], and an addition reads all of it before it
+ * asks for any key package, which would be spent for nothing. The sync's own changes read the
+ * vault as is instead, and its pass stops at the first read that throws, see
+ * [removeDepartedUnderGroupsLock]. After the Commit is built, nothing reads the vault.
  *
  * [userUuid] is [getAuthenticatedUserUuid], [restoreContacts] is [ContactRepository.restore],
  * [contacts] and [blocked] are [ContactDao.getUserUuids] and [IdentityConflictDao.getBlocked],
- * [client] is [MlsIdentityRepository.client], [consumeKeyPackage] is
- * [KeyPackageApi.consumeKeyPackage], [group] is [GroupDao.get], [hasPendingChange] is
- * [GroupDao.hasPendingChange], [savePending] is [GroupDao.upsertMembershipChange], [bookResend]
- * and [send] are [GroupMembershipSender.bookResend] and [GroupMembershipSender.send],
- * [ownProfileKey] is [ProfileKeyVault.getOrCreateProfileEncryptionKey], null when it fails,
- * [contactProfileKey] is the key [ContactDao.get] holds, [learnedProfileKey] is
- * [MemberProfileRepository.keyFor] and [oweProfileKey] is [GroupDao.setHandedProfileKeyHash] to
- * null, or what a test stands in for any of them.
+ * [client] is [MlsIdentityRepository.client], [keyCopySealer] is [GroupKeyCopies.sealer],
+ * [consumeKeyPackage] is [KeyPackageApi.consumeKeyPackage], [group] is [GroupDao.get],
+ * [hasPendingChange] is [GroupDao.hasPendingChange], [savePending] is
+ * [GroupDao.upsertMembershipChange], [outdatedChanges] are those of [GroupDao.getMembershipChanges]
+ * to be made again, [dropOutdated] is [GroupDao.deleteOutdatedMembershipChange], [bookResend] and
+ * [send] are [GroupMembershipSender.bookResend]
+ * and [GroupMembershipSender.send], [ownProfileKey] is
+ * [ProfileKeyVault.getOrCreateProfileEncryptionKey], null when it fails, [contactProfileKey] is the
+ * key [ContactDao.get] holds, [learnedProfileKey] is [MemberProfileRepository.keyFor],
+ * [oweProfileKey] is [GroupDao.setHandedProfileKeyHash] to null and [syncGroups] is [GroupSync.sync],
+ * what it read told about through [GroupSyncAnnouncer], or what a test stands in for any of them.
  */
 class GroupMembershipChanger internal constructor(
     private val userUuid: () -> String?,
@@ -118,10 +129,13 @@ class GroupMembershipChanger internal constructor(
     private val contacts: suspend () -> List<String>,
     private val blocked: suspend () -> List<String>,
     private val client: suspend () -> Result<MlsClient, MlsIdentityError>,
+    private val keyCopySealer: suspend () -> Result<KeyCopySealer, VaultError>,
     private val consumeKeyPackage: suspend (userUuid: String) -> Result<ConsumeKeyPackageDto, NetworkError>,
     private val group: suspend (groupUuid: String) -> GroupEntity?,
     private val hasPendingChange: suspend (groupUuid: String) -> Boolean,
     private val savePending: suspend (change: PendingMembershipChangeEntity) -> Unit,
+    private val outdatedChanges: suspend () -> List<PendingMembershipChangeEntity>,
+    private val dropOutdated: suspend (groupUuid: String) -> Unit,
     private val bookResend: suspend () -> Unit,
     private val send: suspend (
         change: PendingMembershipChange,
@@ -132,27 +146,38 @@ class GroupMembershipChanger internal constructor(
     private val contactProfileKey: suspend (userUuid: String) -> ByteArray?,
     private val learnedProfileKey: suspend (userUuid: String) -> ByteArray?,
     private val oweProfileKey: suspend (groupUuid: String) -> Unit,
+    private val syncGroups: suspend () -> Unit,
 ) {
+    /**
+     * [groupSync] is lazy: the sync removes those who departed through this very changer, see
+     * [removeDepartedUnderGroupsLock].
+     */
     constructor(
         contactRepository: ContactRepository,
         contactDao: ContactDao,
         identityConflictDao: IdentityConflictDao,
         mlsIdentityRepository: MlsIdentityRepository,
+        groupKeyCopies: GroupKeyCopies,
         keyPackageApi: KeyPackageApi,
         groupDao: GroupDao,
         groupMembershipSender: GroupMembershipSender,
         profileKeyVault: ProfileKeyVault,
         memberProfileRepository: MemberProfileRepository,
+        groupSync: Lazy<GroupSync>,
+        groupSyncAnnouncer: GroupSyncAnnouncer,
     ) : this(
         userUuid = ::getAuthenticatedUserUuid,
         restoreContacts = contactRepository::restore,
         contacts = contactDao::getUserUuids,
         blocked = identityConflictDao::getBlocked,
         client = mlsIdentityRepository::client,
+        keyCopySealer = groupKeyCopies::sealer,
         consumeKeyPackage = keyPackageApi::consumeKeyPackage,
         group = groupDao::get,
         hasPendingChange = groupDao::hasPendingChange,
         savePending = groupDao::upsertMembershipChange,
+        outdatedChanges = { groupDao.getMembershipChanges().filter { it.isOutdated } },
+        dropOutdated = groupDao::deleteOutdatedMembershipChange,
         bookResend = groupMembershipSender::bookResend,
         send = groupMembershipSender::send,
         ownProfileKey = { (profileKeyVault.getOrCreateProfileEncryptionKey() as? Result.Success)?.data },
@@ -161,6 +186,9 @@ class GroupMembershipChanger internal constructor(
         oweProfileKey = { groupUuid ->
             groupDao.setHandedProfileKeyHash(uuid = groupUuid, handedProfileKeyHash = null)
         },
+        // As for an expense, see GroupExpenseWriter: what it reads of the other groups is read
+        // once, so it is told about here, or never.
+        syncGroups = { groupSyncAnnouncer.announce(pass = groupSync.value.sync(contactsTakenIn = false)) },
     )
 
     /**
@@ -169,14 +197,16 @@ class GroupMembershipChanger internal constructor(
     suspend fun add(groupUuid: String, userUuids: Set<String>): Result<MembershipChangeOutcome, GroupMembershipError> {
         require(userUuids.isNotEmpty()) { "Members are added one at least." }
 
-        return withGroupsLock {
-            // Once the lock is held: the device may have locked as this waited for it, see above.
-            val selfUuid = when (val read = unlockedOrError { userUuid() }) {
-                is Result.Success -> read.data ?: return@withGroupsLock Result.Error(GroupMembershipError.NoSession)
-                is Result.Error -> return@withGroupsLock read
-            }
+        return onceCaughtUp {
+            withGroupsLock {
+                // Once the lock is held: the device may have locked as this waited for it, see above.
+                val selfUuid = when (val read = unlockedOrError { userUuid() }) {
+                    is Result.Success -> read.data ?: return@withGroupsLock Result.Error(GroupMembershipError.NoSession)
+                    is Result.Error -> return@withGroupsLock read
+                }
 
-            addLocked(selfUuid = selfUuid, groupUuid = groupUuid, userUuids = userUuids)
+                addLocked(selfUuid = selfUuid, groupUuid = groupUuid, userUuids = userUuids)
+            }
         }
     }
 
@@ -190,32 +220,126 @@ class GroupMembershipChanger internal constructor(
     ): Result<MembershipChangeOutcome, GroupMembershipError> {
         require(userUuids.isNotEmpty()) { "Members are removed one at least." }
 
-        return withGroupsLock {
-            // Once the lock is held: the device may have locked as this waited for it, see above.
-            val selfUuid = when (val read = unlockedOrError { userUuid() }) {
-                is Result.Success -> read.data ?: return@withGroupsLock Result.Error(GroupMembershipError.NoSession)
-                is Result.Error -> return@withGroupsLock read
-            }
+        return onceCaughtUp {
+            withGroupsLock {
+                // Once the lock is held: the device may have locked as this waited for it, see above.
+                val selfUuid = when (val read = unlockedOrError { userUuid() }) {
+                    is Result.Success -> read.data ?: return@withGroupsLock Result.Error(GroupMembershipError.NoSession)
+                    is Result.Error -> return@withGroupsLock read
+                }
 
-            removeLocked(
-                selfUuid = selfUuid,
-                groupUuid = groupUuid,
-                userUuids = userUuids,
-                openClient = ::clientWhileUnlocked,
-            )
+                val held = when (val checked = changeable(groupUuid = groupUuid, selfUuid = selfUuid)) {
+                    is Result.Success -> checked.data
+                    is Result.Error -> return@withGroupsLock checked
+                }
+
+                removeLocked(
+                    selfUuid = selfUuid,
+                    held = held,
+                    userUuids = userUuids,
+                    vault = VaultReads.WHILE_UNLOCKED,
+                    changeOf = ::removalOf,
+                )
+            }
         }
     }
 
     /**
-     * Removes [userUuids] as [remove] does, for a caller already holding [withGroupsLock], which
-     * this does not take: the group sync, which removes from the groups the user created whoever
-     * the server no longer lists, see [GroupSync]. To be called under that lock alone, which is not
+     * Makes again the change the user asked for to the group [groupUuid] whose Commit the server
+     * refused for its epoch as it was sent again, see [PendingMembershipChangeEntity.isOutdated],
+     * for a caller already holding [withGroupsLock], which this does not take: the group sync, once
+     * it read the Commit that got there first, see [GroupSync]. Built anew over where the group
+     * stands, as [add] and [remove] build it, for those it names still to add or to remove, and
+     * sent: said as the first send of the change was, see [MembershipChangeOutcome.PENDING], and
+     * as the screen showed it since, as waiting, see [GroupDao.hasPendingChange]. Gives what came of
+     * it, or null when no such change is pending for the group.
+     *
+     * The change built anew is saved beside it, see [PendingMembershipChangeEntity], and drops it
+     * once sent, as nothing left to make, everybody named in or out already, does. Refused
+     * for its epoch again, the one built anew goes, see [GroupMembershipSender], and this is kept to
+     * be made by the next sync, as is one kept from being built by what says nothing about it, see
+     * [isMadeLater]; any other refusal drops it, as one of the server's does any change. The vault
+     * is read as for a change the user asks for, a locked device being one of those.
+     */
+    internal suspend fun remakeOutdatedUnderGroupsLock(
+        groupUuid: String,
+    ): Result<MembershipChangeOutcome?, GroupMembershipError> {
+        val outdated = outdatedChanges().firstOrNull { it.groupUuid == groupUuid } ?: return Result.Success(null)
+
+        val selfUuid = userUuid() ?: return Result.Error(GroupMembershipError.NoSession)
+
+        val remade = when (val change = outdated.toChange()) {
+            is PendingMembershipChange.Addition -> addLocked(
+                selfUuid = selfUuid,
+                groupUuid = groupUuid,
+                userUuids = change.body.newMemberUuids.toSet(),
+                isRemaking = true,
+            )
+
+            is PendingMembershipChange.Removal ->
+                when (val checked = changeable(groupUuid = groupUuid, selfUuid = selfUuid, isCaughtUp = true)) {
+                    is Result.Success -> removeLocked(
+                        selfUuid = selfUuid,
+                        held = checked.data,
+                        userUuids = change.body.removedMemberUuids.toSet(),
+                        vault = VaultReads.WHILE_UNLOCKED,
+                        changeOf = ::removalOf,
+                    )
+
+                    is Result.Error -> checked
+                }
+
+            is PendingMembershipChange.DepartedRemoval,
+            is PendingMembershipChange.Replacement,
+            -> error("Only a change the user asked for is made again.")
+        }
+
+        when (remade) {
+            // Nothing left to make: anything made is pending beside it, or taken.
+            is Result.Success -> dropOutdated(groupUuid)
+
+            is Result.Error -> when {
+                // Kept: its Commit refused for its epoch, the one made anew went, see
+                // GroupMembershipSender, or nothing was made in its place.
+                remade.error == GroupMembershipError.Outdated || remade.error.isMadeLater() -> Unit
+
+                else -> dropOutdated(groupUuid)
+            }
+        }
+
+        return remade
+    }
+
+    /** The removal of [removedUuids] from the group [groupUuid] by [commit], with its [keys], see [remove]. */
+    private fun removalOf(groupUuid: String, commit: ByteArray, removedUuids: List<String>, keys: LinkedKeys) =
+        PendingMembershipChange.Removal(
+            groupUuid = groupUuid,
+            body = RemoveGroupMembersBody(
+                nonce = newChangeNonce(),
+                commitMessage = Base64.Default.encode(commit),
+                removedMemberUuids = removedUuids,
+                previousKey = keys.previousKey,
+                keyCopy = keys.keyCopy,
+            ),
+            commitEpoch = keys.epoch,
+        )
+
+    /**
+     * Removes [userUuids], at least one of them and never the user, members who departed from the
+     * group [groupUuid], see [GroupDto.departed], through the server's route for them, see
+     * [RemoveDepartedMembersBody], for a caller already holding [withGroupsLock], which this does
+     * not take: the group sync, see [GroupSync]. Any member may, not only its creator, whose
+     * removals any other member's device takes whatever they remove: the members' devices take this
+     * one from anybody, so long as it removes exactly those the server checked had departed, see
+     * [GroupMessageDto.departedMemberUuids]. To be called under that lock alone, which is not
      * reentrant: [remove] would wait on it for good there.
      *
      * The vault is read as is: on a locked device the read throws, and the sync stops its pass there,
      * telling its caller to try again once the device is unlocked, see [GroupSyncError.DeviceLocked].
+     * Refused for its epoch, see [GroupMembershipError.Outdated], it is the sync's to decide again
+     * once it read the Commit that got there first.
      */
-    internal suspend fun removeUnderGroupsLock(
+    internal suspend fun removeDepartedUnderGroupsLock(
         groupUuid: String,
         userUuids: Set<String>,
     ): Result<MembershipChangeOutcome, GroupMembershipError> {
@@ -223,15 +347,117 @@ class GroupMembershipChanger internal constructor(
 
         val selfUuid = userUuid() ?: return Result.Error(GroupMembershipError.NoSession)
 
-        return removeLocked(selfUuid = selfUuid, groupUuid = groupUuid, userUuids = userUuids, openClient = ::clientAsIs)
+        val held = when (val checked = heldOf(groupUuid = groupUuid)) {
+            is Result.Success -> checked.data
+            is Result.Error -> return checked
+        }
+
+        return removeLocked(
+            selfUuid = selfUuid,
+            held = held,
+            userUuids = userUuids,
+            vault = VaultReads.AS_IS,
+        ) { _, commit, removedUuids, keys ->
+            PendingMembershipChange.DepartedRemoval(
+                groupUuid = groupUuid,
+                body = RemoveDepartedMembersBody(
+                    nonce = newChangeNonce(),
+                    commitMessage = Base64.Default.encode(commit),
+                    removedMemberUuids = removedUuids,
+                    previousKey = keys.previousKey,
+                    keyCopy = keys.keyCopy,
+                ),
+                commitEpoch = keys.epoch,
+            )
+        }
     }
 
+    /**
+     * Replaces the Commit every member's device refused in the group [groupUuid], a group the user
+     * created, with one of the user's for the epoch this device is at, removing those of
+     * [userUuids] still in its tree, never the user, see [ReplaceGroupCommitBody]: or nobody, a
+     * Commit that changes none of its members, see [updateIn]. For a caller already holding
+     * [withGroupsLock], which this does not take: the group sync, which finds this device behind the
+     * server with nothing left to read, see [GroupSync]. The vault is read as is, as for
+     * [removeDepartedUnderGroupsLock].
+     *
+     * Made ahead of any change the user asked for that is to be made again, see
+     * [PendingMembershipChangeEntity.isOutdated], kept beside it: the server takes no Commit of the
+     * epoch this device is at but this one, which every member's device stays in until it comes,
+     * and the sync makes that change once the server took it, see [remakeOutdatedUnderGroupsLock].
+     */
+    internal suspend fun replaceUnderGroupsLock(
+        groupUuid: String,
+        userUuids: Set<String>,
+    ): Result<MembershipChangeOutcome, GroupMembershipError> {
+        val selfUuid = userUuid() ?: return Result.Error(GroupMembershipError.NoSession)
+
+        val held = when (val checked = changeable(groupUuid = groupUuid, selfUuid = selfUuid, isCaughtUp = true)) {
+            is Result.Success -> checked.data
+            is Result.Error -> return checked
+        }
+
+        val client = when (val opened = clientAsIs()) {
+            is Result.Success -> opened.data
+            is Result.Error -> return opened
+        }
+
+        val roster = when (val read = settledRosterOf(client = client, mlsGroupId = held.mlsGroupId)) {
+            is Result.Success -> read.data
+            is Result.Error -> return read
+        }
+
+        val removedUuids = userUuids.filter { it in roster.memberUuids && it != selfUuid }
+
+        val sealer = when (val read = sealerOf(vault = VaultReads.AS_IS)) {
+            is Result.Success -> read.data
+            is Result.Error -> return read
+        }
+
+        return withContext(NonCancellable) {
+            val commit = try {
+                if (removedUuids.isEmpty()) {
+                    client.updateIn(mlsGroupId = held.mlsGroupId)
+                } else {
+                    client.removeMembersFrom(mlsGroupId = held.mlsGroupId, userUuids = removedUuids)
+                }
+            } catch (exception: MlsException) {
+                return@withContext Result.Error(exception.toMembershipError())
+            }
+
+            val keys = when (val read = linkedKeysOf(client = client, held = held, sealer = sealer)) {
+                is Result.Success -> read.data
+                is Result.Error -> return@withContext read
+            }
+
+            val change = PendingMembershipChange.Replacement(
+                groupUuid = groupUuid,
+                body = ReplaceGroupCommitBody(
+                    nonce = newChangeNonce(),
+                    replacesEpoch = keys.epoch,
+                    commitMessage = Base64.Default.encode(commit),
+                    removedMemberUuids = removedUuids,
+                    previousKey = keys.previousKey,
+                    keyCopy = keys.keyCopy,
+                ),
+                commitEpoch = keys.epoch,
+            )
+
+            saveAndSend(change = change, held = held, client = client)
+        }
+    }
+
+    /**
+     * Adds [userUuids] to the group [groupUuid] as the user [selfUuid], see [add], or makes that
+     * addition again when [isRemaking], see [remakeOutdatedUnderGroupsLock].
+     */
     private suspend fun addLocked(
         selfUuid: String,
         groupUuid: String,
         userUuids: Set<String>,
+        isRemaking: Boolean = false,
     ): Result<MembershipChangeOutcome, GroupMembershipError> {
-        val held = when (val checked = changeable(groupUuid = groupUuid, selfUuid = selfUuid)) {
+        val held = when (val checked = changeable(groupUuid = groupUuid, selfUuid = selfUuid, isCaughtUp = isRemaking)) {
             is Result.Success -> checked.data
             is Result.Error -> return checked
         }
@@ -264,9 +490,14 @@ class GroupMembershipChanger internal constructor(
 
         refusalOf(client = client, userUuids = newMemberUuids)?.let { return Result.Error(it) }
 
-        // Before any key package is asked for, which a device locked by now would spend for
-        // nothing, see GroupMembershipChanger.
+        // Before any key package is asked for, which a device locked by now, or a key ring not
+        // answering, would spend for nothing, see GroupMembershipChanger.
         val ownKey = when (val read = unlockedOrError { ownProfileKey() }) {
+            is Result.Success -> read.data
+            is Result.Error -> return read
+        }
+
+        val sealer = when (val read = sealerOf(vault = VaultReads.WHILE_UNLOCKED)) {
             is Result.Success -> read.data
             is Result.Error -> return read
         }
@@ -318,18 +549,10 @@ class GroupMembershipChanger internal constructor(
 
         return withContext(NonCancellable) {
             val addition = try {
-                // The group's key, which its fields are sealed under, as for a creation: the
-                // Welcome binds it to this group alone, see GroupSync. The current one, with its
-                // generation, which the chain leads back from to the keys before it, see
-                // GroupKeyChain.
                 client.addMembersTo(
                     mlsGroupId = held.mlsGroupId,
                     invitees = keyPackages,
-                    welcomePayload = welcomePayloadOf(
-                        groupKey = held.group.groupKey,
-                        keyGeneration = held.group.keyGeneration,
-                        profileKeys = profileKeys,
-                    ),
+                    welcomePayload = welcomePayloadOf(profileKeys = profileKeys),
                 )
             } catch (exception: MlsException) {
                 return@withContext Result.Error(
@@ -340,10 +563,14 @@ class GroupMembershipChanger internal constructor(
                         exception is MlsException.UnusableKeyPackages ->
                             GroupMembershipError.Unreachable(userUuids = exception.v1.toSet())
 
-                        exception.isRetryable() -> GroupMembershipError.Storage
-                        else -> GroupMembershipError.Crypto
+                        else -> exception.toMembershipError()
                     },
                 )
+            }
+
+            val keys = when (val read = linkedKeysOf(client = client, held = held, sealer = sealer)) {
+                is Result.Success -> read.data
+                is Result.Error -> return@withContext read
             }
 
             val change = PendingMembershipChange.Addition(
@@ -354,8 +581,10 @@ class GroupMembershipChanger internal constructor(
                     profileKeysMessage = Base64.Default.encode(profileKeysMessage),
                     welcomeMessage = Base64.Default.encode(addition.welcome),
                     newMemberUuids = keyPackages.map { it.userUuid },
+                    previousKey = keys.previousKey,
+                    keyCopy = keys.keyCopy,
                 ),
-                commitEpoch = roster.epoch,
+                commitEpoch = keys.epoch,
             )
 
             saveAndSend(change = change, held = held, client = client)
@@ -363,25 +592,26 @@ class GroupMembershipChanger internal constructor(
     }
 
     /**
-     * Removes [userUuids] from the group [groupUuid] as the user [selfUuid], with the MLS client
-     * [openClient] opens, see [clientWhileUnlocked] and [clientAsIs].
+     * Removes [userUuids] from [held] as the user [selfUuid], reading the vault as [vault] says, the
+     * change [changeOf] makes of the Commit, those it removes and its keys, see [LinkedKeys].
      */
     private suspend fun removeLocked(
         selfUuid: String,
-        groupUuid: String,
+        held: HeldGroup,
         userUuids: Set<String>,
-        openClient: suspend () -> Result<MlsClient, GroupMembershipError>,
+        vault: VaultReads,
+        changeOf: (
+            groupUuid: String,
+            commit: ByteArray,
+            removedUuids: List<String>,
+            keys: LinkedKeys,
+        ) -> PendingMembershipChange,
     ): Result<MembershipChangeOutcome, GroupMembershipError> {
         // A member's way out is leaving, see GroupLeaver, never a removal of their own, and the
-        // creator never leaves: nobody else could change the group.
-        require(selfUuid !in userUuids) { "The creator of a group is never removed from it." }
+        // creator never leaves: nobody else could add anybody to the group.
+        require(selfUuid !in userUuids) { "Nobody removes themselves from a group." }
 
-        val held = when (val checked = changeable(groupUuid = groupUuid, selfUuid = selfUuid)) {
-            is Result.Success -> checked.data
-            is Result.Error -> return checked
-        }
-
-        val client = when (val opened = openClient()) {
+        val client = when (val opened = clientOf(vault = vault)) {
             is Result.Success -> opened.data
             is Result.Error -> return opened
         }
@@ -395,30 +625,114 @@ class GroupMembershipChanger internal constructor(
 
         if (removedUuids.isEmpty()) return Result.Success(MembershipChangeOutcome.MADE)
 
+        val sealer = when (val read = sealerOf(vault = vault)) {
+            is Result.Success -> read.data
+            is Result.Error -> return read
+        }
+
         return withContext(NonCancellable) {
             val commit = try {
                 client.removeMembersFrom(mlsGroupId = held.mlsGroupId, userUuids = removedUuids)
             } catch (exception: MlsException) {
-                return@withContext Result.Error(
-                    if (exception.isRetryable()) GroupMembershipError.Storage else GroupMembershipError.Crypto,
-                )
+                return@withContext Result.Error(exception.toMembershipError())
             }
 
-            val change = PendingMembershipChange.Removal(
-                groupUuid = groupUuid,
-                body = RemoveGroupMembersBody(
-                    nonce = newChangeNonce(),
-                    commitMessage = Base64.Default.encode(commit),
-                    removedMemberUuids = removedUuids,
-                ),
-                commitEpoch = roster.epoch,
-            )
+            val keys = when (val read = linkedKeysOf(client = client, held = held, sealer = sealer)) {
+                is Result.Success -> read.data
+                is Result.Error -> return@withContext read
+            }
 
-            saveAndSend(change = change, held = held, client = client)
+            saveAndSend(change = changeOf(held.group.uuid, commit, removedUuids, keys), held = held, client = client)
         }
     }
 
-    /** The user's MLS client, or why it does not open, the vault read as is, see [removeUnderGroupsLock]. */
+    /**
+     * What the request storing the Commit just built in [held] carries for the epoch it leads to,
+     * see [LinkedKeys]: the link back from that epoch's key, which the library derives before the
+     * Commit is applied, see [commitKeysIn], to the key of the epoch it was built in, and the user's
+     * copy of the newer key, sealed with [sealer]. The Commit is discarded again when either cannot
+     * be made, nothing ever sending it.
+     */
+    private suspend fun linkedKeysOf(
+        client: MlsClient,
+        held: HeldGroup,
+        sealer: KeyCopySealer,
+    ): Result<LinkedKeys, GroupMembershipError> {
+        val keys = try {
+            client.commitKeysIn(mlsGroupId = held.mlsGroupId, groupUuid = held.group.uuid)
+        } catch (exception: MlsException) {
+            discardQuietly(client = client, held = held)
+
+            return Result.Error(exception.toMembershipError())
+        }
+
+        val generation = keys.epoch + 1
+
+        val previousKey = sealKeyLink(
+            previousKey = keys.current,
+            groupKey = keys.next,
+            groupUuid = held.group.uuid,
+            generation = generation,
+        )
+
+        val keyCopy = sealer.seal(groupUuid = held.group.uuid, groupKey = keys.next, keyGeneration = generation)
+
+        if (previousKey == null || keyCopy == null) {
+            discardQuietly(client = client, held = held)
+
+            return Result.Error(GroupMembershipError.Crypto)
+        }
+
+        return Result.Success(LinkedKeys(epoch = keys.epoch, previousKey = previousKey, keyCopy = keyCopy))
+    }
+
+    /**
+     * Runs [change], a change the user asked for, and once more should the server refuse it for its
+     * epoch, see [GroupMembershipError.Outdated], once the groups are synced: another member's
+     * Commit got there first, a removal of those who departed, which this device reads then, and
+     * the change is built again over it, if it still has anything to make. Refused again, the
+     * refusal is returned.
+     */
+    private suspend fun onceCaughtUp(
+        change: suspend () -> Result<MembershipChangeOutcome, GroupMembershipError>,
+    ): Result<MembershipChangeOutcome, GroupMembershipError> {
+        val made = change()
+
+        if ((made as? Result.Error)?.error != GroupMembershipError.Outdated) return made
+
+        syncGroups()
+
+        return change()
+    }
+
+    /** The user's MLS client, or why it does not open, reading the vault as [vault] says. */
+    private suspend fun clientOf(vault: VaultReads): Result<MlsClient, GroupMembershipError> =
+        when (vault) {
+            VaultReads.AS_IS -> clientAsIs()
+            VaultReads.WHILE_UNLOCKED -> clientWhileUnlocked()
+        }
+
+    /**
+     * What seals the user's copy of the key a Commit leads to, see [GroupKeyCopies.sealer], or why
+     * it cannot be read, reading the vault as [vault] says.
+     */
+    private suspend fun sealerOf(vault: VaultReads): Result<KeyCopySealer, GroupMembershipError> {
+        val read = when (vault) {
+            VaultReads.AS_IS -> keyCopySealer()
+
+            VaultReads.WHILE_UNLOCKED -> when (val unlocked = unlockedOrError { keyCopySealer() }) {
+                is Result.Success -> unlocked.data
+                is Result.Error -> return unlocked
+            }
+        }
+
+        return when (read) {
+            is Result.Success -> read
+            is Result.Error -> Result.Error(GroupMembershipError.Vault(read.error))
+        }
+    }
+
+    /** The user's MLS client, or why it does not open, the vault read as is, see [removeDepartedUnderGroupsLock]. */
     private suspend fun clientAsIs(): Result<MlsClient, GroupMembershipError> =
         when (val opened = client()) {
             is Result.Success -> opened
@@ -437,18 +751,46 @@ class GroupMembershipChanger internal constructor(
 
     /**
      * The group [groupUuid] with its MLS group, when the user [selfUuid] may change its members
-     * from this device, see [GroupMembershipChanger], or why not.
+     * from this device, see [GroupMembershipChanger], or why not, the change pending for it aside
+     * when [isCaughtUp], see [heldOf].
      */
-    private suspend fun changeable(groupUuid: String, selfUuid: String): Result<HeldGroup, GroupMembershipError> {
+    private suspend fun changeable(
+        groupUuid: String,
+        selfUuid: String,
+        isCaughtUp: Boolean = false,
+    ): Result<HeldGroup, GroupMembershipError> {
         val group = group(groupUuid) ?: return Result.Error(GroupMembershipError.NotHeld)
 
         if (group.ownerUuid != selfUuid) return Result.Error(GroupMembershipError.NotCreator)
 
+        return heldOf(groupUuid = groupUuid, isCaughtUp = isCaughtUp)
+    }
+
+    /**
+     * The group [groupUuid] with its MLS group, when this device holds that state, the user still in
+     * the group, with no change to it pending, see [GroupMembershipChanger], or why not: whoever
+     * created it. The change pending aside when [isCaughtUp]: one the group sync makes once it read
+     * the group, which it reads with no change waiting on the server there, see [GroupSync], over
+     * the change to be made again, see [PendingMembershipChangeEntity.isOutdated], which it makes,
+     * see [remakeOutdatedUnderGroupsLock], or goes ahead of, see [replaceUnderGroupsLock].
+     */
+    private suspend fun heldOf(groupUuid: String, isCaughtUp: Boolean = false): Result<HeldGroup, GroupMembershipError> {
+        val group = group(groupUuid)?.takeIf { !it.isLeft } ?: return Result.Error(GroupMembershipError.NotHeld)
+
         val mlsGroupId = group.mlsGroupId ?: return Result.Error(GroupMembershipError.NotHeld)
 
-        if (hasPendingChange(groupUuid)) return Result.Error(GroupMembershipError.ChangePending)
+        if (!isCaughtUp && hasPendingChange(groupUuid)) return Result.Error(GroupMembershipError.ChangePending)
 
         return Result.Success(HeldGroup(group = group, mlsGroupId = mlsGroupId))
+    }
+
+    /** Discards the Commit just built in [held], should the change never be saved, see [settledRosterOf]. */
+    private suspend fun discardQuietly(client: MlsClient, held: HeldGroup) {
+        try {
+            client.discardPendingCommitIn(mlsGroupId = held.mlsGroupId)
+        } catch (_: MlsException) {
+            // The next change to the group discards it, see settledRosterOf.
+        }
     }
 
     /**
@@ -467,7 +809,7 @@ class GroupMembershipChanger internal constructor(
 
             Result.Success(roster)
         } catch (exception: MlsException) {
-            Result.Error(if (exception.isRetryable()) GroupMembershipError.Storage else GroupMembershipError.Crypto)
+            Result.Error(exception.toMembershipError())
         }
 
     /**
@@ -499,11 +841,7 @@ class GroupMembershipChanger internal constructor(
         try {
             savePending(change.toEntity())
         } catch (_: Exception) {
-            try {
-                client.discardPendingCommitIn(mlsGroupId = held.mlsGroupId)
-            } catch (_: MlsException) {
-                // See above.
-            }
+            discardQuietly(client = client, held = held)
 
             return Result.Error(GroupMembershipError.Storage)
         }
@@ -522,6 +860,8 @@ class GroupMembershipChanger internal constructor(
 
             is GroupMembershipAnswer.Refused -> Result.Error(GroupMembershipError.Network(answer.error))
 
+            is GroupMembershipAnswer.KeyGenerationNotCurrent -> Result.Error(GroupMembershipError.Outdated)
+
             is GroupMembershipAnswer.RateLimited,
             is GroupMembershipAnswer.Failed,
             -> Result.Success(MembershipChangeOutcome.PENDING)
@@ -531,6 +871,46 @@ class GroupMembershipChanger internal constructor(
 
 /** A group the user may change the members of, and its MLS group, see [GroupMembershipChanger.changeable]. */
 private class HeldGroup(val group: GroupEntity, val mlsGroupId: ByteArray)
+
+/**
+ * What the request storing a Commit built in [epoch] carries for the epoch it leads to, see
+ * [GroupMembershipChanger.linkedKeysOf]: [previousKey], the link back to the key of [epoch], and
+ * [keyCopy], the user's copy of the newer key.
+ */
+private class LinkedKeys(val epoch: Long, val previousKey: EncryptedFieldDto, val keyCopy: EncryptedFieldDto)
+
+/** How a change reads the vault, see [GroupMembershipChanger]. */
+private enum class VaultReads {
+    /** As is, which throws once the device locks: the sync's own changes, its pass stopping there. */
+    AS_IS,
+
+    /** Unless the device is locked, which is a failure of its own: a change the user asked for. */
+    WHILE_UNLOCKED,
+}
+
+/**
+ * Whether a change kept from being made by this is to be made again later, see
+ * [GroupMembershipChanger.remakeOutdatedUnderGroupsLock]: what says nothing about the change, the
+ * device locked, the user's storage, identity, vault or contacts failing, and the server not
+ * answering, see [membershipAnswerOf], rather than refusing it.
+ */
+private fun GroupMembershipError.isMadeLater(): Boolean =
+    when (this) {
+        GroupMembershipError.DeviceLocked,
+        GroupMembershipError.Storage,
+        is GroupMembershipError.Identity,
+        is GroupMembershipError.Vault,
+        is GroupMembershipError.Contacts,
+        -> true
+
+        is GroupMembershipError.Network -> membershipAnswerOf(error) is GroupMembershipAnswer.Failed
+
+        else -> false
+    }
+
+/** What the library refusing a change with this comes to. */
+private fun MlsException.toMembershipError(): GroupMembershipError =
+    if (isRetryable()) GroupMembershipError.Storage else GroupMembershipError.Crypto
 
 /**
  * What [read], a read of the vault for a change the user asked for, gives, or

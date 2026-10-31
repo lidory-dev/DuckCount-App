@@ -40,8 +40,11 @@ import util.Result
  *   lib-duckcount, so one whose answer is lost is sent again, once, with the same nonce, and hears
  *   it was stored already if it was, which is taken as stored. One whose second answer is lost too
  *   is the failure it is, and saving it again then makes another expense.
- * - A version sealed under a key the group replaced since, a rotation this device had yet to read,
- *   is sealed again, once, under the key the group sync reads, see [GroupSync], and sent again.
+ * - A version sealed under a key of an epoch the group left since, Commits this device had yet to
+ *   read, is sealed again, once, under the key the group sync derives as it reads them, see
+ *   [GroupSync], and sent again. Should the sync leave the group where it was, the write fails:
+ *   for want of a key, or, when this device refused a Commit every member's device refused, see
+ *   [GroupEntity.isAwaitingOwner], as waiting for the group's owner, whose device replaces it.
  * - A version built on one the server holds no longer hears which revision it holds, and the
  *   group's expenses are synced, see [GroupExpenseSync], which shows that version: when it is this
  *   very version, sent before and taken, its answer lost, at the revision it was sent at or the
@@ -364,7 +367,13 @@ class GroupExpenseWriter internal constructor(
 
                     // Nothing new to seal it under: the same refusal would come back.
                     if (synced.keyGeneration == held.keyGeneration) {
-                        return Result.Error(GroupExpenseWriteError.KeyNotCurrent)
+                        return Result.Error(
+                            if (synced.isAwaitingOwner) {
+                                GroupExpenseWriteError.AwaitingOwner
+                            } else {
+                                GroupExpenseWriteError.KeyNotCurrent
+                            },
+                        )
                     }
                 }
 

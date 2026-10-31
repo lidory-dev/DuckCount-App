@@ -325,7 +325,9 @@ internal sealed interface GroupExpenseOpening {
 
     /**
      * It is sealed under a generation of the group's key this device cannot have yet, see
-     * [GroupKeyChain]: kept for later, see [database.data.local.entity.UnreadableGroupExpenseEntity].
+     * [GroupKeyChain], or ever, as one sealed in an epoch the creator's replacement of a Commit
+     * undid, see [ReplaceGroupCommitBody], whose key no member holds: kept for later, see
+     * [database.data.local.entity.UnreadableGroupExpenseEntity], and no failure of the pass.
      */
     data object Unreadable : GroupExpenseOpening
 
@@ -346,8 +348,10 @@ internal sealed interface GroupExpenseOpening {
  * Opens versions of the expenses of [group], one after the other, for a pass over them, see
  * [GroupExpenseSync] and [GroupExpenseHistory]: the key of each generation through [keyOf], see
  * [GroupKeyChain.keyOf], and the key of each author through [authorKeyOf], each read once for the
- * pass, whatever came of it, so that a group of a thousand expenses asks the server for its links
- * once at most for each generation this device lacks, and reads each pin once.
+ * pass, whatever came of it, but for a version that opens under no key its generation gave so far,
+ * see [open], so that a group of a thousand expenses asks the server for its links once for each
+ * generation this device lacks, and again only for each key a version of a member's own leads to,
+ * and reads each pin once.
  *
  * [selfUuid] is the user's, [client] their MLS identity, and [recorded] is
  * [database.data.local.dao.GroupDao.getMemberSignatureKey], or what a test stands in for either.
@@ -356,10 +360,21 @@ internal class GroupExpenseOpener(
     private val group: GroupEntity,
     private val selfUuid: String,
     private val client: MlsClient,
-    private val keyOf: suspend (groupUuid: String, generation: Long) -> Result<ByteArray, GroupKeyChainError>,
+    private val keyOf: suspend (
+        groupUuid: String,
+        generation: Long,
+        opens: (key: ByteArray) -> Boolean,
+    ) -> Result<ByteArray, GroupKeyChainError>,
     private val recorded: suspend (groupUuid: String, userUuid: String) -> ByteArray?,
 ) {
-    private val keys = mutableMapOf<Long, Result<ByteArray, GroupKeyChainError>>()
+    /** The keys of each generation found in this pass, the first version of it read telling the first. */
+    private val keys = mutableMapOf<Long, MutableList<ByteArray>>()
+
+    /**
+     * Each generation whose key was asked for once more in this pass and came to nothing new, see
+     * [open], with what kept it from coming to anything, if anything did: asked for no more.
+     */
+    private val settled = mutableMapOf<Long, GroupKeyChainError?>()
 
     private val authorKeys = mutableMapOf<String, ByteArray?>()
 
@@ -375,20 +390,34 @@ internal class GroupExpenseOpener(
      * sealed under its key of [keyGeneration], see [GroupExpenseOpening].
      */
     suspend fun open(expenseUuid: String, revision: Long, keyGeneration: Long, content: EncryptedFieldDto): GroupExpenseOpening {
-        val key = when (val read = keys.getOrPut(keyGeneration) { keyOf(group.uuid, keyGeneration) }) {
-            is Result.Success -> read.data
+        fun opens(key: ByteArray) = content.unsealGroupExpense(
+            groupKey = key,
+            groupUuid = group.uuid,
+            expenseUuid = expenseUuid,
+            revision = revision,
+        ) != null
 
-            is Result.Error -> return when (val error = read.error) {
-                is GroupKeyChainError.Network -> {
-                    failure = failure ?: Failure.Network(error.error)
+        val found = keys.getOrPut(keyGeneration) { mutableListOf() }
 
-                    GroupExpenseOpening.Failed
+        // A key another version of its generation opened under, or else the one the chain gives
+        // for this one, see GroupKeyChain: what tells a key the chain leads to from any other is the
+        // version asked for, and a member can seal one of their own under a key of theirs that the
+        // chain leads to as well. Asked for once a generation, and again for every version opening
+        // under none found until it comes to nothing new, so that such a version, or one that opens
+        // under no key at all, has the server asked once more at most.
+        val key = found.firstOrNull(::opens) ?: run {
+            if (keyGeneration in settled) return openingOf(error = settled[keyGeneration], isKeyFound = found.isNotEmpty())
+
+            when (val read = keyOf(group.uuid, keyGeneration, ::opens)) {
+                is Result.Success -> read.data.also { key ->
+                    if (found.any { it contentEquals key }) settled[keyGeneration] = null else found += key
                 }
 
-                GroupKeyChainError.NotHeld,
-                GroupKeyChainError.NotMember,
-                GroupKeyChainError.Unreadable,
-                -> GroupExpenseOpening.Unreadable
+                is Result.Error -> {
+                    settled[keyGeneration] = read.error
+
+                    return openingOf(error = read.error, isKeyFound = found.isNotEmpty())
+                }
             }
         }
 
@@ -421,6 +450,28 @@ internal class GroupExpenseOpener(
         return signed.opened(currency = group.currency)?.let { GroupExpenseOpening.Opened(version = it) }
             ?: GroupExpenseOpening.Refused
     }
+
+    /**
+     * What becomes of a version no key found for its generation opens, see [open]: when [error]
+     * kept its key from being had, unreadable yet, or told later when the server could not be
+     * asked, and refused otherwise, as a version is that does not open under its generation's key
+     * when [isKeyFound], one was found, or that the chain gave this one, which it does not open.
+     */
+    private fun openingOf(error: GroupKeyChainError?, isKeyFound: Boolean): GroupExpenseOpening =
+        when (error) {
+            is GroupKeyChainError.Network -> {
+                failure = failure ?: Failure.Network(error.error)
+
+                GroupExpenseOpening.Failed
+            }
+
+            GroupKeyChainError.NotHeld,
+            GroupKeyChainError.NotMember,
+            GroupKeyChainError.Unreadable,
+            -> if (isKeyFound) GroupExpenseOpening.Refused else GroupExpenseOpening.Unreadable
+
+            null -> GroupExpenseOpening.Refused
+        }
 
     /** Why a version could not be told, see [failure]. */
     sealed interface Failure {

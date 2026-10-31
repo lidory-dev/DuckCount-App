@@ -3,28 +3,38 @@ package group
 import database.data.local.entity.GroupEntity
 import database.data.remote.EncryptedFieldDto
 import uniffi.lib_duckcount.MlsClient
+import kotlin.io.encoding.Base64
 import kotlin.test.assertNotNull
 
 /**
  * These fields as [revision] of the group [groupUuid], signed by [creator] as their device signs
  * every version of a group of theirs, see [signedAs], and sealed under [groupKey] for that group,
- * see [GroupVersion.seal]: what the server holds of it once [creator] created or edited it.
+ * see [GroupVersion.seal], the currency under [currencyKey], the key of the first generation: what
+ * the server holds of it once [creator] created it, or edited it in a later epoch than the first.
  */
 internal fun GroupFields.sealedAs(
     creator: MlsClient,
     groupKey: ByteArray,
     groupUuid: String,
     revision: Long = FIRST_GROUP_REVISION,
+    currencyKey: ByteArray = groupKey,
 ): SealedGroupVersion {
     val version = assertNotNull(signedAs(client = creator, groupUuid = groupUuid, revision = revision))
+    val sealed = assertNotNull(version.seal(groupKey = groupKey, groupUuid = groupUuid))
+    val currency = assertNotNull(seal(groupKey = currencyKey, groupUuid = groupUuid)).currency
 
-    return assertNotNull(version.seal(groupKey = groupKey, groupUuid = groupUuid))
+    return SealedGroupVersion(
+        fields = SealedGroupFields(title = sealed.fields.title, description = sealed.fields.description, currency = currency),
+        revision = sealed.revision,
+        signature = sealed.signature,
+    )
 }
 
 /**
  * The group [uuid] as the server lists it, owned by [ownerUuid] and created by [creatorUuid], with
- * [memberUuids], [version] of its information, the caller's copy of its key, [keyCopy], if any, of
- * the generation [keyCopyGeneration], and the generation [keyGeneration] its key is at.
+ * [memberUuids], [departed] since, [version] of its information, sealed under the generation
+ * [informationKeyGeneration], the caller's copy of its key, [keyCopy], if any, of the generation
+ * [keyCopyGeneration], and the generation [keyGeneration] its key is at.
  */
 internal fun listedGroupOf(
     uuid: String,
@@ -35,6 +45,8 @@ internal fun listedGroupOf(
     creatorUuid: String = ownerUuid,
     keyGeneration: Long = FIRST_KEY_GENERATION,
     keyCopyGeneration: Long? = keyCopy?.let { keyGeneration },
+    informationKeyGeneration: Long = FIRST_KEY_GENERATION,
+    departed: List<DepartedMemberDto> = emptyList(),
 ) = GroupDto(
     uuid = uuid,
     ownerUuid = ownerUuid,
@@ -44,7 +56,9 @@ internal fun listedGroupOf(
     currency = version.fields.currency,
     revision = version.revision,
     signature = version.signature,
+    informationKeyGeneration = informationKeyGeneration,
     members = memberUuids.map { GroupMemberDto(userUuid = it) },
+    departed = departed,
     keyCopy = keyCopy,
     keyCopyGeneration = keyCopyGeneration,
     keyGeneration = keyGeneration,
@@ -61,21 +75,16 @@ internal fun SealedGroupVersion.editedBy(body: EditGroupBody) = SealedGroupVersi
 )
 
 /**
- * The version a key rotation, [body], puts on the server in place of this one: its fields and
- * signature, the revision staying as it was, see [GroupMembershipSender].
- */
-internal fun SealedGroupVersion.rotatedBy(body: RotateGroupKeyBody) = SealedGroupVersion(
-    fields = SealedGroupFields(title = body.title, description = body.description, currency = body.currency),
-    revision = revision,
-    signature = body.signature,
-)
-
-/**
  * This version as the group's history holds it, see [GroupHistoryVersionDto]: its fields but the
- * currency, which the history does not hold, stored by the server at [revisedAt].
+ * currency, which the history does not hold, sealed under the generation [keyGeneration], stored by
+ * the server at [revisedAt].
  */
-internal fun SealedGroupVersion.inHistory(revisedAt: String = "2026-10-29T08:15:42.317Z") = GroupHistoryVersionDto(
+internal fun SealedGroupVersion.inHistory(
+    revisedAt: String = "2026-10-29T08:15:42.317Z",
+    keyGeneration: Long = FIRST_KEY_GENERATION,
+) = GroupHistoryVersionDto(
     revision = revision,
+    keyGeneration = keyGeneration,
     title = fields.title,
     description = fields.description,
     signature = signature,
@@ -83,15 +92,23 @@ internal fun SealedGroupVersion.inHistory(revisedAt: String = "2026-10-29T08:15:
 )
 
 /**
- * The versions a key rotation, [body], leaves the server holding in the group's history, of
- * these, as the API takes it: each one it carries in place of the one at the same revision, when
- * there is one, the time it was stored at kept, and none it does not carry.
+ * The message [uuid] as the server lists it in a group, [message] from [senderUuid], stored at
+ * [createdAt], and [departedMemberUuids], those it was stored as removing for having departed, see
+ * [GroupMessageDto.departedMemberUuids].
  */
-internal fun List<GroupHistoryVersionDto>.rotatedBy(body: RotateGroupKeyBody) = mapNotNull { held ->
-    body.previous.firstOrNull { it.revision == held.revision }?.let { carried ->
-        held.copy(title = carried.title, description = carried.description, signature = carried.signature)
-    }
-}
+internal fun groupMessageOf(
+    uuid: String,
+    senderUuid: String,
+    message: ByteArray,
+    createdAt: String = "2026-10-29T08:15:42.317Z",
+    departedMemberUuids: List<String> = emptyList(),
+) = GroupMessageDto(
+    uuid = uuid,
+    senderUserUuid = senderUuid,
+    ciphertext = Base64.Default.encode(message),
+    createdAt = createdAt,
+    departedMemberUuids = departedMemberUuids,
+)
 
 /** [this] once it shows [version], as `GroupDao.updateInformation` leaves it. */
 internal fun GroupEntity.showing(version: GroupVersion) = GroupEntity(
@@ -107,4 +124,6 @@ internal fun GroupEntity.showing(version: GroupVersion) = GroupEntity(
     isBackedUp = isBackedUp,
     isLeft = isLeft,
     handedProfileKeyHash = handedProfileKeyHash,
+    hasTakenInExpenses = hasTakenInExpenses,
+    isAwaitingOwner = isAwaitingOwner,
 )

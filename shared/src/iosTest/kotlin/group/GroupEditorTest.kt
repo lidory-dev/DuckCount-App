@@ -66,10 +66,20 @@ class GroupEditorTest {
     private val groups = mutableMapOf(GROUP to aliceGroup())
     private var hasPendingChange = false
 
-    /** The version the server holds, what it answers when a test has it fail, and every edit it was sent. */
+    /**
+     * The version the server holds, the generation it is sealed under, the group's own generation,
+     * what it answers when a test has it fail, and every edit it was sent.
+     */
     private var serverVersion = FIELDS.sealedAs(creator = alice, groupKey = groupKey, groupUuid = GROUP)
+    private var serverInformationGeneration = FIRST_KEY_GENERATION
+    private var serverGeneration = FIRST_KEY_GENERATION
     private var failure: NetworkError? = null
     private val sent = mutableListOf<EditGroupBody>()
+
+    /** The key of each generation Alice's device holds, and what a sync of hers brings: the next epoch's key, say. */
+    private val heldKeys = mutableMapOf(FIRST_KEY_GENERATION to groupKey)
+    private var onSync: () -> Unit = {}
+    private var syncs = 0
 
     /** Whether the server can be asked for the groups it lists. */
     private var isListingReachable = true
@@ -89,14 +99,17 @@ class GroupEditorTest {
             sent += body
 
             when {
-                failure != null -> Result.Error(checkNotNull(failure))
+                failure != null -> GroupEditAnswer.Failed(checkNotNull(failure))
 
-                body.revision <= serverVersion.revision -> Result.Error(NetworkError.CONFLICT)
+                body.keyGeneration != serverGeneration -> GroupEditAnswer.KeyGenerationNotCurrent(serverGeneration)
+
+                body.revision <= serverVersion.revision -> GroupEditAnswer.RevisionNotNewer
 
                 else -> {
                     serverVersion = serverVersion.editedBy(body)
+                    serverInformationGeneration = body.keyGeneration
 
-                    Result.Success(Unit)
+                    GroupEditAnswer.Edited
                 }
             }
         },
@@ -109,6 +122,8 @@ class GroupEditorTest {
                             ownerUuid = ALICE,
                             version = serverVersion,
                             memberUuids = listOf(ALICE, BOB),
+                            keyGeneration = serverGeneration,
+                            informationKeyGeneration = serverInformationGeneration,
                         ),
                     ),
                 )
@@ -118,6 +133,13 @@ class GroupEditorTest {
         },
         updateInformation = { groupUuid, version ->
             groups[groupUuid] = groups.getValue(groupUuid).showing(version)
+        },
+        keyOf = { _, generation, _ ->
+            heldKeys[generation]?.let { Result.Success(it) } ?: Result.Error(GroupKeyChainError.NotHeld)
+        },
+        syncGroups = {
+            syncs++
+            onSync()
         },
     )
 
@@ -146,8 +168,9 @@ class GroupEditorTest {
 
         assertEquals(2L, body.revision)
 
-        val version = assertNotNull(serverVersion.unseal(groupKey = groupKey, groupUuid = GROUP))
+        val version = assertNotNull(serverVersion.unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = GROUP))
 
+        assertEquals(FIRST_KEY_GENERATION, body.keyGeneration)
         assertEquals(TITLE, version.fields.title)
         assertEquals(DESCRIPTION, version.fields.description)
         assertEquals(FIELDS.currency, version.fields.currency)
@@ -199,7 +222,7 @@ class GroupEditorTest {
     fun `an edit is made without the whitespace around its title and description`() = runBlocking<Unit> {
         assertEquals(Result.Success(Unit), edit(title = " $TITLE  ", description = "\n$DESCRIPTION\n"))
 
-        val version = assertNotNull(serverVersion.unseal(groupKey = groupKey, groupUuid = GROUP))
+        val version = assertNotNull(serverVersion.unseal(groupKey = groupKey, currencyKey = groupKey, groupUuid = GROUP))
 
         assertEquals(TITLE, version.fields.title)
         assertEquals(DESCRIPTION, version.fields.description)
@@ -330,10 +353,7 @@ class GroupEditorTest {
         assertShowsWhatItShowed()
     }
 
-    /**
-     * Its creation, or a change to its members, still on its way: the rotation after a removal
-     * would put back the version an edit replaced.
-     */
+    /** Its creation, or a Commit of Alice's, still on its way, which takes the group to another epoch. */
     @Test
     fun `a group with a change waiting on the server is not edited`() = runBlocking<Unit> {
         hasPendingChange = true
@@ -405,6 +425,60 @@ class GroupEditorTest {
         assertShowsWhatItShowed()
     }
 
+    /**
+     * A Commit Alice's device had yet to read took the group to the next epoch: the sync reads it,
+     * and the edit is sealed under the key it derives, once more.
+     */
+    @Test
+    fun `an edit refused for its generation is sealed again once the groups are synced`() = runBlocking<Unit> {
+        val nextKey = generateSymmetricEncryptionKey()
+
+        serverGeneration = 2
+        onSync = {
+            heldKeys[2] = nextKey
+            groups[GROUP] = groups.getValue(GROUP).with(groupKey = nextKey, keyGeneration = 2)
+        }
+
+        assertEquals(Result.Success(Unit), edit())
+
+        assertEquals(1, syncs)
+        assertEquals(listOf(FIRST_KEY_GENERATION, 2L), sent.map { it.keyGeneration })
+        assertEquals(listOf(2L, 2L), sent.map { it.revision })
+
+        val version = assertNotNull(serverVersion.unseal(groupKey = nextKey, currencyKey = groupKey, groupUuid = GROUP))
+
+        assertEquals(TITLE, version.fields.title)
+        assertEquals(2L, serverInformationGeneration)
+        assertEquals(TITLE, groups.getValue(GROUP).title)
+    }
+
+    /** Once: a sync that brings nothing newer would hear the same refusal again. */
+    @Test
+    fun `an edit refused for its generation once more after the sync is not made`() = runBlocking<Unit> {
+        serverGeneration = 2
+
+        assertEquals(Result.Error(GroupEditError.KeyNotCurrent), edit())
+
+        assertEquals(1, syncs)
+        assertEquals(2, sent.size)
+        assertShowsWhatItShowed()
+    }
+
+    /** Alice edited it in a later epoch than the one her device's group shows, the listing says. */
+    @Test
+    fun `an edit found outdated shows the version the server holds under the generation it names`() =
+        runBlocking<Unit> {
+            val laterKey = generateSymmetricEncryptionKey()
+
+            heldKeys[3] = laterKey
+            serverVersion = LOST.sealedAs(creator = alice, groupKey = laterKey, groupUuid = GROUP, revision = 2)
+            serverInformationGeneration = 3
+
+            assertEquals(Result.Error(GroupEditError.Outdated), edit())
+
+            assertEquals(LOST.title, groups.getValue(GROUP).title)
+        }
+
     private suspend fun edit(title: String = TITLE, description: String = DESCRIPTION) =
         editor.edit(groupUuid = GROUP, title = title, description = description)
 
@@ -431,5 +505,21 @@ class GroupEditorTest {
         isBackedUp = true,
         isLeft = false,
         handedProfileKeyHash = null,
+    )
+
+    /** [this] once its device reached the epoch of [groupKey], [keyGeneration]. */
+    private fun GroupEntity.with(groupKey: ByteArray, keyGeneration: Long) = GroupEntity(
+        uuid = uuid,
+        title = title,
+        description = description,
+        currency = currency,
+        infoRevision = infoRevision,
+        ownerUuid = ownerUuid,
+        mlsGroupId = mlsGroupId,
+        groupKey = groupKey,
+        keyGeneration = keyGeneration,
+        isBackedUp = false,
+        isLeft = isLeft,
+        handedProfileKeyHash = handedProfileKeyHash,
     )
 }

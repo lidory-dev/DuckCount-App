@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "a68fce3e8ea5469c22f40589931d8a49",
+    "identityHash": "510e8d855cb8ef633b92f8ad434aa018",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -196,7 +196,7 @@
       },
       {
         "tableName": "GroupEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `currency` TEXT NOT NULL, `infoRevision` INTEGER NOT NULL, `ownerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `groupKey` BLOB NOT NULL, `keyGeneration` INTEGER NOT NULL, `isBackedUp` INTEGER NOT NULL, `isLeft` INTEGER NOT NULL, `handedProfileKeyHash` TEXT, `hasTakenInExpenses` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `currency` TEXT NOT NULL, `infoRevision` INTEGER NOT NULL, `ownerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `groupKey` BLOB NOT NULL, `keyGeneration` INTEGER NOT NULL, `isBackedUp` INTEGER NOT NULL, `isLeft` INTEGER NOT NULL, `handedProfileKeyHash` TEXT, `hasTakenInExpenses` INTEGER NOT NULL, `isAwaitingOwner` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
         "fields": [
           {
             "fieldPath": "uuid",
@@ -273,6 +273,12 @@
             "columnName": "hasTakenInExpenses",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "isAwaitingOwner",
+            "columnName": "isAwaitingOwner",
+            "affinity": "INTEGER",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -315,7 +321,7 @@
       },
       {
         "tableName": "GroupKeyEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `generation` INTEGER NOT NULL, `groupKey` BLOB NOT NULL, PRIMARY KEY(`groupUuid`, `generation`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `generation` INTEGER NOT NULL, `groupKey` BLOB NOT NULL, `isLinkOwed` INTEGER NOT NULL, `isRecovered` INTEGER NOT NULL, PRIMARY KEY(`groupUuid`, `generation`))",
         "fields": [
           {
             "fieldPath": "groupUuid",
@@ -333,6 +339,18 @@
             "fieldPath": "groupKey",
             "columnName": "groupKey",
             "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLinkOwed",
+            "columnName": "isLinkOwed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isRecovered",
+            "columnName": "isRecovered",
+            "affinity": "INTEGER",
             "notNull": true
           }
         ],
@@ -401,7 +419,7 @@
       },
       {
         "tableName": "PendingMembershipChangeEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `kind` TEXT NOT NULL, `body` TEXT NOT NULL, `commitEpoch` INTEGER, `groupKey` BLOB, PRIMARY KEY(`groupUuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `kind` TEXT NOT NULL, `body` TEXT NOT NULL, `commitEpoch` INTEGER NOT NULL, `isOutdated` INTEGER NOT NULL, PRIMARY KEY(`groupUuid`, `isOutdated`))",
         "fields": [
           {
             "fieldPath": "groupUuid",
@@ -424,18 +442,21 @@
           {
             "fieldPath": "commitEpoch",
             "columnName": "commitEpoch",
-            "affinity": "INTEGER"
+            "affinity": "INTEGER",
+            "notNull": true
           },
           {
-            "fieldPath": "groupKey",
-            "columnName": "groupKey",
-            "affinity": "BLOB"
+            "fieldPath": "isOutdated",
+            "columnName": "isOutdated",
+            "affinity": "INTEGER",
+            "notNull": true
           }
         ],
         "primaryKey": {
           "autoGenerate": false,
           "columnNames": [
-            "groupUuid"
+            "groupUuid",
+            "isOutdated"
           ]
         }
       },
@@ -1131,7 +1152,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a68fce3e8ea5469c22f40589931d8a49')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '510e8d855cb8ef633b92f8ad434aa018')"
     ]
   }
 }

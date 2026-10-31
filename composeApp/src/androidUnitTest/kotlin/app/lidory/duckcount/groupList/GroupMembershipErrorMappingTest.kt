@@ -99,6 +99,32 @@ class GroupMembershipErrorMappingTest {
         )
     }
 
+    /** Every Commit carries the user's copy of the next key, sealed under the key ring the vault holds. */
+    @Test
+    fun `the vault timing out while sealing the key copy is a timeout`() {
+        assertEquals(
+            MembershipChangeError.Failure(GroupCreationFailure.TIMEOUT),
+            SharedGroupMembershipError.Vault(VaultError.Network(NetworkError.REQUEST_TIMEOUT)).mapped(),
+        )
+    }
+
+    @Test
+    fun `the vault failing otherwise while sealing the key copy is unknown`() {
+        assertEquals(
+            MembershipChangeError.Failure(GroupCreationFailure.UNKNOWN),
+            SharedGroupMembershipError.Vault(VaultError.Crypto).mapped(),
+        )
+    }
+
+    /** Another member's Commit came first, twice: asking again is all there is to do. */
+    @Test
+    fun `a change built in an epoch the group left is unknown`() {
+        assertEquals(
+            MembershipChangeError.Failure(GroupCreationFailure.UNKNOWN),
+            SharedGroupMembershipError.Outdated.mapped(),
+        )
+    }
+
     @Test
     fun `the server refusing the change is unknown`() {
         assertEquals(

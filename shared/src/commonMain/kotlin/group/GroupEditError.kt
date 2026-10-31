@@ -42,11 +42,19 @@ sealed interface GroupEditError : Error {
 
     /**
      * A change to the group is waiting on the server: its creation, which an edit would find no
-     * group on the server to be made to, or a change to its members. The key rotation after a
-     * removal seals the version the server held as it was built, see [GroupMembershipSender], and
-     * taken after an edit it would put that version back, under the edit's revision.
+     * group on the server to be made to, or a Commit of the user's, which takes the group to the
+     * epoch the edit would have to be sealed in.
      */
     data object ChangePending : GroupEditError
+
+    /**
+     * The server takes the group's information under a newer generation of its key than this device
+     * holds, and syncing the group did not bring it: a Commit this device could not read yet, or
+     * one it refused, which the user's device replaces once it can, see [GroupSync], or a group
+     * brought back after a log-out, which follows no epoch, see [GroupKeyChainError.NotHeld].
+     * Nothing was written.
+     */
+    data object KeyNotCurrent : GroupEditError
 
     /**
      * The server holds a version newer than the one this device edited, see

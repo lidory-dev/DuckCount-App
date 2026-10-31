@@ -24,8 +24,8 @@ data class PushSignal(
 
     /**
      * The user whose action sent it: the sender of the message, whoever asked to become a
-     * contact or accepted, the creditor who changed an expense, the owner of a group, the
-     * member who left one, the member who wrote an expense in one. Null when the payload names
+     * contact or accepted, the creditor who changed an expense, the member who changed a group,
+     * the member who left one, the member who wrote an expense in one. Null when the payload names
      * nobody this build can read, which is taken as nobody at all.
      */
     val from: String?,
@@ -84,29 +84,31 @@ data class PushSignal(
         GROUP_WELCOME,
 
         /**
-         * The creator of a group the user is in, or was in until now, changed it: edited its title
-         * or description, see `group.GroupEditor`, added members or removed some, the user
-         * perhaps, or handed its members a new key, see `group.GroupSync`.
+         * A member of a group the user is in, or was in until now, changed it: its creator edited
+         * its title or description, see `group.GroupEditor`, added members or removed some, the
+         * user perhaps, or replaced a Commit nobody could apply, or any member removed those who
+         * departed from it, see `group.GroupSync`.
          *
          * Silent: which group, and whether the change concerns the user at all, the device learns
-         * only from its sync, which tells them once it has read that they were removed. Taken only
-         * from a contact, like a message, the group's creator being one: a group is joined from
-         * nobody else.
+         * only from its sync, which tells them once it has read that they were removed. Taken from
+         * a contact, like a message, and from whoever shares a group the user is still in with them,
+         * see [WakeList]: the member removing those who departed may be no contact of theirs.
          */
         GROUP_CHANGED,
 
         /**
-         * A member left a group the user created, see `group.GroupLeaver`, and their leaf is to
-         * go from its MLS group, its key rotated after them, see `group.GroupSync`. Sent by the
-         * server to the group's owner alone, from the member who left, as it takes the leave of
-         * a current member, so that the creator's device removes them at once rather than at
-         * its next sync: until then, every member still sees them in the group, and they keep
-         * one of its seats.
+         * A member left a group the user is in, see `group.GroupLeaver`, or deleted their account,
+         * and their leaf is to go from its MLS group, see `group.GroupSync`. Sent by the server to
+         * every member who remains, from the member who left, so that the creator's device removes
+         * them at once rather than at its next sync, and any other member's once their leave is
+         * old enough, should the creator's be offline: until then, they hold the key of every
+         * epoch, and keep one of its seats.
          *
-         * Silent: the sync that removes them tells nobody either, the creator's device being
-         * unable to tell a member who left from an invitee whose device declined the group.
-         * Taken only from a contact, like a message: every member was one of the creator's as
-         * they were added, and one who is no longer is removed at the next sync all the same.
+         * Silent: the sync that removes them tells nobody either, no device being able to tell a
+         * member who left from an invitee whose device declined the group. Taken from a contact,
+         * like a message, and from whoever shares a group the user is still in with them, see
+         * [WakeList]: the member who left is still in it on this device until a Commit removes
+         * them.
          */
         GROUP_MEMBER_LEFT,
 
@@ -142,10 +144,10 @@ data class PushSignal(
      * A request to become a contact comes from a stranger by definition, so it is taken from
      * anybody. An acceptance only from somebody the user sent a contact request still waiting
      * for its answer, since they are a contact only once the sync has read it. An expense of a
-     * group from a contact, or from somebody the user shares a group they are still in with,
-     * whoever wrote one being a member of it. Everything else only from a contact: a member who
-     * is no contact has no other signal of theirs taken. A signal naming nobody is from nobody
-     * the user knows.
+     * group, a change to one and a leave from one from a contact, or from somebody the user shares
+     * a group they are still in with, whoever sends one being a member of it. Everything else only
+     * from a contact: a member who is no contact has no other signal of theirs taken. A signal
+     * naming nobody is from nobody the user knows.
      */
     fun mayWake(wakeList: WakeListStore): Boolean {
         if (kind == Kind.CONTACT_REQUEST) return true
@@ -154,7 +156,12 @@ data class PushSignal(
 
         return when (kind) {
             Kind.CONTACT_ACCEPTED -> wakeList.isRequested(userUuid = from)
-            Kind.GROUP_EXPENSE -> wakeList.isContact(userUuid = from) || wakeList.isCoMember(userUuid = from)
+
+            Kind.GROUP_EXPENSE,
+            Kind.GROUP_CHANGED,
+            Kind.GROUP_MEMBER_LEFT,
+            -> wakeList.isContact(userUuid = from) || wakeList.isCoMember(userUuid = from)
+
             else -> wakeList.isContact(userUuid = from)
         }
     }

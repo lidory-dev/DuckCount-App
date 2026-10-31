@@ -50,6 +50,15 @@ class GroupSettlementMappingTest {
         )
     }
 
+    /** As the expense screens tell it: tried again at once, it is refused again. */
+    @Test
+    fun `a group waiting for its owner is told as such`() {
+        assertEquals(
+            GroupCreationFailure.AWAITING_OWNER,
+            GroupExpenseWriteError.AwaitingOwner.toGroupCreationFailure(isOnline = true),
+        )
+    }
+
     @Test
     fun `anything the user cannot act on is unknown`() {
         listOf(

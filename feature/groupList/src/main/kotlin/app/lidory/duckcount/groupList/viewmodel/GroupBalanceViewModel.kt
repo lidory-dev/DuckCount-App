@@ -65,8 +65,8 @@ sealed interface MembersWithBalanceState {
  * its former members, each time one of their names changes, named as [nameOf] tells, see
  * [displayNames].
  *
- * The former members are whoever else [debts] names: whoever the creator removed, still named by
- * the expenses, which keep what they owe or are owed, and under the name they had, which this
+ * The former members are whoever else [debts] names: whoever the creator removed, or who left and
+ * was removed since by any member's device, still named by the expenses, which keep what they owe or are owed, and under the name they had, which this
  * device keeps, see [GroupBalanceCallBacks.getDisplayName].
  */
 fun membersWithBalance(

@@ -7,22 +7,16 @@ import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.verifyGroupInformation
 
-/**
- * The revision a group is created at, see [GroupVersion]. Each edit of its creator's adds one, see
- * [GroupEditor], and a key rotation none, see [GroupMembershipSender].
- */
+/** The revision a group is created at, see [GroupVersion]. Each edit of its creator's adds one, see [GroupEditor]. */
 internal const val FIRST_GROUP_REVISION = 1L
 
 /**
  * These fields as [revision] of the group [groupUuid], signed by the user [client] is opened for:
- * the version a group they create starts at, see [GroupCreator], each edit of theirs, see
- * [GroupEditor], and the version a key rotation of theirs seals again under the new key, see
- * [GroupMembershipSender]. What is signed is what the fields open to, not the bytes the server
- * stores, so a version signed once is as good under every key the group is given, see
+ * the version a group they create starts at, see [GroupCreator], and each edit of theirs, see
+ * [GroupEditor]. What is signed is what the fields open to, not the bytes the server stores, so a
+ * version signed once is as good under whichever key of the group's it was sealed under, see
  * `group_information` in lib-duckcount, and Ed25519 signs the same version the same way every
- * time: a rotation signs it again rather than keep its signature anywhere. The versions the
- * group's history holds it seals again as the server holds them, signatures and all, opened under
- * the key it replaces, see [PreviousGroupVersionBody]: this device keeps none of them.
+ * time: an edit saved again after its answer was lost signs the same version again.
  *
  * Returns null only when the library refuses to sign, a caller bug rather than a state, as for a
  * one-time expense, see [expense.sealOneTime]: every field is a string, which it encodes whatever
@@ -88,54 +82,69 @@ internal fun GroupVersion.isSignedByCreator(creatorUuid: String, creatorKey: Byt
     creatorKey == null || isSignedBy(ownerUuid = creatorUuid, ownerSignatureKey = creatorKey, groupUuid = groupUuid)
 
 /**
- * This version of the group [groupUuid] opened under [groupKey], see [SealedGroupVersion.unseal],
- * when its creator, [creatorUuid], signed it, see [isSignedByCreator], or null otherwise: what a
- * group is joined, or brought back, with, see [GroupSync], and what an edit is taken from, see
- * [newerThan].
+ * This version of the group [groupUuid] opened under [groupKey], the key of the generation it was
+ * written in, and [currencyKey], the key of the first, see [SealedGroupVersion.unseal], when its
+ * creator, [creatorUuid], signed it, see [isSignedByCreator], or null otherwise: what a group is
+ * joined, or brought back, with, see [GroupSync].
  */
 internal fun SealedGroupVersion.openSigned(
     groupKey: ByteArray,
+    currencyKey: ByteArray,
     groupUuid: String,
     creatorUuid: String,
     creatorKey: ByteArray?,
 ): GroupVersion? =
-    unseal(groupKey = groupKey, groupUuid = groupUuid)
+    unseal(groupKey = groupKey, currencyKey = currencyKey, groupUuid = groupUuid)
         ?.takeIf { it.isSignedByCreator(creatorUuid = creatorUuid, creatorKey = creatorKey, groupUuid = groupUuid) }
 
 /**
  * The version of the information of [group], which this device holds, that the server lists in
  * this listing, when it is newer than the one this device shows, see [GroupEntity.infoRevision],
- * opens under the group's key, and was signed by its creator, whose key [creatorKey] is, see
- * [openSigned]; or null otherwise. What the sync shows of every group it holds, see [GroupSync],
- * and what an edit the server found outdated shows, see [GroupEditor].
+ * opens under the key of the generation the listing says it was written in, which [keyOf] gives,
+ * with the group's own currency, see [SealedGroupVersion.unseal], and was signed by its creator,
+ * whose key [creatorKey] is, see [isSignedByCreator]; or null otherwise, [keyOf] failing included.
+ * What the sync shows of every group it holds, see [GroupSync], and what an edit the server found
+ * outdated shows, see [GroupEditor].
  *
- * An equal revision is the version shown, sealed again under the key a rotation handed over since,
- * see [GroupMembershipSender]. An older one is a version this device saw replaced, which the server
- * would have it show again by holding the newer one back: never gone back to.
+ * [keyOf] is [GroupKeyChain.keyOf] for that group, asked only for a newer version, and told what
+ * opens under the key it is after: that version.
+ *
+ * An equal revision is the version shown. An older one is a version this device saw replaced,
+ * which the server would have it show again by holding the newer one back: never gone back to.
  */
-internal fun GroupDto.newerThan(group: GroupEntity, creatorKey: ByteArray?): GroupVersion? =
-    sealedVersion()
-        .takeIf { it.revision > group.infoRevision }
-        ?.openSigned(
-            groupKey = group.groupKey,
-            groupUuid = group.uuid,
-            creatorUuid = group.ownerUuid,
-            creatorKey = creatorKey,
-        )
+internal suspend fun GroupDto.newerThan(
+    group: GroupEntity,
+    creatorKey: ByteArray?,
+    keyOf: suspend (generation: Long, opens: (key: ByteArray) -> Boolean) -> ByteArray?,
+): GroupVersion? {
+    val sealed = sealedVersion().takeIf { it.revision > group.infoRevision } ?: return null
+
+    val groupKey = keyOf(informationKeyGeneration) { key ->
+        sealed.unseal(groupKey = key, groupUuid = group.uuid, currency = group.currency) != null
+    } ?: return null
+
+    return sealed.unseal(groupKey = groupKey, groupUuid = group.uuid, currency = group.currency)
+        ?.takeIf {
+            it.isSignedByCreator(creatorUuid = group.ownerUuid, creatorKey = creatorKey, groupUuid = group.uuid)
+        }
+}
 
 /**
  * This version of the information of [group], which this device holds, as the group's history
- * holds it, see [GroupApi.history], opened under the group's key with its currency, see
- * [GroupHistoryVersionDto.unseal], when its creator signed it, under [creatorKey], see
- * [isSignedByCreator], or null otherwise: each version the history shows, see [GroupHistory], and
- * each one a key rotation of the creator's seals again under the new key, [creatorKey] their own,
- * see [GroupMembershipSender].
+ * holds it, see [GroupApi.history], opened under [groupKey], the key of the generation it names,
+ * with the group's currency, see [GroupHistoryVersionDto.unseal], when its creator signed it, under
+ * [creatorKey], see [isSignedByCreator], or null otherwise: each version the history shows, see
+ * [GroupHistory].
  *
  * Whatever its revision: the history is no version to show in place of the one this device shows,
  * which [newerThan] alone gives, and every version in it that the creator signed is one they made.
  */
-internal fun GroupHistoryVersionDto.openSigned(group: GroupEntity, creatorKey: ByteArray?): GroupVersion? =
-    unseal(groupKey = group.groupKey, groupUuid = group.uuid, currency = group.currency)
+internal fun GroupHistoryVersionDto.openSigned(
+    group: GroupEntity,
+    groupKey: ByteArray,
+    creatorKey: ByteArray?,
+): GroupVersion? =
+    unseal(groupKey = groupKey, groupUuid = group.uuid, currency = group.currency)
         ?.takeIf {
             it.isSignedByCreator(creatorUuid = group.ownerUuid, creatorKey = creatorKey, groupUuid = group.uuid)
         }

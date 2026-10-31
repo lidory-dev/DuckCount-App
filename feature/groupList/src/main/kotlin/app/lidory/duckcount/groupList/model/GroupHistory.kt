@@ -63,8 +63,9 @@ sealed interface GroupHistoryError {
     data object DeviceLocked : GroupHistoryError
 
     /**
-     * None of its versions could be read on this device: a change to the group's members since
-     * handed its members a new key, which this device reads as it syncs, the history with it.
+     * None of its versions could be read on this device: they were sealed in an epoch a change to
+     * the group's members took it to since, whose key this device derives as its sync reads that
+     * change, the history with it.
      */
     data object Unreadable : GroupHistoryError
 }

@@ -154,9 +154,11 @@ data class GroupExpenseHistoryVersionDto(
 )
 
 /**
- * Body of the `409` refusing a version of a group expense sealed under a key that is not the
- * group's current one, see [GroupExpenseWriteAnswer.KeyGenerationNotCurrent]: JSON, as no other
- * `409` of a create is.
+ * Body of the `409` refusing a version of a group expense, or of the group's information, sealed
+ * under a key that is not the group's current one, see [GroupExpenseWriteAnswer.KeyGenerationNotCurrent]
+ * and [GroupEditAnswer.KeyGenerationNotCurrent], or a Commit built in an epoch the group left, see
+ * [GroupMembershipAnswer.KeyGenerationNotCurrent]: JSON, as no other `409` of those routes is but
+ * the revision's.
  */
 @Serializable
 internal data class KeyGenerationConflictResponse(

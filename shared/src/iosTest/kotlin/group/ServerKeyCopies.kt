@@ -16,7 +16,7 @@ private const val DEVICE_LOCKED = "KSafe: Cannot access Keystore key - device is
  * see [GroupKeyCopies], with the key their key ring holds for
  * [vault.VaultEntryKey.GROUP_MASTER_KEY], which seals them.
  *
- * Every copy the server takes, with a creation, a key rotation or as `PUT
+ * Every copy the server takes, with a creation, a Commit or as `PUT
  * /groups/{group_uuid}/key-copy`, lands in [copies] as the API stores it, with the generation it
  * holds in [generations], for a test to read back with [keyOf], and to list with [listing].
  */
@@ -50,6 +50,13 @@ internal class ServerKeyCopies {
      * listed them say, which it answers a copy put up for with a `404`, storing nothing.
      */
     val notMemberOf = mutableSetOf<String>()
+
+    /** What seals copies under the key ring's key, as [GroupKeyCopies.sealer] reads it. */
+    fun readSealer(): Result<KeyCopySealer, VaultError> =
+        when (val read = readSealingKey()) {
+            is Result.Success -> Result.Success(KeyCopySealer(sealingKey = read.data))
+            is Result.Error -> read
+        }
 
     /** The key ring's key, as `VaultRepository.getOrCreatePartKey` reads it. */
     fun readSealingKey(): Result<ByteArray, VaultError> {
@@ -145,4 +152,5 @@ internal fun GroupEntity.markedBackedUp() = GroupEntity(
     isLeft = isLeft,
     handedProfileKeyHash = handedProfileKeyHash,
     hasTakenInExpenses = hasTakenInExpenses,
+    isAwaitingOwner = isAwaitingOwner,
 )
