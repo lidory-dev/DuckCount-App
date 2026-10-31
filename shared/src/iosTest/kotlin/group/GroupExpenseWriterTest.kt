@@ -1,5 +1,6 @@
 package group
 
+import app.lidory.duckcount.ExpenseLimits
 import database.AppDatabase
 import database.data.local.entity.GroupEntity
 import database.data.local.entity.GroupKeyEntity
@@ -14,6 +15,7 @@ import util.NetworkError
 import util.Result
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -40,6 +42,9 @@ class GroupExpenseWriterTest {
     private val thirdKey = generateSymmetricEncryptionKey()
 
     private val server = GroupExpenseServer()
+
+    /** What happens on the server just before each deletion flag Alice's device sends reaches it. */
+    private var beforeDeletion: () -> Unit = {}
 
     /**
      * What the group sync reads when the writer has it run: the key of the epoch a Commit leads to,
@@ -95,9 +100,14 @@ class GroupExpenseWriterTest {
             hasPendingCreation = database.groupDao::hasPendingCreation,
             shown = database.expenseDao::getGroupExpense,
             store = database.expenseDao::storeGroupExpenses,
+            storeDeletions = database.expenseDao::storeGroupExpenseDeletions,
             client = { Result.Success(alice) },
             create = { _, body -> server.create(body = body) },
             update = { _, expenseUuid, body -> server.update(expenseUuid = expenseUuid, body = body) },
+            setDeletion = { _, expenseUuid, body ->
+                beforeDeletion()
+                server.setDeletion(expenseUuid = expenseUuid, body = body)
+            },
             syncGroups = {
                 groupSyncs++
                 epochRead?.let { database.groupDao.takeDerivedKeys(groupUuid = GROUP, keys = listOf(it)) }
@@ -122,6 +132,40 @@ class GroupExpenseWriterTest {
             .unsealGroupExpense(groupKey = groupKey, groupUuid = GROUP, expenseUuid = uuid, revision = listed.revision)
             ?.takeIf { it.isSignedBy(authorKey = alice.signaturePublicKey()) }
             ?.opened(currency = GROUP_CURRENCY)
+    }
+
+    /**
+     * Whether Bob's device opens the deletion flag the server holds of the expense [uuid] under
+     * [groupKey] as Alice's, against the version Alice's device shows, and what it says; null when it
+     * does not open so.
+     */
+    private suspend fun AppDatabase.bobOpensDeletion(uuid: String, groupKey: ByteArray): Boolean? {
+        val listed = assertNotNull(assertNotNull(server.expenses[uuid]).deletion)
+        val shown = assertNotNull(expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+        return listed.content
+            .openGroupExpenseDeletion(groupKey = groupKey, groupUuid = GROUP, expenseUuid = uuid, deletionRevision = listed.deletionRevision)
+            ?.takeIf { it.isSignedBy(authorKey = alice.signaturePublicKey(), shown = shown) }
+            ?.deletion
+            ?.isDeleted
+    }
+
+    /** Alice's dinner as the server holds it once created, read at [revision], with its UUID [uuid]. */
+    private fun createdAs(uuid: String, revision: Long? = 1) = dinner.copy(
+        uuid = uuid,
+        title = "Dinner at the harbour",
+        beneficiaries = dinner.beneficiaries.map { it.copy(expenseUuid = uuid) },
+        revision = revision,
+    )
+
+    /** Has Alice's device edit the expense [uuid] until it stands at its last revision, each edit read from the one before. */
+    private suspend fun GroupExpenseWriter.editedToTheLast(uuid: String) {
+        (FIRST_GROUP_EXPENSE_REVISION until LAST_GROUP_EXPENSE_REVISION).forEach { revision ->
+            assertEquals(
+                Result.Success(Unit),
+                edit(groupUuid = GROUP, expense = createdAs(uuid = uuid, revision = revision).copy(title = "Dinner $revision")),
+            )
+        }
     }
 
     private suspend fun AppDatabase.holdingTheGroup() {
@@ -445,7 +489,7 @@ class GroupExpenseWriterTest {
         }
     }
 
-    /** Bob deleted it first: deleted as Alice asked, which is all she asked. */
+    /** Bob deleted it first: deleted as Alice asked, which is all she asked, and shown as Bob's deletion. */
     @Test
     fun `a deletion another member made first is made`() = runBlocking<Unit> {
         withInMemoryDatabase { database ->
@@ -456,20 +500,20 @@ class GroupExpenseWriterTest {
             writer.create(groupUuid = GROUP, expense = dinner)
 
             val uuid = server.expenses.keys.single()
-            val created = dinner.copy(
-                uuid = uuid,
-                title = "Dinner at the harbour",
-                beneficiaries = dinner.beneficiaries.map { it.copy(expenseUuid = uuid) },
-            )
 
-            server.put(created.copy(isDeleted = true).listedAs(revision = 2, author = bob, authorUuid = BOB, groupKey = firstKey))
+            server.putDeletion(
+                expenseUuid = uuid,
+                deletion = createdAs(uuid = uuid).flaggedAs(deletionRevision = 1, isDeleted = true, author = bob, authorUuid = BOB, groupKey = firstKey),
+            )
 
             assertEquals(Result.Success(Unit), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
 
             val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
 
             assertTrue(shown.expense.isDeleted)
-            assertEquals(BOB, shown.expense.authorUuid)
+            assertEquals(BOB, assertNotNull(shown.deletion).authorUuid)
+            assertEquals(ALICE, shown.expense.authorUuid)
+            assertEquals(listOf(1L), server.deletions.map { it.deletionRevision })
         }
     }
 
@@ -633,8 +677,9 @@ class GroupExpenseWriterTest {
         }
     }
 
+    /** Neither is an edit: the expense's versions are left as they are, its flag counting apart. */
     @Test
-    fun `a deletion and a restore are versions the server takes`() = runBlocking<Unit> {
+    fun `a deletion and a restore are flags the server takes`() = runBlocking<Unit> {
         withInMemoryDatabase { database ->
             database.holdingTheGroup()
 
@@ -646,6 +691,7 @@ class GroupExpenseWriterTest {
 
             assertEquals(Result.Success(Unit), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
             assertTrue(assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid)).expense.isDeleted)
+            assertEquals(true, database.bobOpensDeletion(uuid = uuid, groupKey = firstKey))
 
             // Deleted already: nothing to send.
             assertEquals(Result.Success(Unit), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
@@ -654,9 +700,290 @@ class GroupExpenseWriterTest {
 
             val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
 
-            assertEquals(false, shown.expense.isDeleted)
-            assertEquals(3L, shown.expense.revision)
-            assertEquals(listOf(2L, 3L), server.updates.map { it.revision })
+            assertFalse(shown.expense.isDeleted)
+            assertEquals(2L, assertNotNull(shown.deletion).deletionRevision)
+            assertEquals(FIRST_GROUP_EXPENSE_REVISION, shown.expense.revision)
+            assertEquals(listOf(1L, 2L), server.deletions.map { it.deletionRevision })
+            assertTrue(server.updates.isEmpty())
+            assertEquals(false, database.bobOpensDeletion(uuid = uuid, groupKey = firstKey))
+        }
+    }
+
+    /** As for a version: sealed again under the key the group sync derives, at the same revision. */
+    @Test
+    fun `a deletion sealed under a replaced key is sealed again under the new one and sent once more`() =
+        runBlocking<Unit> {
+            withInMemoryDatabase { database ->
+                database.holdingTheGroup()
+
+                val writer = writerOf(database)
+
+                writer.create(groupUuid = GROUP, expense = dinner)
+
+                val uuid = server.expenses.keys.single()
+
+                server.keyGeneration = 2
+                epochRead = GroupKeyEntity(groupUuid = GROUP, generation = 2, groupKey = secondKey)
+
+                assertEquals(Result.Success(Unit), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
+
+                assertEquals(listOf(1L, 2L), server.deletions.map { it.keyGeneration })
+                assertEquals(listOf(1L, 1L), server.deletions.map { it.deletionRevision })
+                assertEquals(true, database.bobOpensDeletion(uuid = uuid, groupKey = secondKey))
+            }
+        }
+
+    /**
+     * The server took Alice's deletion and its answer never came back: tapped again, the flag the
+     * server holds already is hers, which the sync shows, and nothing more is written.
+     */
+    @Test
+    fun `a deletion whose answer is lost is made once sent again`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+
+            server.losesNextAnswer = true
+
+            assertEquals(
+                Result.Error(GroupExpenseWriteError.Network(NetworkError.REQUEST_TIMEOUT)),
+                writer.delete(groupUuid = GROUP, expenseUuid = uuid),
+            )
+            assertFalse(assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid)).expense.isDeleted)
+
+            assertEquals(Result.Success(Unit), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
+
+            val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+            assertTrue(shown.expense.isDeleted)
+            assertEquals(ALICE, assertNotNull(shown.deletion).authorUuid)
+            assertEquals(listOf(1L, 1L), server.deletions.map { it.deletionRevision })
+        }
+    }
+
+    /**
+     * Bob stored a flag that opens as no expense's of the group, which every member's device refuses
+     * and goes on showing the expense as it was of: Alice's deletion is made after it, once.
+     */
+    @Test
+    fun `a deletion over a flag every device refuses is made after it`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+
+            // Sealed as another expense's flag, and listed as this one's.
+            val elsewhere = "ffffffff-ffff-8fff-8fff-ffffffffffff"
+
+            server.putDeletion(
+                expenseUuid = uuid,
+                deletion = createdAs(uuid = elsewhere).flaggedAs(deletionRevision = 1, isDeleted = true, author = bob, authorUuid = BOB, groupKey = firstKey),
+            )
+
+            assertEquals(Result.Success(Unit), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
+
+            val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+            assertTrue(shown.expense.isDeleted)
+            assertEquals(2L, assertNotNull(shown.deletion).deletionRevision)
+            assertEquals(listOf(1L, 2L), server.deletions.map { it.deletionRevision })
+            assertEquals(true, database.bobOpensDeletion(uuid = uuid, groupKey = firstKey))
+        }
+    }
+
+    /**
+     * Bob deleted the dinner and restored it, neither synced by Alice's device: the sync her
+     * refused deletion sets off shows his restore, the dinner as she saw it when she asked, and
+     * her deletion is made after it, once.
+     */
+    @Test
+    fun `a deletion over another member's restore the sync shows is made after it`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+
+            listOf(true, false).forEachIndexed { index, isDeleted ->
+                server.putDeletion(
+                    expenseUuid = uuid,
+                    deletion = createdAs(uuid = uuid).flaggedAs(
+                        deletionRevision = index + 1L,
+                        isDeleted = isDeleted,
+                        author = bob,
+                        authorUuid = BOB,
+                        groupKey = firstKey,
+                    ),
+                )
+            }
+
+            assertEquals(Result.Success(Unit), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
+
+            val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+            assertTrue(shown.expense.isDeleted)
+            assertEquals(3L, assertNotNull(shown.deletion).deletionRevision)
+            assertEquals(ALICE, assertNotNull(shown.deletion).authorUuid)
+            assertEquals(listOf(1L, 3L), server.deletions.map { it.deletionRevision })
+            assertEquals(true, database.bobOpensDeletion(uuid = uuid, groupKey = firstKey))
+        }
+    }
+
+    /** Written over once, then over again by a flag that came meanwhile: what Alice asked is not what shows. */
+    @Test
+    fun `a deletion refused again once written over is a conflict`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+            val elsewhere = createdAs(uuid = "ffffffff-ffff-8fff-8fff-ffffffffffff")
+
+            // Before each of Alice's flags, one every member's device refuses, at the revision she sends.
+            beforeDeletion = {
+                val next = (assertNotNull(server.expenses[uuid]).deletion?.deletionRevision ?: 0L) + 1
+
+                server.putDeletion(
+                    expenseUuid = uuid,
+                    deletion = elsewhere.flaggedAs(deletionRevision = next, isDeleted = true, author = bob, authorUuid = BOB, groupKey = firstKey),
+                )
+            }
+
+            assertEquals(Result.Error(GroupExpenseWriteError.Conflict), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
+
+            assertFalse(assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid)).expense.isDeleted)
+            assertEquals(listOf(1L, 2L), server.deletions.map { it.deletionRevision })
+        }
+    }
+
+    /** Ten edits, every one it takes: the eleventh is not sent, every member's device refusing a version past the last. */
+    @Test
+    fun `an edit of an expense at its last revision is refused without being sent`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+
+            writer.editedToTheLast(uuid = uuid)
+
+            assertEquals(
+                Result.Error(GroupExpenseWriteError.EditLimitReached),
+                writer.edit(groupUuid = GROUP, expense = createdAs(uuid = uuid, revision = LAST_GROUP_EXPENSE_REVISION)),
+            )
+
+            assertEquals(LAST_GROUP_EXPENSE_REVISION, assertNotNull(server.expenses[uuid]).revision)
+            assertEquals(ExpenseLimits.MAX_GROUP_EXPENSE_EDITS, server.updates.size)
+        }
+    }
+
+    /** Bob made the last edits as Alice's device was behind: the server refuses hers for good. */
+    @Test
+    fun `an edit the server refuses at the last revision is refused for good`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+
+            ((FIRST_GROUP_EXPENSE_REVISION + 1)..LAST_GROUP_EXPENSE_REVISION).forEach { revision ->
+                server.put(
+                    createdAs(uuid = uuid).copy(title = "Bob's dinner $revision")
+                        .listedAs(revision = revision, author = bob, authorUuid = BOB, groupKey = firstKey),
+                )
+            }
+
+            assertEquals(
+                Result.Error(GroupExpenseWriteError.EditLimitReached),
+                writer.edit(groupUuid = GROUP, expense = createdAs(uuid = uuid).copy(title = "Dinner")),
+            )
+
+            val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+            assertEquals(LAST_GROUP_EXPENSE_REVISION, shown.expense.revision)
+            assertEquals(BOB, shown.expense.authorUuid)
+        }
+    }
+
+    /**
+     * Alice's last edit was taken and its answer lost, and she saves it again from the form still
+     * open on the version before: the server answers its limit ahead of the revision, and the sync
+     * shows the version it holds is hers.
+     */
+    @Test
+    fun `the last edit whose answer is lost is made once sent again`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+
+            (FIRST_GROUP_EXPENSE_REVISION until LAST_GROUP_EXPENSE_REVISION - 1).forEach { revision ->
+                writer.edit(groupUuid = GROUP, expense = createdAs(uuid = uuid, revision = revision).copy(title = "Dinner $revision"))
+            }
+
+            val last = createdAs(uuid = uuid, revision = LAST_GROUP_EXPENSE_REVISION - 1).copy(title = "The last dinner")
+
+            server.losesNextAnswer = true
+
+            assertTrue(writer.edit(groupUuid = GROUP, expense = last) is Result.Error)
+
+            assertEquals(Result.Success(Unit), writer.edit(groupUuid = GROUP, expense = last))
+
+            val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+            assertEquals("The last dinner", shown.expense.title)
+            assertEquals(LAST_GROUP_EXPENSE_REVISION, shown.expense.revision)
+            assertEquals(listOf(LAST_GROUP_EXPENSE_REVISION, LAST_GROUP_EXPENSE_REVISION), server.updates.takeLast(2).map { it.revision })
+        }
+    }
+
+    /** Deleting and restoring are no edit, and use up none of them. */
+    @Test
+    fun `an expense at its last revision is still deleted and restored`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+
+            writer.editedToTheLast(uuid = uuid)
+
+            assertEquals(Result.Success(Unit), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
+            assertEquals(Result.Success(Unit), writer.restore(groupUuid = GROUP, expenseUuid = uuid))
+
+            val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+            assertFalse(shown.expense.isDeleted)
+            assertEquals(LAST_GROUP_EXPENSE_REVISION, shown.expense.revision)
+            assertEquals(listOf(1L, 2L), server.deletions.map { it.deletionRevision })
         }
     }
 
@@ -686,13 +1013,15 @@ class GroupExpenseWriterTest {
                 assertEquals(Result.Error(GroupExpenseWriteError.SettlementLocked), writer.edit(groupUuid = GROUP, expense = edit))
 
                 assertEquals(Result.Success(Unit), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
+                assertEquals(true, database.bobOpensDeletion(uuid = uuid, groupKey = firstKey))
 
                 assertEquals(
                     Result.Error(GroupExpenseWriteError.SettlementLocked),
                     writer.restore(groupUuid = GROUP, expenseUuid = uuid),
                 )
 
-                assertEquals(listOf(2L), server.updates.map { it.revision })
+                assertTrue(server.updates.isEmpty())
+                assertEquals(listOf(1L), server.deletions.map { it.deletionRevision })
             }
         }
 
@@ -735,7 +1064,7 @@ class GroupExpenseWriterTest {
 
             assertEquals(Result.Error(GroupExpenseWriteError.SettlementLocked), writer.delete(groupUuid = GROUP, expenseUuid = uuid))
             assertTrue(server.creates.isEmpty())
-            assertTrue(server.updates.isEmpty())
+            assertTrue(server.deletions.isEmpty())
         }
     }
 

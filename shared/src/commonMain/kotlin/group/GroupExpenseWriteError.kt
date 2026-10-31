@@ -38,10 +38,20 @@ sealed interface GroupExpenseWriteError : Error {
 
     /**
      * A settlement, which only its recipient, the one member it was paid to, records, and only they
-     * delete; nobody edits one, nor restores it once deleted, see [mayBeFollowedBy]. Every member's
-     * device refuses such a version, so none is sent.
+     * delete; nobody edits one, nor restores it once deleted, see [mayBeFollowed] and
+     * [SignedGroupExpenseDeletion.isSignedBy]. Every member's device refuses such a version, or such
+     * a deletion flag, so none is sent.
      */
     data object SettlementLocked : GroupExpenseWriteError
+
+    /**
+     * The expense had every edit it takes, see
+     * [app.lidory.duckcount.ExpenseLimits.MAX_GROUP_EXPENSE_EDITS]: this device shows it at its
+     * last revision, see [LAST_GROUP_EXPENSE_REVISION], so nothing was sent, or the server holds it
+     * there, by another member's edit, or by one every member's device refuses. Nothing was written,
+     * and no edit of it ever will be; it is still deleted and restored, which are no edit.
+     */
+    data object EditLimitReached : GroupExpenseWriteError
 
     /** The user's MLS identity, which signs the version, could not be opened. */
     data class Identity(val error: MlsIdentityError) : GroupExpenseWriteError
@@ -73,7 +83,9 @@ sealed interface GroupExpenseWriteError : Error {
      * Another member changed the expense meanwhile: the server holds a later version than the one
      * edited, which is not this very edit, sent before and taken, its answer lost, the edit form
      * having been open on the one before it as the case may be. This device shows that version once
-     * it opens, which the expense can be changed again over.
+     * it opens, which the expense can be changed again over. Or, for a deletion or a restore,
+     * another member's flag came first, and another again once it was sent after that one, the
+     * expense not showing as asked.
      */
     data object Conflict : GroupExpenseWriteError
 

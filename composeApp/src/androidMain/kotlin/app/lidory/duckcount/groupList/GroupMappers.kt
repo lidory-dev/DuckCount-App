@@ -354,6 +354,7 @@ fun GroupExpenseWriteError.toGroupCreationFailure(isOnline: Boolean): GroupCreat
     GroupExpenseWriteError.Crypto,
     GroupExpenseWriteError.KeyNotCurrent,
     GroupExpenseWriteError.Conflict,
+    GroupExpenseWriteError.EditLimitReached,
         -> GroupCreationFailure.UNKNOWN
 }
 

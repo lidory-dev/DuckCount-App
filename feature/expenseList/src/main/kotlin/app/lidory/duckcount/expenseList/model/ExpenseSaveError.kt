@@ -34,7 +34,10 @@ sealed interface ExpenseSaveError {
     /**
      * Another member deleted the expense as the form was open, which the form shows from then on
      * and saves nothing over: an edit written into a deleted expense would count in no balance, and
-     * nobody would be told of it. The detail screen offers to restore it.
+     * nobody would be told of it. The detail screen offers to restore it. Deleting it is no edit,
+     * so the server takes an edit written after a deletion: what keeps one from being sent is this
+     * device showing the deletion, as the form is saved, or once the server refused the edit for
+     * another member's.
      */
     data object DeletedMeanwhile : ExpenseSaveError
 }

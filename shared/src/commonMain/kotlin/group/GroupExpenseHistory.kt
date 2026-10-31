@@ -25,6 +25,11 @@ import kotlin.time.Instant
  * [GroupExpenseHistory].
  */
 class GroupExpenseHistoryEntry(
+    /**
+     * What it said. Never deleted, the version shown included: deleting and restoring the expense
+     * are no edit and no version of it, but its deletion flag, which the expense shows, see
+     * [ExpenseWithBeneficiaries.deletedByUuid], and its history does not.
+     */
     val expense: ExpenseWithBeneficiaries,
 
     /** The revision its author signed it at, which no other version in its history has. */
@@ -39,8 +44,7 @@ class GroupExpenseHistoryEntry(
     /**
      * For the version created, the expense's own date, as its author's clock read it, written with
      * no time zone. For any other, when the server says it took it, in the device's time zone, see
-     * [GroupExpenseHistoryVersionDto.revisedAt]. Null when not known: the server lists that version
-     * no longer, or what it says is not a time.
+     * [GroupExpenseHistoryVersionDto.revisedAt]. Null when what the server says is not a time.
      */
     val madeAt: LocalDateTime?,
 )
@@ -75,7 +79,9 @@ sealed interface GroupExpenseHistoryError : Error {
 
 /**
  * Reads the history of an expense of one of the user's groups: the version this device shows, then
- * each one from before it that the server keeps, the nine its updates last replaced, newest first.
+ * each one from before it, every one of which the server keeps, ten at most, see
+ * [app.lidory.duckcount.ExpenseLimits.MAX_GROUP_EXPENSE_EDITS], newest first. Its edits alone: its
+ * deletions and restores are no version of it, see [GroupExpenseHistoryEntry.expense].
  *
  * Each earlier version is opened and checked as a listed one is, see [GroupExpenseOpener]: under
  * its own generation of the group's key, signed by whoever wrote it, which the history shows, and
@@ -88,11 +94,9 @@ sealed interface GroupExpenseHistoryError : Error {
  * The version the expense was created as was made when its own date says. Any other was made when
  * the server says it took it, which it lists for the version the expense stands at as for those it
  * keeps from before, see [GroupExpenseHistoryResponse]: the version shown is one or the other, as
- * this device is up to date with the expense or behind it, and is made at no known time once the
- * server keeps it no longer, this device being more than nine revisions behind. The two are not
- * told on the same clock: the expense's date carries no time zone, so it is taken as written, while
- * the server's is an instant, told in [timeZone]. They disagree for somebody whose time zone is not
- * the author's.
+ * this device is up to date with the expense or behind it. The two are not told on the same clock:
+ * the expense's date carries no time zone, so it is taken as written, while the server's is an
+ * instant, told in [timeZone]. They disagree for somebody whose time zone is not the author's.
  *
  * Read from the server every time, as a group's information's is, see [GroupHistory], and under no
  * lock, as it writes nothing but the keys the chain leads back to, see [GroupKeyChain].
@@ -176,7 +180,10 @@ class GroupExpenseHistory internal constructor(
                     content = version.content,
                 )
 
-                (opening as? GroupExpenseOpening.Opened)?.version
+                when (opening) {
+                    is GroupExpenseOpening.Opened -> opening.opened
+                    GroupExpenseOpening.Unreadable, GroupExpenseOpening.Refused, GroupExpenseOpening.Failed -> null
+                }
             }
             .sortedByDescending { it.revision }
             .distinctBy { it.revision }
@@ -188,7 +195,11 @@ class GroupExpenseHistory internal constructor(
         }
 
         val versions = listOf(
-            OpenedGroupExpense(expense = shown.toExpenseWithBeneficiaries(), revision = shownRevision, authorUuid = shownAuthor),
+            OpenedGroupExpense(
+                expense = shown.toExpenseWithBeneficiaries().copy(isDeleted = false, deletedByUuid = null),
+                revision = shownRevision,
+                authorUuid = shownAuthor,
+            ),
         ) + earlier
 
         // When the server took each version, the one the expense stands at included: the version

@@ -872,6 +872,7 @@ private object NoLocalData : LocalDataDao {
     override suspend fun deleteUnverifiedExpenseKeys() = error("Not used here")
     override suspend fun deleteExpenseRevisions() = error("Not used here")
     override suspend fun deleteOneTimeExpenseSettledMarks() = error("Not used here")
+    override suspend fun deleteGroupExpenseDeletions() = error("Not used here")
     override suspend fun deletePendingExpenseKeys() = error("Not used here")
     override suspend fun deleteKeyRequestBudgets() = error("Not used here")
     override suspend fun deletePendingProfileKeys() = error("Not used here")

@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -27,7 +27,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.component.ExpenseVersionCard
-import app.lidory.duckcount.expenseList.model.changeFrom
 import app.lidory.duckcount.expenseList.model.messageRes
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseHistoryState
 import app.lidory.duckcount.expenseList.viewmodel.ExpenseHistoryViewModel
@@ -101,16 +100,15 @@ fun ExpenseHistoryScreen(
                     ),
                     verticalArrangement = Arrangement.spacedBy(Padding.large),
                 ) {
-                    itemsIndexed(
+                    items(
                         items = state.versions,
-                        key = { _, version -> version.revision },
-                    ) { index, version ->
+                        key = { version -> version.revision },
+                    ) { version ->
                         ExpenseVersionCard(
                             modifier = Modifier.fillMaxWidth(),
                             authorFullName = state.fullNames[version.authorUuid],
                             madeAt = version.madeAt,
-                            // The one before it is next in the list, newest first.
-                            change = version.changeFrom(earlier = state.versions.getOrNull(index + 1)),
+                            isCreation = version.isCreation,
                             onClick = { navigateToHistoryDetail(version.revision) },
                         )
                     }

@@ -98,7 +98,7 @@ fun ExpenseDetailActionButtons(
                 }
             }
 
-            // Its deletion is a version of its own, which tells who deleted it.
+            // Its edits are still read: deleting it made none of them, its detail naming who did.
             if (canShowHistory) {
                 IconButton(
                     enabled = enabled,

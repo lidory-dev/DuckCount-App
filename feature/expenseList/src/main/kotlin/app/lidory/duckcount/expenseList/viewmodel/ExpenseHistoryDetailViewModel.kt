@@ -8,8 +8,6 @@ import app.lidory.duckcount.expenseList.model.BeneficiaryUi
 import app.lidory.duckcount.expenseList.model.ExpenseHistory
 import app.lidory.duckcount.expenseList.model.ExpenseHistoryError
 import app.lidory.duckcount.expenseList.model.ExpenseVersion
-import app.lidory.duckcount.expenseList.model.VersionChange
-import app.lidory.duckcount.expenseList.model.changeFrom
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -37,19 +35,13 @@ class ExpenseHistoryDetailViewModel(
     val state: StateFlow<ExpenseHistoryDetailState> =
         flow { emit(expenseHistoryCallBacks.getHistory(expenseUuid = expenseUuid)) }
             .flatMapLatest { history ->
-                val versions = when (history) {
+                val version = when (history) {
                     is ExpenseHistory.Unavailable ->
                         return@flatMapLatest flowOf(ExpenseHistoryDetailState.Failed(error = history.error))
 
-                    is ExpenseHistory.Versions -> history.versions
+                    is ExpenseHistory.Versions -> history.versions.firstOrNull { it.revision == revision }
+                        ?: return@flatMapLatest flowOf(ExpenseHistoryDetailState.Failed(ExpenseHistoryError.UNKNOWN))
                 }
-
-                val index = versions.indexOfFirst { it.revision == revision }
-                val version = versions.getOrNull(index)
-                    ?: return@flatMapLatest flowOf(ExpenseHistoryDetailState.Failed(ExpenseHistoryError.UNKNOWN))
-
-                // The one before it is next in the list, newest first.
-                val change = version.changeFrom(earlier = versions.getOrNull(index + 1))
 
                 val expense = version.expense
 
@@ -59,7 +51,6 @@ class ExpenseHistoryDetailViewModel(
                 ).map { fullNames ->
                     ExpenseHistoryDetailState.Content(
                         version = version,
-                        change = change,
                         authorFullName = fullNames[version.authorUuid],
                         creditorFullName = fullNames[expense.creditorUuid],
                         // As the expense's own screen lists them, see sortedByName.
@@ -97,10 +88,6 @@ sealed interface ExpenseHistoryDetailState {
     /** Each name null for somebody this device holds no profile for. */
     data class Content(
         val version: ExpenseVersion,
-
-        /** What [version] did to the expense, see [changeFrom]. */
-        val change: VersionChange,
-
         val authorFullName: String?,
         val creditorFullName: String?,
         val beneficiaries: List<BeneficiaryUi>,

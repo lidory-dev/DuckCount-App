@@ -26,4 +26,11 @@ data class ExpenseWithBeneficiaries(
      * another member made as the form was open is then not written over unseen.
      */
     val revision: Long? = null,
+
+    /**
+     * Who deleted the expense of a group, which the detail screen names; null when it is not
+     * deleted, and for a one-time expense. Deleting it made no version of it, so its history does
+     * not tell it.
+     */
+    val deletedByUuid: String? = null,
 )

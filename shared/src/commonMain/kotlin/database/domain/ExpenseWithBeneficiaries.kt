@@ -42,6 +42,13 @@ data class ExpenseWithBeneficiaries(
      * written with it; null for an expense read from nowhere.
      */
     val revision: Long? = null,
+
+    /**
+     * Who deleted the expense of a group, as the signed deletion flag this device shows says, see
+     * `GroupExpenseDeletionEntity`; null when it is not deleted, and for a one-time expense. Read
+     * with the expense, never written with it: the flag is signed and stored apart.
+     */
+    val deletedByUuid: String? = null,
 )
 
 /**

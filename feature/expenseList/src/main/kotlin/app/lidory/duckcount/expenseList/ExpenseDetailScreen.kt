@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -256,6 +257,29 @@ fun ExpenseDetailScreen(
                                 SettledLabel(
                                     modifier = Modifier.padding(top = Padding.small),
                                     settledAt = expense.settledAt,
+                                )
+                            }
+
+                            // Deleting it made no version of it, so its history does not say who did.
+                            expense.deletedByUuid?.let {
+                                Text(
+                                    modifier = Modifier.padding(top = Padding.small),
+                                    text = stringResource(
+                                        R.string.deleted_by,
+                                        state.deletedByFullName ?: stringResource(R.string.unknown_person),
+                                    ),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontStyle = FontStyle.Italic,
+                                )
+                            }
+
+                            // Why it offers no edit, which it would otherwise.
+                            if (state.isEditLimitReached) {
+                                Text(
+                                    modifier = Modifier.padding(top = Padding.small),
+                                    text = stringResource(R.string.edit_limit_reached, viewModel.maxGroupExpenseEdits),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }

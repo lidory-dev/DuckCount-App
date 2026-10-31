@@ -1,6 +1,7 @@
 package app.lidory.duckcount.expenseList
 
 import android.util.Log
+import app.lidory.duckcount.ExpenseLimits.MAX_GROUP_EXPENSE_EDITS
 import app.lidory.duckcount.expenseList.callBacks.ExpenseDetailCallBacks
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.ExpenseWriteError
@@ -22,6 +23,8 @@ class ExpenseDetailCallBacksImpl(
     private val networkConnectivity: NetworkConnectivity,
 ) : ExpenseDetailCallBacks {
 
+    override val maxGroupExpenseEdits: Int = MAX_GROUP_EXPENSE_EDITS
+
     override fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries?> {
         return expenseRepository.getWithBeneficiaries(uuid = uuid).map { it?.toExpenseListModel() }
     }
@@ -39,7 +42,7 @@ class ExpenseDetailCallBacksImpl(
 
         val groupUuid = expense?.groupUuid
 
-        // A version saying it is deleted, which a settlement's recipient alone writes.
+        // A deletion flag saying it is deleted, which a settlement's recipient alone signs.
         if (groupUuid != null) {
             return when (val result = expenseRepository.deleteGroupExpense(groupUuid = groupUuid, uuid = expenseUuid)) {
                 is Result.Success -> null

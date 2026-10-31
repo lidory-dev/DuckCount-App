@@ -38,7 +38,8 @@ private val EURO = Currency(name = "Euro", symbol = "€", hasSubunits = true)
  * What the edit form of a group expense comes to once its save is refused for a version another
  * member made as it was open, see [ExpenseWriteError.CHANGED_MEANWHILE]: read again from the one
  * this device shows now, which the next save is written after. Built on the version it was read
- * from, every save would be refused the same way.
+ * from, every save would be refused the same way. And what it comes to once another member deleted
+ * the expense, which is no version of it, see [ExpenseSaveError.DeletedMeanwhile].
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChangedMeanwhileFormTest {
@@ -85,11 +86,12 @@ class ChangedMeanwhileFormTest {
     }
 
     /**
-     * Bob deleted the expense as Alice typed her edit: the form reads the deletion, which it saves
-     * nothing over, see [CreateExpenseState.isDeleted], and says so rather than to try again.
+     * Bob's deletion reaches the device as Alice types her edit. It took no revision, so the server
+     * would take the edit, which would then count in no balance: the form sends nothing, see
+     * [CreateExpenseState.isDeleted], and says so rather than to try again.
      */
     @Test
-    fun `an edit refused for another member's deletion reads it and says so`() = runTest(mainDispatcher) {
+    fun `an edit of an expense another member deleted as it was open is not sent`() = runTest(mainDispatcher) {
         val callBacks = EditCallBacks()
         val viewModel = CreateExpenseViewModel(groupUuid = GROUP, expenseUuid = EXPENSE, createExpenseCallBacks = callBacks)
         val errors = mutableListOf<ExpenseSaveError>()
@@ -99,7 +101,32 @@ class ChangedMeanwhileFormTest {
 
         assertFalse(viewModel.state.isDeleted)
 
-        callBacks.shown.value = dinner(revision = 4, title = "Dinner").copy(isDeleted = true)
+        callBacks.shown.value = dinner(revision = 3, title = "Dinner").copy(isDeleted = true, deletedByUuid = BOB)
+        viewModel.updateTitle("Alice's dinner")
+        viewModel.updateExpense()
+        runCurrent()
+
+        assertFalse(viewModel.isSaved.value)
+        assertTrue(viewModel.state.isDeleted)
+        assertEquals(emptyList<ExpenseWithBeneficiaries>(), callBacks.saved)
+        assertEquals(listOf<ExpenseSaveError>(ExpenseSaveError.DeletedMeanwhile), errors)
+    }
+
+    /**
+     * Bob edited the expense, and deleted it, before the device showed either: Alice's edit is sent,
+     * and refused for his version, which the form reads, a deletion it saves nothing over, and says
+     * so rather than to try again.
+     */
+    @Test
+    fun `an edit refused for a version of a deleted expense reads it and says so`() = runTest(mainDispatcher) {
+        val callBacks = EditCallBacks()
+        val viewModel = CreateExpenseViewModel(groupUuid = GROUP, expenseUuid = EXPENSE, createExpenseCallBacks = callBacks)
+        val errors = mutableListOf<ExpenseSaveError>()
+
+        backgroundScope.launch { viewModel.showError.collect { errors += it } }
+        runCurrent()
+
+        callBacks.unseen = dinner(revision = 4, title = "Bob's dinner").copy(isDeleted = true, deletedByUuid = BOB)
         viewModel.updateTitle("Alice's dinner")
         viewModel.updateExpense()
         runCurrent()
@@ -107,6 +134,7 @@ class ChangedMeanwhileFormTest {
         assertFalse(viewModel.isSaved.value)
         assertTrue(viewModel.state.isDeleted)
         assertEquals(4L, viewModel.state.revision)
+        assertEquals(listOf(3L), callBacks.saved.map { it.revision })
         assertEquals(listOf<ExpenseSaveError>(ExpenseSaveError.DeletedMeanwhile), errors)
     }
 
@@ -130,13 +158,16 @@ class ChangedMeanwhileFormTest {
     )
 
     /**
-     * Shows the expense as [shown] has it, and takes an edit written after that version alone, as
-     * the server does, refusing any other as another member's having come first; and nothing else
-     * the edit form does not ask.
+     * Shows the expense as [shown] has it, and takes an edit written after the version the server
+     * holds alone, as the server does, refusing any other as another member's having come first,
+     * which the sync that follows shows; and nothing else the edit form does not ask.
      */
     private inner class EditCallBacks : CreateExpenseCallBacks {
 
         val shown = MutableStateFlow(dinner(revision = 3, title = "Dinner"))
+
+        /** What the server holds that this device has yet to show, if anything: [shown] otherwise. */
+        var unseen: ExpenseWithBeneficiaries? = null
 
         /** Every edit sent, in order. */
         val saved = mutableListOf<ExpenseWithBeneficiaries>()
@@ -158,9 +189,14 @@ class ChangedMeanwhileFormTest {
         ): ExpenseSaveError? {
             saved += expenseWithBeneficiaries
 
-            return if (expenseWithBeneficiaries.revision == shown.value.revision) {
+            val held = unseen ?: shown.value
+
+            return if (expenseWithBeneficiaries.revision == held.revision) {
                 null
             } else {
+                shown.value = held
+                unseen = null
+
                 ExpenseSaveError.Write(ExpenseWriteError.CHANGED_MEANWHILE)
             }
         }

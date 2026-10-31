@@ -5,6 +5,15 @@ import app.lidory.duckcount.expenseList.model.ExpenseWriteError
 import kotlinx.coroutines.flow.Flow
 
 interface ExpenseDetailCallBacks {
+
+    /**
+     * The most edits an expense of a group takes, its revision going from 1, as created, to one
+     * more than this at most: one at that revision is offered no edit, see
+     * [app.lidory.duckcount.expenseList.viewmodel.ExpenseActions.isEditLimitReached], every member's
+     * device refusing a version past it, and the server storing none.
+     */
+    val maxGroupExpenseEdits: Int
+
     fun getExpenseWithBeneficiaries(uuid: String): Flow<ExpenseWithBeneficiaries?>
 
     /** Returns null when delete succeeds (server + local), or the reason it failed. */

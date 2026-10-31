@@ -19,9 +19,6 @@ private val listingJson = Json { encodeDefaults = true }
 /** When the server takes a version a test gives no time for, as the API writes every time it serves. */
 private const val REVISED_AT = "2026-10-30T19:45:00.000Z"
 
-/** How many of the versions an expense's updates replaced the server keeps, the newest. */
-private const val KEPT_PREVIOUS_VERSIONS = 9
-
 /**
  * An expense of the group [groupUuid] paid by [creditorUuid], [amount] split between [shares],
  * each fixed or not: what a member's form makes of one.
@@ -36,7 +33,6 @@ internal fun groupExpenseOf(
     description: String = "Fish, wine and the tip",
     timestamp: String = "2026-10-30T19:45:00",
     isSettlement: Boolean = false,
-    isDeleted: Boolean = false,
 ) = ExpenseWithBeneficiaries(
     uuid = uuid,
     title = title,
@@ -47,7 +43,6 @@ internal fun groupExpenseOf(
     isSettlement = isSettlement,
     currency = GROUP_CURRENCY,
     groupUuid = groupUuid,
-    isDeleted = isDeleted,
     beneficiaries = shares.map { (userUuid, share) ->
         Beneficiary(expenseUuid = uuid, userUuid = userUuid, share = share, isShareFixed = false)
     },
@@ -77,15 +72,45 @@ internal fun ExpenseWithBeneficiaries.listedAs(
             authorUuid = authorUuid,
         ),
     ),
+    deletion = null,
+)
+
+/**
+ * The deletion flag of this expense saying [isDeleted], at [deletionRevision], set by [author], the
+ * user [authorUuid], sealed under [groupKey], of the generation [keyGeneration], as the server lists
+ * it once [author]'s device sent it, see [sealGroupExpenseDeletion].
+ */
+internal fun ExpenseWithBeneficiaries.flaggedAs(
+    deletionRevision: Long,
+    isDeleted: Boolean,
+    author: MlsClient,
+    authorUuid: String,
+    groupKey: ByteArray,
+    keyGeneration: Long = FIRST_KEY_GENERATION,
+) = ListedGroupExpenseDeletionDto(
+    deletionRevision = deletionRevision,
+    keyGeneration = keyGeneration,
+    content = assertNotNull(
+        sealGroupExpenseDeletion(
+            groupUuid = checkNotNull(groupUuid),
+            expenseUuid = uuid,
+            deletionRevision = deletionRevision,
+            isDeleted = isDeleted,
+            groupKey = groupKey,
+            client = author,
+            authorUuid = authorUuid,
+        ),
+    ),
 )
 
 /**
  * What the server holds of the expenses of one group, and serves as the API does: the listing,
- * newest first, and its feed of changes, each on one page or [pageSize] at a time, the feed made by
- * the first listing and answering `409` for any token until then or once it [restartFeed]s, each
- * expense's history, the version it stands at and the nine its updates last replaced, each with
- * when it was taken, and the writes, taken as the API takes them, a create's UUID derived from its
- * nonce as [uuidsByNonce] says the caller's device drew it.
+ * newest first, each expense with its deletion flag, and its feed of changes, each on one page or
+ * [pageSize] at a time, the feed made by the first listing and answering `409` for any token until
+ * then or once it [restartFeed]s, each expense's history, the version it stands at and every one
+ * its updates replaced, each with when it was taken, and the writes, taken as the API takes them,
+ * in the order it checks them, a create's UUID derived from its nonce as [uuidsByNonce] says the
+ * caller's device drew it, an update refused once the expense is at its last revision.
  */
 internal class GroupExpenseServer {
 
@@ -107,6 +132,7 @@ internal class GroupExpenseServer {
     /** Every write sent, in order. */
     val creates = mutableListOf<CreateGroupExpenseBody>()
     val updates = mutableListOf<UpdateGroupExpenseBody>()
+    val deletions = mutableListOf<SetGroupExpenseDeletionBody>()
 
     /** How many expenses a page of the listing, or changes a page of the feed, holds at most; null for every one on one. */
     var pageSize: Int? = null
@@ -134,16 +160,24 @@ internal class GroupExpenseServer {
 
     /**
      * Takes [version] as the one its expense stands at, at [revisedAt], the one before it kept in
-     * its history, and records it in the feed.
+     * its history, its deletion flag kept as it was, and records it in the feed.
      */
     fun put(version: ListedGroupExpenseDto, revisedAt: String = REVISED_AT) {
-        expenses[version.uuid]?.let { replaced ->
-            history.getOrPut(version.uuid) { mutableListOf() }.add(0, replaced.asVersion(revisedAt = takenAt.getValue(version.uuid)))
+        val replaced = expenses[version.uuid]
+
+        replaced?.let {
+            history.getOrPut(version.uuid) { mutableListOf() }.add(0, it.asVersion(revisedAt = takenAt.getValue(version.uuid)))
         }
 
-        expenses[version.uuid] = version
+        expenses[version.uuid] = version.copy(deletion = replaced?.deletion)
         takenAt[version.uuid] = revisedAt
         changes += version.uuid
+    }
+
+    /** Takes [deletion] as the deletion flag of the expense [expenseUuid], and records it in the feed. */
+    fun putDeletion(expenseUuid: String, deletion: ListedGroupExpenseDeletionDto) {
+        expenses[expenseUuid] = expenses.getValue(expenseUuid).copy(deletion = deletion)
+        changes += expenseUuid
     }
 
     fun getExpenses(): Result<ListGroupExpensesResponse, NetworkError> {
@@ -206,7 +240,15 @@ internal class GroupExpenseServer {
 
         if (uuid in expenses) return GroupExpenseWriteAnswer.AlreadyExists
 
-        put(ListedGroupExpenseDto(uuid = uuid, revision = 1, keyGeneration = body.keyGeneration, content = body.content))
+        put(
+            ListedGroupExpenseDto(
+                uuid = uuid,
+                revision = 1,
+                keyGeneration = body.keyGeneration,
+                content = body.content,
+                deletion = null,
+            ),
+        )
 
         return answered()
     }
@@ -221,6 +263,8 @@ internal class GroupExpenseServer {
         // An update is only ever of an expense the caller's device shows, which the server took.
         val stored = expenses.getValue(expenseUuid)
 
+        if (stored.revision == LAST_GROUP_EXPENSE_REVISION) return GroupExpenseWriteAnswer.EditLimitReached
+
         if (body.revision != stored.revision + 1) return GroupExpenseWriteAnswer.RevisionNotNext(stored.revision)
 
         put(
@@ -229,20 +273,51 @@ internal class GroupExpenseServer {
                 revision = body.revision,
                 keyGeneration = body.keyGeneration,
                 content = body.content,
+                deletion = null,
             ),
         )
 
         return answered()
     }
 
-    /** The version the expense [expenseUuid] stands at, and those its updates replaced that the server keeps. */
+    fun setDeletion(expenseUuid: String, body: SetGroupExpenseDeletionBody): GroupExpenseDeletionAnswer {
+        deletions += body
+
+        if (!isReachable) return GroupExpenseWriteAnswer.Failed(NetworkError.UNREACHABLE)
+
+        if (body.keyGeneration != keyGeneration) return GroupExpenseWriteAnswer.KeyGenerationNotCurrent(keyGeneration)
+
+        // As for an update: only ever of an expense the caller's device shows.
+        val stored = expenses.getValue(expenseUuid).deletion?.deletionRevision ?: 0L
+
+        if (body.deletionRevision != stored + 1) return GroupExpenseDeletionAnswer.DeletionRevisionNotNext(stored)
+
+        putDeletion(
+            expenseUuid = expenseUuid,
+            deletion = ListedGroupExpenseDeletionDto(
+                deletionRevision = body.deletionRevision,
+                keyGeneration = body.keyGeneration,
+                content = body.content,
+            ),
+        )
+
+        return if (losesNextAnswer) {
+            losesNextAnswer = false
+
+            GroupExpenseWriteAnswer.Failed(NetworkError.REQUEST_TIMEOUT)
+        } else {
+            GroupExpenseWriteAnswer.Written
+        }
+    }
+
+    /** The version the expense [expenseUuid] stands at, and every one its updates replaced. */
     fun history(expenseUuid: String): Result<GroupExpenseHistoryResponse, NetworkError> {
         val current = expenses[expenseUuid] ?: return Result.Error(NetworkError.NOT_FOUND)
 
         return Result.Success(
             GroupExpenseHistoryResponse(
                 current = current.asVersion(revisedAt = takenAt.getValue(expenseUuid)),
-                previous = history[expenseUuid].orEmpty().take(KEPT_PREVIOUS_VERSIONS),
+                previous = history[expenseUuid].orEmpty(),
             ),
         )
     }

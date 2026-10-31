@@ -8,7 +8,10 @@ import database.domain.ExpenseWithBeneficiaries
 import group.GroupExpenseChange
 import group.GroupExpenseSync
 
-/** A version of an expense of one of the user's groups a sync stored, which concerns them and somebody else wrote. */
+/**
+ * What a sync changed of an expense of one of the user's groups, its version or its deletion flag,
+ * which concerns them and somebody else made.
+ */
 data class GroupExpenseUpdate(
     val groupUuid: String,
 
@@ -17,7 +20,7 @@ data class GroupExpenseUpdate(
 
     val expenseUuid: String,
 
-    /** Its title as this version has it, which a settlement has none of. */
+    /** Its title as the version shown has it, which a settlement has none of. */
     val title: String,
 
     /**
@@ -32,12 +35,12 @@ data class GroupExpenseUpdate(
 
     val currencySymbol: String,
 
-    /** Null when this device has yet to read the name of whoever wrote it. */
+    /** Null when this device has yet to read the name of whoever made the change. */
     val authorFullName: String?,
 
     val kind: Kind,
 ) {
-    /** What its author did to it, as far as the version stored and the one it replaced tell. */
+    /** What its author did to it, as far as the expense as it now shows and as it showed before tell. */
     enum class Kind {
         /** Added it to the group, or made it readable to this device for the first time. */
         ADDED,
@@ -57,8 +60,8 @@ data class GroupExpenseUpdate(
  * The signal a member's write wakes the user with says that something changed in one of their
  * groups, and neither which group nor whether it concerns them: the server cannot tell, the payer
  * and the beneficiaries being sealed with the rest of the expense. So, as [ExpenseChanges] does for
- * the one-time expenses, this looks at what the sync left behind: each version it stored, with the
- * one it replaced, see [GroupExpenseSync].
+ * the one-time expenses, this looks at what the sync left behind: each expense whose version or
+ * deletion flag it stored, with what it showed before, see [GroupExpenseSync].
  *
  * Unlike a one-time expense's creditor, whoever wrote it is named whether or not they are a
  * contact, by the name the group's screens show for them, see [UserDao.getDisplayName]: any member
@@ -111,9 +114,9 @@ class GroupExpenseUpdates(
 }
 
 /**
- * Which of the [changes] a sync stored are told about, and as what: those that concern the user
- * [selfUuid], who paid for the version stored or shares in it, or did in the one it replaced, which
- * somebody else wrote, nobody [blocked].
+ * Which of the [changes] a sync made are told about, and as what: those that concern the user
+ * [selfUuid], who paid for the expense as it now shows or shares in it, or did as it showed before,
+ * which somebody else made, nobody [blocked].
  *
  * None that the user wrote, on another of their devices or before a log-out. None of a group whose
  * expenses were listed whole for the first time on this device, see
@@ -123,8 +126,10 @@ class GroupExpenseUpdates(
  * the same.
  *
  * An expense new to this device is added, unless it is deleted already, which counts in no balance.
- * A version deleting the one shown is a deletion, one undoing that a restoration, and any other an
- * edit, but one of an expense that stays deleted, which changes nothing the user's balances show.
+ * A change deleting the expense shown, its deletion flag's, is a deletion, one undoing that a
+ * restoration, each made by the member whose flag it is, see [GroupExpenseChange.authorUuid], and
+ * any other an edit, but one of an expense that stays deleted, which changes nothing the user's
+ * balances show.
  */
 internal fun announcedUpdates(
     changes: List<GroupExpenseChange>,

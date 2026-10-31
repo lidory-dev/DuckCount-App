@@ -1,10 +1,13 @@
 package group
 
 import app.lidory.duckcount.ExpenseLimits.MAX_DESCRIPTION_LENGTH
+import app.lidory.duckcount.ExpenseLimits.MAX_GROUP_EXPENSE_EDITS
 import app.lidory.duckcount.ExpenseLimits.MAX_TITLE_LENGTH
 import app.lidory.duckcount.validateExpense
 import database.data.local.entity.ExpenseWithBeneficiariesEntity
 import database.data.local.entity.GroupEntity
+import database.data.local.entity.GroupExpenseDeletionEntity
+import database.data.mappers.toExpenseWithBeneficiaries
 import database.data.mappers.toExpenseWithBeneficiariesEntity
 import database.data.remote.EncryptedFieldDto
 import database.domain.Beneficiary
@@ -17,18 +20,30 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import mls.pinnedSignatureKeyFor
 import uniffi.lib_duckcount.GroupExpenseBeneficiary
+import uniffi.lib_duckcount.GroupExpenseDeletion
 import uniffi.lib_duckcount.GroupExpenseVersion
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.verifyGroupExpense
+import uniffi.lib_duckcount.verifyGroupExpenseDeletion
 import util.NetworkError
 import util.Result
 import vault.sealBound
 import vault.unsealBound
 import kotlin.io.encoding.Base64
 
-/** The revision a group expense is created at, see [GroupExpenseVersion]. Each version since adds one. */
+/** The revision a group expense is created at, see [GroupExpenseVersion]. Each edit since adds one. */
 internal const val FIRST_GROUP_EXPENSE_REVISION = 1L
+
+/**
+ * The revision a group expense stands at once it had every edit it takes, see
+ * [MAX_GROUP_EXPENSE_EDITS]: no version past it is ever sent, nor shown, whoever signed it, see
+ * [unsealGroupExpense].
+ */
+internal val LAST_GROUP_EXPENSE_REVISION = FIRST_GROUP_EXPENSE_REVISION + MAX_GROUP_EXPENSE_EDITS
+
+/** The revision of an expense's first deletion flag, see [GroupExpenseDeletion]. Each change since adds one. */
+internal const val FIRST_GROUP_EXPENSE_DELETION_REVISION = 1L
 
 /** Unknown keys are ignored, so a field a newer build added does not make a version unreadable. */
 private val json = Json { ignoreUnknownKeys = true }
@@ -44,9 +59,18 @@ private val json = Json { ignoreUnknownKeys = true }
  */
 private fun contextOf(groupUuid: String, expenseUuid: String) = "group_expense:$groupUuid:$expenseUuid"
 
+/**
+ * What a deletion flag of the expense [expenseUuid] of the group [groupUuid] is bound to, as a
+ * version is, see [contextOf], and apart from it: neither opens as the other.
+ */
+private fun deletionContextOf(groupUuid: String, expenseUuid: String) = "group_expense_deletion:$groupUuid:$expenseUuid"
+
 /** One version of a group expense, opened and checked, see [GroupExpenseOpener]. */
 internal class OpenedGroupExpense(
-    /** What it says, in the group's currency, its group set, deleted or not. */
+    /**
+     * What it says, in the group's currency, its group set. Never deleted: whether the expense is
+     * is no part of a version, see [GroupExpenseDeletionEntity].
+     */
     val expense: ExpenseWithBeneficiaries,
 
     /** The revision its author signed it at, see [FIRST_GROUP_EXPENSE_REVISION]. */
@@ -74,16 +98,27 @@ internal class SignedGroupExpense(
 )
 
 /**
+ * A deletion flag of a group expense unsealed, see [openGroupExpenseDeletion]: what its author
+ * signed, as the library takes it, who it says they are, and the signature, none of it checked yet.
+ */
+internal class SignedGroupExpenseDeletion(
+    val deletion: GroupExpenseDeletion,
+    val authorUuid: String,
+    val signature: ByteArray,
+)
+
+/**
  * Seals this expense, of the group [groupUuid], under [groupKey], the group's key of the generation
  * it is sent with, as [revision], signed by [client], the user [authorUuid]'s MLS identity: the
  * `content` of [CreateGroupExpenseBody] and [UpdateGroupExpenseBody].
  *
  * One sealed field holds it all, its title and description, amount and date, creditor and
- * beneficiaries, whether it is a settlement and whether it is deleted, with its author and their
- * signature, see [SealedGroupExpense]: the server learns nothing of who paid or who benefits, nor
- * who wrote the version. The group, the expense and the revision are not in it: the route names the
- * first two and the server lists the third, and the signature holds every one of them to what the
- * author signed, see [unsealGroupExpense].
+ * beneficiaries, and whether it is a settlement, with its author and their signature, see
+ * [SealedGroupExpense]: the server learns nothing of who paid or who benefits, nor who wrote the
+ * version. The group, the expense and the revision are not in it: the route names the first two and
+ * the server lists the third, and the signature holds every one of them to what the author signed,
+ * see [unsealGroupExpense]. Nor is whether it is deleted, which its deletion flag says apart, see
+ * [sealGroupExpenseDeletion].
  *
  * Signed over what it opens to, see `group_expense` in lib-duckcount, so that a version stays good
  * whichever key it is read with. Every member holds [groupKey], and could seal a version of their
@@ -119,7 +154,6 @@ internal fun ExpenseWithBeneficiaries.sealGroupExpense(
             )
         },
         isSettlement = isSettlement.toSealedFlag(),
-        isDeleted = isDeleted.toSealedFlag(),
         authorUuid = authorUuid,
         signature = Base64.Default.encode(signature),
     )
@@ -137,11 +171,17 @@ internal fun ExpenseWithBeneficiaries.sealGroupExpense(
  * returns null when it does not open as that expense's under that key, does not read as a version,
  * or holds a UUID not written the one way the server and the app write one: these reach the
  * library, which throws on a string that is not valid UTF-16 rather than refusing it, as does any
- * other string that is not, which JSON can carry.
+ * other string that is not, which JSON can carry. Null too for a revision before the first or past
+ * the last, see [LAST_GROUP_EXPENSE_REVISION], which the library refuses whoever signed it, and a
+ * version whose author this device holds no key for never reaches the library to be refused by,
+ * see [isSignedBy].
  *
  * The version is rebuilt from [groupUuid], [expenseUuid] and [revision], which the signature covers:
  * one served at another revision than its author signed, or moved to another expense, opens and
- * then does not verify, see [isSignedBy]. Neither who signed it nor what it says is checked here.
+ * then does not verify, see [isSignedBy]. Neither who signed it, nor what it says, nor whether it
+ * may say it at its revision, a settlement past its first, is checked here: it opens all the same,
+ * so that the key it opens under is told from any other the chain of links leads to, see
+ * [GroupKeyChain], and then is refused, rather than taken for one sealed under a key not held yet.
  */
 internal fun EncryptedFieldDto.unsealGroupExpense(
     groupKey: ByteArray,
@@ -149,7 +189,7 @@ internal fun EncryptedFieldDto.unsealGroupExpense(
     expenseUuid: String,
     revision: Long,
 ): SignedGroupExpense? {
-    if (revision < FIRST_GROUP_EXPENSE_REVISION) return null
+    if (revision !in FIRST_GROUP_EXPENSE_REVISION..LAST_GROUP_EXPENSE_REVISION) return null
 
     val plaintext = unsealBound(key = groupKey, context = contextOf(groupUuid = groupUuid, expenseUuid = expenseUuid), content = this)
         ?: return null
@@ -169,6 +209,8 @@ internal fun EncryptedFieldDto.unsealGroupExpense(
 
     val signature = runCatching { Base64.Default.decode(content.signature) }.getOrNull() ?: return null
 
+    val isSettlement = content.isSettlement.toFlagOrNull() ?: return null
+
     return SignedGroupExpense(
         version = GroupExpenseVersion(
             groupUuid = groupUuid,
@@ -186,8 +228,7 @@ internal fun EncryptedFieldDto.unsealGroupExpense(
                     isShareFixed = beneficiary.isShareFixed.toFlagOrNull() ?: return null,
                 )
             },
-            isSettlement = content.isSettlement.toFlagOrNull() ?: return null,
-            isDeleted = content.isDeleted.toFlagOrNull() ?: return null,
+            isSettlement = isSettlement,
         ),
         authorUuid = content.authorUuid,
         signature = signature,
@@ -196,8 +237,18 @@ internal fun EncryptedFieldDto.unsealGroupExpense(
 
 /**
  * Whether its author signed this version with the private half of [authorKey], the key
- * [authorKeyOf] reads for them, and it is a version they may sign: a settlement, only when they are
- * the member it was paid to, its one beneficiary, see `group_expense` in lib-duckcount.
+ * [authorKeyOf] reads for them, and it is a version they may sign: a settlement, only at the first
+ * revision, see [FIRST_GROUP_EXPENSE_REVISION], and only when they are the member it was paid to,
+ * its one beneficiary, see `group_expense` in lib-duckcount.
+ *
+ * Nobody edits a settlement, which would change what was paid back after the fact, and deleting
+ * it is no version but its deletion flag, see [SignedGroupExpenseDeletion.isSignedBy]: its first
+ * version is its only one, and one past it is an edit by its revision alone, told without the
+ * version before it, as is one making an expense a settlement, which its creator did not write as
+ * one. So a device that never showed the first, its member having joined the group since or logged
+ * out, refuses it as one that did, and shows nothing of the settlement, the server listing only the
+ * version it stands at, rather than what its recipient rewrote it into. That is checked first,
+ * whatever key the author is held to, as the library checks it first.
  *
  * An author this device holds no key for, [authorKey] null, is taken at the version's word, as a
  * group's creator is for its information, see [isSignedByCreator]: there is nothing to hold it
@@ -206,10 +257,13 @@ internal fun EncryptedFieldDto.unsealGroupExpense(
  * after a log-out who is not one of the user's contacts.
  * Only a holder of the group's key can have sealed it, so the server cannot make one up; a member
  * can then pass a version off as another's, which they can anyway to every device that never read
- * that other's leaf. Who may sign a settlement holds all the same, which is no signature's to tell.
+ * that other's leaf. Who may sign a settlement, and at which revision, holds all the same, which is
+ * no signature's to tell.
  */
-internal fun SignedGroupExpense.isSignedBy(authorKey: ByteArray?): Boolean =
-    if (authorKey == null) {
+internal fun SignedGroupExpense.isSignedBy(authorKey: ByteArray?): Boolean {
+    if (version.isSettlement && version.revision != FIRST_GROUP_EXPENSE_REVISION.toULong()) return false
+
+    return if (authorKey == null) {
         !version.isSettlement || version.beneficiaries.singleOrNull()?.userUuid == authorUuid
     } else {
         verifyGroupExpense(
@@ -219,6 +273,7 @@ internal fun SignedGroupExpense.isSignedBy(authorKey: ByteArray?): Boolean =
             signature = signature,
         )
     }
+}
 
 /**
  * This version, in [currency], the group's, see [OpenedGroupExpense], or null when what it says is
@@ -243,7 +298,6 @@ internal fun SignedGroupExpense.opened(currency: Currency): OpenedGroupExpense? 
         isSettlement = version.isSettlement,
         currency = currency,
         groupUuid = version.groupUuid,
-        isDeleted = version.isDeleted,
         beneficiaries = version.beneficiaries.map { beneficiary ->
             Beneficiary(
                 expenseUuid = version.expenseUuid,
@@ -262,12 +316,12 @@ internal fun SignedGroupExpense.opened(currency: Currency): OpenedGroupExpense? 
 }
 
 /**
- * The MLS signature key the versions [authorUuid] writes in the group [groupUuid] are checked
- * against, see [SignedGroupExpense.isSignedBy], the first of these this device holds: the user's own,
- * when [authorUuid] is the user, [selfUuid]; the one pinned for them, a contact of the user's, whose
- * identity this device holds them to everywhere; and the one the group's tree held for them when this
- * device last read it there, kept once they left it, or else another group of the same creator's,
- * see [recorded]. Or null when it holds none.
+ * The MLS signature key the versions and the deletion flags [authorUuid] writes in the group
+ * [groupUuid] are checked against, see [SignedGroupExpense.isSignedBy], the first of these this
+ * device holds: the user's own, when [authorUuid] is the user, [selfUuid]; the one pinned for them,
+ * a contact of the user's, whose identity this device holds them to everywhere; and the one the
+ * group's tree held for them when this device last read it there, kept once they left it, or else
+ * another group of the same creator's, see [recorded]. Or null when it holds none.
  *
  * Throws [MlsException] when the pin could not be read, which is not there being none: taken for
  * none, a contact's version would be checked against a key the server could have served.
@@ -285,27 +339,30 @@ internal suspend fun MlsClient.authorKeyOf(
     }
 
 /**
- * Whether [next], a later version of this group expense, may replace this one: both are a
- * settlement, or neither is, and a settlement only goes from shown to deleted, saying the rest as
- * it did, and nothing comes after that, see `group_expense` in lib-duckcount.
+ * Whether a later version of this group expense may replace this one: it is no settlement, see
+ * `group_expense` in lib-duckcount.
  *
  * Anybody may write any version of an expense but a settlement's, which its recipient alone signs,
- * see [SignedGroupExpense.isSignedBy]: they record it, and may take it back, but neither edit it,
- * which would change what was paid back after the fact, nor restore it once deleted, which another
- * settlement records instead. Neither can a version make an expense a settlement, which its creator
- * did not write as one, nor a settlement an expense, both being what the next version is next to.
+ * see [SignedGroupExpense.isSignedBy]: they record it, and nobody edits it, which would change what
+ * was paid back after the fact. Deleting it is no version, but its recipient's deletion flag, see
+ * [SignedGroupExpenseDeletion.isSignedBy], which nobody restores it with, another settlement
+ * recording it again instead.
+ *
+ * A later version that is a settlement itself, an edit of one or one making an expense a
+ * settlement, never comes this far: it is past the first revision, and so refused as it is opened,
+ * whoever signed it, on a device that never showed the first as on one that did, see
+ * [SignedGroupExpense.isSignedBy], and the user's own edits are never one, see
+ * [GroupExpenseWriter.edit]. What only a device that showed the settlement refuses, here, is a
+ * later version that is no settlement, an edit of it into an expense, which no version alone tells
+ * from one written as an expense: a device that never showed the settlement shows the expense it
+ * says.
  */
-internal fun ExpenseWithBeneficiariesEntity.mayBeFollowedBy(next: ExpenseWithBeneficiariesEntity): Boolean =
-    when {
-        next.expense.isSettlement != expense.isSettlement -> false
-        !expense.isSettlement -> true
-        else -> !expense.isDeleted && next.expense.isDeleted && next.saysWhat(this)
-    }
+internal fun ExpenseWithBeneficiariesEntity.mayBeFollowed(): Boolean = !expense.isSettlement
 
 /**
- * Whether this version of an expense says what [other] does, whether it is deleted aside: its
- * title and description, amount and date, creditor and beneficiaries with their shares, in
- * whatever order, and whether it is a settlement.
+ * Whether this version of an expense says what [other] does, whether it is deleted aside, which is
+ * no part of a version: its title and description, amount and date, creditor and beneficiaries
+ * with their shares, in whatever order, and whether it is a settlement.
  */
 internal fun ExpenseWithBeneficiariesEntity.saysWhat(other: ExpenseWithBeneficiariesEntity): Boolean =
     expense.title == other.expense.title &&
@@ -317,11 +374,143 @@ internal fun ExpenseWithBeneficiariesEntity.saysWhat(other: ExpenseWithBeneficia
         beneficiaries.map { Triple(it.userUuid, it.share, it.isShareFixed) }.toSet() ==
         other.beneficiaries.map { Triple(it.userUuid, it.share, it.isShareFixed) }.toSet()
 
-/** What becomes of a version of a group expense this device tries to open, see [GroupExpenseOpener]. */
-internal sealed interface GroupExpenseOpening {
+/**
+ * Seals the deletion flag saying whether the expense [expenseUuid] of the group [groupUuid] is
+ * deleted, [isDeleted], at [deletionRevision], under [groupKey], the group's key of the generation
+ * it is sent with, signed by [client], the user [authorUuid]'s MLS identity: the `content` of
+ * [SetGroupExpenseDeletionBody].
+ *
+ * Apart from the expense's versions: deleting it and restoring it are no edit, use up none of the
+ * edits it takes, and leave its versions as they are. So the flag is signed apart too, under a
+ * label of its own, over the group, the expense, [deletionRevision] and [isDeleted], see
+ * `group_expense` in lib-duckcount, and sealed apart, see [deletionContextOf], whether it is
+ * deleted, its author and their signature in it, see [SealedGroupExpenseDeletion]: the server
+ * learns who deleted it no more than who wrote a version.
+ *
+ * Returns null only when [groupKey] is not a 32-byte key or the library refuses to sign, both caller
+ * bugs rather than states, see [sealGroupExpense].
+ */
+internal fun sealGroupExpenseDeletion(
+    groupUuid: String,
+    expenseUuid: String,
+    deletionRevision: Long,
+    isDeleted: Boolean,
+    groupKey: ByteArray,
+    client: MlsClient,
+    authorUuid: String,
+): EncryptedFieldDto? {
+    val signature = try {
+        client.signGroupExpenseDeletion(
+            deletion = GroupExpenseDeletion(
+                groupUuid = groupUuid,
+                expenseUuid = expenseUuid,
+                deletionRevision = deletionRevision.toULong(),
+                isDeleted = isDeleted,
+            ),
+        )
+    } catch (_: MlsException) {
+        return null
+    }
 
-    /** It opened, its author signed it, and it says what the app writes. */
-    class Opened(val version: OpenedGroupExpense) : GroupExpenseOpening
+    val content = SealedGroupExpenseDeletion(
+        isDeleted = isDeleted.toSealedFlag(),
+        authorUuid = authorUuid,
+        signature = Base64.Default.encode(signature),
+    )
+
+    return sealBound(
+        key = groupKey,
+        context = deletionContextOf(groupUuid = groupUuid, expenseUuid = expenseUuid),
+        plaintext = json.encodeToString(SealedGroupExpenseDeletion.serializer(), content).encodeToByteArray(),
+    )
+}
+
+/**
+ * Opens this content, as the deletion flag of the expense [expenseUuid] of the group [groupUuid] at
+ * [deletionRevision], with [groupKey], the group's key of the generation the server lists it under,
+ * or returns null when it does not open as that expense's flag under that key, does not read as a
+ * flag, names its author in a UUID not written the one way the server and the app write one, see
+ * [unsealGroupExpense], or is at a revision before the first, see
+ * [FIRST_GROUP_EXPENSE_DELETION_REVISION], which the library refuses whoever signed it.
+ *
+ * The flag is rebuilt from [groupUuid], [expenseUuid] and [deletionRevision], which the signature
+ * covers, as a version is: neither who signed it nor whether they may is checked here, see
+ * [SignedGroupExpenseDeletion.isSignedBy].
+ */
+internal fun EncryptedFieldDto.openGroupExpenseDeletion(
+    groupKey: ByteArray,
+    groupUuid: String,
+    expenseUuid: String,
+    deletionRevision: Long,
+): SignedGroupExpenseDeletion? {
+    if (deletionRevision < FIRST_GROUP_EXPENSE_DELETION_REVISION) return null
+
+    val plaintext = unsealBound(
+        key = groupKey,
+        context = deletionContextOf(groupUuid = groupUuid, expenseUuid = expenseUuid),
+        content = this,
+    ) ?: return null
+
+    val content = runCatching {
+        json.decodeFromString(SealedGroupExpenseDeletion.serializer(), plaintext.decodeToString())
+    }.getOrNull() ?: return null
+
+    if (!content.authorUuid.isCanonicalUuid()) return null
+
+    val signature = runCatching { Base64.Default.decode(content.signature) }.getOrNull() ?: return null
+
+    return SignedGroupExpenseDeletion(
+        deletion = GroupExpenseDeletion(
+            groupUuid = groupUuid,
+            expenseUuid = expenseUuid,
+            deletionRevision = deletionRevision.toULong(),
+            isDeleted = content.isDeleted.toFlagOrNull() ?: return null,
+        ),
+        authorUuid = content.authorUuid,
+        signature = signature,
+    )
+}
+
+/**
+ * Whether its author signed this flag with the private half of [authorKey], the key [authorKeyOf]
+ * reads for them, and it is a flag they may sign of the expense [shown], the version of it the flag
+ * is checked against: the one this device shows or, of an expense it shows no version of yet, the
+ * one listed with the flag, which is stored only together with it, see [GroupExpenseSync]. Of a
+ * settlement, only one deleting it, and only when they are the member it was paid to, see
+ * `group_expense` in lib-duckcount. Nobody restores a settlement, which another settlement records
+ * again instead.
+ *
+ * An author this device holds no key for, [authorKey] null, is taken at the flag's word, as for a
+ * version, see [SignedGroupExpense.isSignedBy], who may sign one of a settlement holding all the
+ * same.
+ */
+internal fun SignedGroupExpenseDeletion.isSignedBy(authorKey: ByteArray?, shown: ExpenseWithBeneficiariesEntity): Boolean {
+    val version = shown.toExpenseWithBeneficiaries().versionOf(
+        groupUuid = checkNotNull(shown.expense.groupUuid),
+        revision = checkNotNull(shown.expense.revision),
+    )
+
+    return if (authorKey == null) {
+        !version.isSettlement || (deletion.isDeleted && version.beneficiaries.singleOrNull()?.userUuid == authorUuid)
+    } else {
+        verifyGroupExpenseDeletion(
+            deletion = deletion,
+            expense = version,
+            authorUuid = authorUuid,
+            authorSignatureKey = authorKey,
+            signature = signature,
+        )
+    }
+}
+
+/**
+ * What becomes of a version of a group expense, or of its deletion flag, this device tries to open,
+ * see [GroupExpenseOpener], [T] being what one opens to.
+ */
+internal sealed interface GroupExpenseOpening<out T> {
+
+    /** It opened, its author signed it, and it says what the app writes, or for a flag, what they may. */
+    class Opened<out T>(val opened: T) : GroupExpenseOpening<T>
 
     /**
      * It is sealed under a generation of the group's key this device cannot have yet, see
@@ -329,29 +518,30 @@ internal sealed interface GroupExpenseOpening {
      * undid, see [ReplaceGroupCommitBody], whose key no member holds: kept for later, see
      * [database.data.local.entity.UnreadableGroupExpenseEntity], and no failure of the pass.
      */
-    data object Unreadable : GroupExpenseOpening
+    data object Unreadable : GroupExpenseOpening<Nothing>
 
     /**
      * It does not open as that expense's under the key it was listed under, nobody this device holds
-     * a key for signed it, or what it says is not what the app writes: never shown.
+     * a key for signed it, or what it says is not what the app writes, or for a flag, what its
+     * author may: never shown.
      */
-    data object Refused : GroupExpenseOpening
+    data object Refused : GroupExpenseOpening<Nothing>
 
     /**
      * What it takes to tell could not be read this time: the server's links to the key it is sealed
      * under, or the pin of its author, see [GroupExpenseOpener.failure]. Tried again by the next pass.
      */
-    data object Failed : GroupExpenseOpening
+    data object Failed : GroupExpenseOpening<Nothing>
 }
 
 /**
- * Opens versions of the expenses of [group], one after the other, for a pass over them, see
- * [GroupExpenseSync] and [GroupExpenseHistory]: the key of each generation through [keyOf], see
- * [GroupKeyChain.keyOf], and the key of each author through [authorKeyOf], each read once for the
- * pass, whatever came of it, but for a version that opens under no key its generation gave so far,
- * see [open], so that a group of a thousand expenses asks the server for its links once for each
- * generation this device lacks, and again only for each key a version of a member's own leads to,
- * and reads each pin once.
+ * Opens versions of the expenses of [group], and their deletion flags, one after the other, for a
+ * pass over them, see [GroupExpenseSync] and [GroupExpenseHistory]: the key of each generation
+ * through [keyOf], see [GroupKeyChain.keyOf], and the key of each author through [authorKeyOf],
+ * each read once for the pass, whatever came of it, but for a version or a flag that opens under no
+ * key its generation gave so far, see [open], so that a group of a thousand expenses asks the server
+ * for its links once for each generation this device lacks, and again only for each key a version of
+ * a member's own leads to, and reads each pin once.
  *
  * [selfUuid] is the user's, [client] their MLS identity, and [recorded] is
  * [database.data.local.dao.GroupDao.getMemberSignatureKey], or what a test stands in for either.
@@ -379,8 +569,9 @@ internal class GroupExpenseOpener(
     private val authorKeys = mutableMapOf<String, ByteArray?>()
 
     /**
-     * What kept the first version that [GroupExpenseOpening.Failed] from being told, or null: the
-     * server could not be asked for the links, or the user's storage failed as a pin was read.
+     * What kept the first version or flag that [GroupExpenseOpening.Failed] from being told, or
+     * null: the server could not be asked for the links, or the user's storage failed as a pin was
+     * read.
      */
     var failure: Failure? = null
         private set
@@ -389,14 +580,76 @@ internal class GroupExpenseOpener(
      * What becomes of the version [revision] of the expense [expenseUuid] of the group, [content]
      * sealed under its key of [keyGeneration], see [GroupExpenseOpening].
      */
-    suspend fun open(expenseUuid: String, revision: Long, keyGeneration: Long, content: EncryptedFieldDto): GroupExpenseOpening {
-        fun opens(key: ByteArray) = content.unsealGroupExpense(
+    suspend fun open(
+        expenseUuid: String,
+        revision: Long,
+        keyGeneration: Long,
+        content: EncryptedFieldDto,
+    ): GroupExpenseOpening<OpenedGroupExpense> {
+        fun unsealed(key: ByteArray) = content.unsealGroupExpense(
             groupKey = key,
             groupUuid = group.uuid,
             expenseUuid = expenseUuid,
             revision = revision,
-        ) != null
+        )
 
+        val key = keyFor(keyGeneration = keyGeneration, opens = { unsealed(it) != null }) { return it }
+        val signed = unsealed(key) ?: return GroupExpenseOpening.Refused
+        val authorKey = authorKeyFor(authorUuid = signed.authorUuid) { return it }
+
+        if (!signed.isSignedBy(authorKey = authorKey)) return GroupExpenseOpening.Refused
+
+        return signed.opened(currency = group.currency)?.let { GroupExpenseOpening.Opened(opened = it) }
+            ?: GroupExpenseOpening.Refused
+    }
+
+    /**
+     * What becomes of the deletion flag of the expense [expenseUuid] of the group at
+     * [deletionRevision], [content] sealed under its key of [keyGeneration], checked against
+     * [shown], a version of that expense: the one this device shows or, of an expense it shows no
+     * version of yet, the one listed with the flag, which is stored only together with it, see
+     * [GroupExpenseSync] and [SignedGroupExpenseDeletion.isSignedBy]. Opened, it is the flag as it
+     * is stored, see [GroupExpenseDeletionEntity].
+     */
+    suspend fun openDeletion(
+        expenseUuid: String,
+        deletionRevision: Long,
+        keyGeneration: Long,
+        content: EncryptedFieldDto,
+        shown: ExpenseWithBeneficiariesEntity,
+    ): GroupExpenseOpening<GroupExpenseDeletionEntity> {
+        fun unsealed(key: ByteArray) = content.openGroupExpenseDeletion(
+            groupKey = key,
+            groupUuid = group.uuid,
+            expenseUuid = expenseUuid,
+            deletionRevision = deletionRevision,
+        )
+
+        val key = keyFor(keyGeneration = keyGeneration, opens = { unsealed(it) != null }) { return it }
+        val signed = unsealed(key) ?: return GroupExpenseOpening.Refused
+        val authorKey = authorKeyFor(authorUuid = signed.authorUuid) { return it }
+
+        if (!signed.isSignedBy(authorKey = authorKey, shown = shown)) return GroupExpenseOpening.Refused
+
+        return GroupExpenseOpening.Opened(
+            opened = GroupExpenseDeletionEntity(
+                expenseUuid = expenseUuid,
+                deletionRevision = deletionRevision,
+                isDeleted = signed.deletion.isDeleted,
+                authorUuid = signed.authorUuid,
+            ),
+        )
+    }
+
+    /**
+     * The key of [keyGeneration] what is sealed under it opens under, [opens] telling, or else
+     * what becomes of it, handed to [otherwise], which returns from the caller, see [openingOf].
+     */
+    private suspend inline fun keyFor(
+        keyGeneration: Long,
+        noinline opens: (key: ByteArray) -> Boolean,
+        otherwise: (GroupExpenseOpening<Nothing>) -> Nothing,
+    ): ByteArray {
         val found = keys.getOrPut(keyGeneration) { mutableListOf() }
 
         // A key another version of its generation opened under, or else the one the chain gives
@@ -405,50 +658,46 @@ internal class GroupExpenseOpener(
         // chain leads to as well. Asked for once a generation, and again for every version opening
         // under none found until it comes to nothing new, so that such a version, or one that opens
         // under no key at all, has the server asked once more at most.
-        val key = found.firstOrNull(::opens) ?: run {
-            if (keyGeneration in settled) return openingOf(error = settled[keyGeneration], isKeyFound = found.isNotEmpty())
+        found.firstOrNull(opens)?.let { return it }
 
-            when (val read = keyOf(group.uuid, keyGeneration, ::opens)) {
-                is Result.Success -> read.data.also { key ->
-                    if (found.any { it contentEquals key }) settled[keyGeneration] = null else found += key
-                }
+        if (keyGeneration in settled) otherwise(openingOf(error = settled[keyGeneration], isKeyFound = found.isNotEmpty()))
 
-                is Result.Error -> {
-                    settled[keyGeneration] = read.error
+        return when (val read = keyOf(group.uuid, keyGeneration, opens)) {
+            is Result.Success -> read.data.also { key ->
+                if (found.any { it contentEquals key }) settled[keyGeneration] = null else found += key
+            }
 
-                    return openingOf(error = read.error, isKeyFound = found.isNotEmpty())
-                }
+            is Result.Error -> {
+                settled[keyGeneration] = read.error
+
+                otherwise(openingOf(error = read.error, isKeyFound = found.isNotEmpty()))
             }
         }
+    }
 
-        val signed = content.unsealGroupExpense(
-            groupKey = key,
-            groupUuid = group.uuid,
-            expenseUuid = expenseUuid,
-            revision = revision,
-        ) ?: return GroupExpenseOpening.Refused
+    /**
+     * The key [authorUuid]'s versions and flags are checked against, see [authorKeyOf], read once
+     * for the pass, or [GroupExpenseOpening.Failed], handed to [otherwise], which returns from the
+     * caller, when their pin could not be read.
+     */
+    private suspend inline fun authorKeyFor(
+        authorUuid: String,
+        otherwise: (GroupExpenseOpening<Nothing>) -> Nothing,
+    ): ByteArray? {
+        if (authorUuid in authorKeys) return authorKeys[authorUuid]
 
-        val authorKey = if (signed.authorUuid in authorKeys) {
-            authorKeys[signed.authorUuid]
-        } else {
-            try {
-                client.authorKeyOf(
-                    authorUuid = signed.authorUuid,
-                    selfUuid = selfUuid,
-                    groupUuid = group.uuid,
-                    recorded = recorded,
-                ).also { authorKeys[signed.authorUuid] = it }
-            } catch (_: MlsException) {
-                failure = failure ?: Failure.Storage
+        return try {
+            client.authorKeyOf(
+                authorUuid = authorUuid,
+                selfUuid = selfUuid,
+                groupUuid = group.uuid,
+                recorded = recorded,
+            ).also { authorKeys[authorUuid] = it }
+        } catch (_: MlsException) {
+            failure = failure ?: Failure.Storage
 
-                return GroupExpenseOpening.Failed
-            }
+            otherwise(GroupExpenseOpening.Failed)
         }
-
-        if (!signed.isSignedBy(authorKey = authorKey)) return GroupExpenseOpening.Refused
-
-        return signed.opened(currency = group.currency)?.let { GroupExpenseOpening.Opened(version = it) }
-            ?: GroupExpenseOpening.Refused
     }
 
     /**
@@ -457,7 +706,7 @@ internal class GroupExpenseOpener(
      * asked, and refused otherwise, as a version is that does not open under its generation's key
      * when [isKeyFound], one was found, or that the chain gave this one, which it does not open.
      */
-    private fun openingOf(error: GroupKeyChainError?, isKeyFound: Boolean): GroupExpenseOpening =
+    private fun openingOf(error: GroupKeyChainError?, isKeyFound: Boolean): GroupExpenseOpening<Nothing> =
         when (error) {
             is GroupKeyChainError.Network -> {
                 failure = failure ?: Failure.Network(error.error)
@@ -505,7 +754,6 @@ private fun ExpenseWithBeneficiaries.versionOf(groupUuid: String, revision: Long
         )
     },
     isSettlement = isSettlement,
-    isDeleted = isDeleted,
 )
 
 /**
@@ -528,10 +776,6 @@ private class SealedGroupExpense(
     @SerialName("is_settlement")
     val isSettlement: Int,
 
-    /** A flag sealed as [toSealedFlag] seals one. */
-    @SerialName("is_deleted")
-    val isDeleted: Int,
-
     @SerialName("author_uuid")
     val authorUuid: String,
 
@@ -552,10 +796,26 @@ private class SealedGroupExpenseBeneficiary(
 )
 
 /**
- * A flag as a version seals it: `1` or `0`, and not `true` or `false`, which differ in length, as a
- * one-time expense seals its own, see `expense.OneTimeExpenseSealing`. AES-GCM does not hide how long
- * what it seals is, and a deletion, or a restore, saying the rest as the version before did, would
- * otherwise tell the server what it was by the length of the version alone.
+ * The one sealed field of a deletion flag of a group expense, as JSON: whether it is deleted, who
+ * said so, and their signature over it, in standard Base64, see [sealGroupExpenseDeletion].
+ */
+@Serializable
+private class SealedGroupExpenseDeletion(
+    /** A flag sealed as [toSealedFlag] seals one. */
+    @SerialName("is_deleted")
+    val isDeleted: Int,
+
+    @SerialName("author_uuid")
+    val authorUuid: String,
+
+    val signature: String,
+)
+
+/**
+ * A flag as a version, or a deletion flag, seals one: `1` or `0`, and not `true` or `false`, which
+ * differ in length, as a one-time expense seals its own, see `expense.OneTimeExpenseSealing`.
+ * AES-GCM does not hide how long what it seals is, and a deletion flag would otherwise tell the
+ * server by its length alone whether it deletes the expense or restores it.
  */
 private fun Boolean.toSealedFlag(): Int = if (this) 1 else 0
 

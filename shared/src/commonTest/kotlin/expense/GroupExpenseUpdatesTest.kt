@@ -87,18 +87,29 @@ class GroupExpenseUpdatesTest {
         assertEquals(listOf(GroupExpenseUpdate.Kind.EDITED), updates)
     }
 
+    /** Carol's deletion flag, the version Bob wrote left as it was. */
     @Test
-    fun `a version deleting the expense shown is a deletion`() {
-        val updates = updatesOf(change(expense = dinner(isDeleted = true), previous = dinner()))
+    fun `a flag deleting the expense shown is a deletion`() {
+        val updates = updatesOf(change(expense = dinner(isDeleted = true), previous = dinner(), authorUuid = CAROL, revision = 1))
 
         assertEquals(listOf(GroupExpenseUpdate.Kind.DELETED), updates)
     }
 
     @Test
-    fun `a version undoing a deletion is a restoration`() {
-        val updates = updatesOf(change(expense = dinner(), previous = dinner(isDeleted = true)))
+    fun `a flag undoing a deletion is a restoration`() {
+        val updates = updatesOf(change(expense = dinner(), previous = dinner(isDeleted = true), authorUuid = CAROL, revision = 1))
 
         assertEquals(listOf(GroupExpenseUpdate.Kind.RESTORED), updates)
+    }
+
+    /** Bob's edit and Carol's deletion, one change of one pass: what moves the user's balances is the deletion. */
+    @Test
+    fun `an edit and a deletion in one pass are a deletion`() {
+        val updates = updatesOf(
+            change(expense = dinner(title = "Dinner and drinks", isDeleted = true), previous = dinner(), authorUuid = CAROL),
+        )
+
+        assertEquals(listOf(GroupExpenseUpdate.Kind.DELETED), updates)
     }
 
     /** Created and deleted between two syncs: it counts in no balance, and never did on this device. */
@@ -110,7 +121,7 @@ class GroupExpenseUpdatesTest {
     }
 
     @Test
-    fun `a version of an expense that stays deleted is not told about`() {
+    fun `an edit of an expense that stays deleted is not told about`() {
         val updates = updatesOf(
             change(expense = dinner(title = "Dinner and drinks", isDeleted = true), previous = dinner(isDeleted = true)),
         )
@@ -148,10 +159,11 @@ class GroupExpenseUpdatesTest {
         authorUuid: String = BOB,
         previous: ExpenseWithBeneficiaries? = null,
         isFirstListing: Boolean = false,
+        revision: Long = if (previous == null) 1 else 2,
     ) = GroupExpenseChange(
         groupUuid = GROUP,
         expense = expense,
-        revision = if (previous == null) 1 else 2,
+        revision = revision,
         authorUuid = authorUuid,
         previous = previous,
         isFirstListing = isFirstListing,

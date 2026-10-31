@@ -35,6 +35,7 @@ import database.data.local.entity.DirectChannelEntity
 import database.data.local.entity.ExpenseEntity
 import database.data.local.entity.ExpenseRevisionEntity
 import database.data.local.entity.GroupEntity
+import database.data.local.entity.GroupExpenseDeletionEntity
 import database.data.local.entity.GroupKeyEntity
 import database.data.local.entity.GroupMemberEntity
 import database.data.local.entity.GroupMemberSignatureKeyEntity
@@ -85,6 +86,7 @@ import org.koin.mp.KoinPlatform.getKoin
         UnverifiedExpenseKeyEntity::class,
         ExpenseRevisionEntity::class,
         OneTimeExpenseSettledMarkEntity::class,
+        GroupExpenseDeletionEntity::class,
         PendingExpenseKeyEntity::class,
         KeyRequestBudgetEntity::class,
         PendingProfileKeyEntity::class,

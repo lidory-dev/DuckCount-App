@@ -475,7 +475,8 @@ class ExpenseRepository(
      * Saves an edit of the expense of the group [groupUuid] that [expenseWithBeneficiaries] names,
      * taken as [createGroupExpense] takes one, as the version after the one it was read at, its
      * [ExpenseWithBeneficiaries.revision], see [GroupExpenseWriter]. [GroupExpenseWriteError.Conflict]
-     * is another member's edit made first, which this device shows from then on.
+     * is another member's edit made first, which this device shows from then on, and
+     * [GroupExpenseWriteError.EditLimitReached] an expense that had every edit it takes.
      */
     suspend fun updateGroupExpense(
         groupUuid: String,
@@ -484,8 +485,9 @@ class ExpenseRepository(
         groupExpenseWriter.edit(groupUuid = groupUuid, expense = expenseWithBeneficiaries)
 
     /**
-     * Deletes the expense [uuid] of the group [groupUuid], as a version saying so, see
-     * [GroupExpenseWriter.delete]: it stays listed, struck through, and counts in no balance.
+     * Deletes the expense [uuid] of the group [groupUuid], as a deletion flag saying so, which is no
+     * edit, see [GroupExpenseWriter.delete]: it stays listed, struck through, and counts in no
+     * balance.
      */
     suspend fun deleteGroupExpense(groupUuid: String, uuid: String): EmptyResult<GroupExpenseWriteError> =
         groupExpenseWriter.delete(groupUuid = groupUuid, expenseUuid = uuid)

@@ -18,4 +18,14 @@ data class ExpenseWithBeneficiariesEntity(
         entityColumn = "expenseUuid",
     )
     val settledMark: OneTimeExpenseSettledMarkEntity? = null,
+
+    /**
+     * Read with the expense only: it is written apart, see `ExpenseDao.storeGroupExpenseDeletions`,
+     * which sets [ExpenseEntity.isDeleted] to what it says.
+     */
+    @Relation(
+        parentColumn = "uuid",
+        entityColumn = "expenseUuid",
+    )
+    val deletion: GroupExpenseDeletionEntity? = null,
 )

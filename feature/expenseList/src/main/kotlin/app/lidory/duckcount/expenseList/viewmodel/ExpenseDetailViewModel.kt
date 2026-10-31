@@ -47,6 +47,12 @@ class ExpenseDetailViewModel(
 
     private val authenticatedUserUuid: String? = expenseDetailCallBacks.getAuthenticatedUserUuid()
 
+    /**
+     * The most edits an expense of a group takes, which the screen names once it had them all: see
+     * [ExpenseDetailCallBacks.maxGroupExpenseEdits].
+     */
+    val maxGroupExpenseEdits: Int = expenseDetailCallBacks.maxGroupExpenseEdits
+
     private val expense: StateFlow<ExpenseWithBeneficiaries?> =
         expenseDetailCallBacks.getExpenseWithBeneficiaries(uuid = expenseUuid)
             .stateIn(
@@ -64,6 +70,17 @@ class ExpenseDetailViewModel(
     private val creditorName: Flow<String?> =
         expense
             .map { it?.creditorUuid }
+            .distinctUntilChanged()
+            .flatMapLatest { uuid ->
+                if (uuid == null) flowOf(null)
+                else expenseDetailCallBacks.getUserFullName(uuid)
+            }
+
+    // Who deleted the expense of a group, null when nobody did, or when this device holds no
+    // profile for them, as for the creditor.
+    private val deleterName: Flow<String?> =
+        expense
+            .map { it?.deletedByUuid }
             .distinctUntilChanged()
             .flatMapLatest { uuid ->
                 if (uuid == null) flowOf(null)
@@ -112,17 +129,29 @@ class ExpenseDetailViewModel(
             }
 
     val state: StateFlow<ExpenseScreenState> =
-        combine(expense, creditorName, beneficiaries, isGroupLeft) { expenseValue, creditor, beneficiaryUis, isLeft ->
+        combine(
+            expense,
+            creditorName,
+            beneficiaries,
+            isGroupLeft,
+            deleterName,
+        ) { expenseValue, creditor, beneficiaryUis, isLeft, deleter ->
             if (expenseValue == null) {
                 ExpenseScreenState.Loading
             } else {
-                val actions = expenseValue.actions(selfUuid = authenticatedUserUuid, isGroupLeft = isLeft)
+                val actions = expenseValue.actions(
+                    selfUuid = authenticatedUserUuid,
+                    isGroupLeft = isLeft,
+                    maxGroupExpenseEdits = maxGroupExpenseEdits,
+                )
 
                 ExpenseScreenState.Content(
                     expenseWithBeneficiaries = expenseValue,
                     creditorFullName = creditor,
+                    deletedByFullName = deleter,
                     beneficiaries = beneficiaryUis,
                     canEdit = actions.canEdit,
+                    isEditLimitReached = actions.isEditLimitReached,
                     canDelete = actions.canDelete,
                     canRestore = actions.canRestore,
                     canSettle = actions.canSettle,
@@ -181,8 +210,19 @@ sealed interface ExpenseScreenState {
     data class Content(
         val expenseWithBeneficiaries: ExpenseWithBeneficiaries,
         val creditorFullName: String?,
+
+        /**
+         * The name of who deleted the expense, see [ExpenseWithBeneficiaries.deletedByUuid]; null
+         * when nobody did, or when this device holds no profile for them.
+         */
+        val deletedByFullName: String?,
+
         val beneficiaries: List<BeneficiaryUi>,
         val canEdit: Boolean,
+
+        /** Whether no edit is offered for want of one left, see [ExpenseActions.isEditLimitReached]. */
+        val isEditLimitReached: Boolean,
+
         val canDelete: Boolean,
 
         /**
@@ -200,6 +240,16 @@ sealed interface ExpenseScreenState {
 /** What the user may do with an expense on its detail screen, see [actions]. */
 data class ExpenseActions(
     val canEdit: Boolean,
+
+    /**
+     * Whether the expense of a group had every edit it takes, which is then why it is not edited,
+     * and which the screen says: it stands at its last revision, one more than
+     * [ExpenseDetailCallBacks.maxGroupExpenseEdits]. Deleting and restoring it are no edit, so it
+     * is still deleted and restored. Never in a group the user is no longer in, where nothing is
+     * edited anyway, nor for a settlement, which nobody edits, and which never gets there.
+     */
+    val isEditLimitReached: Boolean,
+
     val canDelete: Boolean,
 
     /** Whether the expense, once deleted, can be restored. */
@@ -219,24 +269,40 @@ data class ExpenseActions(
  * no longer a member of, removed or left, [isGroupLeft], which stays read-only, its expenses with
  * it.
  *
+ * An expense of a group takes [maxGroupExpenseEdits] edits, and none once it stands at its last
+ * revision, see [ExpenseActions.isEditLimitReached]: every member's device refuses a version past
+ * it, and the server stores none.
+ *
  * A settlement is recorded by its recipient alone, its one beneficiary, and only they delete it,
  * see [ExpenseWithBeneficiaries.isSettlement]. Nobody edits one, nor restores it once deleted: it
  * stays in the list struck through, as its confirmation says. Every member's device refuses a
- * version of one that does otherwise.
+ * version of one, or a deletion flag, that does otherwise.
  */
-fun ExpenseWithBeneficiaries.actions(selfUuid: String?, isGroupLeft: Boolean) = ExpenseActions(
-    canEdit = !isGroupLeft && !isSettlement && (groupUuid != null || creditorUuid == selfUuid),
-    // A one-time expense may only be deleted by its creditor.
-    // A group expense may be deleted by any member of the group, while they are one.
-    canDelete = !isGroupLeft && when {
-        isSettlement -> beneficiaries.any { it.userUuid == selfUuid }
-        groupUuid == null -> creditorUuid == selfUuid
-        else -> true
-    },
-    canRestore = !isGroupLeft && !isSettlement,
-    // Only a one-time expense can be marked as paid back, and only by its
-    // creditor, the one paid back: they sign it, and the server takes the
-    // mark from nobody else.
-    canSettle = groupUuid == null && creditorUuid == selfUuid,
-    canShowHistory = !isGroupLeft && !isSettlement,
-)
+fun ExpenseWithBeneficiaries.actions(
+    selfUuid: String?,
+    isGroupLeft: Boolean,
+    maxGroupExpenseEdits: Int,
+): ExpenseActions {
+    // Created at revision 1, it stands at its last once it had every edit it takes.
+    val isEditLimitReached =
+        !isGroupLeft && groupUuid != null && revision != null && revision >= 1 + maxGroupExpenseEdits
+
+    return ExpenseActions(
+        canEdit = !isGroupLeft && !isSettlement && !isEditLimitReached &&
+                (groupUuid != null || creditorUuid == selfUuid),
+        isEditLimitReached = isEditLimitReached,
+        // A one-time expense may only be deleted by its creditor.
+        // A group expense may be deleted by any member of the group, while they are one.
+        canDelete = !isGroupLeft && when {
+            isSettlement -> beneficiaries.any { it.userUuid == selfUuid }
+            groupUuid == null -> creditorUuid == selfUuid
+            else -> true
+        },
+        canRestore = !isGroupLeft && !isSettlement,
+        // Only a one-time expense can be marked as paid back, and only by its
+        // creditor, the one paid back: they sign it, and the server takes the
+        // mark from nobody else.
+        canSettle = groupUuid == null && creditorUuid == selfUuid,
+        canShowHistory = !isGroupLeft && !isSettlement,
+    )
+}

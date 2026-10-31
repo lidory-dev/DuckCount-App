@@ -94,6 +94,8 @@
     <string name="expense_settled_on">Remboursée le %1$s</string>
     <string name="mark_as_settled">Marquer comme remboursée</string>
     <string name="mark_as_not_settled">Marquer comme non remboursée</string>
+    <string name="deleted_by">Supprimé par %1$s</string>
+    <string name="edit_limit_reached">Cette dépense ne peut plus être modifiée\u00A0: elle a atteint ses %1$d modifications</string>
 
     <!-- ExpenseDetailActionButtons -->
     <string name="delete_one_time_expense_confirmation">Voulez-vous vraiment supprimer cette dépense ?\n\nContrairement à une dépense dans un groupe, elle ne pourra pas être restaurée.</string>
@@ -101,6 +103,4 @@
 
     <!-- ExpenseHistoryScreen -->
     <string name="created_by">Créé par %1$s</string>
-    <string name="deleted_by">Supprimé par %1$s</string>
-    <string name="restored_by">Restauré par %1$s</string>
 </resources>

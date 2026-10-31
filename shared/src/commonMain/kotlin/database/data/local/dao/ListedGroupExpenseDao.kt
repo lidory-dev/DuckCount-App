@@ -46,8 +46,8 @@ interface ListedGroupExpenseDao {
 
     /**
      * Applies a page of the feed of the group [groupUuid]: [changed] as they now stand, and
-     * [feedToken] as where it leaves the feed. Nothing is ever removed: a deletion is a version
-     * like any other.
+     * [feedToken] as where it leaves the feed. Nothing is ever removed: a deleted expense is listed
+     * with the flag saying so.
      */
     @Transaction
     suspend fun apply(groupUuid: String, changed: List<ListedGroupExpenseEntity>, feedToken: String) {
@@ -64,8 +64,8 @@ interface ListedGroupExpenseDao {
 
     /**
      * Records [expenseUuids] as those of the group [groupUuid]'s expenses its listing holds at a
-     * version this device cannot read yet, see [UnreadableGroupExpenseEntity], in place of those it
-     * recorded before.
+     * version, or with a deletion flag, this device cannot read yet, see
+     * [UnreadableGroupExpenseEntity], in place of those it recorded before.
      */
     @Transaction
     suspend fun replaceUnreadable(groupUuid: String, expenseUuids: List<String>) {

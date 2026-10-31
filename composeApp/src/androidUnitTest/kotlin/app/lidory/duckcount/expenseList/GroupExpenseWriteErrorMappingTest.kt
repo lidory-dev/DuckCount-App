@@ -30,6 +30,22 @@ class GroupExpenseWriteErrorMappingTest {
         )
     }
 
+    /**
+     * Another member's last edit made as the form was open: not an edit to check before writing
+     * again, as another member's is, but no edit left, as for a one-time expense.
+     */
+    @Test
+    fun `an expense that had every edit it takes is told as the limit on edits reached`() {
+        assertEquals(
+            ExpenseWriteError.CONFLICT,
+            GroupExpenseWriteError.EditLimitReached.toExpenseWriteError(isOnline = true),
+        )
+        assertEquals(
+            ExpenseSaveError.Write(error = ExpenseWriteError.CONFLICT),
+            GroupExpenseWriteError.EditLimitReached.toExpenseSaveError(isOnline = true),
+        )
+    }
+
     /** Deleting, or restoring, from a screen opened before a sync read the removal. */
     @Test
     fun `a group the user is no longer in is told as such and not as an expired session`() {

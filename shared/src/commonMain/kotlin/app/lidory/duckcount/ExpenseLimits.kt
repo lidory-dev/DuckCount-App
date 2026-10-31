@@ -1,6 +1,7 @@
 package app.lidory.duckcount
 
 import uniffi.lib_duckcount.maxBeneficiaries as maxBeneficiariesUniffi
+import uniffi.lib_duckcount.maxGroupExpenseEdits as maxGroupExpenseEditsUniffi
 
 object ExpenseLimits {
     const val MAX_TITLE_LENGTH = 50
@@ -14,4 +15,13 @@ object ExpenseLimits {
      * one-time expense sends a key message to each of them, and the server refuses a longer list.
      */
     val MAX_BENEFICIARIES: Int = maxBeneficiariesUniffi().toInt()
+
+    /**
+     * The most edits an expense of a group takes, its revision going from 1, as created, to one
+     * more than this at most. Read from the library, which refuses a version past that last
+     * revision whoever signed it, as the server refuses to store one, rather than repeating the
+     * number. Deleting and restoring the expense are no edit, see `group.GroupExpenseWriter`: one
+     * that had every edit it takes is still deleted and restored.
+     */
+    val MAX_GROUP_EXPENSE_EDITS: Int = maxGroupExpenseEditsUniffi().toInt()
 }

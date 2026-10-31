@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "510e8d855cb8ef633b92f8ad434aa018",
+    "identityHash": "9520ca553ed68422fd981d2f260be995",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -803,6 +803,42 @@
         }
       },
       {
+        "tableName": "GroupExpenseDeletionEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `deletionRevision` INTEGER NOT NULL, `isDeleted` INTEGER NOT NULL, `authorUuid` TEXT NOT NULL, PRIMARY KEY(`expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deletionRevision",
+            "columnName": "deletionRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isDeleted",
+            "columnName": "isDeleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "authorUuid",
+            "columnName": "authorUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid"
+          ]
+        }
+      },
+      {
         "tableName": "PendingExpenseKeyEntity",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `firstSeenAt` INTEGER NOT NULL, `lastRequestedAt` INTEGER, `requestCount` INTEGER NOT NULL, `state` TEXT NOT NULL, `isAwaitedAtRemoval` INTEGER NOT NULL, PRIMARY KEY(`expenseUuid`))",
         "fields": [
@@ -1152,7 +1188,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '510e8d855cb8ef633b92f8ad434aa018')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9520ca553ed68422fd981d2f260be995')"
     ]
   }
 }

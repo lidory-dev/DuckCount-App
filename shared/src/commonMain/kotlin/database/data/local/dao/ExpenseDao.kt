@@ -12,9 +12,10 @@ import database.data.local.entity.BeneficiaryEntity
 import database.data.local.entity.ExpenseEntity
 import database.data.local.entity.ExpenseWithBeneficiariesEntity
 import database.data.local.entity.ExpenseRevisionEntity
+import database.data.local.entity.GroupExpenseDeletionEntity
 import database.data.local.entity.OneTimeExpenseSettledMarkEntity
 import database.domain.Currency
-import group.mayBeFollowedBy
+import group.mayBeFollowed
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -208,24 +209,38 @@ interface ExpenseDao {
     @Query("SELECT * FROM ExpenseEntity WHERE uuid = :uuid AND groupUuid = :groupUuid")
     suspend fun getGroupExpense(groupUuid: String, uuid: String): ExpenseWithBeneficiariesEntity?
 
-    /** The revision each expense of the group [groupUuid] this device shows is at, see [ShownRevision]. */
-    @Query("SELECT uuid, revision FROM ExpenseEntity WHERE groupUuid = :groupUuid AND revision IS NOT NULL")
-    suspend fun getGroupExpenseRevisions(groupUuid: String): List<ShownRevision>
+    /**
+     * The revisions the version and the deletion flag of each expense of the group [groupUuid]
+     * this device shows are at, see [ShownRevisions].
+     */
+    @Query(
+        """SELECT ExpenseEntity.uuid AS uuid, ExpenseEntity.revision AS revision,
+            COALESCE(GroupExpenseDeletionEntity.deletionRevision, 0) AS deletionRevision
+        FROM ExpenseEntity
+        LEFT JOIN GroupExpenseDeletionEntity ON GroupExpenseDeletionEntity.expenseUuid = ExpenseEntity.uuid
+        WHERE ExpenseEntity.groupUuid = :groupUuid AND ExpenseEntity.revision IS NOT NULL""",
+    )
+    suspend fun getGroupExpenseRevisions(groupUuid: String): List<ShownRevisions>
 
     /**
      * Stores each of [expenses], versions of the group [groupUuid]'s expenses opened and checked,
      * each with the revision it was signed at and who signed it, see [ExpenseEntity.revision] and
      * [ExpenseEntity.authorUuid], its beneficiaries replaced whole, and returns those stored, each
-     * with the version it replaced. Runs in a single transaction.
+     * as it was written, with the version it replaced. Runs in a single transaction.
+     *
+     * Whether the expense is deleted is no part of a version: each is stored deleted, or not, as
+     * the deletion flag of its expense this device shows says, one stored before it, and not
+     * deleted when there is none, see [GroupExpenseDeletionEntity].
      *
      * Only a version newer than every one this device has shown or signed of its expense is
      * stored, see [ExpenseRevisionEntity]: one older is what a server putting back a version from
      * before an edit looks like, and one at the same revision, another version under a number this
      * device has seen, what one serving members different versions under it looks like, or the
      * very version shown, listed again. And only one that may follow the version it replaces, see
-     * [mayBeFollowedBy]: a settlement is deleted by its recipient, and that is all that ever
-     * changes of it. Both are checked in this transaction, so that no other sync or write can
-     * store a newer version between the check and the write.
+     * [mayBeFollowed]: nothing follows a settlement's first version, and no version past the first
+     * is opened as one, see [SignedGroupExpense.isSignedBy][group.isSignedBy]. Both are checked in
+     * this transaction, so that no other sync or write can store a newer version between the check
+     * and the write.
      *
      * Nor is one stored over a row of another kind, or of another group: the UUIDs of one-time and
      * group expenses are derived alike, from their creator's and a nonce, so a member who used the
@@ -250,13 +265,94 @@ interface ExpenseDao {
 
             if (newest != null && revision <= newest) return@mapNotNull null
 
-            if (previous != null && !previous.mayBeFollowedBy(next = expense)) return@mapNotNull null
+            if (previous != null && !previous.mayBeFollowed()) return@mapNotNull null
 
-            upsertWithBeneficiaries(expenseWithBeneficiaries = expense)
+            val deletion = getGroupExpenseDeletion(expenseUuid = expenseUuid)
+            val written = expense.copy(
+                expense = expense.expense.copy(isDeleted = deletion?.isDeleted ?: false),
+                deletion = deletion,
+            )
+
+            upsertWithBeneficiaries(expenseWithBeneficiaries = written)
             setNewestRevision(ExpenseRevisionEntity(expenseUuid, newestRevision = revision))
 
-            StoredGroupExpense(expense = expense, previous = previous)
+            StoredGroupExpense(expense = written, previous = previous)
         }
+
+    /**
+     * Stores each of [deletions], deletion flags of the group [groupUuid]'s expenses opened and
+     * checked against the version of them this device shows, or stores with them, see
+     * [GroupExpenseDeletionEntity], and sets each expense deleted, or not, as its flag says, and
+     * returns those stored, each as the expense now shows, with what it showed before. Runs in a
+     * single transaction.
+     *
+     * Only a flag newer than the one this device shows of its expense is stored: one older is what
+     * a server putting back the flag from before a deletion, to have the expense restored, looks
+     * like, and one at the same revision, the flag shown, listed again, or another one under a
+     * number this device has seen. Nor is one stored of an expense this device shows no version of
+     * in that group: no flag is stored without a version this device shows to check it against,
+     * the one it shows as the flag is opened, or for an expense new to it, the one the flag was
+     * opened with and stored just before it, in the same transaction, which tells whether the
+     * flag's author may set it on a settlement, see
+     * [SignedGroupExpenseDeletion.isSignedBy][group.isSignedBy], [storeGroupExpensesWithDeletions]
+     * and `group.GroupExpenseSync`. A flag names no version of its expense. Both are checked in this
+     * transaction, so that no other sync or write can store a newer flag between the check and the
+     * write.
+     */
+    @Transaction
+    suspend fun storeGroupExpenseDeletions(
+        groupUuid: String,
+        deletions: List<GroupExpenseDeletionEntity>,
+    ): List<StoredGroupExpense> =
+        deletions.mapNotNull { deletion ->
+            val shown = getGroupExpense(groupUuid = groupUuid, uuid = deletion.expenseUuid) ?: return@mapNotNull null
+            val stored = shown.deletion
+
+            if (stored != null && deletion.deletionRevision <= stored.deletionRevision) return@mapNotNull null
+
+            setGroupExpenseDeletion(deletion = deletion)
+            setDeleted(uuid = deletion.expenseUuid, isDeleted = deletion.isDeleted)
+
+            StoredGroupExpense(
+                expense = shown.copy(expense = shown.expense.copy(isDeleted = deletion.isDeleted), deletion = deletion),
+                previous = shown,
+            )
+        }
+
+    /**
+     * Stores [expenses] as [storeGroupExpenses] does, then [deletions] as
+     * [storeGroupExpenseDeletions] does, in a single transaction, and returns what each stored, see
+     * [StoredGroupExpenses]: the flags of expenses this device shows no version of yet, each opened
+     * and checked against the version of its expense among [expenses], see `group.GroupExpenseSync`,
+     * so that the first the device shows of each is deleted or not as its flag says. Stored apart,
+     * the version would be committed as not deleted before the flag is: what reads the group's
+     * expenses, its balances and its list, would count a deleted one, a deleted settlement among
+     * them, until the flag is stored, or until the next pass should the one storing them be cut
+     * short in between, which would then tell the user of a deletion although they never saw the
+     * expense.
+     */
+    @Transaction
+    suspend fun storeGroupExpensesWithDeletions(
+        groupUuid: String,
+        expenses: List<ExpenseWithBeneficiariesEntity>,
+        deletions: List<GroupExpenseDeletionEntity>,
+    ): StoredGroupExpenses {
+        val versions = storeGroupExpenses(groupUuid = groupUuid, expenses = expenses)
+
+        return StoredGroupExpenses(
+            versions = versions,
+            deletions = storeGroupExpenseDeletions(groupUuid = groupUuid, deletions = deletions),
+        )
+    }
+
+    @Query("SELECT * FROM GroupExpenseDeletionEntity WHERE expenseUuid = :expenseUuid")
+    suspend fun getGroupExpenseDeletion(expenseUuid: String): GroupExpenseDeletionEntity?
+
+    @Upsert
+    suspend fun setGroupExpenseDeletion(deletion: GroupExpenseDeletionEntity)
+
+    @Query("UPDATE ExpenseEntity SET isDeleted = :isDeleted WHERE uuid = :uuid")
+    suspend fun setDeleted(uuid: String, isDeleted: Boolean)
 
     @Delete
     suspend fun delete(expenseEntity: ExpenseEntity)
@@ -315,18 +411,35 @@ class ShownOneTimeExpense(
     val isSettled: Boolean,
 )
 
-/** The revision the version of an expense this device shows is at, see [ExpenseEntity.revision]. */
-class ShownRevision(
+/**
+ * The revisions the version of an expense of a group this device shows is at, see
+ * [ExpenseEntity.revision], and its deletion flag, see [GroupExpenseDeletionEntity.deletionRevision],
+ * 0 when there is none.
+ */
+class ShownRevisions(
     val uuid: String,
     val revision: Long,
+    val deletionRevision: Long,
 )
 
 /**
- * A version of a group expense [ExpenseDao.storeGroupExpenses] stored, [expense], and the one it
- * replaced, [previous], or null for an expense new to this device: what telling that it changed
- * takes.
+ * A version of a group expense [ExpenseDao.storeGroupExpenses] stored, or a deletion flag
+ * [ExpenseDao.storeGroupExpenseDeletions] did, the expense as it now shows, [expense], and as it
+ * showed before, [previous], or null for an expense new to this device: what telling that it
+ * changed takes.
  */
 class StoredGroupExpense(
     val expense: ExpenseWithBeneficiariesEntity,
     val previous: ExpenseWithBeneficiariesEntity?,
+)
+
+/**
+ * What [ExpenseDao.storeGroupExpensesWithDeletions] stored: the versions, [versions], as
+ * [ExpenseDao.storeGroupExpenses] returns them, and the deletion flags stored after them in the same
+ * transaction, [deletions], as [ExpenseDao.storeGroupExpenseDeletions] does, each with the expense
+ * as it showed before its flag, its version stored.
+ */
+class StoredGroupExpenses(
+    val versions: List<StoredGroupExpense>,
+    val deletions: List<StoredGroupExpense>,
 )

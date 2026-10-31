@@ -2,6 +2,7 @@ package group
 
 import database.AppDatabase
 import database.data.local.entity.GroupEntity
+import database.data.local.entity.GroupExpenseDeletionEntity
 import database.data.local.entity.GroupMemberSignatureKeyEntity
 import database.domain.ExpenseWithBeneficiaries
 import database.withInMemoryDatabase
@@ -19,7 +20,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 private const val ALICE = "11111111-1111-1111-1111-111111111111"
 private const val BOB = "22222222-2222-2222-2222-222222222222"
@@ -201,11 +202,38 @@ class GroupExpenseHistoryTest {
     }
 
     /**
-     * Bob edited it ten times since the version Alice's device shows: the server keeps that one no
-     * longer, nor any from before it.
+     * Bob edited it every time it takes: the server keeps every version, and each is told, made when
+     * the server took it, Alice's device showing the last.
      */
     @Test
-    fun `the version shown is made at no known time once the server keeps it no longer`() = runBlocking<Unit> {
+    fun `every version of an expense at its last revision is told`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            server.put(dinner.listedAs(revision = 1, author = bob, authorUuid = BOB, groupKey = firstKey))
+            ((FIRST_GROUP_EXPENSE_REVISION + 1)..LAST_GROUP_EXPENSE_REVISION).forEach { revision ->
+                server.put(
+                    dinner.copy(title = "Dinner $revision").listedAs(revision = revision, author = bob, authorUuid = BOB, groupKey = firstKey),
+                    revisedAt = "2026-10-31T09:${revision.toString().padStart(2, '0')}:00.000Z",
+                )
+            }
+            database.showing(
+                expense = dinner.copy(title = "Dinner $LAST_GROUP_EXPENSE_REVISION"),
+                revision = LAST_GROUP_EXPENSE_REVISION,
+                authorUuid = BOB,
+            )
+
+            val versions = assertIs<Result.Success<List<GroupExpenseHistoryEntry>>>(historyOf(database).versions(DINNER)).data
+
+            assertEquals((LAST_GROUP_EXPENSE_REVISION downTo FIRST_GROUP_EXPENSE_REVISION).toList(), versions.map { it.revision })
+            assertEquals(LocalDateTime(2026, 10, 31, 9, LAST_GROUP_EXPENSE_REVISION.toInt()), versions.first().madeAt)
+            assertTrue(versions.all { it.madeAt != null })
+        }
+    }
+
+    /** Deleted since, which is no version of it: its history tells its edits alone, none of them deleted. */
+    @Test
+    fun `the history of a deleted expense tells no deletion`() = runBlocking<Unit> {
         withInMemoryDatabase { database ->
             database.holdingTheGroup()
 
@@ -213,17 +241,16 @@ class GroupExpenseHistoryTest {
 
             server.put(dinner.listedAs(revision = 1, author = bob, authorUuid = BOB, groupKey = firstKey))
             server.put(shown.listedAs(revision = 2, author = bob, authorUuid = BOB, groupKey = firstKey))
-            (3L..12L).forEach { revision ->
-                server.put(
-                    dinner.copy(title = "Dinner $revision").listedAs(revision = revision, author = bob, authorUuid = BOB, groupKey = firstKey),
-                )
-            }
             database.showing(expense = shown, revision = 2, authorUuid = BOB)
+            database.expenseDao.storeGroupExpenseDeletions(
+                groupUuid = GROUP,
+                deletions = listOf(GroupExpenseDeletionEntity(expenseUuid = DINNER, deletionRevision = 1, isDeleted = true, authorUuid = CAROL)),
+            )
 
             val versions = assertIs<Result.Success<List<GroupExpenseHistoryEntry>>>(historyOf(database).versions(DINNER)).data
 
-            assertEquals(listOf(2L), versions.map { it.revision })
-            assertNull(versions.single().madeAt)
+            assertEquals(listOf(2L, 1L), versions.map { it.revision })
+            assertTrue(versions.none { it.expense.isDeleted || it.expense.deletedByUuid != null })
         }
     }
 

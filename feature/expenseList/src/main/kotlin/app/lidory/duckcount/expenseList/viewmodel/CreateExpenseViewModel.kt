@@ -355,6 +355,19 @@ class CreateExpenseViewModel(
         val saved = state
 
         try {
+            // Deleting the expense of a group is no edit of it, so the server takes an edit written
+            // after a deletion: the form saves nothing over one this device shows by now, see
+            // ExpenseSaveError.DeletedMeanwhile. Not for a one-time expense, never shown deleted,
+            // and gone once it is, which reading would wait on for good.
+            val isDeletedMeanwhile = groupUuid != null &&
+                    createExpenseCallBacks.getExpenseWithBeneficiaries(expenseUuid = expenseUuid).first().isDeleted
+
+            if (isDeletedMeanwhile) {
+                state = state.copy(isDeleted = true)
+                _showError.send(ExpenseSaveError.DeletedMeanwhile)
+                return@launch
+            }
+
             val error = createExpenseCallBacks.updateExpenseWithBeneficiaries(
                 expenseWithBeneficiaries = ExpenseWithBeneficiaries(
                     uuid = expenseUuid,
@@ -389,8 +402,8 @@ class CreateExpenseViewModel(
      * changed the expense first, the form is read again from the version this device shows of it
      * now, over what the user typed, see [ExpenseWriteError.CHANGED_MEANWHILE]: the user sees what
      * they would write over, and saves from it, every save built on the version read before being
-     * refused the same way; unless that version is a deletion, which the form saves nothing over,
-     * see [ExpenseSaveError.DeletedMeanwhile].
+     * refused the same way; unless it now shows the expense deleted, which the form saves nothing
+     * over, see [ExpenseSaveError.DeletedMeanwhile].
      */
     private suspend fun report(error: ExpenseSaveError) {
         val isChangedMeanwhile = error == ExpenseSaveError.Write(ExpenseWriteError.CHANGED_MEANWHILE)
@@ -629,8 +642,9 @@ data class CreateExpenseState(
     val shareTexts: Map<String, String> = emptyMap(),
 
     /**
-     * Whether the version the form was read from is a deletion, see [ExpenseSaveError.DeletedMeanwhile]:
-     * the form then saves nothing, the detail screen offering no edit of a deleted expense either.
+     * Whether the expense is deleted, as this device showed it once the form was read, or as it was
+     * saved, see [ExpenseSaveError.DeletedMeanwhile]: the form then saves nothing, the detail screen
+     * offering no edit of a deleted expense either.
      */
     val isDeleted: Boolean = false,
 

@@ -165,7 +165,9 @@ fun OneTimeExpenseHistoryError.toExpenseHistoryError(isOnline: Boolean): Expense
  * group the user is no longer in has one, and so has another member's edit made first, the device
  * showing their version from then on, and so have a creation the group waits on, the server's
  * limit and a group waiting for its owner, which the user waits out: writing again at once fails
- * the same way.
+ * the same way. An expense that had every edit it takes is told as a one-time expense's is: the
+ * detail screen offers no edit of one it shows so, but the form can be open as another member's
+ * last edit takes it there.
  */
 fun GroupExpenseWriteError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError =
     when (this) {
@@ -181,6 +183,8 @@ fun GroupExpenseWriteError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteE
         GroupExpenseWriteError.NotMember -> ExpenseWriteError.GROUP_LEFT
 
         GroupExpenseWriteError.Conflict -> ExpenseWriteError.CHANGED_MEANWHILE
+
+        GroupExpenseWriteError.EditLimitReached -> ExpenseWriteError.CONFLICT
 
         GroupExpenseWriteError.CreationPending -> ExpenseWriteError.CREATION_PENDING
 
@@ -325,6 +329,7 @@ fun ExpenseWithBeneficiariesDB.toExpenseListModel(): ExpenseWithBeneficiaries = 
     isSettled = isSettled,
     settledAt = settledAt,
     revision = revision,
+    deletedByUuid = deletedByUuid,
 )
 
 fun ExpenseWithBeneficiaries.toDb(): ExpenseWithBeneficiariesDB = ExpenseWithBeneficiariesDB(

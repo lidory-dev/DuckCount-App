@@ -1,6 +1,7 @@
 package group
 
 import app.lidory.duckcount.ExpenseLimits
+import database.data.local.entity.ExpenseWithBeneficiariesEntity
 import database.data.local.entity.GroupEntity
 import database.data.remote.EncryptedFieldDto
 import database.domain.ExpenseWithBeneficiaries
@@ -21,10 +22,10 @@ import vault.unsealBound
 import kotlin.io.encoding.Base64
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.test.fail
 
 private const val ALICE = "11111111-1111-1111-1111-111111111111"
 private const val BOB = "22222222-2222-2222-2222-222222222222"
@@ -138,12 +139,11 @@ class GroupExpenseSealingTest {
             "fixed share" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("is_share_fixed", JsonPrimitive(1)) } },
             "beneficiary" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("user_uuid", JsonPrimitive(CAROL)) } },
             "settlement" to { it.with("is_settlement", JsonPrimitive(1)) },
-            "deletion" to { it.with("is_deleted", JsonPrimitive(1)) },
             "author" to { it.with("author_uuid", JsonPrimitive(BOB)) },
         )
 
         changes.forEach { (field, change) ->
-            val tampered = sealed().tamperedWith(change)
+            val tampered = sealed().tamperedWith(change = change)
 
             // Who it says wrote it is checked against the key held for them: Bob's, when it says Bob.
             val authorKey = if (field == "author") bob.signaturePublicKey() else alice.signaturePublicKey()
@@ -158,25 +158,94 @@ class GroupExpenseSealingTest {
         assertNull(open(content = sealed(author = bob, authorUuid = ALICE)))
     }
 
+    /** Ten edits, every one an expense takes, and none past them, whoever signed it. */
+    @Test
+    fun `a version at the last revision opens and one past it does not`() {
+        assertNotNull(open(content = sealed(revision = LAST_GROUP_EXPENSE_REVISION), revision = LAST_GROUP_EXPENSE_REVISION))
+
+        listOf(0L, -1L, LAST_GROUP_EXPENSE_REVISION + 1, Long.MAX_VALUE).forEach { revision ->
+            assertNull(open(content = sealed(revision = revision), revision = revision), "revision $revision opened")
+            assertNull(open(content = sealed(revision = revision), revision = revision, authorKey = null), "revision $revision opened")
+        }
+    }
+
+    @Test
+    fun `a deletion flag opens to what its author sealed`() {
+        listOf(true, false).forEach { isDeleted ->
+            val flag = assertNotNull(openFlag(content = flagged(isDeleted = isDeleted, deletionRevision = 3), deletionRevision = 3))
+
+            assertEquals(isDeleted, flag.deletion.isDeleted)
+            assertEquals(3UL, flag.deletion.deletionRevision)
+            assertEquals(ALICE, flag.authorUuid)
+        }
+    }
+
+    /** As the server serving one expense's flag as another's, or a version as a flag, would leave a member. */
+    @Test
+    fun `a deletion flag opens as no other expense's nor as a version`() {
+        assertNull(openFlag(content = flagged(), expenseUuid = OTHER_EXPENSE))
+        assertNull(openFlag(content = flagged(), groupUuid = OTHER_GROUP))
+        assertNull(openFlag(content = sealed()))
+        assertNull(open(content = flagged()))
+        assertNull(flagged().openGroupExpenseDeletion(generateSymmetricEncryptionKey(), GROUP, EXPENSE, deletionRevision = 1))
+    }
+
+    /** As the server listing the flag from before a restore at a newer revision would, to have it shown over a later one. */
+    @Test
+    fun `a deletion flag listed at another revision than its author signed does not verify`() {
+        assertNull(openFlag(content = flagged(deletionRevision = 2), deletionRevision = 3))
+        assertNull(openFlag(content = flagged(deletionRevision = 2), deletionRevision = 1))
+        assertNull(openFlag(content = flagged(deletionRevision = 0), deletionRevision = 0, authorKey = null))
+    }
+
+    /** As a member, who holds the group's key, turning Alice's deletion into a restore, or into theirs. */
+    @Test
+    fun `a deletion flag whose content was changed after it was signed does not verify`() {
+        val context = "group_expense_deletion:$GROUP:$EXPENSE"
+
+        assertNull(openFlag(content = flagged().tamperedWith(context) { it.with("is_deleted", JsonPrimitive(0)) }))
+        assertNull(
+            openFlag(
+                content = flagged().tamperedWith(context) { it.with("author_uuid", JsonPrimitive(BOB)) },
+                authorKey = bob.signaturePublicKey(),
+            ),
+        )
+        assertNull(openFlag(content = flagged(author = bob, authorUuid = ALICE)))
+    }
+
     /**
-     * AES-GCM does not hide how long what it seals is: a deletion saying the rest as the version
-     * before it does is sealed to that version's length, and so is a restore, so that the server
-     * cannot tell either from an edit changing nothing it could measure. Measured in bytes: the
-     * Base64 the server is sent hides a byte more or less two times in three, not from the server,
-     * which decodes it.
+     * AES-GCM does not hide how long what it seals is: a deletion and a restore are sealed to the
+     * same length, so that the server cannot tell one from the other by the flag alone. Measured in
+     * bytes: the Base64 the server is sent hides a byte more or less two times in three, not from
+     * the server, which decodes it.
      */
     @Test
-    fun `a deletion and a restore are sealed to the length of the version before them`() {
-        val shown = sealed().sealedSize()
-        val deleted = sealed(expense = dinner.copy(isDeleted = true), revision = 2).sealedSize()
-        val restored = sealed(expense = dinner.copy(isDeleted = false), revision = 3).sealedSize()
-
-        assertEquals(shown, deleted)
-        assertEquals(deleted, restored)
+    fun `a deletion and a restore are sealed to the same length`() {
+        assertEquals(flagged(isDeleted = true).sealedSize(), flagged(isDeleted = false, deletionRevision = 2).sealedSize())
     }
 
     /** How many bytes this seals, as the server holds them once decoded. */
     private fun EncryptedFieldDto.sealedSize(): Int = Base64.Default.decode(ciphertext).size
+
+    /** Bob is who Alice paid back: he alone deletes it, and nobody restores it, held to his key or not. */
+    @Test
+    fun `a settlement's flag is its recipient's deletion alone`() {
+        val shown = OpenedGroupExpense(expense = settlement(), revision = 1, authorUuid = BOB).toEntity()
+
+        listOf(bob.signaturePublicKey(), null).forEach { bobsKey ->
+            assertNotNull(
+                openFlag(content = flagged(author = bob, authorUuid = BOB), authorKey = bobsKey, shown = shown),
+                "Bob's deletion refused",
+            )
+            assertNull(
+                openFlag(content = flagged(author = bob, authorUuid = BOB, isDeleted = false), authorKey = bobsKey, shown = shown),
+                "Bob's restore opened",
+            )
+        }
+
+        assertNull(openFlag(content = flagged(), authorKey = alice.signaturePublicKey(), shown = shown))
+        assertNull(openFlag(content = flagged(), authorKey = null, shown = shown))
+    }
 
     /** The user's own versions are checked against their own key, whatever the device recorded for them. */
     @Test
@@ -243,6 +312,28 @@ class GroupExpenseSealingTest {
     fun `a settlement from an author this device holds no key for is refused unless they are its recipient`() {
         assertNull(open(content = sealed(expense = settlement()), authorKey = null))
         assertNotNull(open(content = sealed(expense = settlement(), author = bob, authorUuid = BOB), authorKey = null))
+    }
+
+    /**
+     * Bob edits what he recorded of Alice paying him back, which nobody does: refused at any
+     * revision but the first, held to his key or not, with no version before it to tell an edit by.
+     * It unseals all the same, which tells the key it is sealed under from any other the chain of
+     * links leads to.
+     */
+    @Test
+    fun `a settlement past its first revision does not open even signed by its recipient`() {
+        listOf(FIRST_GROUP_EXPENSE_REVISION + 1, LAST_GROUP_EXPENSE_REVISION).forEach { revision ->
+            val content = sealed(expense = settlement(), revision = revision, author = bob, authorUuid = BOB)
+
+            assertNotNull(
+                content.unsealGroupExpense(groupKey = groupKey, groupUuid = GROUP, expenseUuid = EXPENSE, revision = revision),
+                "revision $revision did not unseal",
+            )
+
+            listOf(bob.signaturePublicKey(), null).forEach { bobsKey ->
+                assertNull(open(content = content, revision = revision, authorKey = bobsKey), "revision $revision opened")
+            }
+        }
     }
 
     /** One the screens could not lay out, sealed by a member whose app does not hold to the form. */
@@ -313,8 +404,80 @@ class GroupExpenseSealingTest {
 
         val opening = opener.open(expenseUuid = EXPENSE, revision = 1, keyGeneration = 1, content = sealed())
 
-        assertEquals(dinner.asWritten(), assertIs<GroupExpenseOpening.Opened>(opening).version.expense.asWritten())
+        val opened = when (opening) {
+            is GroupExpenseOpening.Opened -> opening.opened
+            else -> fail("Not opened: $opening")
+        }
+
+        assertEquals(dinner.asWritten(), opened.expense.asWritten())
     }
+
+    @Test
+    fun `the opener opens a deletion flag under the key of its generation as it is stored`() = runBlocking<Unit> {
+        val opener = GroupExpenseOpener(
+            group = groupEntity(),
+            selfUuid = BOB,
+            client = bob,
+            keyOf = { _, generation, _ -> if (generation == 1L) Result.Success(groupKey) else Result.Error(GroupKeyChainError.NotHeld) },
+            recorded = { _, _ -> null },
+        )
+
+        val opening = opener.openDeletion(
+            expenseUuid = EXPENSE,
+            deletionRevision = 2,
+            keyGeneration = 1,
+            content = flagged(deletionRevision = 2),
+            shown = shownDinner(),
+        )
+
+        val flag = when (opening) {
+            is GroupExpenseOpening.Opened -> opening.opened
+            else -> fail("Not opened: $opening")
+        }
+
+        assertEquals(EXPENSE, flag.expenseUuid)
+        assertEquals(2L, flag.deletionRevision)
+        assertTrue(flag.isDeleted)
+        assertEquals(ALICE, flag.authorUuid)
+
+        assertEquals(
+            GroupExpenseOpening.Unreadable,
+            opener.openDeletion(expenseUuid = EXPENSE, deletionRevision = 2, keyGeneration = 2, content = flagged(deletionRevision = 2), shown = shownDinner()),
+        )
+    }
+
+    /** The deletion flag Bob's device makes of [content], read at [deletionRevision] of [expenseUuid] in [groupUuid], against [shown]. */
+    private fun openFlag(
+        content: EncryptedFieldDto,
+        deletionRevision: Long = 1,
+        groupUuid: String = GROUP,
+        expenseUuid: String = EXPENSE,
+        authorKey: ByteArray? = alice.signaturePublicKey(),
+        shown: ExpenseWithBeneficiariesEntity = shownDinner(),
+    ): SignedGroupExpenseDeletion? =
+        content.openGroupExpenseDeletion(groupKey = groupKey, groupUuid = groupUuid, expenseUuid = expenseUuid, deletionRevision = deletionRevision)
+            ?.takeIf { it.isSignedBy(authorKey = authorKey, shown = shown) }
+
+    /** The deletion flag of the dinner saying [isDeleted] at [deletionRevision], set by [author] as [authorUuid]. */
+    private fun flagged(
+        isDeleted: Boolean = true,
+        deletionRevision: Long = 1,
+        author: MlsClient = alice,
+        authorUuid: String = ALICE,
+    ): EncryptedFieldDto = assertNotNull(
+        sealGroupExpenseDeletion(
+            groupUuid = GROUP,
+            expenseUuid = EXPENSE,
+            deletionRevision = deletionRevision,
+            isDeleted = isDeleted,
+            groupKey = groupKey,
+            client = author,
+            authorUuid = authorUuid,
+        ),
+    )
+
+    /** The dinner as Bob's device shows it, created by Alice. */
+    private fun shownDinner() = OpenedGroupExpense(expense = dinner, revision = 1, authorUuid = ALICE).toEntity()
 
     /** Alice paid Bob 90.00 back. */
     private fun settlement() = groupExpenseOf(
@@ -343,9 +506,11 @@ class GroupExpenseSealingTest {
         handedProfileKeyHash = null,
     )
 
-    /** This content opened, changed by [change] and sealed again under the group's key, as a member could. */
-    private fun EncryptedFieldDto.tamperedWith(change: (JsonObject) -> JsonObject): EncryptedFieldDto {
-        val context = "group_expense:$GROUP:$EXPENSE"
+    /** This content opened, changed by [change] and sealed again under the group's key, bound to [context], as a member could. */
+    private fun EncryptedFieldDto.tamperedWith(
+        context: String = "group_expense:$GROUP:$EXPENSE",
+        change: (JsonObject) -> JsonObject,
+    ): EncryptedFieldDto {
         val opened = assertNotNull(unsealBound(key = groupKey, context = context, content = this)).decodeToString()
         val changed = change(Json.parseToJsonElement(opened).jsonObject)
 

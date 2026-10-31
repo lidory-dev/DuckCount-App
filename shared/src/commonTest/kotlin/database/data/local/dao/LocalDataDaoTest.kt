@@ -37,12 +37,12 @@ class LocalDataDaoTest {
         }
 
     /**
-     * The listing of each group's expenses, what of it could not be read yet and the newest version
-     * of each expense shown go with the expenses: the next account to sign in lists its own groups
-     * whole, and refuses nothing for the revisions another account was shown.
+     * The listing of each group's expenses, what of it could not be read yet, and the newest version
+     * and deletion flag of each expense shown go with the expenses: the next account to sign in
+     * lists its own groups whole, and refuses nothing for the revisions another account was shown.
      */
     @Test
-    fun `a log-out wipes the groups' listings and every expense's newest revision`() = runBlocking<Unit> {
+    fun `a log-out wipes the groups' listings and every expense's newest revision and flag`() = runBlocking<Unit> {
         val wiped = Wiped()
 
         wiped.deleteAll()
@@ -50,6 +50,7 @@ class LocalDataDaoTest {
         assertTrue("ListedGroupExpenseEntity" in wiped.tables, "left behind: ${wiped.tables}")
         assertTrue("UnreadableGroupExpenseEntity" in wiped.tables, "left behind: ${wiped.tables}")
         assertTrue("ExpenseRevisionEntity" in wiped.tables, "left behind: ${wiped.tables}")
+        assertTrue("GroupExpenseDeletionEntity" in wiped.tables, "left behind: ${wiped.tables}")
         assertTrue("ChangeFeedEntity" in wiped.tables, "left behind: ${wiped.tables}")
     }
 }
@@ -78,6 +79,7 @@ private class Wiped : LocalDataDao {
     override suspend fun deleteUnverifiedExpenseKeys() { tables += "UnverifiedExpenseKeyEntity" }
     override suspend fun deleteExpenseRevisions() { tables += "ExpenseRevisionEntity" }
     override suspend fun deleteOneTimeExpenseSettledMarks() { tables += "OneTimeExpenseSettledMarkEntity" }
+    override suspend fun deleteGroupExpenseDeletions() { tables += "GroupExpenseDeletionEntity" }
     override suspend fun deletePendingExpenseKeys() { tables += "PendingExpenseKeyEntity" }
     override suspend fun deleteKeyRequestBudgets() { tables += "KeyRequestBudgetEntity" }
     override suspend fun deletePendingProfileKeys() { tables += "PendingProfileKeyEntity" }

@@ -32,13 +32,15 @@ data class CreateGroupExpenseBody(
 
 /**
  * Body of `PUT /groups/{group_uuid}/expenses/{expense_uuid}`, which any current member may send: the
- * expense's next version, a deletion and a restore included.
+ * expense's next version, an edit. Deleting and restoring it are no edit, see
+ * [SetGroupExpenseDeletionBody].
  */
 @Serializable
 data class UpdateGroupExpenseBody(
     /**
      * The revision [content] is signed at, which the server takes only when it is one past the one
-     * it holds, see [GroupExpenseWriteAnswer.RevisionNotNext].
+     * it holds, see [GroupExpenseWriteAnswer.RevisionNotNext], and the one it holds is not the
+     * last, see [GroupExpenseWriteAnswer.EditLimitReached].
      */
     val revision: Long,
 
@@ -51,8 +53,32 @@ data class UpdateGroupExpenseBody(
 )
 
 /**
+ * Body of `PUT /groups/{group_uuid}/expenses/{expense_uuid}/deletion`, which any current member may
+ * send: the expense's next deletion flag, deleting it or restoring it, which is no edit and leaves
+ * its versions as they are, see [sealGroupExpenseDeletion].
+ */
+@Serializable
+data class SetGroupExpenseDeletionBody(
+    /**
+     * The revision of the flag [content] is signed at, which the server takes only when it is one
+     * past the one it holds, 0 before the expense's first deletion, see
+     * [GroupExpenseDeletionAnswer.DeletionRevisionNotNext].
+     */
+    @SerialName("deletion_revision")
+    val deletionRevision: Long,
+
+    /** The generation of the group's key [content] is sealed under, as for a create, see [CreateGroupExpenseBody]. */
+    @SerialName("key_generation")
+    val keyGeneration: Long,
+
+    /** The flag, sealed and signed, see [sealGroupExpenseDeletion]. */
+    val content: EncryptedFieldDto,
+)
+
+/**
  * Mirrors the server's `ListedGroupExpense`: one expense of a group as `GET
- * /groups/{group_uuid}/expenses` and its changes list it, at the version it now stands at.
+ * /groups/{group_uuid}/expenses` and its changes list it, at the version it now stands at, with its
+ * deletion flag.
  *
  * Everything the expense says is in [content], sealed under the group's key of [keyGeneration] by
  * whoever wrote this version, and signed by them, see [GroupExpenseOpener]: the server can tell
@@ -64,6 +90,30 @@ data class ListedGroupExpenseDto(
     val uuid: String,
 
     val revision: Long,
+
+    @SerialName("key_generation")
+    val keyGeneration: Long,
+
+    val content: EncryptedFieldDto,
+
+    /** Whether the expense is deleted, and who said so, or null until its first deletion. */
+    val deletion: ListedGroupExpenseDeletionDto?,
+)
+
+/**
+ * Mirrors the server's `GroupExpenseDeletion`: the newest deletion flag of a group expense, the one
+ * thing of it the server keeps, sealed under the group's key of [keyGeneration] by the member who
+ * set it, and signed by them, see [GroupExpenseOpener.openDeletion]: the server learns how often
+ * the flag changed, [deletionRevision], which usually tells it whether the expense is deleted, and
+ * nothing else of it. Usually: a device mostly sets the flag to the opposite of the one it shows,
+ * but writes over a flag it refused, or could not read, in the state asked, see
+ * [GroupExpenseWriter]. [deletionRevision] is the server's word, which the signature holds it to,
+ * as a version's revision.
+ */
+@Serializable
+data class ListedGroupExpenseDeletionDto(
+    @SerialName("deletion_revision")
+    val deletionRevision: Long,
 
     @SerialName("key_generation")
     val keyGeneration: Long,
@@ -104,8 +154,9 @@ data class ListGroupExpensesPage(
  * Body of `GET /groups/{group_uuid}/expenses/changes`: what changed in the group's expenses since a
  * place in the caller's feed of them, each expense once, as it now stands, as the JSON the server
  * wrote, see [ListGroupExpensesResponse]; where the page leaves the feed, [feedToken]; and whether
- * more follow already, [hasMore]. Nothing is ever listed as removed: a deletion is a version like
- * any other, and a member losing the group loses its feed with it.
+ * more follow already, [hasMore]. Nothing is ever listed as removed: a deleted expense is listed with
+ * the flag saying so, see [ListedGroupExpenseDto.deletion], and a member losing the group loses its
+ * feed with it.
  */
 @Serializable
 data class ListGroupExpenseChangesResponse(
@@ -120,8 +171,9 @@ data class ListGroupExpenseChangesResponse(
 
 /**
  * Body of `GET /groups/{group_uuid}/expenses/{expense_uuid}/history`: the versions of a group
- * expense the server keeps, [current], the one its listing and changes list, and [previous], those
- * its updates replaced, newest first, the last nine of them, see [GroupExpenseHistory].
+ * expense, every one of which the server keeps, [current], the one its listing and changes list,
+ * and [previous], those its updates replaced, newest first, ten at most, see
+ * [app.lidory.duckcount.ExpenseLimits.MAX_GROUP_EXPENSE_EDITS] and [GroupExpenseHistory].
  */
 @Serializable
 data class GroupExpenseHistoryResponse(
@@ -154,11 +206,11 @@ data class GroupExpenseHistoryVersionDto(
 )
 
 /**
- * Body of the `409` refusing a version of a group expense, or of the group's information, sealed
- * under a key that is not the group's current one, see [GroupExpenseWriteAnswer.KeyGenerationNotCurrent]
- * and [GroupEditAnswer.KeyGenerationNotCurrent], or a Commit built in an epoch the group left, see
- * [GroupMembershipAnswer.KeyGenerationNotCurrent]: JSON, as no other `409` of those routes is but
- * the revision's.
+ * Body of the `409` refusing a version of a group expense, its deletion flag, or a version of the
+ * group's information, sealed under a key that is not the group's current one, see
+ * [GroupExpenseWriteAnswer.KeyGenerationNotCurrent] and [GroupEditAnswer.KeyGenerationNotCurrent],
+ * or a Commit built in an epoch the group left, see [GroupMembershipAnswer.KeyGenerationNotCurrent]:
+ * JSON, as no other `409` of those routes is but the revision's and the deletion flag's.
  */
 @Serializable
 internal data class KeyGenerationConflictResponse(
@@ -173,4 +225,14 @@ internal data class KeyGenerationConflictResponse(
 @Serializable
 internal data class RevisionConflictResponse(
     val revision: Long,
+)
+
+/**
+ * Body of the `409` refusing a deletion flag whose revision is not one past the stored one, see
+ * [GroupExpenseDeletionAnswer.DeletionRevisionNotNext].
+ */
+@Serializable
+internal data class DeletionRevisionConflictResponse(
+    @SerialName("deletion_revision")
+    val deletionRevision: Long,
 )

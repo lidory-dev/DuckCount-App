@@ -20,7 +20,12 @@ enum class ExpenseWriteError {
     /** The server rejected the request contents (e.g. 400/422 invalid beneficiaries). */
     INVALID_DATA,
 
-    /** The maximum number of edits of a one-time expense has been reached. */
+    /**
+     * The expense had every edit it takes: a one-time expense, as its server counts them, or one of
+     * a group, which the detail screen offers no edit of once it has, see
+     * [app.lidory.duckcount.expenseList.viewmodel.ExpenseActions.isEditLimitReached], but which
+     * another member's last edit can bring there as the form is open.
+     */
     CONFLICT,
 
     /**

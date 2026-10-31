@@ -55,6 +55,7 @@ fun ExpenseWithBeneficiariesEntity.toExpenseWithBeneficiaries() =
             Instant.fromEpochMilliseconds(it.markedAt).toLocalDateTime(TimeZone.currentSystemDefault())
         },
         revision = expense.revision,
+        deletedByUuid = deletion?.takeIf { it.isDeleted }?.authorUuid,
     )
 
 fun ExpenseWithBeneficiaries.toExpenseWithBeneficiariesEntity() =

@@ -158,11 +158,14 @@ object DuckCountRoutes {
         /** What changed in the expenses of one group since a place in the caller's feed of them. */
         val EXPENSE_CHANGES = "$GROUP_BASE_URL/:group_uuid/expenses/changes"
 
-        /**
-         * `PUT` replaces one expense of a group with its next version, a deletion and a restore
-         * included, any current member.
-         */
+        /** `PUT` replaces one expense of a group with its next version, an edit, any current member. */
         val EXPENSE = "$GROUP_BASE_URL/:group_uuid/expenses/:expense_uuid"
+
+        /**
+         * `PUT` deletes one expense of a group, or restores it, with its next deletion flag, which
+         * is no edit, any current member. `GET` of the group's expenses lists it.
+         */
+        val EXPENSE_DELETION = "$GROUP_BASE_URL/:group_uuid/expenses/:expense_uuid/deletion"
 
         /** `GET` lists the versions of one expense of a group its updates replaced, newest first. */
         val EXPENSE_HISTORY = "$GROUP_BASE_URL/:group_uuid/expenses/:expense_uuid/history"
