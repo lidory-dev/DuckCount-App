@@ -32,6 +32,8 @@ import discoveryUsername.DiscoveryUsernameRepository
 import mls.KeyPackageError
 import mls.KeyPackageRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import mls.MlsIdentityError
 import networking.DuckCountClient
 import networking.DuckCountRoutes
@@ -107,10 +109,12 @@ class AuthenticationCallBacksImpl(
                 }
             }
 
-            val registrationFinish = registration.finish(
-                registrationResponseBytes = responseBytes.decodeBase64ToByteArray(),
-                password = password,
-            )
+            val registrationFinish = withContext(Dispatchers.Default) {
+                registration.finish(
+                    registrationResponseBytes = responseBytes.decodeBase64ToByteArray(),
+                    password = password,
+                )
+            }
 
             val finishResult = duckCountClient.put<String, RegistrationFinishBody>(
                 route = DuckCountRoutes.Auth.REGISTRATIONS,
@@ -191,14 +195,18 @@ class AuthenticationCallBacksImpl(
                 }
             }
 
+            val finalization = withContext(Dispatchers.Default) {
+                login.finish(
+                    credentialResponseBytes = responseBytes.decodeBase64ToByteArray(),
+                    password = password,
+                ).message
+            }
+
             val finishResult = duckCountClient.put<String, LoginFinishBody>(
                 route = DuckCountRoutes.Auth.SESSIONS,
                 body = LoginFinishBody(
                     sessionId = sessionId,
-                    credentialFinalizationBytes = login.finish(
-                        credentialResponseBytes = responseBytes.decodeBase64ToByteArray(),
-                        password = password,
-                    ).message.toBase64(),
+                    credentialFinalizationBytes = finalization.toBase64(),
                 ),
             )
 
