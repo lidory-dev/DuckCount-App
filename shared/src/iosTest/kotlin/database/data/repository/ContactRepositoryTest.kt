@@ -40,6 +40,7 @@ import mls.InMemoryMlsStore
 import mls.KeyPackageApi
 import mls.MlsIdentityRepository
 import networking.DuckCountClient
+import networking.UpdateRequirement
 import profile.InMemoryProfileStore
 import profile.ProfileError
 import profile.ProfileRepository
@@ -97,6 +98,7 @@ class ContactRepositoryTest {
         sessionExpiry = SessionExpiry(),
         localDataDao = NoLocalData,
         sessionLeftovers = emptyList(),
+        updateRequirement = UpdateRequirement(),
     )
 
     private val vaultRepository = VaultRepository(vaultApi = VaultApi(client = client))

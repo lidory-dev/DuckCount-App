@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1500" viewBox="0 0 1500 1500">
+  <defs>
+    <clipPath id="face">
+      <ellipse cx="750" cy="705.09" rx="710.04" ry="705.09"/>
+    </clipPath>
+  </defs>
+  <path fill="#ea772a" d="M1460.04,705.09v89.81c0,389.41-317.89,705.09-710.04,705.09S39.96,1184.32,39.96,794.91v-89.81h1420.07Z"/>
+  <ellipse fill="#fec512" cx="750" cy="705.09" rx="710.04" ry="705.09"/>
+  <g clip-path="url(#face)">
+    <rect fill="#ffda71" x="-1.65" y="604.66" width="1568.84" height="290.68" transform="translate(-301.06 773.17) rotate(-45)"/>
+    <rect fill="#ffda71" x="-167.59" y="547.48" width="1568.84" height="73.17" transform="translate(-232.33 607.23) rotate(-45)"/>
+  </g>
+  <ellipse fill="#ea772a" cx="750" cy="705.09" rx="553.53" ry="549.68"/>
+  <g transform="translate(750 705.09) scale(0.94676 0.94012) translate(-750 -750)">
+    <path fill="#fec512" stroke="#fec512" stroke-width="52" stroke-linejoin="round" d="M535,680 L965,680 Q1065,680 1065,780 L1065,1065 Q1065,1165 965,1165 L535,1165 Q435,1165 435,1065 L435,780 Q435,680 535,680 Z"/>
+    <path fill="#fec512" stroke="#fec512" stroke-width="52" stroke-linejoin="round" d="M520,760 L520,525 A230,230 0 0 1 980,525 L980,760 L888,760 L888,525 A138,138 0 0 0 612,525 L612,760 Z"/>
+    <path fill="#fec512" stroke="#ea772a" stroke-width="24" stroke-linejoin="round" d="M520,760 L520,525 A230,230 0 0 1 980,525 L980,760 L888,760 L888,525 A138,138 0 0 0 612,525 L612,760 Z"/>
+    <path fill="#fec512" stroke="#ea772a" stroke-width="24" stroke-linejoin="round" d="M535,680 L965,680 Q1065,680 1065,780 L1065,1065 Q1065,1165 965,1165 L535,1165 Q435,1165 435,1065 L435,780 Q435,680 535,680 Z"/>
+  </g>
+</svg>

@@ -11,19 +11,25 @@ struct ContentView: View {
 
     @AppStorage("selectedTab") var selectedTab: Tabs = .expenseList
 
+    @StateObject private var updateRequirement = UpdateRequirementViewModel()
+
     var body: some View {
-        TabView(selection: $selectedTab) {
-            Tab("Expenses", systemImage: "receipt.fill", value: .expenseList) {
-                ExpenseListScreen()
-            }
+        if updateRequirement.isRequired {
+            UpdateRequiredScreen()
+        } else {
+            TabView(selection: $selectedTab) {
+                Tab("Expenses", systemImage: "receipt.fill", value: .expenseList) {
+                    ExpenseListScreen()
+                }
 
-            Tab("Groups", systemImage: "person.2.crop.square.stack.fill", value: .groupList) {
-                // TODO:
-                Color.red.ignoresSafeArea()
-            }
+                Tab("Groups", systemImage: "person.2.crop.square.stack.fill", value: .groupList) {
+                    // TODO:
+                    Color.red.ignoresSafeArea()
+                }
 
-            Tab("Contacts", systemImage: "person.3.fill", value: .contactList) {
-                ContactListScreen()
+                Tab("Contacts", systemImage: "person.3.fill", value: .contactList) {
+                    ContactListScreen()
+                }
             }
         }
     }

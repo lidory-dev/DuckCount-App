@@ -1,0 +1,60 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="160dp"
+    android:height="160dp"
+    android:viewportWidth="1500"
+    android:viewportHeight="1500">
+    <path
+        android:fillColor="#EA772A"
+        android:pathData="M1460.04,705.09v89.81c0,389.41-317.89,705.09-710.04,705.09S39.96,1184.32,39.96,794.91v-89.81h1420.07Z" />
+    <path
+        android:fillColor="#FEC512"
+        android:pathData="M39.96,705.09a710.04,705.09 0 1,0 1420.08,0a710.04,705.09 0 1,0 -1420.08,0Z" />
+    <!-- The stripes are plain paths, with no group of their own: Compose's vector parser ends the
+         clip at the first group closing inside it, which drew the second stripe past the coin. -->
+    <group>
+        <clip-path android:pathData="M39.96,705.09a710.04,705.09 0 1,0 1420.08,0a710.04,705.09 0 1,0 -1420.08,0Z" />
+        <path
+            android:fillColor="#FFDA71"
+            android:pathData="M125.33,1201.9 L1234.67,92.56 L1440.21,298.1 L330.87,1407.44 Z" />
+        <path
+            android:fillColor="#FFDA71"
+            android:pathData="M36.29,1112.86 L1145.63,3.52 L1197.37,55.26 L88.03,1164.6 Z" />
+    </group>
+    <path
+        android:fillColor="#EA772A"
+        android:pathData="M196.47,705.09a553.53,549.68 0 1,0 1107.06,0a553.53,549.68 0 1,0 -1107.06,0Z" />
+    <group
+        android:scaleX="0.94676"
+        android:scaleY="0.94012"
+        android:translateX="750"
+        android:translateY="705.09">
+        <group
+            android:translateX="-750"
+            android:translateY="-750">
+            <path
+                android:fillColor="#FEC512"
+                android:pathData="M535,680 L965,680 Q1065,680 1065,780 L1065,1065 Q1065,1165 965,1165 L535,1165 Q435,1165 435,1065 L435,780 Q435,680 535,680 Z"
+                android:strokeWidth="52"
+                android:strokeColor="#FEC512"
+                android:strokeLineJoin="round" />
+            <path
+                android:fillColor="#FEC512"
+                android:pathData="M520,760 L520,525 A230,230 0 0 1 980,525 L980,760 L888,760 L888,525 A138,138 0 0 0 612,525 L612,760 Z"
+                android:strokeWidth="52"
+                android:strokeColor="#FEC512"
+                android:strokeLineJoin="round" />
+            <path
+                android:fillColor="#FEC512"
+                android:pathData="M520,760 L520,525 A230,230 0 0 1 980,525 L980,760 L888,760 L888,525 A138,138 0 0 0 612,525 L612,760 Z"
+                android:strokeWidth="24"
+                android:strokeColor="#EA772A"
+                android:strokeLineJoin="round" />
+            <path
+                android:fillColor="#FEC512"
+                android:pathData="M535,680 L965,680 Q1065,680 1065,780 L1065,1065 Q1065,1165 965,1165 L535,1165 Q435,1165 435,1065 L435,780 Q435,680 535,680 Z"
+                android:strokeWidth="24"
+                android:strokeColor="#EA772A"
+                android:strokeLineJoin="round" />
+        </group>
+    </group>
+</vector>

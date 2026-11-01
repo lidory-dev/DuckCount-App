@@ -12,7 +12,9 @@ import authenticationUtils.setTokens
 import database.clearDatabasePassword
 import database.data.local.dao.LocalDataDao
 import io.ktor.client.HttpClient
+import io.ktor.client.HttpClientConfig
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpResponseValidator
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.AuthCircuitBreaker
@@ -20,8 +22,10 @@ import io.ktor.client.plugins.auth.clearAuthTokens
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -109,10 +113,37 @@ internal suspend fun storeUntilTaken(
     while (!store() && !hasSessionEnded()) delay(retryMillis)
 }
 
+/** The header every request to our own backend names its build in, see [clientBuild]. */
+internal const val CLIENT_BUILD_HEADER = "X-DuckCount-Client"
+
+/**
+ * Names [clientBuild] on every request, and raises [updateRequirement] on every `426` the server
+ * answers one with, which it does for a build it no longer supports, whatever the route.
+ *
+ * Here on the client rather than in [Client.execute], which not every request goes through: the
+ * [Auth] plugin's refresh of the tokens does not. The response itself goes on to the caller as any
+ * other would, and through [Client.execute] comes out as [NetworkError.UNKNOWN]: nobody has to
+ * handle it request by request, the app being replaced by the screen asking for the update.
+ *
+ * Only [DuckCountClient]'s: [HaveIBeenPwnedClient] talks to a third party, which has no business
+ * knowing the build, and whose own `426` would say nothing about it.
+ */
+internal fun HttpClientConfig<*>.nameClientBuild(updateRequirement: UpdateRequirement) {
+    defaultRequest {
+        header(CLIENT_BUILD_HEADER, clientBuild)
+    }
+    HttpResponseValidator {
+        validateResponse { response ->
+            if (response.status == HttpStatusCode.UpgradeRequired) updateRequirement.signal()
+        }
+    }
+}
+
 class DuckCountClient(
     private val sessionExpiry: SessionExpiry,
     private val localDataDao: LocalDataDao,
     private val sessionLeftovers: List<SessionLeftovers>,
+    updateRequirement: UpdateRequirement,
 ) : Client() {
     /**
      * Set by [endSession], after which no pair is stored again: a refresh that was in flight as
@@ -142,6 +173,7 @@ class DuckCountClient(
     private val tokenExchange = Mutex()
 
     override val httpClient = HttpClient {
+        nameClientBuild(updateRequirement = updateRequirement)
         install(HttpTimeout) {
             requestTimeoutMillis = REQUEST_TIMEOUT_MILLIS
         }
@@ -218,8 +250,9 @@ class DuckCountClient(
                             // session from here, so end it and let the UI take the user to the
                             // login screen.
                             //
-                            // Its only other failure is `500`, which is transient and says nothing
-                            // about the session, so it costs the caller this one request and no more.
+                            // Its only other failures are `500`, which is transient, and `426`, a
+                            // refused build, see [nameClientBuild]. Neither says anything about the
+                            // session, so each costs the caller this one request and no more.
                             if (response.status == HttpStatusCode.Unauthorized) {
                                 expireSession(accountStays = deletionTurnedDown)
                             }

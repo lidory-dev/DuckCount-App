@@ -29,6 +29,16 @@ import org.koin.androidx.compose.koinViewModel
 fun App(openContactRequests: Boolean = false, openGroups: Boolean = false) {
     AppTheme {
         val appViewModel = koinViewModel<AppViewModel>()
+        val isUpdateRequired by appViewModel.isUpdateRequired.collectAsState()
+
+        // The server has refused this build. Ahead of everything else, whatever was on screen
+        // goes, and there is no way back to it: the app can no longer load anything.
+        if (isUpdateRequired) {
+            UpdateRequiredScreen()
+
+            return@AppTheme
+        }
+
         val startup by appViewModel.startup.collectAsState()
 
         when (val state = startup) {

@@ -17,6 +17,7 @@ import group.GroupExpenseSync
 import group.GroupSync
 import group.GroupSyncError
 import kotlinx.coroutines.CancellationException
+import networking.UpdateRequirement
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
@@ -72,6 +73,8 @@ class PushSyncWorker(
     private val notificationLeftovers: NotificationLeftovers by inject()
 
     private val pushRegistrar: UnifiedPushRegistrar by inject()
+
+    private val updateRequirement: UpdateRequirement by inject()
 
     override suspend fun doWork(): Result {
         // Nothing this device stores can be read while it is locked, so the sync waits
@@ -212,9 +215,12 @@ class PushSyncWorker(
      * Retrying is for the failures a later moment fixes: a dead network, a server
      * having a bad minute. Past a few attempts the app stops paying for it, since the
      * screens sync when they open and nothing is lost by giving up here.
+     *
+     * A build the server has refused is given up on at once, see [UpdateRequirement]: only an
+     * update fixes that, no later moment does.
      */
     private fun retryOrGiveUp(standInsBefore: StandInCounts): Result {
-        if (runAttemptCount < MAX_ATTEMPTS) return Result.retry()
+        if (!updateRequirement.isRequired.value && runAttemptCount < MAX_ATTEMPTS) return Result.retry()
 
         // No retry is coming to take the stand-ins over either. Kept up regardless, they
         // would be up to whatever failed to say when they go, which may be nothing ever.

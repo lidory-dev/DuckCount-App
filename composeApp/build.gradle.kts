@@ -73,7 +73,7 @@ android {
         applicationId = "app.lidory.duckcount"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
+        versionCode = libs.versions.android.versionCode.get().toInt()
         versionName = "1.0.0"
     }
     buildFeatures {

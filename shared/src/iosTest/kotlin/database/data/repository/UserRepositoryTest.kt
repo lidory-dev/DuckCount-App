@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import networking.DuckCountClient
+import networking.UpdateRequirement
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -113,6 +114,7 @@ class UserRepositoryTest {
                             sessionExpiry = SessionExpiry(),
                             localDataDao = database.localDataDao,
                             sessionLeftovers = emptyList(),
+                            updateRequirement = UpdateRequirement(),
                         ),
                     ),
                 ),

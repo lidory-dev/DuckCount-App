@@ -79,7 +79,7 @@ val pushPlatformModule = module {
     single { ContactNotifier(androidContext()) }
     single { ExpenseNotifier(androidContext()) }
     single { GroupNotifier(androidContext()) }
-    single { WorkManagerResendScheduler(androidContext()) }.bind<ResendScheduler>()
+    single { WorkManagerResendScheduler(androidContext(), get()) }.bind<ResendScheduler>()
     single { NotifyingGroupSyncAnnouncer(get()) }.bind<GroupSyncAnnouncer>()
 }
 val groupCallBacks = module {

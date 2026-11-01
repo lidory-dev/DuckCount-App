@@ -84,6 +84,7 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.ktor.client.mock)
         }
     }
 }
@@ -97,6 +98,9 @@ android {
     }
     defaultConfig {
         minSdk = libs.versions.android.minSdk.get().toInt()
+
+        // Read in androidMain via BuildConfig (see networking/ClientBuild.android.kt).
+        buildConfigField("int", "APP_BUILD", libs.versions.android.versionCode.get())
     }
 
     buildFeatures {

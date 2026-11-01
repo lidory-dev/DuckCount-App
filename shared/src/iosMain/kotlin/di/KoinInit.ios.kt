@@ -16,6 +16,7 @@ import message.di.messageModule
 import expense.di.expenseModule
 import group.di.groupModule
 import mls.di.mlsModule
+import networking.UpdateRequirement
 import networking.di.networkingModule
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
@@ -57,4 +58,5 @@ class KoinHelper : KoinComponent {
     fun getExpenseRepository(): ExpenseRepository = get()
     fun getBeneficiaryRepository(): BeneficiaryRepository = get()
     fun getUserRepository(): UserRepository = get()
+    fun getUpdateRequirement(): UpdateRequirement = get()
 }

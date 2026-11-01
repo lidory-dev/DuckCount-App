@@ -7,6 +7,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import authenticationUtils.getAuthenticatedUserUuid
 import kotlinx.coroutines.CancellationException
+import networking.UpdateRequirement
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import push.PushRepository
@@ -29,6 +30,8 @@ class PushRegistrationWorker(
     parameters: WorkerParameters,
 ) : CoroutineWorker(context, parameters), KoinComponent {
     private val pushRepository: PushRepository by inject()
+
+    private val updateRequirement: UpdateRequirement by inject()
 
     override suspend fun doWork(): Result {
         // The session is sealed by Keystore entries that require an unlocked device, so
@@ -89,8 +92,12 @@ class PushRegistrationWorker(
         return Result.success()
     }
 
+    /**
+     * A build the server has refused is given up on at once, see [UpdateRequirement]: only an
+     * update fixes that, and the first launch after it registers again, see [PushSetUp].
+     */
     private fun retryOrGiveUp(): Result =
-        if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.success()
+        if (!updateRequirement.isRequired.value && runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.success()
 
     private fun isDeviceLocked(): Boolean =
         applicationContext.getSystemService(KeyguardManager::class.java)?.isDeviceLocked == true

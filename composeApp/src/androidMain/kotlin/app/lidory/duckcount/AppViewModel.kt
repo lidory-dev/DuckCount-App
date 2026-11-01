@@ -8,6 +8,7 @@ import authenticationUtils.SessionExpiry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import networking.UpdateRequirement
 
 /** Where the app should land on launch, resolved once from locally-stored auth state. */
 sealed interface Startup {
@@ -26,6 +27,7 @@ sealed interface Startup {
 class AppViewModel(
     private val authenticationCallBacks: AuthenticationCallBacks,
     private val sessionExpiry: SessionExpiry,
+    updateRequirement: UpdateRequirement,
 ) : ViewModel() {
     private val _startup = MutableStateFlow<Startup>(Startup.Loading)
     val startup = _startup.asStateFlow()
@@ -36,6 +38,12 @@ class AppViewModel(
      * screens that can no longer load anything, and tell them why.
      */
     val sessionEnd = sessionExpiry.end
+
+    /**
+     * Turns true once the server has refused this build, at whichever request found out, and stays
+     * so. Nothing the app does gets past that, so all that is left is to ask the user to update.
+     */
+    val isUpdateRequired = updateRequirement.isRequired
 
     init {
         viewModelScope.launch {

@@ -7,6 +7,9 @@
     <string name="on_boarding_description">Split bills with your group in seconds. The amounts and what they’re for stay encrypted — we can’t read them.</string>
     <string name="session_expired">Your session has expired, please log in again.</string>
     <string name="account_deleted">Your account has been deleted.</string>
+    <string name="update_required_title">Update required</string>
+    <string name="update_required_message">For security and compatibility reasons, this version of DuckCount is no longer supported. Update the app to keep using it.</string>
+    <string name="update_required_button">Update</string>
     <string name="push_channel_contacts_name">Contacts</string>
     <string name="push_channel_contacts_description">New contact requests, and requests other people accepted.</string>
     <string name="push_channel_sync_name">Catching up</string>
