@@ -479,10 +479,10 @@ class AuthenticationCallBacksImpl(
 
         NetworkError.REQUEST_TIMEOUT -> AuthError.TIMEOUT
         NetworkError.SERVER_ERROR -> AuthError.SERVER_ERROR
+        NetworkError.TOO_MANY_REQUESTS -> AuthError.TOO_MANY_ATTEMPTS
         NetworkError.BAD_REQUEST,
         NetworkError.PAYLOAD_TOO_LARGE,
         NetworkError.UNPROCESSABLE_ENTITY,
-        NetworkError.TOO_MANY_REQUESTS,
         NetworkError.SERIALIZATION,
         NetworkError.UNKNOWN,
             -> AuthError.UNKNOWN

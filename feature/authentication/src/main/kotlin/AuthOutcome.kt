@@ -21,6 +21,9 @@ enum class AuthError {
 
     /** The full name is longer than the server takes, which the form keeps it from being. */
     FULL_NAME_TOO_LONG,
+
+    /** The server limits logins and registrations per IP address, which can be shared. */
+    TOO_MANY_ATTEMPTS,
     UNKNOWN,
 }
 
@@ -40,5 +43,6 @@ fun AuthError.messageRes(): Int = when (this) {
     AuthError.SERVER_ERROR -> R.string.error_server
     AuthError.CRYPTO_ERROR -> R.string.error_crypto
     AuthError.FULL_NAME_TOO_LONG -> R.string.error_full_name_too_long
+    AuthError.TOO_MANY_ATTEMPTS -> R.string.error_too_many_attempts
     AuthError.UNKNOWN -> R.string.error_unknown
 }
