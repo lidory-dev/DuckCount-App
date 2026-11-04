@@ -74,6 +74,7 @@ class RegisterViewModel(
         password: String,
         navigateToPasswordLeakScreen: (Int) -> Unit,
         navigateToUserInformationScreen: (String, String, Boolean) -> Unit,
+        navigateToDeviceNotAllowedScreen: () -> Unit,
     ) = viewModelScope.launch {
         // The account is keyed by a digest derived from this username, so registering one
         // that does not pass the rules would mint an account nothing can log back into.
@@ -107,7 +108,12 @@ class RegisterViewModel(
             }
 
             is AuthOutcome.Failure ->
-                state = state.copy(error = result.error)
+                // Nothing on the form would change this answer, so it is no error of the form's.
+                if (result.error == AuthError.DEVICE_NOT_ALLOWED) {
+                    navigateToDeviceNotAllowedScreen()
+                } else {
+                    state = state.copy(error = result.error)
+                }
         }
 
         state = state.copy(isLoading = false)

@@ -1,5 +1,6 @@
 package navigation
 
+import DeviceNotAllowedScreen
 import LoginScreen
 import OnBoardingScreen
 import PasswordLeakScreen
@@ -16,6 +17,7 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import app.lidory.duckcount.android.ui.animation.popTransition
 import app.lidory.duckcount.android.ui.animation.pushTransition
+import navigation.key.DeviceNotAllowedScreenKey
 import navigation.key.LoginScreenKey
 import navigation.key.OnBoardingScreenKey
 import navigation.key.PasswordLeakScreenKey
@@ -90,6 +92,16 @@ fun NavigationRoot(
                         )
                         backStack.removeIf { it !is SetUpProfileScreenKey }
                     },
+                    navigateToDeviceNotAllowedScreen = {
+                        // In place of the form, which goes with the password typed in it.
+                        backStack.add(DeviceNotAllowedScreenKey)
+                        backStack.remove(RegisterScreenKey)
+                    },
+                )
+            }
+            entry<DeviceNotAllowedScreenKey> {
+                DeviceNotAllowedScreen(
+                    navigateBack = { backStack.removeAt(backStack.lastIndex) },
                 )
             }
             entry<PasswordLeakScreenKey> { key ->

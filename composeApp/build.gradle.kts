@@ -61,6 +61,14 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+
+            // What the client encodes request bodies with, which the app itself only reaches
+            // through :shared
+            implementation(libs.ktor.serialization.kotlinx.json)
+
+            // What the client reads answers with, for the answers a test hands it
+            implementation(libs.ktor.client.mock)
+            implementation(libs.ktor.client.content.negotiation)
         }
     }
 }
@@ -92,6 +100,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+    testOptions {
+        // So that what a test runs can log: android.util.Log's stub would throw otherwise.
+        unitTests.isReturnDefaultValues = true
     }
 }
 

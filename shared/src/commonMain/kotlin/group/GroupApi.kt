@@ -744,9 +744,9 @@ sealed interface GroupLeaveAnswer {
     /**
      * Any other answer: the request may never have left, or the leave may have been taken and the
      * answer lost on the way back, a `401` that a refresh may still turn around included. Only
-     * sending it again can tell. The `403` refusing the group's owner is one, the client reading it
-     * as no answer it knows: the sync never asks for that, see [GroupSync], and the user asks for it
-     * only in a group handed to them as its creator deleted their account, see [GroupLeaver].
+     * sending it again can tell. The `403` refusing the group's owner is one, taken for no answer
+     * like the rest: the sync never asks for that, see [GroupSync], and the user asks for it only
+     * in a group handed to them as its creator deleted their account, see [GroupLeaver].
      */
     data class Failed(val error: NetworkError) : GroupLeaveAnswer
 }

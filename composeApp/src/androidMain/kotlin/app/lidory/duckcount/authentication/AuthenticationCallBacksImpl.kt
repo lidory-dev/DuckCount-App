@@ -23,7 +23,6 @@ import authenticationUtils.setHasPasswordBeenChecked
 import authenticationUtils.setPendingRegistration
 import authenticationUtils.setRootKey
 import authenticationUtils.setTokens
-import database.data.remote.EncryptedFieldDto
 import database.data.remote.LoginFinishBody
 import database.data.remote.LoginStartBody
 import database.data.remote.LoginStartResponse
@@ -45,7 +44,6 @@ import profile.ProfileRepository
 import uniffi.lib_duckcount.AuthenticationException
 import uniffi.lib_duckcount.EncryptedField
 import uniffi.lib_duckcount.Login
-import uniffi.lib_duckcount.Registration
 import util.NetworkError
 import util.Result
 import util.onError
@@ -63,6 +61,7 @@ class AuthenticationCallBacksImpl(
     private val profileRepository: ProfileRepository,
     private val discoveryUsernameRepository: DiscoveryUsernameRepository,
     private val keyPackageRepository: KeyPackageRepository,
+    private val accountRegistration: AccountRegistration,
 ) : AuthenticationCallBacks {
 
     override val maxUsernameLength: Int = usernameMaximumLength()
@@ -83,91 +82,29 @@ class AuthenticationCallBacksImpl(
         }
 
     override suspend fun registration(username: String, password: String): AuthOutcome<String> {
-        val registration = Registration()
+        val registered = when (val outcome = accountRegistration.register(username = username, password = password)) {
+            is AuthOutcome.Success -> outcome.data
+            is AuthOutcome.Failure -> return outcome
+        }
 
-        try {
-            val startResult = duckCountClient.post<String, RegistrationStartBody>(
-                route = DuckCountRoutes.Auth.REGISTRATIONS,
-                body = RegistrationStartBody(
-                    bytes = registration.start(password).toBase64(),
-                    // The server only ever knows the digest of the username, never the
-                    // username itself.
-                    username = hashLoginUsername(username = username),
-                ),
-            )
+        val shortLivedToken = registered.tokens.shortLivedToken
 
-            // The username is not repeated when finishing: the server kept it, keyed by
-            // the session id it just handed out.
-            val (sessionId, responseBytes) = when (startResult) {
-                is Result.Success -> JSONObject(startResult.data).let {
-                    it.getString("session_id") to it.getString("bytes")
-                }
-
-                is Result.Error -> {
-                    Log.w(TAG, "registration start failed: ${startResult.error}")
-                    return AuthOutcome.Failure(startResult.error.toAuthError())
-                }
+        // The server carries the new user's UUID in the short-lived token's `sub`.
+        val uuid = shortLivedToken.jwtClaim(claim = "sub")
+            ?: run {
+                Log.e(TAG, "registration: could not read uuid from short-lived token")
+                return AuthOutcome.Failure(AuthError.UNKNOWN)
             }
 
-            val registrationFinish = withContext(Dispatchers.Default) {
-                registration.finish(
-                    registrationResponseBytes = responseBytes.decodeBase64ToByteArray(),
-                    password = password,
-                )
-            }
+        setAuthenticatedUserUuid(uuid)
+        setAuthenticatedUserUsername(username = username)
+        setRootKey(registered.rootKey)
 
-            val finishResult = duckCountClient.put<String, RegistrationFinishBody>(
-                route = DuckCountRoutes.Auth.REGISTRATIONS,
-                body = RegistrationFinishBody(
-                    sessionId = sessionId,
-                    messageBytes = registrationFinish.message().toBase64(),
-                    rootKey = EncryptedFieldDto(
-                        ciphertext = registrationFinish.encryptedRootKey().ciphertext().toBase64(),
-                        nonce = registrationFinish.encryptedRootKey().nonce().toBase64(),
-                    ),
-                ),
-            )
-
-            return when (finishResult) {
-                is Result.Success -> {
-                    val body = JSONObject(finishResult.data)
-                    val shortLivedToken = body.getString("short_lived_token")
-                    val longLivedToken = body.getString("long_lived_token")
-
-                    // The server carries the new user's UUID in the short-lived token's `sub`.
-                    val uuid = shortLivedToken.jwtClaim(claim = "sub")
-                        ?: run {
-                            Log.e(TAG, "registration: could not read uuid from short-lived token")
-                            return AuthOutcome.Failure(AuthError.UNKNOWN)
-                        }
-
-                    setAuthenticatedUserUuid(uuid)
-                    setAuthenticatedUserUsername(username = username)
-                    setRootKey(registrationFinish.rootKey())
-
-                    if (!storeTokens(shortLivedToken = shortLivedToken, longLivedToken = longLivedToken)) {
-                        return AuthOutcome.Failure(AuthError.UNKNOWN)
-                    }
-
-                    AuthOutcome.Success(uuid)
-                }
-
-                is Result.Error -> {
-                    Log.w(TAG, "registration finish failed: ${finishResult.error}")
-                    AuthOutcome.Failure(finishResult.error.toAuthError())
-                }
-            }
-        } catch (e: AuthenticationException) {
-            Log.e(TAG, "registration OPAQUE error", e)
-            return AuthOutcome.Failure(AuthError.CRYPTO_ERROR)
-        } catch (e: JSONException) {
-            Log.e(TAG, "registration response parse error", e)
-            return AuthOutcome.Failure(AuthError.UNKNOWN)
-        } catch (e: IllegalArgumentException) {
-            // Malformed base64 in the server response.
-            Log.e(TAG, "registration base64 decode error", e)
+        if (!storeTokens(shortLivedToken = shortLivedToken, longLivedToken = registered.tokens.longLivedToken)) {
             return AuthOutcome.Failure(AuthError.UNKNOWN)
         }
+
+        return AuthOutcome.Success(uuid)
     }
 
     override suspend fun login(username: String, password: String): AuthOutcome<Unit> {
@@ -460,31 +397,5 @@ class AuthenticationCallBacksImpl(
             -> AuthError.CRYPTO_ERROR
     }
 
-    /**
-     * Maps a transport-level [NetworkError] to a user-facing [AuthError]. The "couldn't connect"
-     * case ([NetworkError.UNREACHABLE]) is resolved against real device connectivity, so airplane
-     * mode reads as "no internet" even when the base URL is a bare IP (no DNS step to fail on).
-     */
-    private fun NetworkError.toAuthError(): AuthError = when (this) {
-        NetworkError.NO_INTERNET -> AuthError.NO_INTERNET
-        NetworkError.UNREACHABLE ->
-            if (networkConnectivity.isOnline()) AuthError.UNREACHABLE else AuthError.NO_INTERNET
-
-        NetworkError.CONFLICT -> AuthError.USERNAME_TAKEN
-        // OPAQUE login hides user existence: both "unknown user" (404) and "unauthorized" read as
-        // invalid credentials to the user.
-        NetworkError.UNAUTHORIZED,
-        NetworkError.NOT_FOUND,
-            -> AuthError.INVALID_CREDENTIALS
-
-        NetworkError.REQUEST_TIMEOUT -> AuthError.TIMEOUT
-        NetworkError.SERVER_ERROR -> AuthError.SERVER_ERROR
-        NetworkError.TOO_MANY_REQUESTS -> AuthError.TOO_MANY_ATTEMPTS
-        NetworkError.BAD_REQUEST,
-        NetworkError.PAYLOAD_TOO_LARGE,
-        NetworkError.UNPROCESSABLE_ENTITY,
-        NetworkError.SERIALIZATION,
-        NetworkError.UNKNOWN,
-            -> AuthError.UNKNOWN
-    }
+    private fun NetworkError.toAuthError(): AuthError = toAuthError(isOnline = networkConnectivity.isOnline())
 }

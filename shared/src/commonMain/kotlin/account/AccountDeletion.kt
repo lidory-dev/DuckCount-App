@@ -340,6 +340,7 @@ private fun NetworkError.leavesDeletionOpen(): Boolean =
         NetworkError.TOO_MANY_REQUESTS,
         NetworkError.NO_INTERNET,
         NetworkError.SERIALIZATION,
+        NetworkError.FORBIDDEN,
         NetworkError.UNKNOWN,
             -> false
     }

@@ -262,6 +262,7 @@ private fun NetworkError.toContactVerificationError(isOnline: Boolean): ContactV
     NetworkError.UNPROCESSABLE_ENTITY,
     NetworkError.SERVER_ERROR,
     NetworkError.SERIALIZATION,
+    NetworkError.FORBIDDEN,
     NetworkError.UNKNOWN,
         -> ContactVerificationError.UNKNOWN
 }
@@ -286,6 +287,7 @@ private fun NetworkError.toRemoveContactError(isOnline: Boolean): RemoveContactE
     NetworkError.UNPROCESSABLE_ENTITY,
     NetworkError.SERVER_ERROR,
     NetworkError.SERIALIZATION,
+    NetworkError.FORBIDDEN,
     NetworkError.UNKNOWN,
         -> RemoveContactError.UNKNOWN
 }
@@ -308,6 +310,7 @@ private fun NetworkError.toAnswerContactRequestError(isOnline: Boolean): AnswerC
         NetworkError.UNPROCESSABLE_ENTITY,
         NetworkError.SERVER_ERROR,
         NetworkError.SERIALIZATION,
+        NetworkError.FORBIDDEN,
         NetworkError.UNKNOWN,
             -> AnswerContactRequestError.UNKNOWN
     }
@@ -332,6 +335,7 @@ private fun NetworkError.toAddContactError(isOnline: Boolean): AddContactError =
     NetworkError.UNPROCESSABLE_ENTITY,
     NetworkError.SERVER_ERROR,
     NetworkError.SERIALIZATION,
+    NetworkError.FORBIDDEN,
     NetworkError.UNKNOWN,
         -> AddContactError.UNKNOWN
 }

@@ -134,6 +134,7 @@ fun NetworkError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError = whe
     NetworkError.TOO_MANY_REQUESTS,
     NetworkError.SERVER_ERROR,
     NetworkError.SERIALIZATION,
+    NetworkError.FORBIDDEN,
     NetworkError.UNKNOWN,
         -> ExpenseWriteError.UNKNOWN
 }

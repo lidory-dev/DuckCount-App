@@ -222,7 +222,7 @@ class PasswordChangeTest {
      */
     @Test
     fun `a change the server refuses is reported without asking about the session`() = runBlocking<Unit> {
-        listOf(NetworkError.NOT_FOUND, NetworkError.BAD_REQUEST, NetworkError.UNKNOWN).forEach { refusal ->
+        listOf(NetworkError.NOT_FOUND, NetworkError.BAD_REQUEST, NetworkError.FORBIDDEN, NetworkError.UNKNOWN).forEach { refusal ->
             events.clear()
             changeOutcome = Result.Error(refusal)
             changeGoesThrough = false

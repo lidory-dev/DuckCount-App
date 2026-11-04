@@ -50,6 +50,7 @@ fun NetworkError.toReserveUsernameError(isOnline: Boolean): ReserveDiscoveryUser
     NetworkError.PAYLOAD_TOO_LARGE,
     NetworkError.SERVER_ERROR,
     NetworkError.SERIALIZATION,
+    NetworkError.FORBIDDEN,
     NetworkError.UNKNOWN,
         -> ReserveDiscoveryUsernameError.UNKNOWN
 }
@@ -154,6 +155,7 @@ private fun NetworkError.toProfileSaveError(isOnline: Boolean): ProfileSaveError
     NetworkError.TOO_MANY_REQUESTS,
     NetworkError.SERVER_ERROR,
     NetworkError.SERIALIZATION,
+    NetworkError.FORBIDDEN,
     NetworkError.UNKNOWN,
         -> ProfileSaveError.UNKNOWN
 }
@@ -189,6 +191,7 @@ fun SharedAccountDeletionError.toAccountDeletionError(isOnline: Boolean): Accoun
         NetworkError.TOO_MANY_REQUESTS,
         NetworkError.SERVER_ERROR,
         NetworkError.SERIALIZATION,
+        NetworkError.FORBIDDEN,
         NetworkError.UNKNOWN,
             -> AccountDeletionError.UNKNOWN
     }
@@ -231,6 +234,7 @@ fun SharedPasswordChangeError.toPasswordChangeError(isOnline: Boolean): Password
         NetworkError.TOO_MANY_REQUESTS,
         NetworkError.SERVER_ERROR,
         NetworkError.SERIALIZATION,
+        NetworkError.FORBIDDEN,
         NetworkError.UNKNOWN,
             -> PasswordChangeError.UNKNOWN
     }

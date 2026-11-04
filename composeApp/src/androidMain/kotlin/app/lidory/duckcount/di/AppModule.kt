@@ -4,7 +4,10 @@ import AuthenticationCallBacks
 import account.di.accountModule
 import ContactCallBacks
 import app.lidory.duckcount.AppViewModel
+import app.lidory.duckcount.authentication.AccountRegistration
 import app.lidory.duckcount.authentication.AuthenticationCallBacksImpl
+import app.lidory.duckcount.authentication.DeviceAttester
+import app.lidory.duckcount.authentication.KeystoreDeviceAttester
 import app.lidory.duckcount.contactList.ContactCallBacksImp
 import app.lidory.duckcount.expenseList.CreateExpenseCallBacksImpl
 import app.lidory.duckcount.expenseList.ExpenseDetailCallBacksImpl
@@ -61,6 +64,14 @@ import push.di.pushModule
 import vault.di.vaultModule
 
 val authenticationCallBacksModule = module {
+    singleOf(::KeystoreDeviceAttester).bind<DeviceAttester>()
+    single {
+        AccountRegistration(
+            duckCountClient = get(),
+            deviceAttester = get(),
+            networkConnectivity = get(),
+        )
+    }
     singleOf(::AuthenticationCallBacksImpl).bind<AuthenticationCallBacks>()
 }
 

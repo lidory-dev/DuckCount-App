@@ -118,6 +118,7 @@ class GroupMembershipAnswerTest {
             NetworkError.NO_INTERNET,
             NetworkError.UNREACHABLE,
             NetworkError.SERIALIZATION,
+            NetworkError.FORBIDDEN,
             NetworkError.UNKNOWN,
         ).forEach {
             assertEquals(GroupMembershipAnswer.Failed(error = it), membershipAnswerOf(error = it))

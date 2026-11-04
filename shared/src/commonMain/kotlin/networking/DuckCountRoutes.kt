@@ -11,6 +11,9 @@ object DuckCountRoutes {
 
         val REGISTRATIONS = "$authBaseUrl/registrations"
 
+        /** `POST` hands out the challenge the attestation starting a registration goes over. */
+        val REGISTRATION_CHALLENGES = "$authBaseUrl/registrations/challenges"
+
         val SESSIONS = "$authBaseUrl/sessions"
 
         val TOKEN = "$authBaseUrl/token"

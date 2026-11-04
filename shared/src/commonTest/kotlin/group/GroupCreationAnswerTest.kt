@@ -86,6 +86,7 @@ class GroupCreationAnswerTest {
             NetworkError.SERVER_ERROR,
             NetworkError.NO_INTERNET,
             NetworkError.UNREACHABLE,
+            NetworkError.FORBIDDEN,
             NetworkError.UNKNOWN,
         ).forEach {
             assertEquals(GroupCreationAnswer.Failed(error = it), creationAnswerOf(error = it))

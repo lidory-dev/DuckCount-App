@@ -417,6 +417,7 @@ private fun NetworkError.toGroupCreationFailure(isOnline: Boolean): GroupCreatio
     NetworkError.TOO_MANY_REQUESTS,
     NetworkError.SERVER_ERROR,
     NetworkError.SERIALIZATION,
+    NetworkError.FORBIDDEN,
     NetworkError.UNKNOWN,
         -> GroupCreationFailure.UNKNOWN
 }
@@ -519,6 +520,7 @@ private fun NetworkError.toContactRequestError(isOnline: Boolean): ContactReques
     NetworkError.UNPROCESSABLE_ENTITY,
     NetworkError.SERVER_ERROR,
     NetworkError.SERIALIZATION,
+    NetworkError.FORBIDDEN,
     NetworkError.UNKNOWN,
         -> ContactRequestError.UNKNOWN
 }

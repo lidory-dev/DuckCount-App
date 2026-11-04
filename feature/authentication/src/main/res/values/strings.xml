@@ -42,4 +42,7 @@
     <string name="error_unknown">Something went wrong. Please try again.</string>
     <string name="error_full_name_too_long">Your full name is too long.</string>
     <string name="error_too_many_attempts">Too many attempts. Please try again in a few minutes.</string>
+    <string name="device_not_allowed_title">Phone not eligible</string>
+    <string name="error_device_not_allowed">For security and abuse protection reasons, DuckCount accounts can only be created on a recent phone with a locked bootloader, running its official system or GrapheneOS. If yours meets these conditions, restart it and try again.</string>
+    <string name="error_device_check_failed">This phone couldn’t be verified. Please try again.</string>
 </resources>

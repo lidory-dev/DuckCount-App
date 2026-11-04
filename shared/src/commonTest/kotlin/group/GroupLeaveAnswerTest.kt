@@ -21,16 +21,14 @@ class GroupLeaveAnswerTest {
     }
 
     /**
-     * The client reads a `403` as no answer it knows, so the owner's refusal is one more failure.
-     * The sync never sends the owner's leave again: the next pass reads the user as the group's
-     * listed owner and skips it, see [GroupSync].
+     * The owner's refusal is one more failure. The sync never sends the owner's leave again: the
+     * next pass reads the user as the group's listed owner and skips it, see [GroupSync].
      */
     @Test
     fun `the 403 refusing the owner is a failure like any unknown answer`() {
-        assertEquals(
-            GroupLeaveAnswer.Failed(error = NetworkError.UNKNOWN),
-            leaveAnswerOf(sent = Result.Error(NetworkError.UNKNOWN)),
-        )
+        listOf(NetworkError.FORBIDDEN, NetworkError.UNKNOWN).forEach {
+            assertEquals(GroupLeaveAnswer.Failed(error = it), leaveAnswerOf(sent = Result.Error(it)))
+        }
     }
 
     /** A `401` a refresh may still turn around, and the leave may have been taken with its answer lost. */

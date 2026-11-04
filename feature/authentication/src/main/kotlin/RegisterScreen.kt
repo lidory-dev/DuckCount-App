@@ -68,6 +68,7 @@ fun RegisterScreen(
     navigateBack: () -> Unit,
     navigateToLeakPasswordScreen: (Int) -> Unit,
     navigateToSetUpProfileScreen: (String, String, Boolean) -> Unit,
+    navigateToDeviceNotAllowedScreen: () -> Unit,
 ) {
     val viewModel = koinViewModel<RegisterViewModel>()
     val state = viewModel.state
@@ -227,6 +228,7 @@ fun RegisterScreen(
                                     password = state.password,
                                     navigateToPasswordLeakScreen = navigateToLeakPasswordScreen,
                                     navigateToUserInformationScreen = navigateToSetUpProfileScreen,
+                                    navigateToDeviceNotAllowedScreen = navigateToDeviceNotAllowedScreen,
                                 )
                             },
                         ),
@@ -257,6 +259,7 @@ fun RegisterScreen(
                                 password = state.password,
                                 navigateToPasswordLeakScreen = navigateToLeakPasswordScreen,
                                 navigateToUserInformationScreen = navigateToSetUpProfileScreen,
+                                navigateToDeviceNotAllowedScreen = navigateToDeviceNotAllowedScreen,
                             )
                         },
                         enabled = viewModel.canRegister(),

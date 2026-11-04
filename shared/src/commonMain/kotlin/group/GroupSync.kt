@@ -2245,9 +2245,9 @@ class GroupSync internal constructor(
      * sent again for good.
      *
      * Not a group the server lists the user as the owner of, of those in [listed]: it refuses its
-     * owner, who would leave the group with nobody able to change it, and the client cannot tell
-     * that refusal from no answer. That is a group handed to them as its owner deleted their
-     * account, which they may have declined or left: past saving, only its creator's device
+     * owner, who would leave the group with nobody able to change it, and [GroupLeaveAnswer] does
+     * not tell that refusal from no answer. That is a group handed to them as its owner deleted
+     * their account, which they may have declined or left: past saving, only its creator's device
      * changing a group. Its leave stays owed, neither asked about nor sent.
      *
      * Forgotten, a group this device declined is decided on afresh should the server list it

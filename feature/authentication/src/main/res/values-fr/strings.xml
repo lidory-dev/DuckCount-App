@@ -42,4 +42,7 @@
     <string name="error_unknown">Une erreur est survenue. Réessayez.</string>
     <string name="error_full_name_too_long">Votre nom complet est trop long.</string>
     <string name="error_too_many_attempts">Trop de tentatives. Réessayez dans quelques minutes.</string>
+    <string name="device_not_allowed_title">Téléphone non éligible</string>
+    <string name="error_device_not_allowed">Pour des raisons de sécurité et de protection contre les abus, un compte DuckCount ne peut être créé que sur un téléphone récent au bootloader verrouillé, avec son système officiel ou GrapheneOS. Si votre téléphone remplit ces conditions, redémarrez-le et réessayez.</string>
+    <string name="error_device_check_failed">Ce téléphone n’a pas pu être vérifié. Réessayez.</string>
 </resources>

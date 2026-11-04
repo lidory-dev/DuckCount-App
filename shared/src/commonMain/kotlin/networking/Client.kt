@@ -250,6 +250,7 @@ abstract class Client {
                 Result.Error(NetworkError.UNAUTHORIZED)
             }
 
+            403 -> Result.Error(NetworkError.FORBIDDEN)
             404 -> Result.Error(NetworkError.NOT_FOUND)
             409 -> Result.Error(NetworkError.CONFLICT)
             408 -> Result.Error(NetworkError.REQUEST_TIMEOUT)

@@ -239,18 +239,22 @@ class AccountDeletionTest {
     @Test
     fun `a deletion the server refuses is reported without trying again and the session stays`() =
         runBlocking<Unit> {
-            deletionOutcomes += Result.Error(NetworkError.BAD_REQUEST)
+            listOf(NetworkError.BAD_REQUEST, NetworkError.FORBIDDEN).forEach { refusal ->
+                events.clear()
+                finalizations.clear()
+                deletionOutcomes += Result.Error(refusal)
 
-            val outcome = deletion.delete(userUuid = USER, password = PASSWORD)
+                val outcome = deletion.delete(userUuid = USER, password = PASSWORD)
 
-            assertEquals(
-                AccountDeletionError.Network(NetworkError.BAD_REQUEST),
-                assertIs<Result.Error<AccountDeletionError>>(outcome).error,
-            )
-            assertEquals(1, finalizations.size)
-            assertEquals(listOf("in doubt", "finish", "not in doubt"), events.takeLast(3))
-            assertFalse("session asked" in events)
-            assertFalse("end session" in events)
+                assertEquals(
+                    AccountDeletionError.Network(refusal),
+                    assertIs<Result.Error<AccountDeletionError>>(outcome).error,
+                )
+                assertEquals(1, finalizations.size)
+                assertEquals(listOf("in doubt", "finish", "not in doubt"), events.takeLast(3))
+                assertFalse("session asked" in events)
+                assertFalse("end session" in events)
+            }
         }
 
     /**
