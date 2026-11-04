@@ -32,15 +32,13 @@ internal fun Context.postIfPermitted(tag: String, id: Int, notification: Notific
     return true
 }
 
-/** Creates the channel [id], which the user sees as [name] and [description], where there are channels. */
+/** Creates the channel [id], which the user sees as [name] and [description]. */
 internal fun Context.createNotificationChannel(
     id: String,
     @StringRes name: Int,
     @StringRes description: Int,
     importance: Int,
 ) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-
     val channel = NotificationChannel(id, getString(name), importance).apply {
         this.description = getString(description)
     }

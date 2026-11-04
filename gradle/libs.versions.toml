@@ -2,7 +2,7 @@
 # Do not update AGP to v9.x.x until this issue is fixed: https://github.com/gobley/gobley/issues/153
 agp = "8.13.2"
 android-compileSdk = "36"
-android-minSdk = "24"
+android-minSdk = "26"
 android-targetSdk = "36"
 # The build number the API's minimum for Android is compared to, see networking/ClientBuild.kt.
 # An integer that only goes up, unlike the version name.
