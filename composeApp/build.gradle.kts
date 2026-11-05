@@ -11,6 +11,10 @@ plugins {
     alias(libs.plugins.aboutLibraries)
 }
 
+// `-Pduckcount.fdroid` builds what F-Droid publishes, which differs only in where the update
+// screen sends a phone with no app store.
+val isFdroidBuild = providers.gradleProperty("duckcount.fdroid").isPresent
+
 kotlin {
     androidTarget {
         compilerOptions {
@@ -76,6 +80,8 @@ kotlin {
 android {
     namespace = "app.lidory.duckcount"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
+    // What strips the native libraries: without it installed, they ship with their symbols.
+    ndkVersion = libs.versions.android.ndk.get()
 
     defaultConfig {
         applicationId = "app.lidory.duckcount"
@@ -83,9 +89,25 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = libs.versions.android.versionCode.get().toInt()
         versionName = "1.0.0"
+
+        // Where the update screen sends a phone with no app store, see UpdateRequiredScreen.
+        buildConfigField(
+            "String",
+            "STORE_PAGE_PREFIX",
+            if (isFdroidBuild) {
+                "\"https://f-droid.org/packages/\""
+            } else {
+                "\"https://play.google.com/store/apps/details?id=\""
+            },
+        )
     }
     buildFeatures {
         buildConfig = true
+    }
+    // AGP would otherwise sign a list of the dependencies into the APK, encrypted to Google.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
     packaging {
         resources {

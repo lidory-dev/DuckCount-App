@@ -25,3 +25,6 @@ node_modules/
 # Exclude Rust builds
 **/target/
 iosApp/iosApp/ContactList/.build
+
+# Output of fdroid/build-release.sh
+fdroid/out/

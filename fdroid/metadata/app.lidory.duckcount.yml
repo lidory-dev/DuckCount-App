@@ -1,0 +1,78 @@
+AntiFeatures:
+  NonFreeNet:
+    en-US: On a phone with no UnifiedPush distributor installed, push notifications
+      go through Google's Firebase Cloud Messaging, if Google Play Services is there.
+  TetheredNet:
+    en-US: The app works only with the DuckCount server at api.duckcount.app, and
+      has no setting to use another one.
+Categories:
+  - Finance Manager
+License: EUPL-1.2
+AuthorName: Lidory
+WebSite: https://duckcount.app
+SourceCode: https://github.com/lidory-dev/DuckCount-App
+IssueTracker: https://github.com/lidory-dev/DuckCount-App/issues
+
+AutoName: DuckCount
+Summary: Manage shared expenses privately
+Description: |-
+  DuckCount is an app that helps you manage shared expenses privately. Whether
+  you're on vacation with friends or at a restaurant with a colleague, you can be
+  sure that everyone will pay their fair share.
+
+  Share expenses your way
+  * Groups of up to 100 people, for a trip, a flatshare or regular dinners
+  * One-off expenses, no group needed
+  * Split evenly, or set exactly what each person owes
+  * Choose the currency of every expense
+  * See at a glance who owes whom, and settle a group in the fewest payments
+  * Mark expenses as settled once they are paid back
+  * Every edit is kept in the history, and deleted expenses can be restored
+
+  Private by design
+  * Expenses, groups and profiles are end-to-end encrypted: only the people
+  involved can read them, not even us
+  * Groups are encrypted with MLS, with post-quantum protection
+  * Usernames reach our servers only as a fingerprint: only someone who already
+  knows yours can find you
+  * Your password is checked against known leaks without ever being sent
+
+  Good to know
+  * Push notifications come through UnifiedPush, using any compatible distributor.
+  On a phone with none, they go through Google's Firebase Cloud Messaging if
+  Google Play Services is installed. Without either, the app still syncs each
+  time you open it.
+  * Accounts can only be created on a recent phone with a locked bootloader,
+  running its official system or GrapheneOS.
+
+RepoType: git
+Repo: https://github.com/lidory-dev/DuckCount-App.git
+Binaries:
+  https://github.com/lidory-dev/DuckCount-App/releases/download/v%v/DuckCount-%v-fdroid.apk
+
+Builds:
+  - versionName: 1.0.0
+    versionCode: 1
+    commit: '0000000000000000000000000000000000000000'
+    subdir: composeApp
+    submodules: true
+    sudo:
+      - apt-get update
+      - apt-get install -y cmake gcc libc6-dev make rustup
+    gradle:
+      - yes
+    prebuild:
+      - cd ../lib-duckcount
+      - rustup show active-toolchain
+    ndk: 29.0.14206865
+    gradleprops:
+      - duckcount.fdroid
+
+AllowedAPKSigningKeys: '0000000000000000000000000000000000000000000000000000000000000000'
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags ^v.*
+UpdateCheckData:
+  gradle/libs.versions.toml|android-versionCode\s*=\s*"(\d+)"|composeApp/build.gradle.kts|versionName\s*=\s*"([^"]+)"
+CurrentVersion: 1.0.0
+CurrentVersionCode: 1

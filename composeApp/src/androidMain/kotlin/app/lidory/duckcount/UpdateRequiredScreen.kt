@@ -25,7 +25,7 @@ fun UpdateRequiredScreen() {
             try {
                 uriHandler.openUri("market://details?id=$packageName")
             } catch (_: IllegalArgumentException) {
-                uriHandler.openUri("https://play.google.com/store/apps/details?id=$packageName")
+                uriHandler.openUri("${BuildConfig.STORE_PAGE_PREFIX}$packageName")
             }
         },
     )

@@ -1,3 +1,3 @@
 [submodule "lib-duckcount"]
 	path = lib-duckcount
-	url = ssh://git@git.lidory.tools/DuckCount/Lib-DuckCount.git
+	url = ../Lib-DuckCount.git
