@@ -35,7 +35,8 @@ class AmountInputTest {
         assertEquals("12.50", "12,5".toAmount(hasSubunits = true))
         assertEquals("12.00", "12.".toAmount(hasSubunits = true))
         assertEquals("0.50", ".5".toAmount(hasSubunits = true))
-        assertEquals("7", "007".toAmount(hasSubunits = true))
+        assertEquals("12.00", "12".toAmount(hasSubunits = true))
+        assertEquals("7.00", "007".toAmount(hasSubunits = true))
         assertEquals("1200", "1200".toAmount(hasSubunits = false))
     }
 

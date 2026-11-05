@@ -8,6 +8,7 @@ import database.domain.Beneficiary
 import database.domain.Currency
 import database.domain.CurrencyCatalog
 import database.domain.ExpenseWithBeneficiaries
+import database.domain.withCanonicalAmounts
 import mls.InMemoryMlsStore
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
@@ -54,7 +55,7 @@ class OneTimeExpenseHistoryVerificationTest {
         assertEquals(3, opened.revision)
         assertEquals("Pizzas", opened.expense.title)
         assertEquals(CREDITOR, opened.expense.creditorUuid)
-        assertEquals(mapOf(BOB to "12", CAROL to "8"), opened.expense.beneficiaries.associate { it.userUuid to it.share })
+        assertEquals(mapOf(BOB to "12.00", CAROL to "8.00"), opened.expense.beneficiaries.associate { it.userUuid to it.share })
     }
 
     @Test
@@ -159,6 +160,20 @@ class OneTimeExpenseHistoryVerificationTest {
         )
 
         assertNull(moved.open())
+    }
+
+    /** The form and the writes put it right, so only a client of its own would seal this. */
+    @Test
+    fun `an expense whose amounts are written any other way does not open`() {
+        val expense = expense()
+
+        val anotherWay = listOf(
+            expense.copy(amount = "20"),
+            expense.copy(amount = "20.0"),
+            expense.copy(beneficiaries = expense.beneficiaries.map { it.copy(share = it.share.substringBefore('.')) }),
+        )
+
+        anotherWay.forEach { assertNull(it.signedBy(creditor, revision = 1).open(), it.amount) }
     }
 
     @Test
@@ -368,7 +383,7 @@ class OneTimeExpenseHistoryVerificationTest {
                 shareWeight = carolShareWeight,
             ),
         ),
-    )
+    ).let { assertNotNull(it.withCanonicalAmounts()) }
 
     /** The version as the history would hold it once an edit replaced it. */
     private fun ExpenseWithBeneficiaries.signedBy(

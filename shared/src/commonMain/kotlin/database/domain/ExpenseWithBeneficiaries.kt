@@ -1,5 +1,6 @@
 package database.domain
 
+import app.lidory.duckcount.canonicalAmount
 import kotlinx.datetime.LocalDateTime
 
 data class ExpenseWithBeneficiaries(
@@ -58,3 +59,18 @@ data class ExpenseWithBeneficiaries(
  */
 internal fun ExpenseWithBeneficiaries.trimmed(): ExpenseWithBeneficiaries =
     copy(title = title.trim(), description = description.trim())
+
+/**
+ * [this] with its amount and shares written the one way the library writes an amount, see
+ * [canonicalAmount]: every write goes through here before it is sealed, so that nothing else ever
+ * reaches the server, and the row the user's own list shows says what was sealed. Receivers refuse
+ * anything else. Null when the library cannot read one of them as an amount in its currency, which
+ * the form never lets through.
+ */
+internal fun ExpenseWithBeneficiaries.withCanonicalAmounts(): ExpenseWithBeneficiaries? =
+    copy(
+        amount = canonicalAmount(amount = amount, currency = currency) ?: return null,
+        beneficiaries = beneficiaries.map { beneficiary ->
+            beneficiary.copy(share = canonicalAmount(amount = beneficiary.share, currency = currency) ?: return null)
+        },
+    )

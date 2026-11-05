@@ -64,7 +64,32 @@ class AmountFieldTest {
         viewModel.updateAmount("1250")
 
         assertEquals("12", viewModel.state.amountText)
+        assertEquals("12.00", viewModel.state.amount)
+    }
+
+    /** It is what is saved and compared, which a text of whole units would differ from. */
+    @Test
+    fun `an amount of whole units is held with its subunits and shown so once the field is left`() {
+        viewModel.updateAmount("12")
+
+        assertEquals("12", viewModel.state.amountText)
+        assertEquals("12.00", viewModel.state.amount)
+
+        viewModel.finishAmount()
+
+        assertEquals("12.00", viewModel.state.amountText)
+    }
+
+    @Test
+    fun `an amount is written anew for the currency it changes to`() {
+        viewModel.updateAmount("12")
+        viewModel.updateCurrency(YEN)
+
         assertEquals("12", viewModel.state.amount)
+
+        viewModel.updateCurrency(EURO)
+
+        assertEquals("12.00", viewModel.state.amount)
     }
 
     @Test

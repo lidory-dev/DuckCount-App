@@ -249,12 +249,17 @@ class CreateExpenseViewModel: ObservableObject, CreateExpenseFormState {
             hasSubunits: currency.hasSubunits
         )
 
+        // The library takes an amount written one way alone, and the fields hold what is typed.
+        let written = { (typed: String) in
+            ExpenseKt.canonicalAmount(amount: typed, currency: kotlinCurrency) ?? typed
+        }
+
         let kotlinBeneficiaries = beneficiaries.map { draft in
             Shared.Beneficiary(
                 uuid: draft.id,
                 expenseUuid: "",
                 userUuid: draft.userUuid,
-                share: draft.share,
+                share: written(draft.share),
                 isShareFixed: false,  // TODO: Use automatic calculation of shares.
                 sharePercentage: nil,
                 shareWeight: nil
@@ -262,7 +267,7 @@ class CreateExpenseViewModel: ObservableObject, CreateExpenseFormState {
         }
 
         let kotlinError = ExpenseKt.validateExpense(
-            amount: amount,
+            amount: written(amount),
             currency: kotlinCurrency,
             beneficiaries: kotlinBeneficiaries
         )

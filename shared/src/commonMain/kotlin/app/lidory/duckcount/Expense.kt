@@ -3,6 +3,7 @@ package app.lidory.duckcount
 import uniffi.lib_duckcount.Beneficiary
 import uniffi.lib_duckcount.Currency
 import uniffi.lib_duckcount.ExpenseException
+import uniffi.lib_duckcount.canonicalAmount
 import uniffi.lib_duckcount.computeBeneficiaries
 import uniffi.lib_duckcount.validateExpense
 
@@ -37,6 +38,21 @@ fun validateExpense(
         }
     }
 }
+
+/**
+ * [amount] written the one way the library takes an amount and hands one out, `12` in a [currency]
+ * without a subunit and `12.00` in one with, or null when the library cannot read it as an amount
+ * in [currency].
+ */
+fun canonicalAmount(amount: String, currency: database.domain.Currency): String? =
+    try {
+        canonicalAmount(
+            amount = amount,
+            currency = Currency(name = currency.name, symbol = currency.symbol, hasSubUnit = currency.hasSubunits),
+        )
+    } catch (_: ExpenseException) {
+        null
+    }
 
 fun computeBeneficiaries(
     amount: String,

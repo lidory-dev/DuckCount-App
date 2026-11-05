@@ -115,7 +115,7 @@ class PercentageShareFormTest {
         viewModel.setBeneficiaryFixedShare(userUuid = ALICE)
         viewModel.setBeneficiaryPercentage(userUuid = BOB, percentage = "25")
 
-        assertEquals(mapOf(ALICE to "10"), callBacks.lastFixedShares)
+        assertEquals(mapOf(ALICE to "10.00"), callBacks.lastFixedShares)
         assertEquals(mapOf(BOB to "25"), callBacks.lastPercentages)
         assertEquals("65.00", viewModel.beneficiary(CAROL).share)
     }
@@ -132,9 +132,9 @@ class PercentageShareFormTest {
         viewModel.setBeneficiaryFixedShare(userUuid = BOB)
         viewModel.calculateShares()
 
-        assertEquals(mapOf(BOB to "30"), callBacks.lastFixedShares)
+        assertEquals(mapOf(BOB to "30.00"), callBacks.lastFixedShares)
         assertEquals(emptyMap<String, String>(), callBacks.lastPercentages)
-        assertEquals("30", viewModel.beneficiary(BOB).share)
+        assertEquals("30.00", viewModel.beneficiary(BOB).share)
         assertNull(viewModel.beneficiary(BOB).sharePercentage)
         assertTrue(viewModel.beneficiary(BOB).isShareFixed)
     }

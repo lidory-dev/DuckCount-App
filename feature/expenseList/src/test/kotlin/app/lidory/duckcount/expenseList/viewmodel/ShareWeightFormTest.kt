@@ -128,7 +128,7 @@ class ShareWeightFormTest {
         viewModel.setBeneficiaryPercentage(userUuid = BOB, percentage = "30")
         viewModel.setBeneficiaryWeight(userUuid = CHARLIE, weight = "2")
 
-        assertEquals(mapOf(ALICE to "10"), callBacks.lastFixedShares)
+        assertEquals(mapOf(ALICE to "10.00"), callBacks.lastFixedShares)
         assertEquals(mapOf(BOB to "30"), callBacks.lastPercentages)
         assertEquals(mapOf(CHARLIE to "2"), callBacks.lastWeights)
         // The 60 they leave, in three parts.
@@ -147,7 +147,7 @@ class ShareWeightFormTest {
         viewModel.setBeneficiaryFixedShare(userUuid = ALICE)
         viewModel.calculateShares()
 
-        assertEquals(mapOf(ALICE to "40"), callBacks.lastFixedShares)
+        assertEquals(mapOf(ALICE to "40.00"), callBacks.lastFixedShares)
         assertEquals(emptyMap<String, String>(), callBacks.lastWeights)
         assertNull(viewModel.beneficiary(ALICE).shareWeight)
         assertTrue(viewModel.beneficiary(ALICE).isShareFixed)

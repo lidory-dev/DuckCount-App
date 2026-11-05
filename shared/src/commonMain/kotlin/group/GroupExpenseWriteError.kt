@@ -58,7 +58,8 @@ sealed interface GroupExpenseWriteError : Error {
 
     /**
      * The expense could not be given a UUID, signed or sealed: a session UUID that does not parse, a
-     * key of the wrong size or a failed signature, all bugs rather than states.
+     * key of the wrong size, a failed signature or an amount the library cannot read, all bugs
+     * rather than states.
      */
     data object Crypto : GroupExpenseWriteError
 

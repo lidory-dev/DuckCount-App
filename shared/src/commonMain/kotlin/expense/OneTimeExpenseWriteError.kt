@@ -30,7 +30,8 @@ sealed interface OneTimeExpenseWriteError : Error {
 
     /**
      * The expense could not be given a UUID, sealed or signed: a session UUID that does not
-     * parse, a key of the wrong size or a failed signature, all bugs rather than states.
+     * parse, a key of the wrong size, a failed signature or an amount the library cannot read,
+     * all bugs rather than states.
      */
     data object Crypto : OneTimeExpenseWriteError
 

@@ -10,6 +10,7 @@ import database.data.local.entity.GroupExpenseDeletionEntity
 import database.domain.Beneficiary
 import database.domain.ExpenseWithBeneficiaries
 import database.domain.trimmed
+import database.domain.withCanonicalAmounts
 import mls.MlsIdentityError
 import mls.MlsIdentityRepository
 import uniffi.lib_duckcount.GroupExpenseId
@@ -37,7 +38,8 @@ import util.Result
  * [sealGroupExpenseDeletion], at the revision after the flag this device shows, so that one that
  * had every edit it takes is still deleted and restored. A deleted expense stays listed, struck
  * through, and counts in no balance. Its title and description are taken without the whitespace
- * around them, as a one-time expense's are, see [trimmed], and its currency is the group's.
+ * around them, as a one-time expense's are, see [trimmed], its currency is the group's, and its
+ * amount and shares are written the one way, see [withCanonicalAmounts], a settlement's too.
  *
  * What the server can answer, and what comes of it, see [GroupExpenseWriteAnswer] and
  * [GroupExpenseDeletionAnswer]:
@@ -169,9 +171,13 @@ class GroupExpenseWriter internal constructor(
         // Known before the post, so that what is sealed and signed can name it.
         val id = newId(selfUuid) ?: return Result.Error(GroupExpenseWriteError.Crypto)
 
+        // In the group's currency, which decides how its amounts are written.
+        val written = expense.trimmed().inGroup(group = held, expenseUuid = id.uuid).withCanonicalAmounts()
+            ?: return Result.Error(GroupExpenseWriteError.Crypto)
+
         return write(
             groupUuid = groupUuid,
-            expense = expense.trimmed().inGroup(group = held, expenseUuid = id.uuid),
+            expense = written,
             revision = FIRST_GROUP_EXPENSE_REVISION,
             nonce = id.nonce,
             selfUuid = selfUuid,
@@ -247,9 +253,15 @@ class GroupExpenseWriter internal constructor(
             is Result.Error -> return Result.Error(GroupExpenseWriteError.Identity(opened.error))
         }
 
+        // In the group's currency, which decides how its amounts are written.
+        val written = expense.trimmed().inGroup(group = held, expenseUuid = shown.expense.uuid)
+            .copy(isSettlement = false)
+            .withCanonicalAmounts()
+            ?: return Result.Error(GroupExpenseWriteError.Crypto)
+
         return write(
             groupUuid = groupUuid,
-            expense = expense.trimmed().inGroup(group = held, expenseUuid = shown.expense.uuid).copy(isSettlement = false),
+            expense = written,
             revision = baseRevision + 1,
             nonce = null,
             selfUuid = selfUuid,

@@ -23,6 +23,7 @@ import database.domain.Currency
 import database.domain.Expense
 import database.domain.ExpenseWithBeneficiaries
 import database.domain.trimmed
+import database.domain.withCanonicalAmounts
 import expense.FIRST_REVISION
 import expense.OneTimeExpenseHistoryError
 import expense.OneTimeExpenseKeyRecord
@@ -112,8 +113,9 @@ class ExpenseRepository(
      * creditor's copy of that key, and hands the key over.
      *
      * Its title and description are taken without the whitespace around them, as a group's are,
-     * see [trimmed], both into what is sealed and signed, which every beneficiary opens, and into
-     * the row the creditor's own list shows.
+     * see [trimmed], and its amount and shares written the one way, see [withCanonicalAmounts],
+     * both into what is sealed and signed, which every beneficiary opens, and into the row the
+     * creditor's own list shows.
      *
      * The key, and who is owed it, are kept before the post and not after it. The expense
      * exists from the moment the server stores it, which can be before an answer that never
@@ -136,7 +138,8 @@ class ExpenseRepository(
     suspend fun createOneTimeExpense(
         expenseWithBeneficiaries: ExpenseWithBeneficiaries,
     ): EmptyResult<OneTimeExpenseWriteError> {
-        val expense = expenseWithBeneficiaries.trimmed()
+        val expense = expenseWithBeneficiaries.trimmed().withCanonicalAmounts()
+            ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
 
         val creditorUuid = getAuthenticatedUserUuid()
             ?: return Result.Error(OneTimeExpenseWriteError.NoSession)
@@ -247,7 +250,8 @@ class ExpenseRepository(
     suspend fun updateOneTimeExpense(
         expenseWithBeneficiaries: ExpenseWithBeneficiaries,
     ): EmptyResult<OneTimeExpenseWriteError> {
-        val expense = expenseWithBeneficiaries.trimmed()
+        val expense = expenseWithBeneficiaries.trimmed().withCanonicalAmounts()
+            ?: return Result.Error(OneTimeExpenseWriteError.Crypto)
 
         val creditorUuid = getAuthenticatedUserUuid()
             ?: return Result.Error(OneTimeExpenseWriteError.NoSession)

@@ -1,5 +1,6 @@
 package group
 
+import database.data.remote.EncryptedFieldDto
 import app.lidory.duckcount.ExpenseLimits
 import database.AppDatabase
 import database.data.local.entity.GroupEntity
@@ -191,6 +192,103 @@ class GroupExpenseWriterTest {
             assertEquals(FIRST_GROUP_EXPENSE_REVISION, shown.expense.revision)
             assertEquals(ALICE, shown.expense.authorUuid)
             assertEquals(FIRST_KEY_GENERATION, server.creates.single().keyGeneration)
+        }
+    }
+
+    /** What [content] says of its amounts, sealed as the first or a later version of [uuid]. */
+    private fun sealedAmounts(content: EncryptedFieldDto, uuid: String, revision: Long): List<String> {
+        val version = assertNotNull(
+            content.unsealGroupExpense(groupKey = firstKey, groupUuid = GROUP, expenseUuid = uuid, revision = revision),
+        ).version
+
+        return listOf(version.amount) + version.beneficiaries.map { it.share }
+    }
+
+    @Test
+    fun `a create's amounts reach the server and the list written the one way`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val asGiven = dinner.copy(amount = "90", beneficiaries = dinner.beneficiaries.map { it.copy(share = "45") })
+
+            assertEquals(Result.Success(Unit), writerOf(database).create(groupUuid = GROUP, expense = asGiven))
+
+            val uuid = server.expenses.keys.single()
+
+            assertEquals(
+                listOf("90.00", "45.00", "45.00"),
+                sealedAmounts(content = server.creates.single().content, uuid = uuid, revision = FIRST_GROUP_EXPENSE_REVISION),
+            )
+
+            val shown = assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = uuid))
+
+            assertEquals("90.00", shown.expense.amount)
+            assertEquals(setOf("45.00"), shown.beneficiaries.mapTo(HashSet()) { it.share })
+        }
+    }
+
+    @Test
+    fun `an edit's amounts reach the server written the one way`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            val writer = writerOf(database)
+
+            writer.create(groupUuid = GROUP, expense = dinner)
+
+            val uuid = server.expenses.keys.single()
+
+            val edit = dinner.copy(
+                uuid = uuid,
+                amount = "80.5",
+                beneficiaries = dinner.beneficiaries.map { beneficiary ->
+                    beneficiary.copy(expenseUuid = uuid, share = if (beneficiary.userUuid == ALICE) "40" else "40.5")
+                },
+                revision = 1,
+            )
+
+            assertEquals(Result.Success(Unit), writer.edit(groupUuid = GROUP, expense = edit))
+
+            assertEquals(
+                listOf("80.50", "40.00", "40.50"),
+                sealedAmounts(content = server.updates.single().content, uuid = uuid, revision = 2),
+            )
+        }
+    }
+
+    @Test
+    fun `a settlement's amounts reach the server written the one way`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            assertEquals(
+                Result.Success(Unit),
+                writerOf(database).recordSettlement(groupUuid = GROUP, payerUuid = BOB, amount = "45", timestamp = "2026-10-30T21:00:00"),
+            )
+
+            assertEquals(
+                listOf("45.00", "45.00"),
+                sealedAmounts(
+                    content = server.creates.single().content,
+                    uuid = server.expenses.keys.single(),
+                    revision = FIRST_GROUP_EXPENSE_REVISION,
+                ),
+            )
+        }
+    }
+
+    /** It would never open on any member's device, a form never letting one through. */
+    @Test
+    fun `an amount the library cannot read is not sent`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.holdingTheGroup()
+
+            assertEquals(
+                Result.Error(GroupExpenseWriteError.Crypto),
+                writerOf(database).create(groupUuid = GROUP, expense = dinner.copy(amount = "ninety")),
+            )
+
+            assertTrue(server.creates.isEmpty())
         }
     }
 

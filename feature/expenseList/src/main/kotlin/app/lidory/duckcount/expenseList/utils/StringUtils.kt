@@ -28,8 +28,8 @@ private fun String.roundTo(scale: Int): String {
         "Invalid number: '$this'"
     }
 
-    // No fractional part, nothing to round.
-    if (!trimmed.contains('.')) return trimmed
+    // Nothing to write an amount from.
+    if (trimmed.isEmpty() || trimmed == "-") return trimmed
 
     return BigDecimal(trimmed)
         .setScale(scale, RoundingMode.HALF_UP)
@@ -50,7 +50,8 @@ fun String.isAmountInput(hasSubunits: Boolean): Boolean =
 
 /**
  * The amount [this], an amount field's text (see [isAmountInput]), stands for, as the form keeps
- * and saves it: "12,5" is 12.50, "007" is 7, and "0" none yet.
+ * and saves it, the one way the library takes an amount: "12" and "12.00" are 12.00 in a currency
+ * with subunits and "12" is 12 in one without, "12,5" is 12.50, "007" is 7.00, and "0" none yet.
  */
 fun String.toAmount(hasSubunits: Boolean): String {
     val formatted = formatAmountWithSubunits()

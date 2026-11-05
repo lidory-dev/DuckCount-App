@@ -168,6 +168,18 @@ class GroupExpenseSealingTest {
             },
         )
 
+    /** The writes put it right, so only a client of its own would seal this. */
+    @Test
+    fun `a version whose amounts are written any other way does not open`() {
+        val anotherWay = listOf(
+            dinner.copy(amount = "90"),
+            dinner.copy(amount = "90.0"),
+            dinner.copy(beneficiaries = dinner.beneficiaries.map { it.copy(share = it.share.substringBefore('.')) }),
+        )
+
+        anotherWay.forEach { assertNull(open(content = sealed(expense = it)), it.amount) }
+    }
+
     /** As the server serving a version of one expense as another's would leave a member. */
     @Test
     fun `a version does not open as another expense's or another group's`() {
