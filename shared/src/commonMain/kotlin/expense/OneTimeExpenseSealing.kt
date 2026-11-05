@@ -106,7 +106,7 @@ internal fun ExpenseWithBeneficiaries.sealOneTime(
     }
 
     val sealedTitle = sealBound(expenseKey, Context.TITLE, title.toSealedTitle()) ?: return null
-    val sealedDescription = sealBound(expenseKey, Context.DESCRIPTION, description.encodeToByteArray())
+    val sealedDescription = sealBound(expenseKey, Context.DESCRIPTION, description.toSealedDescription())
         ?: return null
     val sealedAmount = sealBound(expenseKey, Context.AMOUNT, amount.toSealedAmount().encodeToByteArray()) ?: return null
     val sealedCurrency = sealBound(expenseKey, Context.CURRENCY, currency.uuid.encodeToByteArray()) ?: return null
@@ -167,8 +167,9 @@ internal class OpenedOneTimeExpense(
  *
  * So is one, signed or not, whose title or description is longer than the form allows,
  * whose timestamp is not written exactly as the app writes one, whose currency is not one the
- * app ships with, whose title, amount or shares were not sealed at one length, see [toTitleOrNull]
- * and [toAmountOrNull], or whose amount or shares [validateExpense] refuses. The screens read these
+ * app ships with, whose title, description, amount or shares were not padded as sealing pads them,
+ * see [toTitleOrNull], [toDescriptionOrNull] and [toAmountOrNull], or whose amount or shares
+ * [validateExpense] refuses. The screens read these
  * values as the app writes them, and the expense list is the first thing the app shows: one
  * timestamp it cannot parse would crash it on every launch, with the expense out of the
  * user's reach on the server. The uuids are checked before this, in
@@ -243,7 +244,7 @@ internal fun ExpenseDto.unsealOneTime(record: OneTimeExpenseKeyRecord): OpenedOn
         title = unsealBound(expenseKey, Context.TITLE, title)?.toTitleOrNull()
             ?.takeIf { it.length <= MAX_TITLE_LENGTH }
             ?: return null,
-        description = unsealBound(expenseKey, Context.DESCRIPTION, description)?.decodeToString()
+        description = unsealBound(expenseKey, Context.DESCRIPTION, description)?.toDescriptionOrNull()
             ?.takeIf { it.length <= MAX_DESCRIPTION_LENGTH }
             ?: return null,
         amount = unsealBound(expenseKey, Context.AMOUNT, amount)?.decodeToString()?.toAmountOrNull() ?: return null,
@@ -380,11 +381,11 @@ private const val SEALED_TITLE_SIZE = MAX_TITLE_LENGTH * 3
  * takes off nothing but the padding. A version of a group expense pads its own, see
  * `group.GroupExpenseSealing`. Only what is sealed is padded.
  */
-private fun String.toSealedTitle(): ByteArray {
-    val bytes = encodeToByteArray()
+private fun String.toSealedTitle(): ByteArray = encodeToByteArray().paddedTo(SEALED_TITLE_SIZE)
 
-    return bytes + ByteArray((SEALED_TITLE_SIZE - bytes.size).coerceAtLeast(0)) { ' '.code.toByte() }
-}
+/** This with as many spaces after it as make it [size] bytes, when it is not so long already. */
+private fun ByteArray.paddedTo(size: Int): ByteArray =
+    this + ByteArray((size - this.size).coerceAtLeast(0)) { ' '.code.toByte() }
 
 /**
  * The title [toSealedTitle] sealed, or null for what is not as long as it seals one: refused whatever
@@ -392,6 +393,34 @@ private fun String.toSealedTitle(): ByteArray {
  */
 private fun ByteArray.toTitleOrNull(): String? =
     if (size == SEALED_TITLE_SIZE) decodeToString().trimEnd(' ') else null
+
+/**
+ * The sizes a description is sealed at, in bytes: most fit the first, and the last is the most one
+ * takes in UTF-8, three for each of the UTF-16 code units [MAX_DESCRIPTION_LENGTH] counts.
+ */
+private val SEALED_DESCRIPTION_SIZES = listOf(128, 512, MAX_DESCRIPTION_LENGTH * 3)
+
+/**
+ * A description as it is sealed: padded with spaces to the first of [SEALED_DESCRIPTION_SIZES] it
+ * fits, so that the server tells no more of how long it is than which of those it is. A title is
+ * padded to one size, see [toSealedTitle]. A description can be ten times as long, nearly always
+ * for nothing, and every expense would pay for the longest of them, for a length that says little
+ * of the expense. Saved without the whitespace around it, see `database.domain.trimmed`, so that
+ * opening it takes off nothing but the padding. A version of a group expense pads its own, see
+ * `group.GroupExpenseSealing`. Only what is sealed is padded.
+ */
+private fun String.toSealedDescription(): ByteArray {
+    val bytes = encodeToByteArray()
+
+    return bytes.paddedTo(SEALED_DESCRIPTION_SIZES.firstOrNull { it >= bytes.size } ?: bytes.size)
+}
+
+/**
+ * The description [toSealedDescription] sealed, or null for what is of none of the sizes it seals
+ * one at: refused whatever it says, as an amount is, see [toAmountOrNull].
+ */
+private fun ByteArray.toDescriptionOrNull(): String? =
+    if (size in SEALED_DESCRIPTION_SIZES) decodeToString().trimEnd(' ') else null
 
 /**
  * An amount or a share as it is sealed, in any currency: padded to [SEALED_AMOUNT_LENGTH], the

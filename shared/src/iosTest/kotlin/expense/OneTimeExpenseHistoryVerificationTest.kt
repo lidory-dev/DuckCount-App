@@ -285,6 +285,52 @@ class OneTimeExpenseHistoryVerificationTest {
         }
     }
 
+    /**
+     * Sealing hides what a description says but not how long it is: all that shows is which of the
+     * three sizes it fits, counted in the bytes it takes in UTF-8.
+     */
+    @Test
+    fun `a description seals to the length of the size it fits`() {
+        val most = ExpenseLimits.MAX_DESCRIPTION_LENGTH
+
+        val sizes = listOf(
+            // Nothing and nearly nothing, up to the first size exactly, an é taking two.
+            listOf("", "a", "a".repeat(128), "é".repeat(64)),
+            // Just past it, up to the second exactly, a € taking three.
+            listOf("a".repeat(129), "é".repeat(65), "a".repeat(500), "€".repeat(170)),
+            // Just past it, up to the third exactly.
+            listOf("€".repeat(171), "€".repeat(most)),
+        ).map { descriptions ->
+            descriptions.map { description ->
+                val entry = expense(description = description).signedBy(creditor, revision = 1)
+
+                assertEquals(description, assertNotNull(entry.open(), description).expense.description)
+
+                Base64.Default.decode(entry.previous_description.ciphertext).size
+            }.toSet().single()
+        }
+
+        assertEquals(listOf(144, 528, 1516), sizes)
+    }
+
+    /** Signed by its creditor over just what it holds, so that nothing but the size refuses it. */
+    @Test
+    fun `an expense whose description is of none of the sizes does not open`() {
+        val entry = expense().signedBy(creditor, revision = 1)
+
+        fun withDescription(description: String) =
+            entry.copy(previous_description = sealedAs("one_time_expense:description", description)).signedAgain().open()
+
+        // Each of the sizes, as a control.
+        listOf(128, 512, ExpenseLimits.MAX_DESCRIPTION_LENGTH * 3).forEach { size ->
+            assertEquals("", assertNotNull(withDescription("".padEnd(size)), "$size bytes").expense.description)
+        }
+
+        listOf(0, 127, 129, 256, 511, 513, ExpenseLimits.MAX_DESCRIPTION_LENGTH * 3 + 1).forEach { size ->
+            assertNull(withDescription("".padEnd(size)), "$size bytes")
+        }
+    }
+
     /** [text] sealed under the expense's key, bound to [context], as a client of its own would. */
     private fun sealedAs(context: String, text: String) =
         assertNotNull(sealBound(key = expenseKey, context = context, plaintext = text.encodeToByteArray()))
@@ -516,6 +562,7 @@ class OneTimeExpenseHistoryVerificationTest {
 
     private fun expense(
         title: String = "Pizzas",
+        description: String = "",
         isBobShareFixed: Boolean = false,
         bobSharePercentage: String? = null,
         bobShareWeight: String? = null,
@@ -525,7 +572,7 @@ class OneTimeExpenseHistoryVerificationTest {
         uuid = EXPENSE,
         title = title,
         timestamp = "2026-10-12T09:00:00",
-        description = "",
+        description = description,
         amount = "20",
         creditorUuid = CREDITOR,
         currency = currency,

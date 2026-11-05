@@ -103,11 +103,11 @@ internal class SignedGroupExpense(
     val signature: ByteArray,
 
     /**
-     * Whether its title, amount and shares were sealed at one length, see [toSealedTitle] and
-     * [toSealedAmount], which nothing in [version] says, each being signed as it is written, see
-     * [opened].
+     * Whether its title, description, amount and shares were padded as sealing pads them, see
+     * [toSealedTitle], [toSealedDescription] and [toSealedAmount], which nothing in [version] says,
+     * each being signed as it is written, see [opened].
      */
-    val isSealedAtOneLength: Boolean,
+    val isPaddedAsSealed: Boolean,
 )
 
 /**
@@ -155,7 +155,7 @@ internal fun ExpenseWithBeneficiaries.sealGroupExpense(
 
     val content = SealedGroupExpense(
         title = title.toSealedTitle(),
-        description = description,
+        description = description.toSealedDescription(),
         amount = amount.toSealedAmount(),
         timestamp = timestamp,
         creditorUuid = creditorUuid,
@@ -194,8 +194,8 @@ internal fun ExpenseWithBeneficiaries.sealGroupExpense(
  * The version is rebuilt from [groupUuid], [expenseUuid] and [revision], which the signature covers:
  * one served at another revision than its author signed, or moved to another expense, opens and
  * then does not verify, see [isSignedBy]. Neither who signed it, nor what it says, nor whether it
- * may say it at its revision, a settlement past its first, nor whether its title and amounts were
- * sealed at one length, is checked here: it opens all the same, so that the key it opens under is told from
+ * may say it at its revision, a settlement past its first, nor whether it was padded as sealing
+ * pads it, is checked here: it opens all the same, so that the key it opens under is told from
  * any other the chain of links leads to, see [GroupKeyChain], and then is refused, rather than taken
  * for one sealed under a key not held yet.
  */
@@ -233,7 +233,7 @@ internal fun EncryptedFieldDto.unsealGroupExpense(
             expenseUuid = expenseUuid,
             revision = revision.toULong(),
             title = content.title.trimEnd(' '),
-            description = content.description,
+            description = content.description.trimEnd(' '),
             amount = content.amount.withoutAmountPadding(),
             timestamp = content.timestamp,
             creditorUuid = content.creditorUuid,
@@ -250,7 +250,7 @@ internal fun EncryptedFieldDto.unsealGroupExpense(
         ),
         authorUuid = content.authorUuid,
         signature = signature,
-        isSealedAtOneLength = content.title.isSealedTitle() &&
+        isPaddedAsSealed = content.title.isSealedTitle() && content.description.isSealedDescription() &&
             (listOf(content.amount) + content.beneficiaries.map { it.share }).all { it.isSealedAmount() },
     )
 }
@@ -298,14 +298,15 @@ internal fun SignedGroupExpense.isSignedBy(authorKey: ByteArray?): Boolean {
 /**
  * This version, in [currency], the group's, see [OpenedGroupExpense], or null when what it says is
  * not what the app writes: a title or description longer than the form allows, a timestamp not
- * written exactly as the app writes one, a title, amount or shares not sealed at one length, see
- * [toSealedTitle] and [toSealedAmount], or an amount or shares [validateExpense] refuses, which also refuses a
+ * written exactly as the app writes one, a title, description, amount or shares not padded as
+ * sealing pads them, see [toSealedTitle], [toSealedDescription] and [toSealedAmount], or an amount
+ * or shares [validateExpense] refuses, which also refuses a
  * beneficiary listed twice, or more than an expense may list. The screens read these
  * values as the app writes them, and the debt algorithm refuses a group holding an expense whose
  * shares do not add up to its amount: one such version would leave the group with no balances.
  */
 internal fun SignedGroupExpense.opened(currency: Currency): OpenedGroupExpense? {
-    if (!isSealedAtOneLength) return null
+    if (!isPaddedAsSealed) return null
     if (version.title.length > MAX_TITLE_LENGTH) return null
     if (version.description.length > MAX_DESCRIPTION_LENGTH) return null
     if (!version.timestamp.isCanonicalTimestamp()) return null
@@ -791,6 +792,7 @@ private class SealedGroupExpense(
     /** A title sealed as [toSealedTitle] seals one. */
     val title: String,
 
+    /** A description sealed as [toSealedDescription] seals one. */
     val description: String,
 
     /** An amount sealed as [toSealedAmount] seals one. */
@@ -869,10 +871,36 @@ private fun String.sizeInJson(): Int = json.encodeToString(String.serializer(), 
  * whitespace around it, see `database.domain.trimmed`, so that opening it takes off nothing but the
  * padding, and it is signed without it.
  */
-private fun String.toSealedTitle(): String = this + " ".repeat((SEALED_TITLE_JSON_SIZE - sizeInJson()).coerceAtLeast(0))
+private fun String.toSealedTitle(): String = paddedInJsonTo(SEALED_TITLE_JSON_SIZE)
+
+/** This with as many spaces after it as make it take [size] bytes in JSON, when it does not already. */
+private fun String.paddedInJsonTo(size: Int): String = this + " ".repeat((size - sizeInJson()).coerceAtLeast(0))
 
 /** Whether this takes as many bytes as [toSealedTitle] makes a title take. */
 private fun String.isSealedTitle(): Boolean = sizeInJson() == SEALED_TITLE_JSON_SIZE
+
+/**
+ * The sizes a description takes in the JSON of a version, in bytes: most fit the first, and the last
+ * is the most one takes there, six for each of the characters [MAX_DESCRIPTION_LENGTH] counts, which
+ * is what JSON writes a control character in.
+ */
+private val SEALED_DESCRIPTION_JSON_SIZES = listOf(128, 512, MAX_DESCRIPTION_LENGTH * 6)
+
+/**
+ * A description as a version seals it: padded with spaces until it takes the first of
+ * [SEALED_DESCRIPTION_JSON_SIZES] it fits in the JSON around it, so that the server tells no more of
+ * how long it is, from the length of the version, than which of those it is. Why a description has
+ * three sizes where a title has one, see `expense.OneTimeExpenseSealing`, as for what opening it
+ * takes off, and it is signed without the padding.
+ */
+private fun String.toSealedDescription(): String {
+    val size = sizeInJson()
+
+    return paddedInJsonTo(SEALED_DESCRIPTION_JSON_SIZES.firstOrNull { it >= size } ?: size)
+}
+
+/** Whether this takes one of the sizes [toSealedDescription] makes a description take. */
+private fun String.isSealedDescription(): Boolean = sizeInJson() in SEALED_DESCRIPTION_JSON_SIZES
 
 /**
  * A flag as a version, or a deletion flag, seals one: `1` or `0`, and not `true` or `false`, which

@@ -42,6 +42,9 @@ private const val OTHER_EXPENSE = "ffffffff-ffff-8fff-8fff-ffffffffffff"
 /** How many bytes a title is padded to take in the JSON of a version. */
 private val TITLE_SIZE_IN_JSON = ExpenseLimits.MAX_TITLE_LENGTH * 6
 
+/** The first of the sizes a description is padded to take in the JSON of a version. */
+private const val FIRST_DESCRIPTION_SIZE = 128
+
 /** What the server caps the content of a version at, `MAX_GROUP_EXPENSE_CONTENT_LENGTH` in the API. */
 private const val MAX_GROUP_EXPENSE_CONTENT_LENGTH = 32 * 1024
 
@@ -203,6 +206,34 @@ class GroupExpenseSealingTest {
         assertEquals(1, lengths.toSet().size)
     }
 
+    /**
+     * Sealing hides what a description says but not how long it is: all that shows is which of the
+     * three sizes it fits, counted in the bytes it takes in the JSON of the version.
+     */
+    @Test
+    fun `a version seals to the length of the size its description fits`() {
+        val most = ExpenseLimits.MAX_DESCRIPTION_LENGTH
+
+        val sizes = listOf(
+            // Nothing and nearly nothing, up to the first size exactly, a quote taking two.
+            listOf("", "a", "a".repeat(128), "\"".repeat(64)),
+            // Just past it, up to the second exactly, a € taking three.
+            listOf("a".repeat(129), "\"".repeat(65), "a".repeat(500), "€".repeat(170), "\u0001".repeat(85)),
+            // Just past it, up to the third exactly, a control character taking six.
+            listOf("€".repeat(171), "€".repeat(most), "\u0001".repeat(86), "\u0001".repeat(most)),
+        ).map { descriptions ->
+            descriptions.map { description ->
+                val content = sealed(expense = dinner.copy(description = description))
+
+                assertEquals(description, assertNotNull(open(content = content), description).expense.description)
+
+                content.ciphertext.length
+            }.toSet().single()
+        }
+
+        assertEquals(3, sizes.toSet().size)
+    }
+
     /** Sealing hides how large an amount is but not how long it is written, which would say it as well. */
     @Test
     fun `a version seals to the same length however large its amounts are`() {
@@ -232,7 +263,7 @@ class GroupExpenseSealingTest {
      * written, and which is refused for good rather than kept for a key that would open it no better.
      */
     @Test
-    fun `a version whose title or amounts are not padded to the one length is refused`() = runBlocking<Unit> {
+    fun `a version whose title or description or amounts are not padded as sealing pads them is refused`() = runBlocking<Unit> {
         val opener = GroupExpenseOpener(
             group = groupEntity(),
             selfUuid = BOB,
@@ -251,6 +282,14 @@ class GroupExpenseSealingTest {
             "a title not padded" to { it.with("title", JsonPrimitive(dinner.title)) },
             "a title padded short" to { it.with("title", JsonPrimitive(dinner.title.padEnd(TITLE_SIZE_IN_JSON - 1))) },
             "a title padded long" to { it.with("title", JsonPrimitive(dinner.title.padEnd(TITLE_SIZE_IN_JSON + 1))) },
+            "a description not padded" to { it.with("description", JsonPrimitive(dinner.description)) },
+            "a description padded short" to {
+                it.with("description", JsonPrimitive(dinner.description.padEnd(FIRST_DESCRIPTION_SIZE - 1)))
+            },
+            "a description padded long" to {
+                it.with("description", JsonPrimitive(dinner.description.padEnd(FIRST_DESCRIPTION_SIZE + 1)))
+            },
+            "a description padded between two sizes" to { it.with("description", JsonPrimitive(dinner.description.padEnd(256))) },
             "an amount not padded" to { it.with("amount", JsonPrimitive("90.00")) },
             "an amount padded short" to { it.with("amount", JsonPrimitive("90.00".padEnd(17))) },
             "an amount padded long" to { it.with("amount", JsonPrimitive("90.00".padEnd(19))) },
@@ -313,7 +352,7 @@ class GroupExpenseSealingTest {
     fun `a version whose content was changed after it was signed does not verify`() {
         val changes: Map<String, (JsonObject) -> JsonObject> = mapOf(
             "title" to { it.with("title", JsonPrimitive("Lunch".padEnd(TITLE_SIZE_IN_JSON))) },
-            "description" to { it.with("description", JsonPrimitive("")) },
+            "description" to { it.with("description", JsonPrimitive("Changed".padEnd(FIRST_DESCRIPTION_SIZE))) },
             "amount" to { it.with("amount", JsonPrimitive("900.00".toSealedAmount())) },
             "timestamp" to { it.with("timestamp", JsonPrimitive("2026-10-31T19:45:00")) },
             "creditor" to { it.with("creditor_uuid", JsonPrimitive(BOB)) },
