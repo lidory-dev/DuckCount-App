@@ -5,6 +5,7 @@ import database.data.local.entity.ExpenseWithBeneficiariesEntity
 import database.data.local.entity.GroupEntity
 import database.data.remote.EncryptedFieldDto
 import database.domain.ExpenseWithBeneficiaries
+import expense.paddedTo
 import expense.toSealedAmount
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -206,9 +207,87 @@ class GroupExpenseSealingTest {
         assertEquals(1, lengths.toSet().size)
     }
 
+    /** An expense of ten euros for each of [count] beneficiaries, written by Alice. */
+    private fun expenseFor(count: Int, description: String = "Fish, wine and the tip") = groupExpenseOf(
+        uuid = EXPENSE,
+        groupUuid = GROUP,
+        creditorUuid = ALICE,
+        amount = "${count * 10}.00",
+        shares = (0 until count).map { index -> "00000000-0000-4000-8000-${index.toString().padStart(12, '0')}" to "10.00" },
+        description = description,
+    )
+
+    /** Its length would otherwise say it names one beneficiary, and so what it probably is. */
+    @Test
+    fun `a settlement seals to the same length as an expense of up to 8 beneficiaries`() {
+        val settlement = groupExpenseOf(
+            uuid = EXPENSE,
+            groupUuid = GROUP,
+            creditorUuid = BOB,
+            amount = "45.00",
+            shares = listOf(ALICE to "45.00"),
+            title = "",
+            description = "",
+            isSettlement = true,
+        )
+
+        val versions = listOf(settlement) + (1..8).map { count -> expenseFor(count = count) }
+
+        val lengths = versions.map { version ->
+            val content = sealed(expense = version)
+
+            assertNotNull(open(content = content), "${version.beneficiaries.size} beneficiaries")
+
+            content.ciphertext.length
+        }
+
+        assertEquals(setOf(2752), lengths.toSet())
+    }
+
+    /** One past the size, which it cannot be cut down to. */
+    @Test
+    fun `a version of more than fits the size keeps its own length`() {
+        val content = sealed(expense = expenseFor(count = 9))
+
+        assertNotNull(open(content = content))
+        assertTrue(content.ciphertext.length > 2752, "${content.ciphertext.length} characters")
+    }
+
+    /** Whose author signed just what it says, so that nothing but the padding is off. */
+    @Test
+    fun `a version padded short of the size is refused`() = runBlocking<Unit> {
+        val opener = GroupExpenseOpener(
+            group = groupEntity(),
+            selfUuid = BOB,
+            client = bob,
+            keyOf = { _, _, _ -> Result.Success(groupKey) },
+            recorded = { _, _ -> null },
+        )
+
+        suspend fun opening(content: EncryptedFieldDto) =
+            opener.open(expenseUuid = EXPENSE, revision = 1, keyGeneration = 1, content = content)
+
+        // Padded as it should be, as a control.
+        assertTrue(opening(sealed().tamperedWith(paddedTo = MIN_SEALED_GROUP_EXPENSE_SIZE) { it }) is GroupExpenseOpening.Opened)
+
+        listOf(0, MIN_SEALED_GROUP_EXPENSE_SIZE - 1).forEach { size ->
+            val content = sealed().tamperedWith(paddedTo = size) { it }
+
+            // Its signature holds, so it is the padding alone that refuses it, for good.
+            val signed = assertNotNull(
+                content.unsealGroupExpense(groupKey = groupKey, groupUuid = GROUP, expenseUuid = EXPENSE, revision = 1),
+            )
+            assertTrue(signed.isSignedBy(authorKey = alice.signaturePublicKey()), "$size bytes")
+
+            assertEquals(GroupExpenseOpening.Refused, opening(content), "$size bytes")
+        }
+    }
+
     /**
      * Sealing hides what a description says but not how long it is: all that shows is which of the
-     * three sizes it fits, counted in the bytes it takes in the JSON of the version.
+     * three sizes it fits, counted in the bytes it takes in the JSON of the version. A version with
+     * few beneficiaries hides even that up to the size it is padded to, so this one names enough to
+     * be past it however short its description.
      */
     @Test
     fun `a version seals to the length of the size its description fits`() {
@@ -223,7 +302,7 @@ class GroupExpenseSealingTest {
             listOf("€".repeat(171), "€".repeat(most), "\u0001".repeat(86), "\u0001".repeat(most)),
         ).map { descriptions ->
             descriptions.map { description ->
-                val content = sealed(expense = dinner.copy(description = description))
+                val content = sealed(expense = expenseFor(count = 12, description = description))
 
                 assertEquals(description, assertNotNull(open(content = content), description).expense.description)
 
@@ -734,12 +813,15 @@ class GroupExpenseSealingTest {
     /** This content opened, changed by [change] and sealed again under the group's key, bound to [context], as a member could. */
     private fun EncryptedFieldDto.tamperedWith(
         context: String = "group_expense:$GROUP:$EXPENSE",
+        paddedTo: Int = MIN_SEALED_GROUP_EXPENSE_SIZE,
         change: (JsonObject) -> JsonObject,
     ): EncryptedFieldDto {
         val opened = assertNotNull(unsealBound(key = groupKey, context = context, content = this)).decodeToString()
         val changed = change(Json.parseToJsonElement(opened).jsonObject)
 
-        return assertNotNull(sealBound(key = groupKey, context = context, plaintext = changed.toString().encodeToByteArray()))
+        return assertNotNull(
+            sealBound(key = groupKey, context = context, plaintext = changed.toString().encodeToByteArray().paddedTo(paddedTo)),
+        )
     }
 }
 

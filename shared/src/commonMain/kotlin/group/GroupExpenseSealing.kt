@@ -16,6 +16,7 @@ import database.domain.ExpenseWithBeneficiaries
 import expense.isCanonicalTimestamp
 import expense.isCanonicalUuid
 import expense.isSealedAmount
+import expense.paddedTo
 import expense.toSealedAmount
 import expense.toSealedShareSetting
 import expense.toShareSettingOrNull
@@ -103,9 +104,10 @@ internal class SignedGroupExpense(
     val signature: ByteArray,
 
     /**
-     * Whether its title, description, amount and shares were padded as sealing pads them, see
-     * [toSealedTitle], [toSealedDescription] and [toSealedAmount], which nothing in [version] says,
-     * each being signed as it is written, see [opened].
+     * Whether the version as a whole, its title, description, amount and shares were padded as
+     * sealing pads them, see [MIN_SEALED_GROUP_EXPENSE_SIZE], [toSealedTitle], [toSealedDescription]
+     * and [toSealedAmount], which nothing in [version] says, each being signed as it is written, see
+     * [opened].
      */
     val isPaddedAsSealed: Boolean,
 )
@@ -136,6 +138,8 @@ internal class SignedGroupExpenseDeletion(
  * Signed over what it opens to, see `group_expense` in lib-duckcount, so that a version stays good
  * whichever key it is read with. Every member holds [groupKey], and could seal a version of their
  * own: only the signature says who wrote it.
+ *
+ * Padded as a whole to [MIN_SEALED_GROUP_EXPENSE_SIZE], beyond what each field is, see there.
  *
  * Returns null only when [groupKey] is not a 32-byte key or the library refuses to sign, both caller
  * bugs rather than states, as for a group's information, see [signedAs].
@@ -176,7 +180,9 @@ internal fun ExpenseWithBeneficiaries.sealGroupExpense(
     return sealBound(
         key = groupKey,
         context = contextOf(groupUuid = groupUuid, expenseUuid = uuid),
-        plaintext = json.encodeToString(SealedGroupExpense.serializer(), content).encodeToByteArray(),
+        plaintext = json.encodeToString(SealedGroupExpense.serializer(), content)
+            .encodeToByteArray()
+            .paddedTo(MIN_SEALED_GROUP_EXPENSE_SIZE),
     )
 }
 
@@ -250,7 +256,8 @@ internal fun EncryptedFieldDto.unsealGroupExpense(
         ),
         authorUuid = content.authorUuid,
         signature = signature,
-        isPaddedAsSealed = content.title.isSealedTitle() && content.description.isSealedDescription() &&
+        isPaddedAsSealed = plaintext.size >= MIN_SEALED_GROUP_EXPENSE_SIZE &&
+            content.title.isSealedTitle() && content.description.isSealedDescription() &&
             (listOf(content.amount) + content.beneficiaries.map { it.share }).all { it.isSealedAmount() },
     )
 }
@@ -298,9 +305,10 @@ internal fun SignedGroupExpense.isSignedBy(authorKey: ByteArray?): Boolean {
 /**
  * This version, in [currency], the group's, see [OpenedGroupExpense], or null when what it says is
  * not what the app writes: a title or description longer than the form allows, a timestamp not
- * written exactly as the app writes one, a title, description, amount or shares not padded as
- * sealing pads them, see [toSealedTitle], [toSealedDescription] and [toSealedAmount], or an amount
- * or shares [validateExpense] refuses, which also refuses a
+ * written exactly as the app writes one, a version, title, description, amount or shares not
+ * padded as sealing pads them, see [MIN_SEALED_GROUP_EXPENSE_SIZE], [toSealedTitle],
+ * [toSealedDescription] and [toSealedAmount], or an amount or shares [validateExpense] refuses,
+ * which also refuses a
  * beneficiary listed twice, or more than an expense may list. The screens read these
  * values as the app writes them, and the debt algorithm refuses a group holding an expense whose
  * shares do not add up to its amount: one such version would leave the group with no balances.
@@ -852,6 +860,17 @@ private class SealedGroupExpenseDeletion(
 
     val signature: String,
 )
+
+/**
+ * The fewest bytes a version seals, the spaces after its JSON making up for what it lacks, which JSON
+ * takes no notice of on opening. A version's fields are padded each to a size that says nothing of
+ * them, but the list of its beneficiaries is as long as it is, and AES-GCM does not hide how long
+ * what it seals is, so that the server would read from its length how many it names: a settlement,
+ * which names one, would pass only for an expense for one person. Of this size, a version names up
+ * to 8 beneficiaries with a short description, and those all look alike, a settlement among them.
+ * One past it keeps its own length, which says it is larger.
+ */
+internal const val MIN_SEALED_GROUP_EXPENSE_SIZE = 2048
 
 /**
  * The most bytes a title takes in the JSON of a version: six for each of the characters
