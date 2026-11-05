@@ -72,6 +72,30 @@ internal fun ByteArray.paddedTo(size: Int): ByteArray =
     this + ByteArray((size - this.size).coerceAtLeast(0)) { ' '.code.toByte() }
 
 /**
+ * The sizes a book the vault seals whole is sealed at, see [paddedToBookSize], in bytes. One size is
+ * out of the question, there being no limit on how many people a book names, and any change
+ * rewriting all of them. The first holds some 50 to 70 contacts, or some 80 to 100 members of the
+ * user's groups, which most users never pass, and each after it twice as many. The last is the
+ * largest whose sealing fits the 2 MiB the server takes for the body of a write, `VAULT_BODY_LIMIT`
+ * in the API: a book past it keeps its own length.
+ */
+private val BOOK_SIZES = generateSequence(16 * 1024) { it * 2 }.takeWhile { it <= 1024 * 1024 }.toList()
+
+/**
+ * This, the bytes of a book the vault seals whole, padded to the first of [BOOK_SIZES] it fits with
+ * spaces after its JSON, which reading it back takes no notice of. A book is sealed whole so that
+ * the server learns neither who it names nor how many, but its length alone would say how many, to
+ * the person, so that the server tells no more than which of those sizes it is.
+ *
+ * A book is read back at whatever size it comes, unlike what others seal for this device to read,
+ * which is refused when it is not padded as it should be. Only the user's own devices write one, so
+ * refusing it would keep nothing out, and an unreadable book is what it holds out of reach, and
+ * nothing written to it from then on. One written before books were padded is padded the next time
+ * it is written.
+ */
+internal fun ByteArray.paddedToBookSize(): ByteArray = paddedTo(BOOK_SIZES.firstOrNull { it >= size } ?: size)
+
+/**
  * Unseals [content] with [key] and returns what was sealed under [context], or null when
  * it was sealed under another context, with another key, has been tampered with, or is
  * not the Base64 the server is supposed to hold.

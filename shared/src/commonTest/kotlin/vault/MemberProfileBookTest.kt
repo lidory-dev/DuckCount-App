@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -18,6 +19,72 @@ class MemberProfileBookTest {
 
     private fun member(profileEncryptionKey: ByteArray, isFromOwner: Boolean, fullName: String? = null) =
         VaultMemberProfile(profileEncryptionKey = profileEncryptionKey, isFromOwner = isFromOwner, fullName = fullName)
+
+    /** A book of [count] members with as long a name as a plain one gets, each with their own UUID. */
+    private fun bookOf(count: Int): MemberProfileBook =
+        (0 until count).fold(MemberProfileBook.EMPTY) { book, index ->
+            book.with(
+                userUuid = "00000000-0000-4000-8000-${index.toString().padStart(12, '0')}",
+                member = VaultMemberProfile(
+                    profileEncryptionKey = ByteArray(32),
+                    isFromOwner = true,
+                    fullName = "a".repeat(50),
+                ),
+            )
+        }
+
+    /** Its length would otherwise say how many people the user shares a group with, to the person. */
+    @Test
+    fun `a book seals to the same size from no member to eighty`() {
+        val sizes = listOf(0, 1, 2, 10, 40, 80).map { count -> bookOf(count = count).serialize().size }
+
+        assertEquals(setOf(16 * 1024), sizes.toSet())
+    }
+
+    @Test
+    fun `a book past a size seals to the next and tells no more`() {
+        assertEquals(32 * 1024, bookOf(count = 90).serialize().size)
+        assertEquals(32 * 1024, bookOf(count = 160).serialize().size)
+        assertEquals(64 * 1024, bookOf(count = 200).serialize().size)
+    }
+
+    @Test
+    fun `a padded book reads back as it was written`() {
+        val book = MemberProfileBook.EMPTY.with(
+            userUuid = "00000000-0000-4000-8000-000000000000",
+            member = VaultMemberProfile(
+                profileEncryptionKey = byteArrayOf(1, 2, 3),
+                isFromOwner = true,
+                fullName = "Ada  Lovelace ",
+            ),
+        )
+
+        val member = assertNotNull(MemberProfileBook.parse(book.serialize())).members.values.single()
+
+        assertContentEquals(byteArrayOf(1, 2, 3), member.profileEncryptionKey)
+        assertTrue(member.isFromOwner)
+        assertEquals("Ada  Lovelace ", member.fullName)
+    }
+
+    /**
+     * Written before books were padded, or by a device that pads otherwise: refused, it would leave
+     * names out of reach that may be nowhere else any more, and no member could be written.
+     */
+    @Test
+    fun `a book of any size reads and is padded the next time it is written`() {
+        val unpadded = bookOf(count = 1).serialize().decodeToString().trimEnd().encodeToByteArray()
+
+        val read = assertNotNull(MemberProfileBook.parse(unpadded))
+
+        assertEquals(1, read.members.size)
+
+        val written = read.with(
+            userUuid = "00000000-0000-4000-8000-000000000001",
+            member = VaultMemberProfile(profileEncryptionKey = ByteArray(32), isFromOwner = false, fullName = null),
+        )
+
+        assertEquals(16 * 1024, written.serialize().size)
+    }
 
     @Test
     fun `an empty book holds no member`() {

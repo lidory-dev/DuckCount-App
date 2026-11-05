@@ -96,9 +96,9 @@ class MemberProfileBook private constructor(private val entries: JsonObject) {
     fun withChanges(added: Map<String, VaultMemberProfile>): MemberProfileBook =
         added.entries.fold(this) { book, (userUuid, member) -> book.with(userUuid = userUuid, member = member) }
 
-    /** The bytes to seal under the key ring. */
+    /** The bytes to seal under the key ring, padded so that their length says little of how many there are, see [paddedToBookSize]. */
     fun serialize(): ByteArray =
-        Json.encodeToString(JsonObject.serializer(), entries).encodeToByteArray()
+        Json.encodeToString(JsonObject.serializer(), entries).encodeToByteArray().paddedToBookSize()
 
     companion object {
         /** The book of a user who never learned a member's key from a group. */
@@ -106,7 +106,9 @@ class MemberProfileBook private constructor(private val entries: JsonObject) {
 
         /**
          * Reads a book back from the plaintext of [VaultEntryKey.MEMBER_PROFILE_KEYS], or returns
-         * null when those bytes are not a JSON object.
+         * null when those bytes are not a JSON object. At whatever size it comes, see
+         * [paddedToBookSize]: refusing one would put the names and keys it holds out of reach, some
+         * of them nowhere else any more, and no member could be written from then on.
          */
         fun parse(plaintext: ByteArray): MemberProfileBook? =
             runCatching {
