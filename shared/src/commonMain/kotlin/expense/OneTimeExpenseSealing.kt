@@ -384,7 +384,7 @@ private const val SEALED_TITLE_SIZE = MAX_TITLE_LENGTH * 3
 private fun String.toSealedTitle(): ByteArray = encodeToByteArray().paddedTo(SEALED_TITLE_SIZE)
 
 /** This with as many spaces after it as make it [size] bytes, when it is not so long already. */
-private fun ByteArray.paddedTo(size: Int): ByteArray =
+internal fun ByteArray.paddedTo(size: Int): ByteArray =
     this + ByteArray((size - this.size).coerceAtLeast(0)) { ' '.code.toByte() }
 
 /**

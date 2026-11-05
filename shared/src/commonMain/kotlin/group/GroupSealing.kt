@@ -5,6 +5,7 @@ import app.lidory.duckcount.GroupLimits.MAX_TITLE_LENGTH
 import database.data.remote.EncryptedFieldDto
 import database.domain.Currency
 import database.domain.CurrencyCatalog
+import expense.paddedTo
 import vault.sealBound
 import vault.unsealBound
 
@@ -85,8 +86,8 @@ internal class SealedGroupVersion(
  */
 internal fun GroupFields.seal(groupKey: ByteArray, groupUuid: String): SealedGroupFields? =
     SealedGroupFields(
-        title = sealBound(groupKey, Context.title(groupUuid), title.encodeToByteArray()) ?: return null,
-        description = sealBound(groupKey, Context.description(groupUuid), description.encodeToByteArray())
+        title = sealBound(groupKey, Context.title(groupUuid), title.toSealedTitle()) ?: return null,
+        description = sealBound(groupKey, Context.description(groupUuid), description.toSealedDescription())
             ?: return null,
         currency = sealBound(groupKey, Context.currency(groupUuid), currency.uuid.encodeToByteArray())
             ?: return null,
@@ -99,8 +100,9 @@ internal fun GroupFields.seal(groupKey: ByteArray, groupUuid: String): SealedGro
  *
  * All or nothing, as for a one-time expense: a group half opened would be listed under a real
  * title with a currency made up. So is one whose title or description is longer than the form
- * allows, or whose currency is not one the app ships with: the screens read these values as the
- * app writes them, and the group list is among the first things the app shows.
+ * allows or not padded as sealing pads it, see [toSealedTitle] and [toSealedDescription], or whose
+ * currency is not one the app ships with: the screens read these values as the app writes them,
+ * and the group list is among the first things the app shows.
  */
 internal fun SealedGroupFields.unseal(groupKey: ByteArray, currencyKey: ByteArray, groupUuid: String): GroupFields? =
     GroupFields(
@@ -206,16 +208,52 @@ internal fun GroupHistoryVersionDto.unseal(groupKey: ByteArray, groupUuid: Strin
     )
 
 /**
+ * The most bytes a group's title takes in UTF-8: three for each of the UTF-16 code units
+ * [MAX_TITLE_LENGTH] counts, a surrogate pair taking four for its two.
+ */
+private const val SEALED_TITLE_SIZE = MAX_TITLE_LENGTH * 3
+
+/**
+ * A group's title as it is sealed: padded with spaces to [SEALED_TITLE_SIZE] bytes, as an expense's
+ * is, see `expense.OneTimeExpenseSealing`, for the server not to read how long it is from the length
+ * of this field alone. A group's title and description are saved without the whitespace around
+ * them, see [GroupCreator] and [GroupEditor], so that opening them takes off nothing but the padding.
+ * Only what is sealed is padded: the creator signs what they open to, see [signedAs].
+ */
+private fun String.toSealedTitle(): ByteArray = encodeToByteArray().paddedTo(SEALED_TITLE_SIZE)
+
+/**
+ * The most bytes a group's description takes in UTF-8: three for each of the UTF-16 code units
+ * [MAX_DESCRIPTION_LENGTH] counts.
+ */
+private const val SEALED_DESCRIPTION_SIZE = MAX_DESCRIPTION_LENGTH * 3
+
+/**
+ * A group's description as it is sealed: padded with spaces to [SEALED_DESCRIPTION_SIZE] bytes, for
+ * the server not to read how long it is from the length of this field alone. An expense's is padded
+ * to three sizes instead, see `expense.OneTimeExpenseSealing`, a group holding many expenses that
+ * would each pay for the longest. A user has few groups, so that one size costs little here.
+ */
+private fun String.toSealedDescription(): ByteArray = encodeToByteArray().paddedTo(SEALED_DESCRIPTION_SIZE)
+
+/**
  * The title [sealed] opens to as that of the group [groupUuid] under [groupKey], or null when it
- * does not, or is longer than the form allows, see [SealedGroupFields.unseal].
+ * does not, was not padded as [toSealedTitle] pads one, or is longer than the form allows, see
+ * [SealedGroupFields.unseal].
  */
 private fun openTitle(groupKey: ByteArray, groupUuid: String, sealed: EncryptedFieldDto): String? =
-    unsealBound(groupKey, Context.title(groupUuid), sealed)?.decodeToString()
+    unsealBound(groupKey, Context.title(groupUuid), sealed)
+        ?.takeIf { it.size == SEALED_TITLE_SIZE }
+        ?.decodeToString()
+        ?.trimEnd(' ')
         ?.takeIf { it.length <= MAX_TITLE_LENGTH }
 
-/** The description [sealed] opens to, as [openTitle] opens a title. */
+/** The description [sealed] opens to, as [openTitle] opens a title, padded as [toSealedDescription] pads one. */
 private fun openDescription(groupKey: ByteArray, groupUuid: String, sealed: EncryptedFieldDto): String? =
-    unsealBound(groupKey, Context.description(groupUuid), sealed)?.decodeToString()
+    unsealBound(groupKey, Context.description(groupUuid), sealed)
+        ?.takeIf { it.size == SEALED_DESCRIPTION_SIZE }
+        ?.decodeToString()
+        ?.trimEnd(' ')
         ?.takeIf { it.length <= MAX_DESCRIPTION_LENGTH }
 
 /** The signature [sealed] opens to as that of a version of the group [groupUuid] under [groupKey]. */
