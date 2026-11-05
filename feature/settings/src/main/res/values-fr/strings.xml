@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="account">Compte</string>
-    <string name="account_deletion_disclaimer">La suppression de votre compte est définitive et vos données ne pourront pas être récupérées.\n\nLes dépenses que vous avez créées ou auxquelles vous avez participé ne seront pas supprimées. Elles resteront visibles par les autres personnes concernées.\n\nPour continuer, vous devrez saisir à nouveau votre mot de passe.</string>
+    <string name="account_deletion_disclaimer">La suppression de votre compte est définitive et vos données ne pourront pas être récupérées.\n\nLes groupes que vous avez créés seront supprimés pour tous leurs membres, qui en garderont une copie en lecture seule.\n\nLes autres dépenses que vous avez créées ou auxquelles vous avez participé ne seront pas supprimées. Elles resteront visibles par les autres personnes concernées.\n\nPour continuer, vous devrez saisir à nouveau votre mot de passe.</string>
     <string name="about">À propos</string>
     <string name="app_and_lib_licence">DuckCount et la bibliothèque lib-duckcount, dont l’application dépend, sont distribuées sous licence publique de l’Union européenne, version 1.2 (EUPL-1.2).</string>
     <string name="app_version">Version de l’application : %1$s</string>

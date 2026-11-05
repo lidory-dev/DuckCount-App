@@ -67,10 +67,8 @@ class GroupInformationVersion(
  * A version is shown only once it opens under the group's key of its generation and its creator
  * signed it, see [openSigned], as the version the group shows, see [GroupSync]: every member holds
  * the key, and could seal fields of their own, which the server could list. One that does not is
- * left out: the edits of a member an account deletion handed the server's ownership over to among
- * them, which the server takes from its owner and no member's device ever shows, see
- * [GroupDto.creatorUuid], and those sealed under a key this device has yet to derive, in an epoch
- * its sync has yet to read the Commit leading to, which none may be left to show but, see
+ * left out: those sealed under a key this device has yet to derive, in an epoch its sync has yet
+ * to read the Commit leading to, which none may be left to show but, see
  * [GroupHistoryError.Unreadable]. A creator this device holds no pin for is taken at the versions'
  * word, as for the version the group shows, see [isSignedByCreator]: whatever opens is shown then, a
  * member's included. Newest first, in the order of the revisions the creator signed

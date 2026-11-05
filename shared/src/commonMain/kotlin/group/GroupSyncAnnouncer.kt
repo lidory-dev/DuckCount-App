@@ -2,7 +2,7 @@ package group
 
 /**
  * Tells the user what a group sync run outside the push sync read of their groups: those they were
- * added to and joined, and those they were removed from, see [GroupSyncPass].
+ * added to and joined, those they were removed from, and those deleted, see [GroupSyncPass].
  *
  * The group sync reads each of them once, and the push sync, which tells the user about them, finds
  * nothing left to tell once another sync read them first. So a sync the user did not set off from
@@ -14,6 +14,6 @@ package group
  */
 interface GroupSyncAnnouncer {
 
-    /** Tells the user about the groups [pass] joined and those it found them removed from. */
+    /** Tells the user about the groups [pass] joined, those it found them removed from, and those it found deleted. */
     fun announce(pass: GroupSyncPass)
 }

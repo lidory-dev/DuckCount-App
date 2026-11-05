@@ -65,6 +65,10 @@
     <string name="push_group_removed_text">%1$s removed you from the group “%2$s”</string>
     <string name="push_group_removed_text_unknown">Someone removed you from the group “%1$s”</string>
     <string name="push_group_removed_text_locked">Someone removed you from a group</string>
+    <string name="push_group_deleted_title">Group deleted</string>
+    <string name="push_group_deleted_text">%1$s deleted the group “%2$s”</string>
+    <string name="push_group_deleted_text_unknown">Someone deleted the group “%1$s”</string>
+    <string name="push_group_deleted_text_locked">Someone deleted a group</string>
     <string name="push_group_expense_added_title">New group expense</string>
     <string name="push_group_expense_added_text_locked">Someone added an expense in one of your groups</string>
     <string name="push_group_expense_changed_title">Group expense updated</string>

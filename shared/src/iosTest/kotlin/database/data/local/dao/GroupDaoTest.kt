@@ -2,18 +2,24 @@ package database.data.local.dao
 
 import androidx.room.execSQL
 import androidx.room.useWriterConnection
+import database.data.local.entity.BeneficiaryEntity
+import database.data.local.entity.ChangeFeedEntity
+import database.data.local.entity.ExpenseEntity
 import database.data.local.entity.GroupEntity
 import database.data.local.entity.GroupKeyEntity
 import database.data.local.entity.GroupMemberEntity
 import database.data.local.entity.GroupMemberSignatureKeyEntity
 import database.data.local.entity.IdentityConflictEntity
+import database.data.local.entity.ListedGroupExpenseEntity
 import database.data.local.entity.MembershipChangeKind
 import database.data.local.entity.PendingGroupCreationEntity
 import database.data.local.entity.PendingMembershipChangeEntity
+import database.data.local.entity.UnreadableGroupExpenseEntity
 import database.domain.CurrencyCatalog
 import database.withInMemoryDatabase
 import group.FIRST_GROUP_REVISION
 import group.FIRST_KEY_GENERATION
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -33,6 +39,9 @@ private const val GROUP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 private const val OTHER_GROUP = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 
 /** A group's key, and the one its creator handed over in its place, and the one after that. */
+private const val DINNER = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+private const val TAXI = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+
 private val OLD_KEY = ByteArray(32) { 1 }
 private val NEW_KEY = ByteArray(32) { 2 }
 private val NEWER_KEY = ByteArray(32) { 3 }
@@ -530,6 +539,89 @@ class GroupDaoTest {
 
             assertTrue(database.groupDao.isBackedUp())
             assertTrue(database.groupDao.getPendingCreations().isEmpty())
+        }
+    }
+
+    /** Nothing of it is left on this device, and nothing of any other group goes with it. */
+    @Test
+    fun `a group the user deleted is forgotten with everything kept of it`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            val groupDao = database.groupDao
+            val listedDao = database.listedGroupExpenseDao
+
+            groupDao.insert(groupOf(GROUP))
+            groupDao.insert(groupOf(OTHER_GROUP))
+            groupDao.insertMembers(groupMemberEntities = listOf(memberOf(ALICE)))
+            groupDao.upsertKeys(keys = listOf(keyOf(FIRST_KEY_GENERATION, OLD_KEY), keyOf(FIRST_KEY_GENERATION, OLD_KEY, groupUuid = OTHER_GROUP)))
+            groupDao.upsertSignatureKeys(signatureKeys = listOf(signatureKeyOf(ALICE, NEW_KEY)))
+
+            listOf(GROUP to DINNER, OTHER_GROUP to TAXI).forEach { (groupUuid, expenseUuid) ->
+                database.expenseDao.insert(
+                    ExpenseEntity(
+                        uuid = expenseUuid,
+                        title = "Dinner",
+                        timestamp = "2026-11-05",
+                        description = "",
+                        amount = "10",
+                        creditorUuid = ALICE,
+                        currency = CurrencyCatalog.defaultCurrency,
+                        groupUuid = groupUuid,
+                    ),
+                )
+                database.expenseDao.insertBeneficiaries(
+                    beneficiaries = listOf(
+                        BeneficiaryEntity(expenseUuid = expenseUuid, userUuid = ALICE, share = "10", isShareFixed = false),
+                    ),
+                )
+                listedDao.upsert(
+                    expenses = listOf(ListedGroupExpenseEntity(groupUuid = groupUuid, expenseUuid = expenseUuid, json = "{}")),
+                )
+                listedDao.insertUnreadable(
+                    expenses = listOf(UnreadableGroupExpenseEntity(groupUuid = groupUuid, expenseUuid = "$expenseUuid-unread")),
+                )
+                listedDao.setFeed(ChangeFeedEntity(feed = groupExpensesFeedOf(groupUuid), token = "token"))
+            }
+
+            groupDao.forgetDeleted(groupUuid = GROUP)
+
+            assertNull(groupDao.get(uuid = GROUP))
+            assertTrue(groupDao.getMemberUuids(groupUuid = GROUP).isEmpty())
+            assertTrue(groupDao.getKeys(groupUuid = GROUP).isEmpty())
+            assertNull(groupDao.getMemberSignatureKey(groupUuid = GROUP, userUuid = ALICE))
+            assertNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = DINNER))
+            assertTrue(listedDao.getAll(groupUuid = GROUP).isEmpty())
+            assertEquals(0, listedDao.countUnreadableAsFlow(groupUuid = GROUP).first())
+            assertNull(listedDao.getFeedToken(groupUuid = GROUP))
+
+            assertNotNull(groupDao.get(uuid = OTHER_GROUP))
+            assertFalse(groupDao.getKeys(groupUuid = OTHER_GROUP).isEmpty())
+            assertNotNull(database.expenseDao.getGroupExpense(groupUuid = OTHER_GROUP, uuid = TAXI))
+            assertFalse(listedDao.getAll(groupUuid = OTHER_GROUP).isEmpty())
+            assertEquals(1, listedDao.countUnreadableAsFlow(groupUuid = OTHER_GROUP).first())
+            assertNotNull(listedDao.getFeedToken(groupUuid = OTHER_GROUP))
+        }
+    }
+
+    /** Whatever waited there is sent again by no sync, nothing being left to take it. */
+    @Test
+    fun `a group found deleted is left and takes every change to its members pending with it`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.groupDao.insert(groupOf(GROUP))
+            database.groupDao.insert(groupOf(OTHER_GROUP))
+            database.groupDao.upsertMembershipChange(change = changeOf(MembershipChangeKind.DEPARTED_REMOVAL, commitEpoch = 1))
+
+            database.groupDao.markDeleted(groupUuid = GROUP)
+
+            val group = assertNotNull(database.groupDao.get(uuid = GROUP))
+
+            assertTrue(group.isLeft)
+            assertTrue(group.isDeleted)
+            assertFalse(database.groupDao.hasPendingChange(groupUuid = GROUP))
+
+            val other = assertNotNull(database.groupDao.get(uuid = OTHER_GROUP))
+
+            assertFalse(other.isLeft)
+            assertFalse(other.isDeleted)
         }
     }
 

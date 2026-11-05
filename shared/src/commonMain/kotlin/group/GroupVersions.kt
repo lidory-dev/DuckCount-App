@@ -74,9 +74,7 @@ internal suspend fun MlsClient.creatorKeyOf(creatorUuid: String, selfUuid: Strin
  * serving that member's identity for its creator to a device that never pinned them.
  *
  * The creator is whoever this device records as such, see [GroupEntity.ownerUuid], or, for a
- * group brought back after a log-out, the one the server lists, see [GroupDto.creatorUuid]: not
- * its owner, which a deletion of the creator's account hands over to another member, under whose
- * key the creator's versions do not hold up.
+ * group brought back after a log-out, the owner the server lists, see [GroupDto.ownerUuid].
  */
 internal fun GroupVersion.isSignedByCreator(creatorUuid: String, creatorKey: ByteArray?, groupUuid: String): Boolean =
     creatorKey == null || isSignedBy(ownerUuid = creatorUuid, ownerSignatureKey = creatorKey, groupUuid = groupUuid)

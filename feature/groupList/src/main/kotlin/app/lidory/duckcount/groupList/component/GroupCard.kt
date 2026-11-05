@@ -19,13 +19,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.R
+import app.lidory.duckcount.android.ui.R as androidUiR
 
-/** The group [groupUuid], marked when [isLeft], the user no longer being in it, removed or left. */
+/**
+ * The group [groupUuid], marked when [isLeft], the user no longer being in it, removed or left, or
+ * because its owner deleted it, [isDeleted].
+ */
 @Composable
 fun GroupCard(
     title: String,
     description: String,
     isLeft: Boolean,
+    isDeleted: Boolean,
     modifier: Modifier = Modifier,
     groupUuid: String,
     sharedTransitionScope: SharedTransitionScope,
@@ -74,8 +79,10 @@ fun GroupCard(
 
             if (isLeft) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_person_off),
-                    contentDescription = stringResource(R.string.left_group_marker),
+                    painter = painterResource(if (isDeleted) androidUiR.drawable.ic_delete else R.drawable.ic_person_off),
+                    contentDescription = stringResource(
+                        if (isDeleted) R.string.deleted_group_marker else R.string.left_group_marker,
+                    ),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

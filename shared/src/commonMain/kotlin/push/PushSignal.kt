@@ -87,7 +87,7 @@ data class PushSignal(
          * A member of a group the user is in, or was in until now, changed it: its creator edited
          * its title or description, see `group.GroupEditor`, added members or removed some, the
          * user perhaps, or replaced a Commit nobody could apply, or any member removed those who
-         * departed from it, see `group.GroupSync`.
+         * departed from it, see `group.GroupSync`, or its owner deleted it, see `group.GroupDeleter`.
          *
          * Silent: which group, and whether the change concerns the user at all, the device learns
          * only from its sync, which tells them once it has read that they were removed. Taken from

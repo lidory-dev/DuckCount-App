@@ -11,5 +11,6 @@ class NotifyingGroupSyncAnnouncer(
     override fun announce(pass: GroupSyncPass) {
         groupNotifier.notify(arrivals = pass.joined)
         groupNotifier.notifyRemovals(removals = pass.removed)
+        groupNotifier.notifyDeletions(deletions = pass.deleted)
     }
 }

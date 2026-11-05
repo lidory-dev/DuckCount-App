@@ -7,10 +7,13 @@ data class Group(
     val currency: Currency,
 
     /**
-     * Whether the user is no longer a member of the group, removed by its creator or left, which
-     * stays, read-only.
+     * Whether the user is no longer a member of the group, removed by its creator, left or its
+     * owner having deleted it, which stays, read-only.
      */
     val isLeft: Boolean,
+
+    /** Whether the user is out of it because its owner deleted it. */
+    val isDeleted: Boolean = false,
 )
 
 data class GroupWithMembers(
@@ -22,6 +25,9 @@ data class GroupWithMembers(
 
     /** See [Group.isLeft]. */
     val isLeft: Boolean,
+
+    /** See [Group.isDeleted]. */
+    val isDeleted: Boolean = false,
 
     /**
      * Whether a change to the group is waiting on the server, its creation or a change to its
@@ -57,4 +63,10 @@ data class GroupWithMembers(
      * creator never leaving, as nobody else could change its members.
      */
     val canLeave: Boolean,
+
+    /**
+     * Whether the user may delete the group for everybody: they are still in it and created it.
+     * Whether or not [hasPendingChange], until which it is refused.
+     */
+    val canDelete: Boolean = false,
 )

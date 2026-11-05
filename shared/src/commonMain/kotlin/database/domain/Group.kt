@@ -11,8 +11,11 @@ data class Group(
     val currency: Currency,
 
     /**
-     * Whether the user is no longer a member of the group, removed by its creator or left, which
-     * stays, read-only.
+     * Whether the user is no longer a member of the group, removed by its creator, left or its
+     * owner having deleted it, which stays, read-only.
      */
     val isLeft: Boolean,
+
+    /** Whether the user is out of it because its owner deleted it. */
+    val isDeleted: Boolean = false,
 )

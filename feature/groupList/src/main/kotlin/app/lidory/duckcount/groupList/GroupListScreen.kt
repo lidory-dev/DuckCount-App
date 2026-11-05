@@ -72,6 +72,7 @@ fun GroupListScreen(
                             title = group.title,
                             description = group.description,
                             isLeft = group.isLeft,
+                            isDeleted = group.isDeleted,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable(

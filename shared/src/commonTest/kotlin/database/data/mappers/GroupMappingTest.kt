@@ -141,6 +141,45 @@ class GroupMappingTest {
     }
 
     @Test
+    fun `the creator may delete the group and not leave it`() {
+        val group = groupOf(ownerUuid = ALICE).seenBy(selfUuid = ALICE)
+
+        assertTrue(group.canDelete)
+        assertFalse(group.canLeave)
+    }
+
+    @Test
+    fun `a member may leave the group and not delete it`() {
+        val group = groupOf(ownerUuid = ALICE).seenBy(selfUuid = BOB)
+
+        assertFalse(group.canDelete)
+        assertTrue(group.canLeave)
+    }
+
+    /** A deletion has no use for its MLS state, which a log-out takes. */
+    @Test
+    fun `the creator of a group brought back after a log-out may delete it`() {
+        assertTrue(groupOf(ownerUuid = ALICE, mlsGroupId = null).seenBy(selfUuid = ALICE).canDelete)
+    }
+
+    /** Whatever else, they are told what became of it. */
+    @Test
+    fun `a group found deleted offers its creator nothing more and is told as deleted`() {
+        val group = groupOf(ownerUuid = ALICE, isLeft = true, isDeleted = true).seenBy(selfUuid = ALICE)
+
+        assertTrue(group.isDeleted)
+        assertFalse(group.canDelete)
+        assertFalse(group.canLeave)
+        assertFalse(group.canEdit)
+        assertFalse(group.canChangeMembers)
+    }
+
+    @Test
+    fun `nobody signed in may delete no group`() {
+        assertFalse(groupOf(ownerUuid = ALICE).seenBy(selfUuid = null).canDelete)
+    }
+
+    @Test
     fun `nobody signed in created no group`() {
         assertFalse(groupOf(ownerUuid = ALICE).seenBy(selfUuid = null).canChangeMembers)
     }
@@ -155,6 +194,7 @@ class GroupMappingTest {
         ownerUuid: String,
         mlsGroupId: ByteArray? = ByteArray(32),
         isLeft: Boolean = false,
+        isDeleted: Boolean = false,
     ) = GroupWithMembersEntity(
         group = GroupEntity(
             uuid = GROUP,
@@ -169,6 +209,7 @@ class GroupMappingTest {
             isBackedUp = true,
             isLeft = isLeft,
             handedProfileKeyHash = null,
+            isDeleted = isDeleted,
         ),
         groupMembers = listOf(
             GroupMemberEntity(userUuid = ALICE, groupUuid = GROUP, isAdmin = ownerUuid == ALICE),

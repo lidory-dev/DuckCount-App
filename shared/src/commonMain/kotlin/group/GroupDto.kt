@@ -298,28 +298,22 @@ data class DeletedInviteesResponse(
  * [SealedGroupVersion.unseal]: the title and description, with the creator's signature over them
  * as [revision], see [GroupVersion], under the generation [informationKeyGeneration], and the
  * currency under the first, as the group was created. The caller's copy of its key is sealed under
- * their key ring, see [keyCopy]. [ownerUuid], [creatorUuid], [members] and [departed] are the
- * server's word, see [GroupSync]. Of a group whose MLS state this device holds, they decide one
- * thing alone: whom this device removes, of those still in its tree. A group brought back after a
- * log-out, with no tree to tell them, takes its creator and its members as they are listed. And a
- * group this device declined is not left while the server lists the user as its owner.
+ * their key ring, see [keyCopy]. [ownerUuid], [members] and [departed] are the server's word, see
+ * [GroupSync]. Of a group whose MLS state this device holds, they decide one thing alone: whom this
+ * device removes, of those still in its tree. A group brought back after a log-out, with no tree to
+ * tell them, takes its creator and its members as they are listed.
  */
 @Serializable
 data class GroupDto(
     val uuid: String,
 
-    @SerialName("owner_uuid")
-    val ownerUuid: String,
-
     /**
-     * Who created the group, and so signed every version of its information, see [GroupVersion]:
-     * [ownerUuid] but for a group a deletion of its creator's account handed over to another
-     * member, which the server lists under them, the versions staying the creator's. Whom a group
-     * brought back after a log-out is held to, there being no Welcome left to name them, see
+     * Who created the group, and so signed every version of its information, see [GroupVersion]. Whom
+     * a group brought back after a log-out is held to, there being no Welcome left to name them, see
      * [GroupSync].
      */
-    @SerialName("creator_uuid")
-    val creatorUuid: String,
+    @SerialName("owner_uuid")
+    val ownerUuid: String,
 
     val title: EncryptedFieldDto,
 

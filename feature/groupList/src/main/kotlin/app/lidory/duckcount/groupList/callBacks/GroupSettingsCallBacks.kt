@@ -2,6 +2,7 @@ package app.lidory.duckcount.groupList.callBacks
 
 import app.lidory.duckcount.groupList.model.ContactRequestError
 import app.lidory.duckcount.groupList.model.GroupWithMembers
+import app.lidory.duckcount.groupList.model.DeleteResult
 import app.lidory.duckcount.groupList.model.LeaveResult
 import app.lidory.duckcount.groupList.model.MemberRelation
 import app.lidory.duckcount.groupList.model.MembershipChangeResult
@@ -52,6 +53,13 @@ interface GroupSettingsCallBacks {
      * when it can.
      */
     suspend fun leaveGroup(groupUuid: String): LeaveResult
+
+    /**
+     * Deletes the group for everybody, the user having created it, see
+     * [GroupWithMembers.canDelete], and tells what came of it: nothing changes on this device until
+     * the server took it.
+     */
+    suspend fun deleteGroup(groupUuid: String): DeleteResult
 
     /** Emits where the user stands with [userUuid], a member of the group, see [MemberRelation], as it changes. */
     fun getContactRelation(userUuid: String): Flow<MemberRelation>

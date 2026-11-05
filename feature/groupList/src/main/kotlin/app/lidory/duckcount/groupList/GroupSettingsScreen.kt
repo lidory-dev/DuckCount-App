@@ -33,6 +33,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.composable.button.DuckCountOutlinedButton
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.groupList.component.GroupDeleteDialog
 import app.lidory.duckcount.groupList.component.GroupLeaveDialog
 import app.lidory.duckcount.groupList.component.GroupMemberFullScreenDialog
 import app.lidory.duckcount.groupList.component.LeftGroupNotice
@@ -58,6 +59,7 @@ fun GroupSettingsScreen(
     navigateToGroupHistory: () -> Unit,
     navigateToContactDetail: (userUuid: String) -> Unit,
     navigateToContactRequests: () -> Unit,
+    onGroupDeleted: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: GroupSettingsViewModel = koinViewModel(),
     sharedTransitionScope: SharedTransitionScope,
@@ -85,6 +87,10 @@ fun GroupSettingsScreen(
 
     LaunchedEffect(Unit) {
         viewModel.additionErrors.collect { pendingAdditionError = it }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.deletions.collect { onGroupDeleted() }
     }
 
     pendingNotice?.let { notice ->
@@ -219,7 +225,10 @@ fun GroupSettingsScreen(
 
                 if (group?.isLeft == true) {
                     item {
-                        LeftGroupNotice(modifier = Modifier.padding(bottom = Padding.extraLarge))
+                        LeftGroupNotice(
+                            isDeleted = group.isDeleted,
+                            modifier = Modifier.padding(bottom = Padding.extraLarge),
+                        )
                     }
                 }
 
@@ -248,6 +257,29 @@ fun GroupSettingsScreen(
                             border = ButtonDefaults.outlinedButtonBorder(enabled = !isChanging),
                         ) {
                             Text(text = stringResource(R.string.leave_the_group))
+                        }
+                    }
+                }
+
+                // Where the leave is for every other member: its creator's one way out, and the
+                // end of the group for everybody. Not while a change waits on the server, as for the
+                // members above, which the group says.
+                if (group?.canDelete == true) {
+                    item {
+                        val isEnabled = !isChanging && !group.hasPendingChange
+
+                        DuckCountOutlinedButton(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = Padding.extraLarge),
+                            onClick = { viewModel.askToDelete() },
+                            enabled = isEnabled,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error,
+                            ),
+                            border = ButtonDefaults.outlinedButtonBorder(enabled = isEnabled),
+                        ) {
+                            Text(text = stringResource(R.string.delete_the_group))
                         }
                     }
                 }
@@ -293,6 +325,15 @@ fun GroupSettingsScreen(
                 isLeaving = isChanging,
                 onDismiss = { viewModel.cancelLeave() },
                 onConfirm = { viewModel.leave() },
+            )
+        }
+
+        if (viewModel.isDeleteAsked) {
+            GroupDeleteDialog(
+                groupTitle = group?.title ?: "",
+                isDeleting = isChanging,
+                onDismiss = { viewModel.cancelDelete() },
+                onConfirm = { viewModel.delete() },
             )
         }
     }

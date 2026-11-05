@@ -65,6 +65,10 @@
     <string name="push_group_removed_text">%1$s vient de vous retirer du groupe «\u00A0%2$s\u00A0»</string>
     <string name="push_group_removed_text_unknown">Quelqu’un vient de vous retirer du groupe «\u00A0%1$s\u00A0»</string>
     <string name="push_group_removed_text_locked">Quelqu’un vient de vous retirer d’un groupe</string>
+    <string name="push_group_deleted_title">Groupe supprimé</string>
+    <string name="push_group_deleted_text">%1$s vient de supprimer le groupe «\u00A0%2$s\u00A0»</string>
+    <string name="push_group_deleted_text_unknown">Quelqu’un vient de supprimer le groupe «\u00A0%1$s\u00A0»</string>
+    <string name="push_group_deleted_text_locked">Quelqu’un vient de supprimer un groupe</string>
     <string name="push_group_expense_added_title">Nouvelle dépense de groupe</string>
     <string name="push_group_expense_added_text_locked">Quelqu’un a ajouté une dépense dans l’un de vos groupes</string>
     <string name="push_group_expense_changed_title">Dépense de groupe mise à jour</string>

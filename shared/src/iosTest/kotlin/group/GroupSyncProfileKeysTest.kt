@@ -215,7 +215,10 @@ class GroupSyncProfileKeysTest {
         keyLinks = { Result.Success(emptyList()) },
         now = { error("Nobody departed from a group here.") },
         fullName = { null },
+        fullNameEvenIfHidden = { null },
         hasPendingChange = { it in pending },
+        hasPendingCreation = { false },
+        markDeleted = { error("Nobody deletes a group here.") },
         isBlocked = { it in blocked },
         setHandedProfileKey = { groupUuid, hash ->
             groups[groupUuid] = groups.getValue(groupUuid).with(handedProfileKeyHash = hash)

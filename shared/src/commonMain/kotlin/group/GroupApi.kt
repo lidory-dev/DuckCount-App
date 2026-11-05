@@ -144,8 +144,9 @@ class GroupApi(
      * time, see [getGroupMessagesPage], or the first failure and none of them, see
      * [readWholeListing]. Each stays until acknowledged, see [acknowledgeGroupMessages].
      *
-     * The server checks no membership, it lists by recipient: a group the caller is not a member
-     * of, like one with nothing waiting for them, answers an empty list.
+     * A group the caller was removed from or left still answers, with what waits for them there.
+     * One they were never in answers `NOT_FOUND`, and so does one its owner deleted, which is how
+     * this device tells a deletion from a removal, see [GroupSync].
      */
     suspend fun getGroupMessages(groupUuid: String): Result<ListGroupMessagesResponse, NetworkError> =
         readWholeListing { cursor ->
@@ -296,6 +297,17 @@ class GroupApi(
     suspend fun deleteKeyCopy(groupUuid: String): EmptyResult<NetworkError> =
         client.delete<Unit>(
             route = DuckCountRoutes.Group.KEY_COPY,
+            pathParams = mapOf("group_uuid" to groupUuid),
+        )
+
+    /**
+     * Deletes the group [groupUuid] for everybody, which only its owner may, see [GroupDeleter]: a
+     * `NOT_FOUND` is a group that is not there, or was not one the caller is in, or the proxy in
+     * front of the server answering as it is redeployed, as for a leave, see [GroupLeaveAnswer.NotMember].
+     */
+    suspend fun delete(groupUuid: String): EmptyResult<NetworkError> =
+        client.delete<Unit>(
+            route = DuckCountRoutes.Group.GROUP,
             pathParams = mapOf("group_uuid" to groupUuid),
         )
 
@@ -745,8 +757,7 @@ sealed interface GroupLeaveAnswer {
      * Any other answer: the request may never have left, or the leave may have been taken and the
      * answer lost on the way back, a `401` that a refresh may still turn around included. Only
      * sending it again can tell. The `403` refusing the group's owner is one, taken for no answer
-     * like the rest: the sync never asks for that, see [GroupSync], and the user asks for it only
-     * in a group handed to them as its creator deleted their account, see [GroupLeaver].
+     * like the rest: neither the sync nor the user asks for that, see [GroupSync] and [GroupLeaver].
      */
     data class Failed(val error: NetworkError) : GroupLeaveAnswer
 }

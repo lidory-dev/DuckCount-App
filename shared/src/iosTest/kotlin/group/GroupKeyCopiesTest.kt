@@ -273,7 +273,6 @@ class GroupKeyCopiesTest {
     ) = GroupDto(
         uuid = uuid,
         ownerUuid = ALICE,
-        creatorUuid = ALICE,
         title = SEALED,
         description = SEALED,
         currency = SEALED,

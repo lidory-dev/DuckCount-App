@@ -4,6 +4,7 @@ import android.util.Log
 import app.lidory.duckcount.GroupLimits.MAX_MEMBERS
 import app.lidory.duckcount.groupList.callBacks.GroupSettingsCallBacks
 import app.lidory.duckcount.groupList.model.ContactRequestError
+import app.lidory.duckcount.groupList.model.DeleteResult
 import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.LeaveResult
 import app.lidory.duckcount.groupList.model.MemberRelation
@@ -13,6 +14,7 @@ import app.lidory.duckcount.networking.NetworkConnectivity
 import database.data.repository.ContactRequestRepository
 import database.data.repository.GroupRepository
 import database.data.repository.UserRepository
+import group.GroupDeleter
 import group.GroupLeaver
 import group.GroupMembershipChanger
 import group.GroupMembershipError
@@ -29,6 +31,7 @@ class GroupSettingsCallBacksImpl(
     val userRepository: UserRepository,
     private val groupMembershipChanger: GroupMembershipChanger,
     private val groupLeaver: GroupLeaver,
+    private val groupDeleter: GroupDeleter,
     private val contactRequestRepository: ContactRequestRepository,
     private val networkConnectivity: NetworkConnectivity,
 ) : GroupSettingsCallBacks {
@@ -72,6 +75,14 @@ class GroupSettingsCallBacksImpl(
         if (left is Result.Error) Log.w(TAG, "leaveGroup: could not leave the group: ${left.error}")
 
         return left.toLeaveResult()
+    }
+
+    override suspend fun deleteGroup(groupUuid: String): DeleteResult {
+        val deleted = groupDeleter.delete(groupUuid = groupUuid)
+
+        if (deleted is Result.Error) Log.w(TAG, "deleteGroup: could not delete the group: ${deleted.error}")
+
+        return deleted.toDeleteResult(isOnline = networkConnectivity.isOnline())
     }
 
     override fun getContactRelation(userUuid: String): Flow<MemberRelation> =

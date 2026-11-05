@@ -23,6 +23,8 @@
     <string name="currency">Currency</string>
     <string name="left_group_marker">No longer a member</string>
     <string name="left_group_notice">You’re no longer a member of this group</string>
+    <string name="deleted_group_marker">Deleted by its owner</string>
+    <string name="deleted_group_notice">The owner deleted this group. What you had of it stays on this device, read-only.</string>
     <plurals name="unreadable_expenses_notice">
         <item quantity="one">%1$d expense can’t be read on this device yet, so the balances leave it out</item>
         <item quantity="other">%1$d expenses can’t be read on this device yet, so the balances leave them out</item>
@@ -73,6 +75,9 @@
     <string name="leave_the_group">Leave the group</string>
     <string name="leave_group_confirmation">Leave “%1$s”?</string>
     <string name="leave_group_explanation">The group stays on this device, read-only. Only the person who created it can add you back.</string>
+    <string name="delete_the_group">Delete the group</string>
+    <string name="delete_group_confirmation">Delete “%1$s” for everyone?</string>
+    <string name="delete_group_explanation">Its expenses and balances are erased from the server, even if some are unsettled, and are no longer tracked. Members keep a read-only copy on their phones, but it’s gone from yours. This can’t be undone.</string>
     <plurals name="group_members_error_not_contacts">
         <item quantity="one">%1$s can’t be added to a group yet</item>
         <item quantity="other">%1$s can’t be added to a group yet</item>

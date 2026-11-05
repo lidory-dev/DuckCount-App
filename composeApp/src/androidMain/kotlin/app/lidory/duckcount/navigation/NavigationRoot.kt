@@ -367,6 +367,10 @@ fun NavigationRoot(
                                     backStack.add(ContactDetailScreenKey(userUuid))
                                 },
                                 navigateToContactRequests = { backStack.add(ContactRequestListScreenKey) },
+                                // Back to the list: the group's own screen has nothing left to show.
+                                onGroupDeleted = {
+                                    backStack.removeIf { it is GroupSettingsScreenKey || it is GroupDetailScreenKey }
+                                },
                                 animatedVisibilityScope = LocalNavAnimatedContentScope.current,
                                 sharedTransitionScope = this@SharedTransitionLayout,
                             )

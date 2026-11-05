@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "9520ca553ed68422fd981d2f260be995",
+    "identityHash": "04aea403dc8c6ee07bd0678eabaf6199",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -196,7 +196,7 @@
       },
       {
         "tableName": "GroupEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `currency` TEXT NOT NULL, `infoRevision` INTEGER NOT NULL, `ownerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `groupKey` BLOB NOT NULL, `keyGeneration` INTEGER NOT NULL, `isBackedUp` INTEGER NOT NULL, `isLeft` INTEGER NOT NULL, `handedProfileKeyHash` TEXT, `hasTakenInExpenses` INTEGER NOT NULL, `isAwaitingOwner` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `currency` TEXT NOT NULL, `infoRevision` INTEGER NOT NULL, `ownerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `groupKey` BLOB NOT NULL, `keyGeneration` INTEGER NOT NULL, `isBackedUp` INTEGER NOT NULL, `isLeft` INTEGER NOT NULL, `handedProfileKeyHash` TEXT, `hasTakenInExpenses` INTEGER NOT NULL, `isAwaitingOwner` INTEGER NOT NULL, `isDeleted` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
         "fields": [
           {
             "fieldPath": "uuid",
@@ -277,6 +277,12 @@
           {
             "fieldPath": "isAwaitingOwner",
             "columnName": "isAwaitingOwner",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isDeleted",
+            "columnName": "isDeleted",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -1188,7 +1194,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9520ca553ed68422fd981d2f260be995')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '04aea403dc8c6ee07bd0678eabaf6199')"
     ]
   }
 }

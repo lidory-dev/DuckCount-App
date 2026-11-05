@@ -10,6 +10,7 @@ import app.lidory.duckcount.groupList.model.GroupHistoryError
 import app.lidory.duckcount.groupList.model.GroupInformationVersion
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupWithMembers
+import app.lidory.duckcount.groupList.model.DeleteResult
 import app.lidory.duckcount.groupList.model.LeaveResult
 import app.lidory.duckcount.groupList.model.MemberRefusal
 import app.lidory.duckcount.groupList.model.MemberRelation
@@ -33,6 +34,7 @@ import group.GroupCreationError as SharedGroupCreationError
 import group.GroupEditError as SharedGroupEditError
 import group.GroupHistoryError as SharedGroupHistoryError
 import group.GroupInformationVersion as SharedGroupInformationVersion
+import group.GroupDeleteError as SharedGroupDeleteError
 import group.GroupLeaveError as SharedGroupLeaveError
 import group.GroupMembershipError as SharedGroupMembershipError
 import group.MembershipChangeOutcome as SharedMembershipChangeOutcome
@@ -43,6 +45,7 @@ fun GroupDb.toGroupListModel(): Group = Group(
     title = title,
     currency = currency.toGroupListModel(),
     isLeft = isLeft,
+    isDeleted = isDeleted,
 )
 
 fun GroupWithMembersDb.toGroupListModel(): GroupWithMembers = GroupWithMembers(
@@ -54,11 +57,13 @@ fun GroupWithMembersDb.toGroupListModel(): GroupWithMembers = GroupWithMembers(
         it.toGroupListModel()
     },
     isLeft = isLeft,
+    isDeleted = isDeleted,
     hasPendingChange = hasPendingChange,
     canChangeMembers = canChangeMembers,
     canEdit = canEdit,
     canVouchForMembers = canVouchForMembers,
     canLeave = canLeave,
+    canDelete = canDelete,
 )
 
 fun Currency.toDb(): CurrencyDb = CurrencyDb(
@@ -308,6 +313,33 @@ fun Result<Unit, SharedGroupLeaveError>.toLeaveResult(): LeaveResult = when (thi
         SharedGroupLeaveError.IsCreator,
         SharedGroupLeaveError.Storage,
             -> LeaveResult.Failed(GroupCreationFailure.UNKNOWN)
+    }
+}
+
+/**
+ * What the group's settings are told of the user deleting it: deleted once the server took it, see
+ * `group.GroupDeleter`, or else what kept it from going through, as for a creation, see
+ * [toGroupCreationError], [isOnline] telling no internet from the server being unreachable.
+ *
+ * What the user cannot act on is folded into [GroupCreationFailure.UNKNOWN]: nobody signed in, the
+ * device locking as the deletion waited for a sync, no such group on this device, one they did not
+ * create or may be out of by now, one a change waits on the server in, which its settings do not offer
+ * to delete until it is taken, see [GroupWithMembersDb.hasPendingChange], and the user's storage
+ * failing once the server took it, which the next sync sees to.
+ */
+fun Result<Unit, SharedGroupDeleteError>.toDeleteResult(isOnline: Boolean): DeleteResult = when (this) {
+    is Result.Success -> DeleteResult.Deleted
+
+    is Result.Error -> when (val failure = error) {
+        is SharedGroupDeleteError.Network -> DeleteResult.Failed(failure.error.toGroupCreationFailure(isOnline = isOnline))
+
+        SharedGroupDeleteError.NoSession,
+        SharedGroupDeleteError.DeviceLocked,
+        SharedGroupDeleteError.NotHeld,
+        SharedGroupDeleteError.NotOwner,
+        SharedGroupDeleteError.ChangePending,
+        SharedGroupDeleteError.Storage,
+            -> DeleteResult.Failed(GroupCreationFailure.UNKNOWN)
     }
 }
 

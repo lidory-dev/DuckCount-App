@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.android.ui.text.sortedByName
 import app.lidory.duckcount.groupList.callBacks.GroupSettingsCallBacks
 import app.lidory.duckcount.groupList.model.ContactRequestError
+import app.lidory.duckcount.groupList.model.DeleteResult
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
 import app.lidory.duckcount.groupList.model.GroupWithMembers
 import app.lidory.duckcount.groupList.model.LeaveResult
@@ -60,8 +61,8 @@ class GroupSettingsViewModel(
     /** The most members the group may have, see [GroupSettingsCallBacks.maxMembers]. */
     val maxMembers: Int = groupSettingsCallBacks.maxMembers
 
-    // True while a change to the members is on its way to the server, or the user's leave is being
-    // recorded and sent, so that the button that made it can show an in-place spinner, and neither
+    // True while a change to the members is on its way to the server, the user's leave is being
+    // recorded and sent, or their deletion of the group is being sent, so that the button that made it can show an in-place spinner, and neither
     // the picker nor the confirmation it was made from be closed until it is answered, which the
     // user is told of there.
     private val _isChanging = MutableStateFlow(false)
@@ -145,6 +146,15 @@ class GroupSettingsViewModel(
     // is answered.
     var isLeaveAsked by mutableStateOf(false)
         private set
+
+    // Whether the user is asked to confirm deleting the group, and then deleting it, until the
+    // deletion is answered.
+    var isDeleteAsked by mutableStateOf(false)
+        private set
+
+    // Once the group is gone, which leaves this screen nothing to show.
+    private val _deletions = Channel<Unit>(Channel.BUFFERED)
+    val deletions: Flow<Unit> = _deletions.receiveAsFlow()
 
     // The member whose sheet is open, as tapped, see openMember, until it closes, see closeMember.
     // The sheet shows them as the group lists them since, see sheetMember.
@@ -373,6 +383,47 @@ class GroupSettingsViewModel(
             _isChanging.value = false
         }
     }
+
+    /** Asks the user to confirm deleting the group, see [delete]. */
+    fun askToDelete() {
+        isDeleteAsked = true
+    }
+
+    /**
+     * Drops the deletion the user was asked to confirm, unless it is under way: what comes of it is
+     * told once answered.
+     */
+    fun cancelDelete() {
+        if (_isChanging.value) return
+
+        isDeleteAsked = false
+    }
+
+    /**
+     * Deletes the group for everybody, see [GroupSettingsCallBacks.deleteGroup], and closes the
+     * confirmation once answered, telling why not if it did not go through, or that it is gone,
+     * see [deletions].
+     */
+    fun delete() = viewModelScope.launch {
+        if (_isChanging.value) return@launch
+
+        _isChanging.value = true
+
+        try {
+            val result = groupSettingsCallBacks.deleteGroup(groupUuid = groupUuid)
+
+            isDeleteAsked = false
+
+            when (result) {
+                DeleteResult.Deleted -> _deletions.send(Unit)
+
+                is DeleteResult.Failed ->
+                    _notices.send(MembershipChangeResult.Failed(MembershipChangeError.Failure(result.failure)))
+            }
+        } finally {
+            _isChanging.value = false
+        }
+    }
 }
 
 data class GroupSettingsState(
@@ -455,7 +506,8 @@ fun GroupWithMembers.memberActions(): MemberActions = when {
 /**
  * Whether the settings of [this] offer the user to leave it, see [GroupWithMembers.canLeave]: a
  * group they are still in and did not create, which is never one they may change the members of,
- * see [memberActions]. Its creator never leaves, as nobody else could change its members.
+ * see [memberActions]. Its creator never leaves, as nobody else could change its members, and
+ * deletes it instead, see [GroupWithMembers.canDelete].
  */
 fun GroupWithMembers.isLeavable(): Boolean = canLeave
 

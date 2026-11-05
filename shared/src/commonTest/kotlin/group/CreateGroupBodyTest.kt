@@ -66,12 +66,10 @@ class CreateGroupBodyTest {
         assertEquals(listOf("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), response.deletedUserUuids)
     }
 
-    /** Handed over to Bbbb as its creator, Dddd, deleted their account, who still signed it. */
     @Test
     fun `a group the server lists decodes with the caller's copy of its key`() {
         val groups = json.decodeFromString<List<GroupDto>>(
             """[{"uuid":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","owner_uuid":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-            "creator_uuid":"dddddddd-dddd-4ddd-8ddd-dddddddddddd",
             "title":{"ciphertext":"dA==","nonce":"bg=="},"description":{"ciphertext":"ZA==","nonce":"bg=="},
             "currency":{"ciphertext":"Yw==","nonce":"bg=="},"revision":3,
             "signature":{"ciphertext":"cw==","nonce":"bg=="},"information_key_generation":2,
@@ -84,7 +82,6 @@ class CreateGroupBodyTest {
         val group = groups.single()
 
         assertEquals("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", group.ownerUuid)
-        assertEquals("dddddddd-dddd-4ddd-8ddd-dddddddddddd", group.creatorUuid)
         assertEquals(EncryptedFieldDto(ciphertext = "Yw==", nonce = "bg=="), group.currency)
         assertEquals(3L, group.revision)
         assertEquals(EncryptedFieldDto(ciphertext = "cw==", nonce = "bg=="), group.signature)

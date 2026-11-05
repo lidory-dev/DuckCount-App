@@ -147,6 +147,7 @@ class PushSyncWorker(
 
         groupNotifier.notify(arrivals = groups.joined)
         groupNotifier.notifyRemovals(removals = groups.removed)
+        groupNotifier.notifyDeletions(deletions = groups.deleted)
 
         expenseNotifier.notify(arrivals = expenseArrivals.since(snapshot = expensesBefore))
         expenseNotifier.notifyChanges(changes = expenseChanges.since(snapshot = shownBefore))

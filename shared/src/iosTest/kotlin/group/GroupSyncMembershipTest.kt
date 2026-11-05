@@ -83,6 +83,9 @@ class GroupSyncMembershipTest {
     private val mallory = MlsClient(userUuid = MALLORY, secret = ByteArray(32) { 7 }, store = InMemoryMlsStore())
 
     private var contacts = setOf(ALICE, DAVE)
+
+    /** Who deleted their account and told Bob so, whose name this device keeps but hides. */
+    private val hidden = mutableSetOf<String>()
     private val names = mapOf(ALICE to "Alice", DAVE to "Dave")
 
     /**
@@ -104,6 +107,13 @@ class GroupSyncMembershipTest {
     /** Who the server holds as the group's current members, and whether it lists the group to Bob anyway. */
     private val serverMembers = mutableListOf<String>()
     private var isListedRegardless = false
+
+    /** Whether its owner deleted the group, which leaves the server nothing of it to list or read. */
+    private var isDeletedOnServer = false
+
+    /** What keeps the server from answering for what waits in a group, and the creations pending. */
+    private var messagesFailure: NetworkError? = null
+    private val pendingCreations = mutableSetOf<String>()
 
     /** What waits for Bob in each group, and what he asked for and acknowledged. */
     private val waiting = mutableMapOf<String, MutableList<GroupMessageDto>>()
@@ -190,9 +200,14 @@ class GroupSyncMembershipTest {
         listMessages = { groupUuid ->
             fetched += groupUuid
             val listed = waiting[groupUuid].orEmpty().toList()
+            val failure = messagesFailure ?: NetworkError.NOT_FOUND.takeIf { isDeletedOnServer }
 
-            readWholeListing { cursor -> Result.Success(pageOf(items = listed, cursor = cursor, perPage = messagesPerPage)) }
-                .map { ListGroupMessagesResponse(messages = it) }
+            if (failure != null) {
+                Result.Error(failure)
+            } else {
+                readWholeListing { cursor -> Result.Success(pageOf(items = listed, cursor = cursor, perPage = messagesPerPage)) }
+                    .map { ListGroupMessagesResponse(messages = it) }
+            }
         },
         acknowledge = { groupUuid, messageUuids ->
             if (isAcknowledgingFailing) {
@@ -252,9 +267,14 @@ class GroupSyncMembershipTest {
             if (BOB in serverMembers) Result.Success(serverLinks.toList()) else Result.Error(NetworkError.NOT_FOUND)
         },
         now = { error("Nobody departed from a group here.") },
-        fullName = { names[it] },
+        fullName = { userUuid -> names[userUuid].takeUnless { userUuid in hidden } },
+        fullNameEvenIfHidden = { names[it] },
         // What becomes of the keys to the members' profiles is GroupSyncProfileKeysTest's.
-        hasPendingChange = { false },
+        hasPendingChange = { it in pendingCreations },
+        hasPendingCreation = { it in pendingCreations },
+        markDeleted = { groupUuid ->
+            groups[groupUuid] = groups.getValue(groupUuid).with(isLeft = true, isDeleted = true)
+        },
         isBlocked = { false },
         setHandedProfileKey = { _, _ -> },
         takeOwnerKey = { _, _, _ -> },
@@ -498,14 +518,183 @@ class GroupSyncMembershipTest {
             listOf(GroupRemoval(groupUuid = GROUP, title = "Ski trip", removerUuid = ALICE, removerFullName = "Alice")),
             pass.removed,
         )
+        assertTrue(pass.deleted.isEmpty())
 
         val group = groups.getValue(GROUP)
 
         assertTrue(group.isLeft)
+        assertFalse(group.isDeleted)
         assertContentEquals(mlsGroupId, group.mlsGroupId)
         assertEquals(rowsOf(ALICE, BOB, CAROL), members.getValue(GROUP).toSet())
         assertFalse(bob.holdsGroup(mlsGroupId = mlsGroupId))
         assertEquals(listOf(removal), acknowledged[GROUP]?.toList())
+    }
+
+    /** Nothing of it is left to read on the server, and what Bob had of it stays with him, as after a removal. */
+    @Test
+    fun `a group its owner deleted stays read-only and is reported`() = runBlocking<Unit> {
+        joined()
+
+        val mlsGroupId = assertNotNull(groups.getValue(GROUP).mlsGroupId)
+
+        isDeletedOnServer = true
+
+        val pass = groupSync.sync(contactsTakenIn = true)
+
+        assertNull(pass.failure)
+        assertTrue(pass.removed.isEmpty())
+        assertEquals(
+            listOf(GroupDeletion(groupUuid = GROUP, title = "Ski trip", deleterUuid = ALICE, deleterFullName = "Alice")),
+            pass.deleted,
+        )
+
+        val group = groups.getValue(GROUP)
+
+        assertTrue(group.isLeft)
+        assertTrue(group.isDeleted)
+        assertContentEquals(mlsGroupId, group.mlsGroupId)
+        assertEquals(rowsOf(ALICE, BOB, CAROL), members.getValue(GROUP).toSet())
+        assertFalse(bob.holdsGroup(mlsGroupId = mlsGroupId))
+    }
+
+    /**
+     * Alice deleted her account, which deletes the group, and told Bob first, as her contact: his
+     * device hides her before its sync finds the group gone, and still says who it was.
+     */
+    @Test
+    fun `an owner hidden as they deleted their account is named all the same`() = runBlocking<Unit> {
+        joined()
+
+        hidden += ALICE
+        isDeletedOnServer = true
+
+        assertEquals(
+            listOf(GroupDeletion(groupUuid = GROUP, title = "Ski trip", deleterUuid = ALICE, deleterFullName = "Alice")),
+            groupSync.sync(contactsTakenIn = true).deleted,
+        )
+    }
+
+    @Test
+    fun `a group found deleted is neither read nor reported again`() = runBlocking<Unit> {
+        joined()
+
+        isDeletedOnServer = true
+
+        groupSync.sync(contactsTakenIn = true)
+
+        fetched.clear()
+
+        val pass = groupSync.sync(contactsTakenIn = true)
+
+        assertNull(pass.failure)
+        assertTrue(pass.deleted.isEmpty())
+        assertTrue(fetched.isEmpty())
+    }
+
+    /** The answer to their own deletion lost: only they could have, and they know. */
+    @Test
+    fun `a group the user owns found deleted stays read-only and is not reported`() = runBlocking<Unit> {
+        joined()
+
+        groups[GROUP] = groups.getValue(GROUP).with(ownerUuid = BOB)
+        isDeletedOnServer = true
+
+        val pass = groupSync.sync(contactsTakenIn = true)
+
+        assertNull(pass.failure)
+        assertTrue(pass.deleted.isEmpty())
+        assertTrue(groups.getValue(GROUP).isDeleted)
+    }
+
+    @Test
+    fun `a group the server stopped listing and could not say more of waits for the next pass`() = runBlocking<Unit> {
+        joined()
+
+        serverMembers -= BOB
+        messagesFailure = NetworkError.NO_INTERNET
+
+        val pass = groupSync.sync(contactsTakenIn = true)
+
+        assertEquals(GroupSyncError.Network(NetworkError.NO_INTERNET), pass.failure)
+        assertTrue(pass.deleted.isEmpty())
+        assertFalse(groups.getValue(GROUP).isLeft)
+    }
+
+    /** It holds nothing of a group it has yet to hear of, which a `404` says nothing about. */
+    @Test
+    fun `a group whose creation is pending is not taken for one deleted`() = runBlocking<Unit> {
+        joined()
+
+        pendingCreations += GROUP
+        isDeletedOnServer = true
+
+        val pass = groupSync.sync(contactsTakenIn = true)
+
+        assertNull(pass.failure)
+        assertTrue(pass.deleted.isEmpty())
+        assertFalse(groups.getValue(GROUP).isLeft)
+    }
+
+    /** There is no Commit for it to read, which is how it is told from a removal then. */
+    @Test
+    fun `a group brought back after a log-out and deleted is told as deleted`() = runBlocking<Unit> {
+        broughtBack()
+
+        isDeletedOnServer = true
+
+        val pass = groupSync.sync(contactsTakenIn = true)
+
+        assertNull(pass.failure)
+        assertTrue(pass.removed.isEmpty())
+        assertEquals(listOf(GROUP), pass.deleted.map { it.groupUuid })
+        assertTrue(groups.getValue(GROUP).isDeleted)
+    }
+
+    @Test
+    fun `a group brought back after a log-out the server could not say more of is told of neither way yet`() =
+        runBlocking<Unit> {
+            broughtBack()
+
+            serverMembers -= BOB
+            messagesFailure = NetworkError.NO_INTERNET
+
+            val pass = groupSync.sync(contactsTakenIn = true)
+
+            assertTrue(pass.removed.isEmpty())
+            assertTrue(pass.deleted.isEmpty())
+            assertFalse(groups.getValue(GROUP).isLeft)
+
+            messagesFailure = null
+
+            assertEquals(listOf(GROUP), groupSync.sync(contactsTakenIn = true).removed.map { it.groupUuid })
+        }
+
+    /**
+     * The proxy answering `404` as the server is redeployed, for a member it removed. The creator
+     * adding them back brings the group back to life all the same.
+     */
+    @Test
+    fun `the user added back to a group wrongly found deleted joins it again`() = runBlocking<Unit> {
+        joined()
+        aliceRemoves(BOB)
+
+        messagesFailure = NetworkError.NOT_FOUND
+
+        assertEquals(listOf(GROUP), groupSync.sync(contactsTakenIn = true).deleted.map { it.groupUuid })
+
+        messagesFailure = null
+
+        aliceCommits()
+        aliceAdds(bob)
+
+        val pass = groupSync.sync(contactsTakenIn = true)
+
+        assertEquals(listOf(GROUP), pass.joined.map { it.groupUuid })
+
+        val group = groups.getValue(GROUP)
+
+        assertFalse(group.isLeft)
+        assertFalse(group.isDeleted)
     }
 
     /**
@@ -1631,7 +1820,7 @@ class GroupSyncMembershipTest {
     private fun listedGroup(): GroupDto? {
         val version = serverVersion ?: return null
 
-        if (BOB !in serverMembers && !isListedRegardless) return null
+        if (isDeletedOnServer || BOB !in serverMembers && !isListedRegardless) return null
 
         return listedGroupOf(
             uuid = GROUP,
@@ -1702,6 +1891,8 @@ private fun GroupEntity.with(
     isBackedUp: Boolean = this.isBackedUp,
     isLeft: Boolean = this.isLeft,
     isAwaitingOwner: Boolean = this.isAwaitingOwner,
+    isDeleted: Boolean = this.isDeleted,
+    ownerUuid: String = this.ownerUuid,
 ) = GroupEntity(
     uuid = uuid,
     title = title,
@@ -1717,4 +1908,5 @@ private fun GroupEntity.with(
     handedProfileKeyHash = handedProfileKeyHash,
     hasTakenInExpenses = hasTakenInExpenses,
     isAwaitingOwner = isAwaitingOwner,
+    isDeleted = isDeleted,
 )

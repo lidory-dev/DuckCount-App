@@ -168,6 +168,76 @@ interface GroupDao {
     }
 
     /**
+     * Forgets the group [groupUuid], which the user deleted and the server no longer holds, see
+     * `group.GroupDeleter`, with everything this device kept of it, in one transaction, and leaves
+     * the caller to delete its MLS group once the rows no longer name it. No change waits in it,
+     * the deletion refusing one that does.
+     */
+    @Transaction
+    suspend fun forgetDeleted(groupUuid: String) {
+        deleteBeneficiariesOfGroup(groupUuid = groupUuid)
+        deleteRevisionsOfGroup(groupUuid = groupUuid)
+        deleteExpenseDeletionsOfGroup(groupUuid = groupUuid)
+        deleteExpensesOfGroup(groupUuid = groupUuid)
+        deleteListedExpensesOfGroup(groupUuid = groupUuid)
+        deleteUnreadableExpensesOfGroup(groupUuid = groupUuid)
+        deleteChangeFeed(feed = groupExpensesFeedOf(groupUuid))
+        deleteMembersOf(groupUuid = groupUuid)
+        deleteKeysOf(groupUuid = groupUuid)
+        deleteSignatureKeysOf(groupUuid = groupUuid)
+        deleteGroup(uuid = groupUuid)
+    }
+
+    @Query(
+        """DELETE FROM BeneficiaryEntity
+        WHERE expenseUuid IN (SELECT uuid FROM ExpenseEntity WHERE groupUuid = :groupUuid)""",
+    )
+    suspend fun deleteBeneficiariesOfGroup(groupUuid: String)
+
+    @Query(
+        """DELETE FROM ExpenseRevisionEntity
+        WHERE expenseUuid IN (SELECT uuid FROM ExpenseEntity WHERE groupUuid = :groupUuid)""",
+    )
+    suspend fun deleteRevisionsOfGroup(groupUuid: String)
+
+    @Query(
+        """DELETE FROM GroupExpenseDeletionEntity
+        WHERE expenseUuid IN (SELECT uuid FROM ExpenseEntity WHERE groupUuid = :groupUuid)""",
+    )
+    suspend fun deleteExpenseDeletionsOfGroup(groupUuid: String)
+
+    @Query("DELETE FROM ExpenseEntity WHERE groupUuid = :groupUuid")
+    suspend fun deleteExpensesOfGroup(groupUuid: String)
+
+    @Query("DELETE FROM ListedGroupExpenseEntity WHERE groupUuid = :groupUuid")
+    suspend fun deleteListedExpensesOfGroup(groupUuid: String)
+
+    @Query("DELETE FROM UnreadableGroupExpenseEntity WHERE groupUuid = :groupUuid")
+    suspend fun deleteUnreadableExpensesOfGroup(groupUuid: String)
+
+    @Query("DELETE FROM ChangeFeedEntity WHERE feed = :feed")
+    suspend fun deleteChangeFeed(feed: String)
+
+    /**
+     * Records that the user is no longer a member of the group [groupUuid] because the server no
+     * longer holds it, see [GroupEntity.isDeleted], in one transaction with dropping any change to
+     * its members waiting on the server, which nothing can take now, see
+     * [PendingMembershipChangeEntity]. Left, it would be sent again by every sync, from a group
+     * whose MLS state this deletes.
+     */
+    @Transaction
+    suspend fun markDeleted(groupUuid: String) {
+        markDeletedRow(uuid = groupUuid)
+        deleteAllMembershipChanges(groupUuid = groupUuid)
+    }
+
+    @Query("UPDATE GroupEntity SET isLeft = true, isDeleted = true WHERE uuid = :uuid")
+    suspend fun markDeletedRow(uuid: String)
+
+    @Query("DELETE FROM PendingMembershipChangeEntity WHERE groupUuid = :groupUuid")
+    suspend fun deleteAllMembershipChanges(groupUuid: String)
+
+    /**
      * Records that the server holds the user's copy of the key of the group [uuid], see
      * [GroupEntity.isBackedUp]. Under `group.withGroupsLock`, as every write of a group's key is,
      * so no other key can have replaced it while its copy was on its way.

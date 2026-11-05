@@ -12,6 +12,7 @@ import group.GroupHistory
 import group.GroupKeyChain
 import group.GroupKeyCopies
 import group.GroupKeyLinks
+import group.GroupDeleter
 import group.GroupLeaver
 import group.GroupMembershipChanger
 import group.GroupMembershipSender
@@ -128,6 +129,15 @@ val groupModule = module {
             mlsIdentityRepository = get(),
             wakeList = get(),
             resendScheduler = get(),
+        )
+    }
+
+    single {
+        GroupDeleter(
+            groupApi = get(),
+            groupDao = get(),
+            mlsIdentityRepository = get(),
+            wakeList = get(),
         )
     }
 

@@ -30,7 +30,8 @@ sealed interface GroupLeaveError : Error {
      * [database.data.local.entity.GroupEntity.ownerUuid], and its creator never leaves: nobody
      * else could add anybody to it, the members' devices taking Commits from the creator alone,
      * but for a removal of those who departed.
-     * The server refuses its owner the leave anyway.
+     * The server refuses its owner the leave anyway. Their way out is deleting it, see
+     * [GroupDeleter].
      */
     data object IsCreator : GroupLeaveError
 

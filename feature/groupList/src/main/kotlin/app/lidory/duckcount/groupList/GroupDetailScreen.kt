@@ -130,8 +130,11 @@ fun GroupDetailScreen(
         Column(
             modifier = modifier.padding(innerPadding),
         ) {
-            if (state.groupWithMembers?.isLeft == true) {
-                LeftGroupNotice(modifier = Modifier.padding(horizontal = Padding.medium, vertical = Padding.small))
+            state.groupWithMembers?.takeIf { it.isLeft }?.let { group ->
+                LeftGroupNotice(
+                    isDeleted = group.isDeleted,
+                    modifier = Modifier.padding(horizontal = Padding.medium, vertical = Padding.small),
+                )
             }
 
             // Above every tab: the balances and what is left to settle up leave them out too.

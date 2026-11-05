@@ -277,7 +277,10 @@ class GroupSyncTest {
         keyLinks = { Result.Success(serverLinks.toList()) },
         now = { error("Nobody departed from a group here.") },
         fullName = { names[it] },
+        fullNameEvenIfHidden = { names[it] },
         hasPendingChange = { it in pending || it in pendingChanges },
+        hasPendingCreation = { false },
+        markDeleted = { error("Nobody deletes a group here.") },
         isBlocked = { it in blocked },
         setHandedProfileKey = { groupUuid, handedProfileKeyHash ->
             groups[groupUuid] = groups.getValue(groupUuid).withHanded(handedProfileKeyHash)
@@ -1139,46 +1142,6 @@ class GroupSyncTest {
         }
 
     /**
-     * Alice created the group and deleted her account, and the server handed it to Bob, whom it
-     * lists as its owner, still naming her as its creator: the version she signed holds up under
-     * the pin Bob's vault kept for her, and the group is brought back as hers. Held against his
-     * own key, it would be refused.
-     */
-    @Test
-    fun `a group handed over to the user as its creator deleted their account is brought back as hers`() =
-        runBlocking<Unit> {
-            val groupKey = generateSymmetricEncryptionKey()
-
-            list(owner = BOB, creator = ALICE, groupKey = groupKey, members = listOf(BOB, CAROL))
-            server.copies[GROUP] = server.copyOf(groupKey = groupKey, sealedFor = GROUP)
-
-            assertNull(groupSync.sync(contactsTakenIn = true).failure)
-
-            val group = assertNotNull(groups[GROUP])
-
-            assertEquals("Ski trip", group.title)
-            assertEquals(ALICE, group.ownerUuid)
-            assertTrue(declined.isEmpty())
-            assertTrue(left.isEmpty())
-        }
-
-    /** Listed with Alice as its creator, a version Carol signed is not hers, whoever owns the group. */
-    @Test
-    fun `a group handed over whose version its listed creator did not sign is not brought back`() =
-        runBlocking<Unit> {
-            val groupKey = generateSymmetricEncryptionKey()
-
-            list(owner = CAROL, creator = ALICE, groupKey = groupKey, members = listOf(BOB, CAROL), signer = carol)
-            server.copies[GROUP] = server.copyOf(groupKey = groupKey, sealedFor = GROUP)
-
-            assertNull(groupSync.sync(contactsTakenIn = true).failure)
-
-            assertTrue(groups.isEmpty())
-            assertTrue(declined.isEmpty())
-            assertTrue(left.isEmpty())
-        }
-
-    /**
      * The server listing one group's copy with another, which opens as the key of no group but the
      * one it was sealed for: taken for no copy at all, the group is declined, as below.
      */
@@ -1365,27 +1328,6 @@ class GroupSyncTest {
             assertEquals(listOf(GROUP, GROUP, GROUP), left)
             assertTrue(declined.isEmpty())
             assertEquals(listOf(60L, 60L), resends.seconds)
-        }
-
-    /**
-     * The server lists Bob as the owner of a group he declined, as once its creator's account is
-     * deleted: it would refuse him, and nobody could change the group then.
-     */
-    @Test
-    fun `a group the server lists the user as the owner of stays declined and is never left`() =
-        runBlocking<Unit> {
-            invite(creator = mallory)
-            listed[0] = listed[0].copy(ownerUuid = BOB)
-
-            assertNull(groupSync.sync(contactsTakenIn = true).failure)
-
-            fetched.clear()
-
-            assertNull(groupSync.sync(contactsTakenIn = true).failure)
-
-            assertTrue(left.isEmpty())
-            assertEquals(setOf(GROUP), declined)
-            assertTrue(fetched.isEmpty())
         }
 
     /** The row recorded before the leave is asked for, the device locking as it is. */
@@ -1689,8 +1631,7 @@ class GroupSyncTest {
         sealedFor: String = groupUuid,
         members: List<String> = listOf(owner, BOB, CAROL),
         fields: GroupFields = FIELDS,
-        creator: String = owner,
-        signer: MlsClient = clientOf(creator),
+        signer: MlsClient = clientOf(owner),
         revision: Long = FIRST_GROUP_REVISION,
         currencyKey: ByteArray = groupKey,
         informationKeyGeneration: Long = FIRST_KEY_GENERATION,
@@ -1699,7 +1640,6 @@ class GroupSyncTest {
         listed += listedGroupOf(
             uuid = groupUuid,
             ownerUuid = owner,
-            creatorUuid = creator,
             version = fields.sealedAs(
                 creator = signer,
                 groupKey = groupKey,

@@ -23,6 +23,8 @@
     <string name="currency">Devise</string>
     <string name="left_group_marker">Vous n’en faites plus partie</string>
     <string name="left_group_notice">Vous ne faites plus partie de ce groupe</string>
+    <string name="deleted_group_marker">Supprimé par son propriétaire</string>
+    <string name="deleted_group_notice">Le propriétaire a supprimé ce groupe. Ce que vous en aviez reste sur cet appareil, en lecture seule.</string>
     <plurals name="unreadable_expenses_notice">
         <item quantity="one">%1$d dépense ne peut pas encore être lue sur cet appareil, les soldes n’en tiennent pas compte</item>
         <item quantity="other">%1$d dépenses ne peuvent pas encore être lues sur cet appareil, les soldes n’en tiennent pas compte</item>
@@ -73,6 +75,9 @@
     <string name="leave_the_group">Quitter le groupe</string>
     <string name="leave_group_confirmation">Quitter le groupe «\u00A0%1$s\u00A0»\u00A0?</string>
     <string name="leave_group_explanation">Le groupe reste sur cet appareil, en lecture seule. Seule la personne qui l’a créé peut vous y ajouter à nouveau.</string>
+    <string name="delete_the_group">Supprimer le groupe</string>
+    <string name="delete_group_confirmation">Voulez-vous vraiment supprimer «\u00A0%1$s\u00A0» pour tout le monde\u00A0?</string>
+    <string name="delete_group_explanation">Ses dépenses et ses soldes sont effacés du serveur, même si des remboursements restent à faire, et ne sont plus suivis. Les membres en gardent une copie en lecture seule sur leur téléphone, mais il disparaît du vôtre. Cette action est irréversible.</string>
     <plurals name="group_members_error_not_contacts">
         <item quantity="one" tools:ignore="ImpliedQuantity">Impossible d’ajouter %1$s à un groupe pour le moment</item>
         <item quantity="other">Impossible d’ajouter %1$s à un groupe pour le moment</item>

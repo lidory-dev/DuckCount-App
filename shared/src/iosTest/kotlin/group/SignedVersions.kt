@@ -31,7 +31,7 @@ internal fun GroupFields.sealedAs(
 }
 
 /**
- * The group [uuid] as the server lists it, owned by [ownerUuid] and created by [creatorUuid], with
+ * The group [uuid] as the server lists it, owned by [ownerUuid], with
  * [memberUuids], [departed] since, [version] of its information, sealed under the generation
  * [informationKeyGeneration], the caller's copy of its key, [keyCopy], if any, of the generation
  * [keyCopyGeneration], and the generation [keyGeneration] its key is at.
@@ -42,7 +42,6 @@ internal fun listedGroupOf(
     version: SealedGroupVersion,
     memberUuids: List<String>,
     keyCopy: EncryptedFieldDto? = null,
-    creatorUuid: String = ownerUuid,
     keyGeneration: Long = FIRST_KEY_GENERATION,
     keyCopyGeneration: Long? = keyCopy?.let { keyGeneration },
     informationKeyGeneration: Long = FIRST_KEY_GENERATION,
@@ -50,7 +49,6 @@ internal fun listedGroupOf(
 ) = GroupDto(
     uuid = uuid,
     ownerUuid = ownerUuid,
-    creatorUuid = creatorUuid,
     title = version.fields.title,
     description = version.fields.description,
     currency = version.fields.currency,

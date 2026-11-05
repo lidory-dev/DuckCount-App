@@ -12,6 +12,7 @@ import app.lidory.duckcount.EXTRA_OPEN_GROUPS
 import app.lidory.duckcount.MainActivity
 import app.lidory.duckcount.R
 import group.GroupArrival
+import group.GroupDeletion
 import group.GroupRemoval
 
 /**
@@ -28,14 +29,15 @@ private const val GROUP_TAG = "group"
 /**
  * What tells the intent of each form that names nobody apart from the named ones', see
  * [GroupNotifier.namelessNotification], which only ever goes up as their public version: one for
- * the user added to a group, one for the user removed from one.
+ * the user added to a group, one for the user removed from one, one for a group deleted.
  */
 private const val UNNAMED_GROUP_REQUEST_CODE = 7
 private const val UNNAMED_GROUP_REMOVAL_REQUEST_CODE = 8
+private const val UNNAMED_GROUP_DELETION_REQUEST_CODE = 9
 
 /**
- * Tells the user about the groups a contact added them to, and those they were removed from, one
- * notification per group.
+ * Tells the user about the groups a contact added them to, those they were removed from, and those
+ * their owner deleted, one notification per group.
  *
  * What a push carries is a signal with no content, so everything said here comes from what the
  * group sync read and decrypted for itself: who wrote the Welcome, or the Commit removing the
@@ -43,9 +45,12 @@ private const val UNNAMED_GROUP_REMOVAL_REQUEST_CODE = 8
  * the sync declining anybody else's group without a word. Whoever made the Commit is who removed
  * them, named as MLS says, see [GroupRemoval.removerUuid]: the group's creator, for anything but
  * the removal of a member who departed, which any member makes. A group the user left is never one
- * the sync reports them removed from, see [group.GroupLeaver]: they know already.
+ * the sync reports them removed from, see [group.GroupLeaver], and one they created never one it
+ * reports deleted, see [group.GroupDeleter]: they know already. Who deleted a group is its creator,
+ * the one person who can, by deleting it or their account, see [GroupDeletion.deleterUuid].
  *
- * Nothing goes up while the device is locked. Being added to a group, or removed from one, asks
+ * Nothing goes up while the device is locked. Being added to a group, removed from one, or having
+ * it deleted, asks
  * nothing of the user, and the signal alone could not say which group, or whose: the sync that
  * names both waits for the unlock, and puts it up then. It rings: somebody else put the user in a
  * group, or took them out of one, which is news to them, unlike a contact accepting a request they
@@ -98,8 +103,29 @@ class GroupNotifier(
         }
     }
 
+    /** Puts one notification up per group found deleted. */
+    fun notifyDeletions(deletions: List<GroupDeletion>) {
+        for (deletion in deletions) {
+            val text = when (val deleterFullName = deletion.deleterFullName) {
+                null -> context.getString(R.string.push_group_deleted_text_unknown, deletion.title)
+                else -> context.getString(R.string.push_group_deleted_text, deleterFullName, deletion.title)
+            }
+
+            post(
+                groupUuid = deletion.groupUuid,
+                title = R.string.push_group_deleted_title,
+                text = text,
+                publicVersion = namelessNotification(
+                    title = R.string.push_group_deleted_title,
+                    text = R.string.push_group_deleted_text_locked,
+                    requestCode = UNNAMED_GROUP_DELETION_REQUEST_CODE,
+                ),
+            )
+        }
+    }
+
     /**
-     * Takes down every notification about a group the user was added to, or removed from.
+     * Takes down every notification about a group the user was added to, removed from, or found deleted.
      *
      * For the group list, once it is on screen: the groups are there to read, and anything these
      * said about them the user is already reading.
@@ -146,7 +172,7 @@ class GroupNotifier(
 
     /**
      * The form that names nobody and no group, [title] and [text]: the user was added to a group,
-     * or removed from one.
+     * removed from one, or one was deleted.
      *
      * Carried by every named one as its [NotificationCompat.Builder.setPublicVersion], which is
      * what a lockscreen shows for a user who has asked to keep notification content hidden.

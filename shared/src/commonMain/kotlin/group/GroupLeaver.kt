@@ -83,15 +83,6 @@ import util.Result
  * see [GroupSync], the key of the epoch that leads to being one the user never derives. Nobody is
  * told, as for a device declining the group, which no member's device can tell from a leave.
  *
- * The creator is who this device recorded as the group's, see [GroupEntity.ownerUuid], not the
- * server's owner, which a deletion of the creator's account hands to another member. A member
- * handed a group that way may still ask to leave it, which the server refuses its owner: the
- * refusal reads as no answer, and the sync booked for it leaves the leave owed without sending it
- * again, the server listing them as the group's owner, see [GroupSync.leaveDeclined], so the
- * request goes out once. The group shows as left on their device while the server keeps them its
- * owner, which changes nothing: no member takes a Commit from anybody but the group's creator, but
- * for a removal of those who departed, so that group changes no further than that anyway.
- *
  * [userUuid] is [getAuthenticatedUserUuid], [group] is [GroupDao.get], [markLeftAndOweLeave] and
  * [forgetOwedLeave] are [GroupDao.markLeftAndOweLeave] and [GroupDao.deleteDeclined],
  * [rebuildWakeList] is [WakeList.rebuild], [client] is [MlsIdentityRepository.client],

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="account">Account</string>
-    <string name="account_deletion_disclaimer">Deleting your account is permanent and your data cannot be recovered.\n\nExpenses you’ve created or participated in will not be deleted. They’ll remain visible to anyone else involved.\n\nTo continue, you’ll need to re-enter your password to confirm.</string>
+    <string name="account_deletion_disclaimer">Deleting your account is permanent and your data cannot be recovered.\n\nGroups you created will be deleted for all their members, who keep a read-only copy.\n\nOther expenses you’ve created or participated in will not be deleted. They’ll remain visible to anyone else involved.\n\nTo continue, you’ll need to re-enter your password to confirm.</string>
     <string name="about">About</string>
     <string name="app_and_lib_licence">DuckCount and the library on which it depends (lib-duckcount) are licensed under the European Union Public Licence, version 1.2 (EUPL-1.2).</string>
     <string name="app_version">App version: %1$s</string>

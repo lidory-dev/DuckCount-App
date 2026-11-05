@@ -37,16 +37,14 @@ class GroupEntity(
     /**
      * Who created the group, the one member who adds and removes members, see
      * `group.GroupMembershipChanger`, edits its information, signed with their MLS identity,
-     * see `group.GroupEditor`, and replaces a Commit nobody could apply, see `group.GroupSync`: the
-     * user, for a group they created, and whoever wrote the Welcome, for one they joined. Not the
-     * server's owner, which a deletion of the creator's account hands to somebody else, who could
-     * then not commit anything the members' devices would take: they take Commits, and versions
-     * of the group's information, from the creator alone, but for any member's removal of those
-     * who departed.
+     * see `group.GroupEditor`, replaces a Commit nobody could apply, see `group.GroupSync`, and
+     * alone may delete it, see `group.GroupDeleter`: the user, for a group they created, and whoever
+     * wrote the Welcome, for one they joined. Members' devices take Commits, and versions of the
+     * group's information, from the creator alone, but for any member's removal of those who
+     * departed. The group goes with its creator's account, so they own it for as long as it exists.
      *
-     * For a group brought back after a log-out, the creator the server lists, there being no
-     * Welcome left to read it from, see `group.GroupDto.creatorUuid`: its creator still, for a
-     * group a deletion of their account handed over.
+     * For a group brought back after a log-out, the owner the server lists, there being no Welcome
+     * left to read it from, see `group.GroupDto.ownerUuid`.
      */
     val ownerUuid: String,
 
@@ -91,9 +89,10 @@ class GroupEntity(
     val isBackedUp: Boolean,
 
     /**
-     * Whether the user is no longer a member of the group: its creator removed them, or they left
-     * it, see `group.GroupLeaver`. The group stays, read-only, with what the user had of it, and
-     * its MLS state is deleted. The creator adding them back brings it back to life.
+     * Whether the user is no longer a member of the group: its creator removed them, they left it,
+     * see `group.GroupLeaver`, or its owner deleted it, see [isDeleted]. The group stays, read-only,
+     * with what the user had of it, and its MLS state is deleted. The creator adding them back
+     * brings it back to life.
      */
     val isLeft: Boolean,
 
@@ -141,4 +140,14 @@ class GroupEntity(
      * in step with the server again.
      */
     val isAwaitingOwner: Boolean = false,
+
+    /**
+     * Whether the server no longer holds the group, its owner having deleted it, or their account,
+     * see `group.GroupSync`, which tells it from a removal: the user is out of it, see [isLeft], and
+     * this is why, there being nobody left to add them back. Told on the group's screens, and read
+     * nowhere else, every rule about a group the user is out of going by [isLeft]. The owner's own
+     * device forgets the group instead, see `group.GroupDeleter`, unless the answer was lost and a
+     * sync found it gone first.
+     */
+    val isDeleted: Boolean = false,
 )

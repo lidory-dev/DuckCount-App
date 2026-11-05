@@ -14,10 +14,11 @@ import app.lidory.duckcount.groupList.R
 
 /**
  * Tells the user that they are no longer a member of the group, which stays on this device,
- * read-only, in neutral words that blame nobody.
+ * read-only, in neutral words that blame nobody, or that its owner deleted it, [isDeleted], which
+ * nobody can take back.
  */
 @Composable
-fun LeftGroupNotice(modifier: Modifier = Modifier) {
+fun LeftGroupNotice(isDeleted: Boolean, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(size = Padding.large),
@@ -25,7 +26,7 @@ fun LeftGroupNotice(modifier: Modifier = Modifier) {
     ) {
         Text(
             modifier = Modifier.padding(Padding.large),
-            text = stringResource(R.string.left_group_notice),
+            text = stringResource(if (isDeleted) R.string.deleted_group_notice else R.string.left_group_notice),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }

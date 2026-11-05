@@ -205,8 +205,11 @@ class GroupLeaverTest {
         keyLinks = { Result.Success(serverLinks.toList()) },
         now = { error("Nobody departed from a group here.") },
         fullName = { names[it] },
+        fullNameEvenIfHidden = { names[it] },
         // What becomes of the keys to the members' profiles is GroupSyncProfileKeysTest's.
         hasPendingChange = { false },
+        hasPendingCreation = { false },
+        markDeleted = { error("Nobody deletes a group here.") },
         isBlocked = { false },
         setHandedProfileKey = { _, _ -> },
         takeOwnerKey = { _, _, _ -> },

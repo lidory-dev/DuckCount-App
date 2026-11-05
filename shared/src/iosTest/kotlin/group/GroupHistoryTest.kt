@@ -173,8 +173,8 @@ class GroupHistoryTest {
     }
 
     /**
-     * Carol holds the group's key, and the server can list what she sealed, as it takes the edits
-     * of a member an account deletion handed it over to: she cannot sign as Alice.
+     * Carol holds the group's key, and the server can list what she sealed: she cannot sign as
+     * Alice.
      */
     @Test
     fun `a version another member signed is left out`() = runBlocking<Unit> {

@@ -98,6 +98,22 @@ data class GroupRemoval(
     val removerFullName: String?,
 )
 
+/** A group its owner deleted for everybody, as a [GroupSync] pass found, for the user to be told about. */
+data class GroupDeletion(
+    val groupUuid: String,
+    val title: String,
+
+    /** Who deleted it, or their account: its creator, see [GroupEntity.ownerUuid]. */
+    val deleterUuid: String,
+
+    /**
+     * Null while this device has yet to read their name. Read even if they are hidden: an owner
+     * deleting their account tells their contacts first, which hides them before the sync finds the
+     * group gone.
+     */
+    val deleterFullName: String?,
+)
+
 /** What one [GroupSync.sync] came to. */
 class GroupSyncPass(
     /** The groups the user was added to and joined, whatever else the pass came to. */
@@ -109,6 +125,12 @@ class GroupSyncPass(
      * among [joined] alone, and one they were added to and removed from again among these alone.
      */
     val removed: List<GroupRemoval>,
+
+    /**
+     * The groups found deleted by their owner, whatever else the pass came to, but for one the user
+     * owns: they know, having asked for it.
+     */
+    val deleted: List<GroupDeletion>,
 
     /**
      * The first thing that kept the pass from doing all it had to, or null when nothing did, but
@@ -130,23 +152,26 @@ class GroupSyncPass(
  *    [GroupMembershipSender.resendPending]. One pending in a group the server no longer lists, the
  *    user removed from it since, is settled from what waits there instead, see
  *    [GroupMembershipSender.settleUnlisted].
- * 2. What waits in every group this device holds the MLS state of and the user is still in is
+ * 2. Every group the user is still in that the server no longer lists, and whose messages it says
+ *    are not there, is one its owner deleted, see [takeDeletions]: the group stays read-only, as
+ *    after a removal, and takes no further part in the pass.
+ * 3. What waits in every group this device holds the MLS state of and the user is still in is
  *    read, see [drain], whether or not the server still lists the group: the server lists a group
  *    to its current members alone, and the Commit removing the user is how this device learns it.
  *    Every Commit read takes the group to an epoch whose key MLS derives then and only then, which
  *    is kept as its generation, see [GroupKeyEntity]. A group this device finds itself behind the
  *    server in, with nothing left to read, waits for its creator, whose device replaces the Commit
  *    it refused, see [standing].
- * 3. Every group the server lists has whoever it lists as departed removed from it, see
+ * 4. Every group the server lists has whoever it lists as departed removed from it, see
  *    [dropDeparted]: those who left it, on purpose, see [GroupLeaver], or as a device declining it
  *    does, and accounts deleted since. By its creator's device at once, and by any other member's
  *    once [DEPARTED_GRACE] has gone by, a sync booked for then.
- * 4. Every group brought back after a log-out that the server lists takes the members it lists of
+ * 5. Every group brought back after a log-out that the server lists takes the members it lists of
  *    it, see [refresh], and every one it no longer lists is one the user was removed from, see
  *    [leaveUnlisted]: there is no MLS state to read the Commits doing so with. Every group this
  *    device holds that the user is still in shows the version of its information the server lists,
  *    when it is newer than the one shown and its creator signed it, see [takeEdits].
- * 5. Every group the server lists that this device neither holds nor declined is taken in, see
+ * 6. Every group the server lists that this device neither holds nor declined is taken in, see
  *    [takeIn]: brought back from the user's copy of its key, which the server lists with it, see
  *    [GroupKeyCopies.open], after a log-out took it off this device, or else joined from the
  *    Welcome waiting there, or declined. One with neither is declined too, nothing being left that
@@ -160,12 +185,12 @@ class GroupSyncPass(
  *    of its creator adding them back, see [rejoin], what waits before it acknowledged with it, and
  *    so is every group brought back after a log-out, which only that gives MLS state again, what
  *    waits there with no such Welcome acknowledged unread.
- * 6. Every leave owed is sent, see [leaveDeclined]: that of every group this device declined,
+ * 7. Every leave owed is sent, see [leaveDeclined]: that of every group this device declined,
  *    those this pass declined included, and of every group the user left, see [GroupLeaver].
- * 7. Once every group is caught up, the key to the user's own profile is posted into each owed
+ * 8. Once every group is caught up, the key to the user's own profile is posted into each owed
  *    it: each they joined, or whose creator seated somebody, since they last posted it there, see
  *    [takeProfileKeys], and each once their key rotates, see [GroupProfileKeyDelivery].
- * 8. Last, the user's copy of the key of every group the server lists is put up wherever the
+ * 9. Last, the user's copy of the key of every group the server lists is put up wherever the
  *    listing shows none, or this device holds a key whose copy has not gone up, see
  *    [GroupKeyCopies.putUp]: each group this pass joined, and each a Commit read took to a new
  *    epoch, among them, the copy of the newest generation this device holds. And every generation
@@ -173,7 +198,7 @@ class GroupSyncPass(
  *    else in the pass waits on either, and neither runs between reading a group's messages and
  *    acknowledging them, see [drain] and [enter]: sealing a copy reads the key ring, which throws
  *    once the device locks.
- * 9. Who may wake the user is rebuilt with the members the groups hold now, see [WakeList]: those
+ * 10. Who may wake the user is rebuilt with the members the groups hold now, see [WakeList]: those
  *    of a group the user was removed from no longer do, and those of a group they joined do, with
  *    an expense of it, a change to it and a leave from it.
  *
@@ -213,10 +238,8 @@ class GroupSyncPass(
  * the server only claims removes the departed: the Commit's own proposals say whom it removes. A
  * group brought back after a log-out holds no tree to tell its members, so it takes the members and
  * the creator the server lists, additions included, see [restore] and [refresh], until the Welcome
- * of that creator adding the user back gives it MLS state again, see [rejoin]. The owner the server
- * lists also decides which group this device declined is not left, see [leaveDeclined]: a server
- * lying about it keeps the user a member there, which it can do anyway by ignoring the leave. And
- * the creator it lists decides whose Welcome a group is joined from when the first message waiting
+ * of that creator adding the user back gives it MLS state again, see [rejoin]. And the creator it
+ * lists decides whose Welcome a group is joined from when the first message waiting
  * there is no way in at all, see [join]: a server lying about it can have the user join from the
  * Welcome of somebody else who may add them to a group, which it can do anyway by holding back
  * whatever waits before that Welcome.
@@ -245,8 +268,10 @@ class GroupSyncPass(
  * [GroupMembershipChanger.replaceUnderGroupsLock] and
  * [GroupMembershipChanger.remakeOutdatedUnderGroupsLock], [keyOf] is [GroupKeyChain.keyOf],
  * [checkKeyLinks] is [GroupKeyLinks.check], [isUnblockedContact] is [ContactDao.isUnblocked],
- * [client] is [MlsIdentityRepository.client], [fullName] is [UserDao.getFullName],
- * [hasPendingChange] is [GroupDao.hasChangeOnServer], [isBlocked] is
+ * [client] is [MlsIdentityRepository.client], [fullName] and [fullNameEvenIfHidden] are
+ * [UserDao.getFullName] and [UserDao.getFullNameEvenIfHidden],
+ * [hasPendingChange] is [GroupDao.hasChangeOnServer], [hasPendingCreation] is
+ * [GroupDao.hasPendingCreation], [markDeleted] is [GroupDao.markDeleted], [isBlocked] is
  * [IdentityConflictDao.isBlocked], [setHandedProfileKey] is [GroupDao.setHandedProfileKeyHash],
  * [takeOwnerKey], [fillGap], [restoreMemberProfiles], [readMemberNames] and [backUpMemberProfiles]
  * are [MemberProfileRepository.takeOwnerKey], [MemberProfileRepository.fillGap],
@@ -307,7 +332,10 @@ class GroupSync internal constructor(
     ) -> Result<ByteArray, GroupKeyChainError>,
     private val checkKeyLinks: suspend () -> EmptyResult<GroupSyncError>,
     private val fullName: suspend (userUuid: String) -> String?,
+    private val fullNameEvenIfHidden: suspend (userUuid: String) -> String?,
     private val hasPendingChange: suspend (groupUuid: String) -> Boolean,
+    private val hasPendingCreation: suspend (groupUuid: String) -> Boolean,
+    private val markDeleted: suspend (groupUuid: String) -> Unit,
     private val isBlocked: suspend (userUuid: String) -> Boolean,
     private val setHandedProfileKey: suspend (groupUuid: String, handedProfileKeyHash: String?) -> Unit,
     private val takeOwnerKey: suspend (userUuid: String, profileEncryptionKey: ByteArray, sentAt: Long) -> Unit,
@@ -380,7 +408,10 @@ class GroupSync internal constructor(
         keyOf = groupKeyChain::keyOf,
         checkKeyLinks = groupKeyLinks::check,
         fullName = userDao::getFullName,
+        fullNameEvenIfHidden = userDao::getFullNameEvenIfHidden,
         hasPendingChange = groupDao::hasChangeOnServer,
+        hasPendingCreation = groupDao::hasPendingCreation,
+        markDeleted = groupDao::markDeleted,
         isBlocked = identityConflictDao::isBlocked,
         setHandedProfileKey = { groupUuid, handedProfileKeyHash ->
             groupDao.setHandedProfileKeyHash(uuid = groupUuid, handedProfileKeyHash = handedProfileKeyHash)
@@ -412,6 +443,7 @@ class GroupSync internal constructor(
     suspend fun sync(contactsTakenIn: Boolean): GroupSyncPass {
         val joined = mutableListOf<GroupArrival>()
         val removed = mutableListOf<GroupRemoval>()
+        val deleted = mutableListOf<GroupDeletion>()
         var failure: GroupSyncError? = null
 
         val isRunThrough = runsUnlocked {
@@ -420,7 +452,7 @@ class GroupSync internal constructor(
 
                 resendMembershipChanges().onError { failure = failure ?: it }
 
-                bringInLine(joined = joined, removed = removed, contactsTakenIn = contactsTakenIn)
+                bringInLine(joined = joined, removed = removed, deleted = deleted, contactsTakenIn = contactsTakenIn)
                     ?.let { failure = failure ?: it }
 
                 // Whatever came of the rest, as the contacts' backup rebuilds it, see WakeList.
@@ -437,6 +469,7 @@ class GroupSync internal constructor(
         return GroupSyncPass(
             joined = joined.toList(),
             removed = removed.toList(),
+            deleted = deleted.toList(),
             failure = if (isRunThrough) failure else GroupSyncError.DeviceLocked,
         )
     }
@@ -475,8 +508,9 @@ class GroupSync internal constructor(
 
     /**
      * Reads what waits in the user's groups, brings those the server lists in line with it, and
-     * takes in those it lists that are new to this device, see [GroupSync], noting in [joined] and
-     * [removed] the groups the user was added to and removed from, then leaves those this device
+     * takes in those it lists that are new to this device, see [GroupSync], noting in [joined],
+     * [removed] and [deleted] the groups the user was added to and removed from, and those found
+     * deleted, then leaves those this device
      * declined, posts the user's own profile key into the groups owed it, see
      * [GroupProfileKeyDelivery], puts up the copies of their keys the server is owed, see
      * [GroupKeyCopies.putUp], and returns the first failure: a group that fails is left for the
@@ -485,6 +519,7 @@ class GroupSync internal constructor(
     private suspend fun bringInLine(
         joined: MutableList<GroupArrival>,
         removed: MutableList<GroupRemoval>,
+        deleted: MutableList<GroupDeletion>,
         contactsTakenIn: Boolean,
     ): GroupSyncError? {
         val selfUuid = userUuid() ?: return GroupSyncError.NoSession
@@ -507,9 +542,16 @@ class GroupSync internal constructor(
 
         val listings = listed.associateBy { it.uuid }
 
+        // Before anything else reads them, none of it having anything left to read, the change
+        // waiting in one of them included. Those it could not tell are told apart by the next pass.
+        val untold = mutableSetOf<String>()
+
+        var failure = takeDeletions(listings = listings, selfUuid = selfUuid, deleted = deleted, untold = untold)
+
         // Before the drain, which reads no group a change is pending in: one the server no longer
         // lists would be read never again, the Commit removing the user from it unread.
-        var failure = (settleUnlisted(listings.keys, ::firstCommitEpochIn) as? Result.Error)?.error
+        (settleUnlisted(listings.keys, ::firstCommitEpochIn) as? Result.Error)?.error
+            ?.let { failure = failure ?: it }
 
         drainAll(selfUuid = selfUuid, listings = listings, removed = removed, behind = behind)
             ?.let { failure = failure ?: it }
@@ -526,7 +568,7 @@ class GroupSync internal constructor(
 
         takeEdits(listed = listed, stored = stored, selfUuid = selfUuid)?.let { failure = failure ?: it }
 
-        leaveUnlisted(listed = listed, stored = stored, removed = removed)
+        leaveUnlisted(listed = listed, stored = stored, untold = untold, removed = removed)
 
         takeIn(
             listed = listed,
@@ -539,7 +581,7 @@ class GroupSync internal constructor(
         )?.let { failure = failure ?: it }
 
         // Once the groups are taken in, so that one declined just now is left by this very pass.
-        leaveDeclined(listed = listed, selfUuid = selfUuid)?.let { failure = failure ?: it }
+        leaveDeclined(listed = listed)?.let { failure = failure ?: it }
 
         // Once every group is caught up, so that each post goes out in the epoch its members are in.
         handOutProfileKey(behind).onError { failure = failure ?: it }
@@ -550,6 +592,80 @@ class GroupSync internal constructor(
         putUpKeyCopies(listed).onError { failure = failure ?: it }
 
         checkKeyLinks().onError { failure = failure ?: it }
+
+        return failure
+    }
+
+    /**
+     * Marks as deleted every group this device holds, that the user is still in, that the server no
+     * longer lists in [listings], and that it says holds nothing for them either, noting it in
+     * [deleted] unless the user owns it, having asked for it then, and returns the first failure,
+     * the group it was about noted in [untold].
+     *
+     * The server lists a group to its current members alone, which leaves two ways for one to drop
+     * out of the listing of somebody who is still in it here. A member the group's creator removed
+     * still has a row in it, and `GET /groups/{group_uuid}/messages` serves them, the Commit doing
+     * so among what waits there, see [drain]. A group its owner deleted, by itself or with their
+     * account, has no rows left, and that route answers `404`, as it does anybody who was never in the group, see [GroupApi.delete]. So
+     * does the proxy in front of the server as it is redeployed, see [GroupLeaveAnswer.NotMember],
+     * which takes the server having just listed nothing of the group: a member it removed told it
+     * was deleted, a removal it would have read otherwise. Nothing is lost that the Welcome of its
+     * creator adding them back does not bring back, see [rejoin], which clears the mark.
+     *
+     * Not a group whose creation the server has not been heard to take, which it holds nothing of
+     * yet, see [GroupCreationSender], nor one the user is no longer in: they were told of what took
+     * them out, and whatever becomes of the group after that is none of their business.
+     *
+     * A server lying about it can only stop serving the group, which it can do anyway, and leave
+     * every member what they held of it: nothing is taken off this device on its word, so that it
+     * has no way to have a member lose what they held. It does cost a member the group's MLS state,
+     * as stopping would cost them the group.
+     *
+     * The mark is recorded and noted before anything that could throw, as for a removal, see
+     * [drain]: the next pass finds it deleted already, with nothing to tell. Any change to the
+     * group's members waiting on the server goes with the mark, see [GroupDao.markDeleted], so it
+     * is neither settled nor sent again.
+     */
+    private suspend fun takeDeletions(
+        listings: Map<String, GroupDto>,
+        selfUuid: String,
+        deleted: MutableList<GroupDeletion>,
+        untold: MutableSet<String>,
+    ): GroupSyncError? {
+        var failure: GroupSyncError? = null
+
+        for (group in storedGroups().filterNot { it.isLeft }) {
+            if (group.uuid in listings || hasPendingCreation(group.uuid)) continue
+
+            when (val list = listMessages(group.uuid)) {
+                is Result.Success -> continue
+
+                is Result.Error -> if (list.error != NetworkError.NOT_FOUND) {
+                    untold += group.uuid
+
+                    failure = failure ?: GroupSyncError.Network(list.error)
+
+                    continue
+                }
+            }
+
+            // The row first, which keeps the group's id: whatever becomes of its state, a direct
+            // message naming it is never read, see [GroupEntity.mlsGroupId].
+            markDeleted(group.uuid)
+
+            if (group.ownerUuid != selfUuid) {
+                deleted += GroupDeletion(
+                    groupUuid = group.uuid,
+                    title = group.title,
+                    deleterUuid = group.ownerUuid,
+                    deleterFullName = fullNameEvenIfHidden(group.ownerUuid),
+                )
+            }
+
+            group.mlsGroupId?.let { mlsGroupId ->
+                (client() as? Result.Success)?.data?.deleteGroupQuietly(mlsGroupId = mlsGroupId)
+            }
+        }
 
         return failure
     }
@@ -856,9 +972,8 @@ class GroupSync internal constructor(
      * The creator's device replaces it, see [GroupMembershipChanger.replaceUnderGroupsLock]: a Commit
      * for the epoch it is at, the one every device stayed in, removing whoever sent the Commits it
      * refused there, as the server says, and whoever departed, see [GroupDto.departed], or nobody,
-     * which every member's device takes from it. Only the creator's: a Commit of an owner the
-     * server handed the group to would be refused as any other member's, removing members who did
-     * not depart. Any other member's device records the group as waiting for its owner, see
+     * which every member's device takes from it. Only the creator's: any other member's would be
+     * refused for removing members who did not depart. Any other member's device records the group as waiting for its owner, see
      * [GroupEntity.isAwaitingOwner], which clears once it is in step again.
      *
      * Says whether this device is still behind the server, whether the replacement is settled, and
@@ -1423,7 +1538,9 @@ class GroupSync internal constructor(
      *
      * The server lists a group to its current members and its owner alone, so one it no longer
      * lists is one whose creator removed the user, see [GroupEntity.isLeft]: one the user left is
-     * marked left as they leave it, see [GroupLeaver], and so is never taken for that. A group this
+     * marked left as they leave it, see [GroupLeaver], and so is never taken for that, and one its
+     * owner deleted was marked already, see [takeDeletions], unless the server could not be asked,
+     * [untold], which leaves it to the next pass. A group this
      * device holds the MLS state of is told so by the Commit doing so, see [drain], which nothing
      * here can read: a group brought back holds none, see [restore], and so cannot read anything
      * sent in it.
@@ -1437,12 +1554,13 @@ class GroupSync internal constructor(
     private suspend fun leaveUnlisted(
         listed: List<GroupDto>,
         stored: Map<String, GroupEntity>,
+        untold: Set<String>,
         removed: MutableList<GroupRemoval>,
     ) {
         val listedUuids = listed.mapTo(HashSet()) { it.uuid }
 
         for (group in stored.values) {
-            if (group.isLeft || group.mlsGroupId != null || group.uuid in listedUuids) continue
+            if (group.isLeft || group.mlsGroupId != null || group.uuid in listedUuids || group.uuid in untold) continue
 
             markLeft(group.uuid)
 
@@ -1555,7 +1673,7 @@ class GroupSync internal constructor(
      * sealed under. The generations between them and the copy's are got back the same way as they
      * are asked for, see [GroupKeyChain].
      *
-     * Its creator is the one the server lists, see [GroupDto.creatorUuid], the Welcome that named
+     * Its creator is the owner the server lists, see [GroupDto.ownerUuid], the Welcome that named
      * them long gone, and the version is held against the pin this device holds for them, see
      * [openSigned]: one of the
      * user's contacts, whose pins the vault brings back as the client opens, or the user, or
@@ -1570,12 +1688,6 @@ class GroupSync internal constructor(
      * else waits there while the server lists the group is acknowledged unread, so that it neither
      * holds a key package back from pruning, see [hasNoWelcomeWaiting], nor piles up. One it no
      * longer lists holds none back, and nothing more is sent there, see [leaveUnlisted].
-     *
-     * A group whose creator deleted their account is brought back all the same. The server handed
-     * it to another member as it took the account away, and lists it under them, but still names
-     * its creator, whose versions they stay: held against them, it holds up under the pin this
-     * device may still hold for them, and is otherwise taken at its word, see [isSignedByCreator].
-     * Held against the member it was handed to, it would be refused as one they did not sign.
      */
     private suspend fun restore(
         group: GroupDto,
@@ -1594,7 +1706,7 @@ class GroupSync internal constructor(
         }
 
         val creatorKey = try {
-            client.creatorKeyOf(creatorUuid = group.creatorUuid, selfUuid = selfUuid)
+            client.creatorKeyOf(creatorUuid = group.ownerUuid, selfUuid = selfUuid)
         } catch (_: MlsException) {
             return GroupSyncError.Storage
         }
@@ -1616,11 +1728,11 @@ class GroupSync internal constructor(
             group = group,
             held = mapOf(groupKey.generation to groupKey.key),
             links = links,
-            creatorUuid = group.creatorUuid,
+            creatorUuid = group.ownerUuid,
             creatorKey = creatorKey,
         ) ?: return rejoin(
             group = group,
-            creatorUuid = group.creatorUuid,
+            creatorUuid = group.ownerUuid,
             heldMlsGroupId = null,
             selfUuid = selfUuid,
             joined = joined,
@@ -1632,7 +1744,7 @@ class GroupSync internal constructor(
         val kept = keep(
             group = group,
             version = opened.version,
-            creatorUuid = group.creatorUuid,
+            creatorUuid = group.ownerUuid,
             memberUuids = group.members.map { it.userUuid },
             mlsGroupId = null,
             keys = listOf(groupKey.entityOf(groupUuid = group.uuid, isRecovered = false)) +
@@ -1763,7 +1875,7 @@ class GroupSync internal constructor(
         }
 
         // No way in at all, the first says nothing of who adds the user, see above.
-        val creatorUuid = first?.inspection?.committerUserUuid ?: group.creatorUuid
+        val creatorUuid = first?.inspection?.committerUserUuid ?: group.ownerUuid
 
         val creatorMayAdd = try {
             mayAdd(client = client, userUuid = creatorUuid)
@@ -1992,8 +2104,8 @@ class GroupSync internal constructor(
      *
      * Saved with the members the group holds once caught up, the user among them, as the Welcome's
      * tree and every Commit after it name them, rather than those the server lists, see
-     * [joinGroupOf], and whoever wrote the Welcome as its creator rather than the owner the server
-     * lists, see [GroupEntity.ownerUuid]. Joined, caught up and saved under [withGroupJoinLock], so
+     * [joinGroupOf], and whoever wrote the Welcome as its creator rather than whom the server lists,
+     * see [GroupEntity.ownerUuid]. Joined, caught up and saved under [withGroupJoinLock], so
      * that no direct message is read in the group while the library holds it and the database does
      * not name it yet, see [message.DirectMessageSync], and refused outside it: refusing asks the
      * server.
@@ -2199,9 +2311,8 @@ class GroupSync internal constructor(
 
     /**
      * Declines the group [groupUuid], see [DeclinedGroupEntity]: recorded as declined, which makes
-     * it a group to leave, and [leaveDeclined] leaves it later in the same pass, unless the server
-     * lists the user as its owner, which keeps it declined and never left. Nothing waiting there is
-     * acknowledged: the leave drops all of it, the Welcome among it, and whatever comes after it
+     * it a group to leave, and [leaveDeclined] leaves it later in the same pass. Nothing waiting there
+     * is acknowledged: the leave drops all of it, the Welcome among it, and whatever comes after it
      * until then. Recorded first, before anything that can throw, so that a device locking, or a
      * server not answering, leaves the leave owed rather than the group decided on again.
      *
@@ -2244,12 +2355,6 @@ class GroupSync internal constructor(
      * see [dropDeparted]. The proxy answers so only until the redeploy is done, so the leave is not
      * sent again for good.
      *
-     * Not a group the server lists the user as the owner of, of those in [listed]: it refuses its
-     * owner, who would leave the group with nobody able to change it, and [GroupLeaveAnswer] does
-     * not tell that refusal from no answer. That is a group handed to them as its owner deleted
-     * their account, which they may have declined or left: past saving, only its creator's device
-     * changing a group. Its leave stays owed, neither asked about nor sent.
-     *
      * Forgotten, a group this device declined is decided on afresh should the server list it
      * again: its creator added the user back, whose new Welcome is the first thing waiting then,
      * the leave having dropped everything before it. One the user left, which this device still
@@ -2262,17 +2367,15 @@ class GroupSync internal constructor(
      * Nothing is forgotten before the server answered, so a device locking as this runs, see
      * [GroupSyncError.DeviceLocked], leaves every group not left yet owed for the next pass.
      */
-    private suspend fun leaveDeclined(listed: List<GroupDto>, selfUuid: String): GroupSyncError? {
-        val owners = listed.associate { it.uuid to it.ownerUuid }
+    private suspend fun leaveDeclined(listed: List<GroupDto>): GroupSyncError? {
+        val listedUuids = listed.mapTo(HashSet()) { it.uuid }
 
         for (groupUuid in declinedGroups()) {
-            if (owners[groupUuid] == selfUuid) continue
-
             // What kept the leave from going through, if anything: a 404 for a group listed is
             // the proxy's, see above.
             val unanswered = when (val answer = leave(groupUuid)) {
                 GroupLeaveAnswer.Left -> null
-                GroupLeaveAnswer.NotMember -> NetworkError.NOT_FOUND.takeIf { groupUuid in owners }
+                GroupLeaveAnswer.NotMember -> NetworkError.NOT_FOUND.takeIf { groupUuid in listedUuids }
                 is GroupLeaveAnswer.Failed -> answer.error
             }
 
