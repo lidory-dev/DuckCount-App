@@ -1,5 +1,6 @@
 package expense
 
+import app.lidory.duckcount.ExpenseLimits
 import database.data.remote.EncryptedFieldDto
 import database.data.remote.ExpenseDto
 import database.data.remote.OneTimeExpenseHistoryEntryDto
@@ -214,9 +215,6 @@ class OneTimeExpenseHistoryVerificationTest {
     fun `an expense whose amounts are not padded to the one length does not open`() {
         val entry = expense().signedBy(creditor, revision = 1)
 
-        fun sealedAs(context: String, text: String) =
-            assertNotNull(sealBound(key = expenseKey, context = context, plaintext = text.encodeToByteArray()))
-
         // Padded as it should be, as a control: the same fields, signed again unchanged, open.
         assertNotNull(entry.signedAgain().open())
 
@@ -237,6 +235,59 @@ class OneTimeExpenseHistoryVerificationTest {
 
         anotherLength.forEach { (change, changed) -> assertNull(changed.signedAgain().open(), change) }
     }
+
+    /** Sealing hides what a title says but not how long it is, which would say something of it as well. */
+    @Test
+    fun `a title seals to the same length whatever it says`() {
+        val most = ExpenseLimits.MAX_TITLE_LENGTH
+
+        val titles = listOf(
+            "",
+            "a",
+            "Pizzas",
+            "a".repeat(most),
+            // Two bytes each in UTF-8, three, and four for two characters.
+            "é".repeat(most),
+            "€".repeat(most),
+            "😀".repeat(most / 2),
+        )
+
+        val lengths = titles.map { title ->
+            val entry = expense(title = title).signedBy(creditor, revision = 1)
+
+            assertEquals(title, assertNotNull(entry.open(), title).expense.title)
+
+            Base64.Default.decode(entry.previous_title.ciphertext).size
+        }
+
+        assertEquals(1, lengths.toSet().size)
+    }
+
+    /** Signed by its creditor over just what it holds, so that nothing but the length refuses it. */
+    @Test
+    fun `an expense whose title is not padded to the one length does not open`() {
+        val entry = expense().signedBy(creditor, revision = 1)
+        val size = ExpenseLimits.MAX_TITLE_LENGTH * 3
+
+        // Padded as it should be, as a control: the same fields, signed again unchanged, open.
+        assertEquals("Pizzas", assertNotNull(entry.signedAgain().open()).expense.title)
+        assertEquals(
+            "Pizzas",
+            assertNotNull(
+                entry.copy(previous_title = sealedAs("one_time_expense:title", "Pizzas".padEnd(size))).signedAgain().open(),
+            ).expense.title,
+        )
+
+        listOf("Pizzas", "Pizzas".padEnd(size - 1), "Pizzas".padEnd(size + 1)).forEach { title ->
+            val changed = entry.copy(previous_title = sealedAs("one_time_expense:title", title))
+
+            assertNull(changed.signedAgain().open(), "${title.length} characters")
+        }
+    }
+
+    /** [text] sealed under the expense's key, bound to [context], as a client of its own would. */
+    private fun sealedAs(context: String, text: String) =
+        assertNotNull(sealBound(key = expenseKey, context = context, plaintext = text.encodeToByteArray()))
 
     /** This entry with its creditor's signature made anew over what it holds now. */
     private fun OneTimeExpenseHistoryEntryDto.signedAgain(): OneTimeExpenseHistoryEntryDto {
