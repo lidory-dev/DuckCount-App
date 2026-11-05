@@ -11,7 +11,8 @@ package app.lidory.duckcount
  * AES-256-GCM, which adds its 16-byte tag and no prefix, the nonce travelling apart, and the
  * ciphertext goes up in padded Base64: `4 * ceil((3 * length + 16) / 3)` characters at most.
  * That is 224 for [MAX_FULL_NAME_LENGTH], 152 for [MAX_PHONE_NUMBER_LENGTH] and 192 for
- * [MAX_BANK_DETAILS_LENGTH].
+ * [MAX_BANK_DETAILS_LENGTH]. Every field seals to just that, whatever it says, being padded up to
+ * those three bytes per unit, for its length to tell the server nothing, see `profile.ProfileRepository`.
  */
 object ProfileLimits {
     const val MAX_FULL_NAME_LENGTH = 50

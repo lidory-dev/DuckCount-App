@@ -4,6 +4,7 @@ import app.lidory.duckcount.ProfileLimits
 import database.data.local.dao.UserDao
 import database.data.mappers.toUserEntity
 import database.domain.User
+import expense.paddedTo
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -19,6 +20,26 @@ import vault.unsealBound
 
 /** Sealed in place of a field the app has no screen for yet. */
 private val UNSET_FIELD = ByteArray(0)
+
+/**
+ * The size each field of a profile is sealed at, in bytes, the most it takes in UTF-8: three for each
+ * of the UTF-16 code units [ProfileLimits] allows it, a surrogate pair taking four for its two.
+ * AES-GCM does not hide how long what it seals is, and the server would otherwise read from the length
+ * of each field how long a name is, and whether its owner gave a phone number or bank details. Each
+ * seals to the cap the server holds it to, see [ProfileLimits].
+ */
+private const val SEALED_FULL_NAME_SIZE = ProfileLimits.MAX_FULL_NAME_LENGTH * 3
+private const val SEALED_PHONE_NUMBER_SIZE = ProfileLimits.MAX_PHONE_NUMBER_LENGTH * 3
+private const val SEALED_BANK_DETAILS_SIZE = ProfileLimits.MAX_BANK_DETAILS_LENGTH * 3
+
+/**
+ * This field as [ProfileFields.seal] padded it to [size], without the padding, or null for one of
+ * any other size: refused whatever it says, as [ProfileError.Crypto], which is its owner's to put
+ * right by saving the profile again, no key having gone missing. A name is saved without the
+ * whitespace around it, see [ProfileRepository.uploadProfile], so that this takes off nothing else.
+ */
+private fun ByteArray.withoutPaddingFrom(size: Int): ByteArray? =
+    if (this.size == size) dropLastWhile { it == ' '.code.toByte() }.toByteArray() else null
 
 /**
  * What each sealed field of a profile is bound to: whose profile it is, and which of its fields.
@@ -327,7 +348,7 @@ class ProfileRepository(
             key = profileEncryptionKey,
             context = Context.fullName(ownerUuid = userUuid),
             content = profile.fullName,
-        )?.decodeToString() ?: return Result.Error(ProfileError.Crypto)
+        )?.withoutPaddingFrom(SEALED_FULL_NAME_SIZE)?.decodeToString() ?: return Result.Error(ProfileError.Crypto)
 
         return Result.Success(FullNameRead(fullName = fullName, isLatest = profile.isLatest))
     }
@@ -374,7 +395,10 @@ class ProfileRepository(
     }
 }
 
-/** The fields of a profile in the clear, each sealed bound to its owner and its own [Context]. */
+/**
+ * The fields of a profile in the clear, each sealed bound to its owner and its own [Context], and
+ * padded to one size, see [SEALED_FULL_NAME_SIZE], which only what is sealed carries.
+ */
 private class ProfileFields(
     val fullName: ByteArray,
     val phoneNumber: ByteArray,
@@ -383,33 +407,43 @@ private class ProfileFields(
     /** These fields sealed under [key] as [ownerUuid]'s, or null when the key is the wrong size. */
     fun seal(key: ByteArray, ownerUuid: String): UserProfileDto? =
         UserProfileDto(
-            fullName = sealBound(key = key, context = Context.fullName(ownerUuid), plaintext = fullName)
-                ?: return null,
-            phoneNumber = sealBound(key = key, context = Context.phoneNumber(ownerUuid), plaintext = phoneNumber)
-                ?: return null,
-            bankDetails = sealBound(key = key, context = Context.bankDetails(ownerUuid), plaintext = bankDetails)
-                ?: return null,
+            fullName = sealBound(
+                key = key,
+                context = Context.fullName(ownerUuid),
+                plaintext = fullName.paddedTo(SEALED_FULL_NAME_SIZE),
+            ) ?: return null,
+            phoneNumber = sealBound(
+                key = key,
+                context = Context.phoneNumber(ownerUuid),
+                plaintext = phoneNumber.paddedTo(SEALED_PHONE_NUMBER_SIZE),
+            ) ?: return null,
+            bankDetails = sealBound(
+                key = key,
+                context = Context.bankDetails(ownerUuid),
+                plaintext = bankDetails.paddedTo(SEALED_BANK_DETAILS_SIZE),
+            ) ?: return null,
         )
 
     companion object {
         /**
          * The fields of [profile], or null when any of them does not open with [key] as
-         * [ownerUuid]'s.
+         * [ownerUuid]'s, or was not padded as [seal] pads it.
          */
         fun unseal(profile: ServedUserProfileDto, key: ByteArray, ownerUuid: String): ProfileFields? =
             ProfileFields(
                 fullName = unsealBound(key = key, context = Context.fullName(ownerUuid), content = profile.fullName)
+                    ?.withoutPaddingFrom(SEALED_FULL_NAME_SIZE)
                     ?: return null,
                 phoneNumber = unsealBound(
                     key = key,
                     context = Context.phoneNumber(ownerUuid),
                     content = profile.phoneNumber,
-                ) ?: return null,
+                )?.withoutPaddingFrom(SEALED_PHONE_NUMBER_SIZE) ?: return null,
                 bankDetails = unsealBound(
                     key = key,
                     context = Context.bankDetails(ownerUuid),
                     content = profile.bankDetails,
-                ) ?: return null,
+                )?.withoutPaddingFrom(SEALED_BANK_DETAILS_SIZE) ?: return null,
             )
     }
 }

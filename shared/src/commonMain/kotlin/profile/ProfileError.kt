@@ -22,7 +22,7 @@ sealed interface ProfileError : Error {
      */
     data object NotStored : ProfileError
 
-    /** A stored field could not be unsealed with the key that should open it. */
+    /** A stored field could not be unsealed with the key that should open it, or was not padded as sealing pads it. */
     data object Crypto : ProfileError
 
     /**

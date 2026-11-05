@@ -117,7 +117,7 @@ class ProfileLimitsTest {
     private fun sealedFullName(): String? {
         val sealed = store.versionsOf(ALICE).getValue(profileEncryptionKeyPartialHash(key)).fullName
 
-        return unsealBound(key = key, context = "profile:$ALICE:full_name", content = sealed)?.decodeToString()
+        return unsealBound(key = key, context = "profile:$ALICE:full_name", content = sealed)?.decodeToString()?.trimEnd(' ')
     }
 
     /** The Base64 length of [value] sealed as Alice's [field], as the profile goes up. */
