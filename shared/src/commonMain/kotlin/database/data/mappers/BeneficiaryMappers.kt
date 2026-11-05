@@ -8,6 +8,7 @@ fun BeneficiaryEntity.toBeneficiary() = Beneficiary(
     userUuid = userUuid,
     share = share,
     isShareFixed = isShareFixed,
+    sharePercentage = sharePercentage,
 )
 
 fun Beneficiary.toBeneficiaryEntity() = BeneficiaryEntity(
@@ -15,5 +16,6 @@ fun Beneficiary.toBeneficiaryEntity() = BeneficiaryEntity(
     userUuid = userUuid,
     share = share,
     isShareFixed = isShareFixed,
+    sharePercentage = sharePercentage,
 )
 

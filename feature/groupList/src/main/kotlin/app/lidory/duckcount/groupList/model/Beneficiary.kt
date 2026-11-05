@@ -10,4 +10,5 @@ data class Beneficiary(
     val userUuid: String,
     val share: String,
     val isShareFixed: Boolean = false,
+    val sharePercentage: String? = null,
 )

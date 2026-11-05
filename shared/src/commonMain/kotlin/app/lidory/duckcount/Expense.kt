@@ -16,7 +16,11 @@ fun validateExpense(
             amount = amount,
             currency = Currency(name = currency.name, symbol = currency.symbol, hasSubUnit = currency.hasSubunits),
             beneficiaries = beneficiaries.map { beneficiary ->
-                Beneficiary(userUuid = beneficiary.userUuid, share = beneficiary.share)
+                Beneficiary(
+                    userUuid = beneficiary.userUuid,
+                    share = beneficiary.share,
+                    sharePercentage = beneficiary.sharePercentage,
+                )
             },
         )
         return null
@@ -38,6 +42,7 @@ fun computeBeneficiaries(
     currency: Currency,
     beneficiaryUserUuids: List<String>,
     fixedShares: Map<String, String>,
+    sharePercentages: Map<String, String>,
 ): List<Beneficiary> {
     return try {
         computeBeneficiaries(
@@ -45,16 +50,18 @@ fun computeBeneficiaries(
             currency = currency,
             beneficiaryUserUuids = beneficiaryUserUuids,
             fixedShares = fixedShares,
+            sharePercentages = sharePercentages,
         )
     } catch (_: ExpenseException) {
         // Shares can't be computed yet (e.g. a blank/invalid amount or shares that
         // don't add up while the user is still editing). Don't crash: keep the
-        // selected beneficiaries with their fixed shares so the UI stays intact,
-        // and let a later valid input recompute the shares.
+        // selected beneficiaries with their fixed shares and percentages so the UI
+        // stays intact, and let a later valid input recompute the shares.
         beneficiaryUserUuids.map { userUuid ->
             Beneficiary(
                 userUuid = userUuid,
                 share = fixedShares[userUuid] ?: "",
+                sharePercentage = sharePercentages[userUuid],
             )
         }
     }

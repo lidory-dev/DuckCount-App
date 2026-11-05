@@ -121,6 +121,7 @@ class CreateExpenseCallBacksImpl(
         currency: Currency,
         beneficiaryUserUuids: List<String>,
         fixedUuid: Map<String, String>,
+        sharePercentages: Map<String, String>,
         expenseUuid: String,
     ): List<Beneficiary> {
         return computeBeneficiaries(
@@ -128,12 +129,14 @@ class CreateExpenseCallBacksImpl(
             currency = currency.toUniffi(),
             beneficiaryUserUuids = beneficiaryUserUuids,
             fixedShares = fixedUuid,
+            sharePercentages = sharePercentages,
         ).map {
             Beneficiary(
                 expenseUuid = expenseUuid,
                 userUuid = it.userUuid,
                 share = it.share,
                 isShareFixed = false,
+                sharePercentage = it.sharePercentage,
             )
         }
     }

@@ -102,6 +102,39 @@ class GroupExpenseSealingTest {
         assertEquals(ALICE, opened.authorUuid)
     }
 
+    @Test
+    fun `a share set as a percentage opens with it and the others without`() {
+        val opened = assertNotNull(open(content = sealed(expense = dinnerWithBobsPercentage("66.67"))))
+
+        assertEquals(
+            mapOf(ALICE to null, BOB to "66.67"),
+            opened.expense.beneficiaries.associate { it.userUuid to it.sharePercentage },
+        )
+    }
+
+    /** It would show one thing and charge another, and an edit would work the share out again from it. */
+    @Test
+    fun `a share its percentage does not come to does not open`() {
+        assertNull(open(content = sealed(expense = dinnerWithBobsPercentage("10"))))
+    }
+
+    /** Sealing hides who pays a percentage but not how long what it seals is, which would say it as well. */
+    @Test
+    fun `a percentage of any length and none seal to the same length`() {
+        val lengths = listOf(null, "5", "66.67", "100.00").map { percentage ->
+            sealed(expense = dinnerWithBobsPercentage(percentage)).ciphertext.length
+        }
+
+        assertEquals(1, lengths.toSet().size)
+    }
+
+    private fun dinnerWithBobsPercentage(percentage: String?) =
+        dinner.copy(
+            beneficiaries = dinner.beneficiaries.map { beneficiary ->
+                if (beneficiary.userUuid == BOB) beneficiary.copy(sharePercentage = percentage) else beneficiary
+            },
+        )
+
     /** As the server serving a version of one expense as another's would leave a member. */
     @Test
     fun `a version does not open as another expense's or another group's`() {
@@ -137,6 +170,7 @@ class GroupExpenseSealingTest {
             "creditor" to { it.with("creditor_uuid", JsonPrimitive(BOB)) },
             "share" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("share", JsonPrimitive("50.00")) } },
             "fixed share" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("is_share_fixed", JsonPrimitive(1)) } },
+            "percentage" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("share_percentage", JsonPrimitive("66.67 ")) } },
             "beneficiary" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("user_uuid", JsonPrimitive(CAROL)) } },
             "settlement" to { it.with("is_settlement", JsonPrimitive(1)) },
             "author" to { it.with("author_uuid", JsonPrimitive(BOB)) },
@@ -366,7 +400,9 @@ class GroupExpenseSealingTest {
             shares = beneficiaryUuids.map { it to "999999999999999.99" },
             title = "\u0001".repeat(ExpenseLimits.MAX_TITLE_LENGTH),
             description = "\u0001".repeat(ExpenseLimits.MAX_DESCRIPTION_LENGTH),
-        ).let { expense -> expense.copy(beneficiaries = expense.beneficiaries.map { it.copy(isShareFixed = true) }) }
+        ).let { expense ->
+            expense.copy(beneficiaries = expense.beneficiaries.map { it.copy(isShareFixed = true, sharePercentage = "100.00") })
+        }
 
         val content = sealed(expense = longest, revision = Long.MAX_VALUE)
 

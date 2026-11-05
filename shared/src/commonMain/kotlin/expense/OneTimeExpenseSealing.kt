@@ -49,6 +49,8 @@ private object Context {
     fun share(userUuid: String) = "one_time_expense:share:$userUuid"
 
     fun shareFixed(userUuid: String) = "one_time_expense:share_fixed:$userUuid"
+
+    fun sharePercentage(userUuid: String) = "one_time_expense:share_percentage:$userUuid"
 }
 
 /**
@@ -86,6 +88,11 @@ internal fun ExpenseWithBeneficiaries.sealOneTime(
                 key = expenseKey,
                 context = Context.shareFixed(userUuid = beneficiary.userUuid),
                 plaintext = beneficiary.isShareFixed.toSealedFlag(),
+            ) ?: return null,
+            share_percentage = sealBound(
+                key = expenseKey,
+                context = Context.sharePercentage(userUuid = beneficiary.userUuid),
+                plaintext = beneficiary.sharePercentage.toSealedPercentage().encodeToByteArray(),
             ) ?: return null,
         )
     }
@@ -200,11 +207,18 @@ internal fun ExpenseDto.unsealOneTime(record: OneTimeExpenseKeyRecord): OpenedOn
             content = beneficiary.is_share_fixed,
         )?.toFlagOrNull() ?: return null
 
+        val sharePercentage = unsealBound(
+            key = expenseKey,
+            context = Context.sharePercentage(userUuid = beneficiary.user_uuid),
+            content = beneficiary.share_percentage,
+        )?.decodeToString() ?: return null
+
         Beneficiary(
             expenseUuid = uuid,
             userUuid = beneficiary.user_uuid,
             share = share,
             isShareFixed = isShareFixed,
+            sharePercentage = sharePercentage.toPercentageOrNull(),
         )
     }
 
@@ -272,6 +286,7 @@ private fun oneTimeExpenseManifest(
                     userUuid = beneficiary.user_uuid,
                     share = beneficiary.share.toSealedValue(),
                     isShareFixed = beneficiary.is_share_fixed.toSealedValue(),
+                    sharePercentage = beneficiary.share_percentage.toSealedValue(),
                 )
             },
         )
@@ -333,6 +348,26 @@ private fun ByteArray.toFlagOrNull(): Boolean? =
         "0" -> false
         else -> null
     }
+
+/**
+ * The longest a percentage is written, `100.00`, or anything else [validateExpense] takes: three
+ * digits, a point and two more.
+ */
+private const val SEALED_PERCENTAGE_LENGTH = 6
+
+/**
+ * A share's percentage as it is sealed: padded to one length, and all padding for a share that is
+ * no percentage. AES-GCM does not hide how long what it seals is, and the server would tell the
+ * beneficiaries who pay a percentage from the others by the length of this field alone. A version
+ * of a group expense seals it the same way, see `group.GroupExpenseSealing`.
+ */
+internal fun String?.toSealedPercentage(): String = orEmpty().padEnd(SEALED_PERCENTAGE_LENGTH)
+
+/**
+ * The percentage [toSealedPercentage] sealed, or null for a share that is none. What it says is
+ * left to [validateExpense], which refuses anything but a percentage it can read.
+ */
+internal fun String.toPercentageOrNull(): String? = trimEnd().ifEmpty { null }
 
 /**
  * The currency of [CurrencyCatalog] whose UUID was sealed, or null for one the app does not

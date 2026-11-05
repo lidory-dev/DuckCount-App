@@ -118,6 +118,50 @@ class OneTimeExpenseHistoryVerificationTest {
     }
 
     @Test
+    fun `a share set as a percentage opens with it and the others without`() {
+        val opened = assertNotNull(
+            expense(isBobShareFixed = true, bobSharePercentage = "60").signedBy(creditor, revision = 1).open(),
+        )
+
+        assertEquals(
+            mapOf(BOB to "60", CAROL to null),
+            opened.expense.beneficiaries.associate { it.userUuid to it.sharePercentage },
+        )
+    }
+
+    /** Sealing hides who pays a percentage but not how long what it seals is, which would say it as well. */
+    @Test
+    fun `a share set as a percentage of any length and one that is none seal to the same length`() {
+        val lengths = listOf(null, "5", "60", "33.33", "100.00").flatMap { percentage ->
+            expense(bobSharePercentage = percentage).signedBy(creditor, revision = 1).previous_beneficiaries
+                .map { Base64.Default.decode(it.share_percentage.ciphertext).size }
+        }
+
+        assertEquals(1, lengths.toSet().size)
+    }
+
+    /** It would show one thing and charge another, and an edit would work the share out again from it. */
+    @Test
+    fun `a share its percentage does not come to does not open`() {
+        assertNull(expense(bobSharePercentage = "10").signedBy(creditor, revision = 1).open())
+    }
+
+    @Test
+    fun `a percentage moved from one beneficiary to another does not open`() {
+        val entry = expense(bobSharePercentage = "60").signedBy(creditor, revision = 1)
+        val (first, second) = entry.previous_beneficiaries
+
+        val moved = entry.copy(
+            previous_beneficiaries = listOf(
+                first.copy(share_percentage = second.share_percentage),
+                second.copy(share_percentage = first.share_percentage),
+            ),
+        )
+
+        assertNull(moved.open())
+    }
+
+    @Test
     fun `an expense opens in the currency it was sealed in`() {
         val won = CurrencyCatalog.defaultCurrencies.single { it.name == "KRW" }
 
@@ -251,6 +295,7 @@ class OneTimeExpenseHistoryVerificationTest {
     private fun expense(
         title: String = "Pizzas",
         isBobShareFixed: Boolean = false,
+        bobSharePercentage: String? = null,
         currency: Currency = CurrencyCatalog.defaultCurrency,
     ) = ExpenseWithBeneficiaries(
         uuid = EXPENSE,
@@ -261,7 +306,13 @@ class OneTimeExpenseHistoryVerificationTest {
         creditorUuid = CREDITOR,
         currency = currency,
         beneficiaries = listOf(
-            Beneficiary(expenseUuid = EXPENSE, userUuid = BOB, share = "12", isShareFixed = isBobShareFixed),
+            Beneficiary(
+                expenseUuid = EXPENSE,
+                userUuid = BOB,
+                share = "12",
+                isShareFixed = isBobShareFixed,
+                sharePercentage = bobSharePercentage,
+            ),
             Beneficiary(expenseUuid = EXPENSE, userUuid = CAROL, share = "8", isShareFixed = false),
         ),
     )

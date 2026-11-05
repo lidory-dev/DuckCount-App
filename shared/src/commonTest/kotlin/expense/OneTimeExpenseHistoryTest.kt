@@ -253,6 +253,7 @@ class OneTimeExpenseHistoryTest {
                     user_uuid = beneficiaryUuid,
                     share = sealed,
                     is_share_fixed = sealed,
+                    share_percentage = sealed,
                 ),
             ),
         )

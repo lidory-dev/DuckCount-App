@@ -538,7 +538,7 @@ class CreateExpenseViewModel(
         updateBeneficiaries(
             state.beneficiaries.map { beneficiary ->
                 if (beneficiary.userUuid == userUuid) {
-                    beneficiary.copy(isShareFixed = false)
+                    beneficiary.copy(isShareFixed = false, sharePercentage = null)
                 } else {
                     beneficiary
                 }
@@ -551,14 +551,16 @@ class CreateExpenseViewModel(
     fun onBeneficiariesSelected(uuids: Set<String>) {
         val fixedBeneficiaries = state.beneficiaries.filter { it.isShareFixed }
         val fixedShareUuids = fixedBeneficiaries.mapTo(mutableSetOf()) { it.userUuid }
+        val selected = fixedBeneficiaries.filter { it.userUuid in uuids }
 
         val beneficiaries = computeBeneficiaries(
             amount = state.amount.ifBlank { "0" },
             currency = state.currency,
             beneficiaryUserUuids = uuids.toList(),
-            fixedUuid = fixedBeneficiaries
-                .filter { it.userUuid in uuids }
+            fixedUuid = selected
+                .filter { it.sharePercentage == null }
                 .associate { it.userUuid to it.share },
+            sharePercentages = selected.sharePercentages(),
         )
 
         updateBeneficiaries(
@@ -573,15 +575,17 @@ class CreateExpenseViewModel(
         currency: Currency,
         beneficiaryUserUuids: List<String>,
         fixedUuid: Map<String, String>,
+        sharePercentages: Map<String, String>,
     ): List<Beneficiary> {
         return createExpenseCallBacks.computeBeneficiaries(
             amount = amount.toValidNumber(),
             currency = currency,
             beneficiaryUserUuids = beneficiaryUserUuids,
             fixedUuid = fixedUuid,
+            sharePercentages = sharePercentages,
             expenseUuid = _expenseUuid.value ?: "",
         ).map { beneficiary ->
-            if (beneficiary.userUuid in fixedUuid)
+            if (beneficiary.userUuid in fixedUuid || beneficiary.userUuid in sharePercentages)
                 beneficiary.copy(isShareFixed = true)
             else
                 beneficiary
@@ -594,8 +598,9 @@ class CreateExpenseViewModel(
             currency = state.currency,
             beneficiaryUserUuids = state.beneficiaries.map { it.userUuid },
             fixedUuid = state.beneficiaries
-                .filter { it.isShareFixed }
+                .filter { it.isShareFixed && it.sharePercentage == null }
                 .associate { it.userUuid to (it.share.toValidNumber()) },
+            sharePercentages = state.beneficiaries.sharePercentages(),
         )
 
         beneficiaries.forEach {
@@ -603,15 +608,37 @@ class CreateExpenseViewModel(
         }
     }
 
+    /** Makes the share of [userUuid] the amount it is now: if it was a percentage, it is one no more. */
     fun setBeneficiaryFixedShare(userUuid: String) {
         state = state.copy(
             beneficiaries = state.beneficiaries.map { beneficiary ->
                 if (beneficiary.userUuid == userUuid)
-                    beneficiary.copy(isShareFixed = true)
+                    beneficiary.copy(isShareFixed = true, sharePercentage = null)
                 else
                     beneficiary
             },
         )
+    }
+
+    /**
+     * Makes the share of [userUuid] [percentage] percent of the amount, and works the shares out
+     * again from it, whatever amount the amount becomes from here on. What is typed for a share no
+     * longer stands, see [typeBeneficiaryShare]. A percentage the library cannot read leaves the
+     * share blank, and the form unable to save, until a later one replaces it.
+     */
+    fun setBeneficiaryPercentage(userUuid: String, percentage: String) {
+        finishBeneficiaryShare(userUuid = userUuid)
+
+        state = state.copy(
+            beneficiaries = state.beneficiaries.map { beneficiary ->
+                if (beneficiary.userUuid == userUuid)
+                    beneficiary.copy(isShareFixed = true, sharePercentage = percentage.trim())
+                else
+                    beneficiary
+            },
+        )
+
+        calculateShares()
     }
 
     fun getExpenseGroupUuid() = groupUuid
@@ -711,8 +738,12 @@ private fun CreateExpenseState.savedContent(): List<Any> =
         amount,
         currency,
         creditorUuid,
-        beneficiaries.mapTo(HashSet()) { Triple(it.userUuid, it.share, it.isShareFixed) },
+        beneficiaries.mapTo(HashSet()) { listOf(it.userUuid, it.share, it.isShareFixed, it.sharePercentage) },
     )
+
+/** The percentages the shares of [this] were set as, by the beneficiary's user uuid. */
+private fun List<Beneficiary>.sharePercentages(): Map<String, String> =
+    mapNotNull { beneficiary -> beneficiary.sharePercentage?.let { beneficiary.userUuid to it } }.toMap()
 
 data class UserListState(
     val users: List<User> = emptyList(),

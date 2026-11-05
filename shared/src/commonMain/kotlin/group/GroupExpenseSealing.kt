@@ -15,6 +15,8 @@ import database.domain.Currency
 import database.domain.ExpenseWithBeneficiaries
 import expense.isCanonicalTimestamp
 import expense.isCanonicalUuid
+import expense.toPercentageOrNull
+import expense.toSealedPercentage
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -151,6 +153,7 @@ internal fun ExpenseWithBeneficiaries.sealGroupExpense(
                 userUuid = beneficiary.userUuid,
                 share = beneficiary.share,
                 isShareFixed = beneficiary.isShareFixed.toSealedFlag(),
+                sharePercentage = beneficiary.sharePercentage.toSealedPercentage(),
             )
         },
         isSettlement = isSettlement.toSealedFlag(),
@@ -203,7 +206,7 @@ internal fun EncryptedFieldDto.unsealGroupExpense(
     if (!uuids.all { it.isCanonicalUuid() }) return null
 
     val texts = listOf(content.title, content.description, content.amount, content.timestamp) +
-        content.beneficiaries.map { it.share }
+        content.beneficiaries.flatMap { listOf(it.share, it.sharePercentage) }
 
     if (!texts.all { it.isWellFormed() }) return null
 
@@ -226,6 +229,7 @@ internal fun EncryptedFieldDto.unsealGroupExpense(
                     userUuid = beneficiary.userUuid,
                     share = beneficiary.share,
                     isShareFixed = beneficiary.isShareFixed.toFlagOrNull() ?: return null,
+                    sharePercentage = beneficiary.sharePercentage.toPercentageOrNull(),
                 )
             },
             isSettlement = isSettlement,
@@ -304,6 +308,7 @@ internal fun SignedGroupExpense.opened(currency: Currency): OpenedGroupExpense? 
                 userUuid = beneficiary.userUuid,
                 share = beneficiary.share,
                 isShareFixed = beneficiary.isShareFixed,
+                sharePercentage = beneficiary.sharePercentage,
             )
         },
     )
@@ -371,8 +376,8 @@ internal fun ExpenseWithBeneficiariesEntity.saysWhat(other: ExpenseWithBeneficia
         expense.timestamp == other.expense.timestamp &&
         expense.creditorUuid == other.expense.creditorUuid &&
         expense.isSettlement == other.expense.isSettlement &&
-        beneficiaries.map { Triple(it.userUuid, it.share, it.isShareFixed) }.toSet() ==
-        other.beneficiaries.map { Triple(it.userUuid, it.share, it.isShareFixed) }.toSet()
+        beneficiaries.map { listOf(it.userUuid, it.share, it.isShareFixed, it.sharePercentage) }.toSet() ==
+        other.beneficiaries.map { listOf(it.userUuid, it.share, it.isShareFixed, it.sharePercentage) }.toSet()
 
 /**
  * Seals the deletion flag saying whether the expense [expenseUuid] of the group [groupUuid] is
@@ -751,6 +756,7 @@ private fun ExpenseWithBeneficiaries.versionOf(groupUuid: String, revision: Long
             userUuid = beneficiary.userUuid,
             share = beneficiary.share,
             isShareFixed = beneficiary.isShareFixed,
+            sharePercentage = beneficiary.sharePercentage,
         )
     },
     isSettlement = isSettlement,
@@ -793,6 +799,10 @@ private class SealedGroupExpenseBeneficiary(
     /** A flag sealed as [toSealedFlag] seals one. */
     @SerialName("is_share_fixed")
     val isShareFixed: Int,
+
+    /** A percentage sealed as [toSealedPercentage] seals one. */
+    @SerialName("share_percentage")
+    val sharePercentage: String,
 )
 
 /**
