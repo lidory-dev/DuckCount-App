@@ -21,6 +21,7 @@ import uniffi.lib_duckcount.OneTimeExpenseBeneficiary
 import uniffi.lib_duckcount.OneTimeExpenseManifest
 import uniffi.lib_duckcount.SealedValue
 import uniffi.lib_duckcount.verifyOneTimeExpense
+import vault.paddedTo
 import vault.sealBound
 import vault.unsealBound
 import kotlin.io.encoding.Base64
@@ -382,10 +383,6 @@ private const val SEALED_TITLE_SIZE = MAX_TITLE_LENGTH * 3
  * `group.GroupExpenseSealing`. Only what is sealed is padded.
  */
 private fun String.toSealedTitle(): ByteArray = encodeToByteArray().paddedTo(SEALED_TITLE_SIZE)
-
-/** This with as many spaces after it as make it [size] bytes, when it is not so long already. */
-internal fun ByteArray.paddedTo(size: Int): ByteArray =
-    this + ByteArray((size - this.size).coerceAtLeast(0)) { ' '.code.toByte() }
 
 /**
  * The title [toSealedTitle] sealed, or null for what is not as long as it seals one: refused whatever

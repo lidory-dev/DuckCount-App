@@ -5,6 +5,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -36,6 +37,90 @@ class ContactBookTest {
             handedProfileKeyHash = handedProfileKeyHash,
             verifiedSafetyNumber = verifiedSafetyNumber,
         )
+
+    /** A book of [count] contacts as large as one gets, verified and pinned, each with their own UUID. */
+    private fun bookOf(count: Int): ContactBook =
+        (0 until count).fold(ContactBook.EMPTY) { book, index ->
+            assertNotNull(
+                book.with(
+                    userUuid = "00000000-0000-4000-8000-${index.toString().padStart(12, '0')}",
+                    contact = contact(
+                        profileEncryptionKey = ByteArray(32),
+                        mlsSignaturePublicKey = ByteArray(32),
+                        handedProfileKeyHash = "0123456789",
+                        verifiedSafetyNumber = "1".repeat(60),
+                    ),
+                ),
+            )
+        }
+
+    /** A book whose JSON takes exactly [size] bytes, an unknown field of its one entry making up the size. */
+    private fun bookTaking(size: Int): ContactBook {
+        val json = "{\"a\":{\"f\":\"\"}}"
+
+        return assertNotNull(
+            ContactBook.parse(json.replace("\"\"", "\"" + "x".repeat(size - json.length) + "\"").encodeToByteArray()),
+        )
+    }
+
+    /** Its length would otherwise say how many contacts the user has, to the contact. */
+    @Test
+    fun `a book seals to the same size from no contact to fifty`() {
+        val sizes = listOf(0, 1, 2, 10, 25, 50).map { count -> bookOf(count = count).serialize().size }
+
+        assertEquals(setOf(16 * 1024), sizes.toSet())
+    }
+
+    @Test
+    fun `a book past a size seals to the next and tells no more`() {
+        assertEquals(32 * 1024, bookOf(count = 60).serialize().size)
+        assertEquals(32 * 1024, bookOf(count = 100).serialize().size)
+        assertEquals(64 * 1024, bookOf(count = 120).serialize().size)
+    }
+
+    @Test
+    fun `a book takes the first size it fits exactly`() {
+        assertEquals(16 * 1024, bookTaking(size = 16 * 1024).serialize().size)
+        assertEquals(32 * 1024, bookTaking(size = 16 * 1024 + 1).serialize().size)
+        assertEquals(1024 * 1024, bookTaking(size = 1024 * 1024).serialize().size)
+    }
+
+    /** The next size would not fit what the server takes for the body of a write, 2 MiB once sealed. */
+    @Test
+    fun `a book past the largest size keeps its own length`() {
+        val size = 1024 * 1024 + 1
+
+        assertEquals(size, bookTaking(size = size).serialize().size)
+    }
+
+    @Test
+    fun `a padded book reads back as it was written`() {
+        val book = assertNotNull(
+            ContactBook.EMPTY
+                .with(alice, contact(profileEncryptionKey = aliceKey, verifiedSafetyNumber = "42"))
+                ?.withFormerContact(bob, fullName = "Bob  Martin "),
+        )
+
+        val read = assertNotNull(ContactBook.parse(book.serialize()))
+
+        assertContentEquals(aliceKey, read.contacts.getValue(alice).profileEncryptionKey)
+        assertEquals("42", read.contacts.getValue(alice).verifiedSafetyNumber)
+        assertEquals(mapOf(bob to "Bob  Martin "), read.formerContacts)
+    }
+
+    /**
+     * Written before books were padded, or by a device that pads otherwise: refused, it would leave
+     * the only copy of the user's contacts out of reach, and no contact could be added.
+     */
+    @Test
+    fun `a book of any size reads and is padded the next time it is written`() {
+        val unpadded = bookOf(count = 1).serialize().decodeToString().trimEnd().encodeToByteArray()
+
+        val read = assertNotNull(ContactBook.parse(unpadded))
+
+        assertEquals(1, read.contacts.size)
+        assertEquals(16 * 1024, assertNotNull(read.with(alice, contact(profileEncryptionKey = aliceKey))).serialize().size)
+    }
 
     @Test
     fun `an empty book holds no contact`() {

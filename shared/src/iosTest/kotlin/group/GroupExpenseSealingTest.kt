@@ -5,7 +5,6 @@ import database.data.local.entity.ExpenseWithBeneficiariesEntity
 import database.data.local.entity.GroupEntity
 import database.data.remote.EncryptedFieldDto
 import database.domain.ExpenseWithBeneficiaries
-import expense.paddedTo
 import expense.toSealedAmount
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -19,6 +18,7 @@ import mls.InMemoryMlsStore
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import util.Result
+import vault.paddedTo
 import vault.sealBound
 import vault.unsealBound
 import kotlin.io.encoding.Base64

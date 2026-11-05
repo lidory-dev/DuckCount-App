@@ -4,7 +4,6 @@ import app.lidory.duckcount.ProfileLimits
 import database.data.local.dao.UserDao
 import database.data.mappers.toUserEntity
 import database.domain.User
-import expense.paddedTo
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -15,6 +14,7 @@ import util.NetworkError
 import util.Result
 import util.map
 import vault.ProfileKeyVault
+import vault.paddedTo
 import vault.sealBound
 import vault.unsealBound
 

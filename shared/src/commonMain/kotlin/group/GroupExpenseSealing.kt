@@ -16,7 +16,6 @@ import database.domain.ExpenseWithBeneficiaries
 import expense.isCanonicalTimestamp
 import expense.isCanonicalUuid
 import expense.isSealedAmount
-import expense.paddedTo
 import expense.toSealedAmount
 import expense.toSealedShareSetting
 import expense.toShareSettingOrNull
@@ -35,6 +34,7 @@ import uniffi.lib_duckcount.verifyGroupExpense
 import uniffi.lib_duckcount.verifyGroupExpenseDeletion
 import util.NetworkError
 import util.Result
+import vault.paddedTo
 import vault.sealBound
 import vault.unsealBound
 import kotlin.io.encoding.Base64

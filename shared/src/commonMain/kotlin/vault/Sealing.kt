@@ -65,6 +65,13 @@ internal fun sealBound(key: ByteArray, context: String, plaintext: ByteArray): E
     }
 
 /**
+ * This with as many spaces after it as make it [size] bytes, when it is not so long already, for
+ * what is sealed: AES-GCM does not hide how long what it seals is.
+ */
+internal fun ByteArray.paddedTo(size: Int): ByteArray =
+    this + ByteArray((size - this.size).coerceAtLeast(0)) { ' '.code.toByte() }
+
+/**
  * Unseals [content] with [key] and returns what was sealed under [context], or null when
  * it was sealed under another context, with another key, has been tampered with, or is
  * not the Base64 the server is supposed to hold.

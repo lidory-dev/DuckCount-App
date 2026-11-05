@@ -30,6 +30,19 @@ private const val FORMER_CONTACT = "former_contact"
 private const val FULL_NAME = "full_name"
 
 /**
+ * The sizes a book is sealed at, in bytes. It is sealed whole so that the server learns neither who
+ * the user's contacts are nor how many, but AES-GCM does not hide how long what it seals is, and an
+ * entry takes some 225 to 315 bytes: its length alone would say how many, to the contact. So it is
+ * padded to the first of these it fits, the server telling no more than which.
+ *
+ * One size is out of the question, there being no limit on how many contacts a user has, and any
+ * change rewriting all of them. The first holds some 50 to 70, which most users never pass, and each
+ * after it twice as many. The last is the largest whose sealing fits the 2 MiB the server takes for
+ * the body of a write, `VAULT_BODY_LIMIT` in the API: one past it keeps its own length.
+ */
+private val SEALED_SIZES = generateSequence(16 * 1024) { it * 2 }.takeWhile { it <= 1024 * 1024 }.toList()
+
+/**
  * The plaintext of [VaultEntryKey.CONTACTS]. Every contact, keyed by their user UUID,
  * each an object whose `profile_encryption_key` is the key they handed over and whose
  * `mls_signature_public_key` is the MLS identity this device pinned for them, both Base64
@@ -222,9 +235,15 @@ class ContactBook private constructor(private val entries: JsonObject) {
         return ContactBookUpdate(book = updated, conflicting = conflicting)
     }
 
-    /** The bytes to seal under the key ring. */
-    fun serialize(): ByteArray =
-        Json.encodeToString(JsonObject.serializer(), entries).encodeToByteArray()
+    /**
+     * The bytes to seal under the key ring, padded to the first of [SEALED_SIZES] they fit with
+     * spaces after the JSON, which [parse] takes no notice of.
+     */
+    fun serialize(): ByteArray {
+        val bytes = Json.encodeToString(JsonObject.serializer(), entries).encodeToByteArray()
+
+        return bytes.paddedTo(SEALED_SIZES.firstOrNull { it >= bytes.size } ?: bytes.size)
+    }
 
     companion object {
         /** The book of a user who has never had a contact. */
@@ -233,6 +252,12 @@ class ContactBook private constructor(private val entries: JsonObject) {
         /**
          * Reads a contact book back from the plaintext of [VaultEntryKey.CONTACTS], or
          * returns null when those bytes are not a JSON object.
+         *
+         * At whatever size it comes, unlike what others seal for this device to read, which is
+         * refused when it is not padded as it should be. Only the user's own devices write this,
+         * so refusing one would keep nothing out, and an unreadable book is the only copy of their
+         * contacts' keys and identities out of reach, and no contact added from then on. One
+         * written before books were padded is padded the next time it is written.
          */
         fun parse(plaintext: ByteArray): ContactBook? =
             runCatching {

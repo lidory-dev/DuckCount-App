@@ -5,7 +5,7 @@ import app.lidory.duckcount.GroupLimits.MAX_TITLE_LENGTH
 import database.data.remote.EncryptedFieldDto
 import database.domain.Currency
 import database.domain.CurrencyCatalog
-import expense.paddedTo
+import vault.paddedTo
 import vault.sealBound
 import vault.unsealBound
 
