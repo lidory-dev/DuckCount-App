@@ -162,6 +162,50 @@ class OneTimeExpenseHistoryVerificationTest {
     }
 
     @Test
+    fun `shares set as weights open with them`() {
+        val opened = assertNotNull(
+            expense(bobShareWeight = "3", carolShareWeight = "2").signedBy(creditor, revision = 1).open(),
+        )
+
+        assertEquals(
+            mapOf(BOB to "3", CAROL to "2"),
+            opened.expense.beneficiaries.associate { it.userUuid to it.shareWeight },
+        )
+    }
+
+    /** Sealing hides who pays a weight but not how long what it seals is, which would say it as well. */
+    @Test
+    fun `a weight of any length and none seal to the same length`() {
+        val lengths = listOf(null, "1", "12.5", "100.00").flatMap { weight ->
+            expense(bobShareWeight = weight).signedBy(creditor, revision = 1).previous_beneficiaries
+                .map { Base64.Default.decode(it.share_weight.ciphertext).size }
+        }
+
+        assertEquals(1, lengths.toSet().size)
+    }
+
+    /** It would show one thing and charge another, and an edit would work the shares out again from it. */
+    @Test
+    fun `shares their weights do not come to do not open`() {
+        assertNull(expense(bobShareWeight = "1", carolShareWeight = "1").signedBy(creditor, revision = 1).open())
+    }
+
+    @Test
+    fun `weights swapped between beneficiaries do not open`() {
+        val entry = expense(bobShareWeight = "3", carolShareWeight = "2").signedBy(creditor, revision = 1)
+        val (first, second) = entry.previous_beneficiaries
+
+        val swapped = entry.copy(
+            previous_beneficiaries = listOf(
+                first.copy(share_weight = second.share_weight),
+                second.copy(share_weight = first.share_weight),
+            ),
+        )
+
+        assertNull(swapped.open())
+    }
+
+    @Test
     fun `an expense opens in the currency it was sealed in`() {
         val won = CurrencyCatalog.defaultCurrencies.single { it.name == "KRW" }
 
@@ -296,6 +340,8 @@ class OneTimeExpenseHistoryVerificationTest {
         title: String = "Pizzas",
         isBobShareFixed: Boolean = false,
         bobSharePercentage: String? = null,
+        bobShareWeight: String? = null,
+        carolShareWeight: String? = null,
         currency: Currency = CurrencyCatalog.defaultCurrency,
     ) = ExpenseWithBeneficiaries(
         uuid = EXPENSE,
@@ -312,8 +358,15 @@ class OneTimeExpenseHistoryVerificationTest {
                 share = "12",
                 isShareFixed = isBobShareFixed,
                 sharePercentage = bobSharePercentage,
+                shareWeight = bobShareWeight,
             ),
-            Beneficiary(expenseUuid = EXPENSE, userUuid = CAROL, share = "8", isShareFixed = false),
+            Beneficiary(
+                expenseUuid = EXPENSE,
+                userUuid = CAROL,
+                share = "8",
+                isShareFixed = false,
+                shareWeight = carolShareWeight,
+            ),
         ),
     )
 

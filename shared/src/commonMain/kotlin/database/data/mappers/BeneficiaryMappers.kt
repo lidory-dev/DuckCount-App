@@ -9,6 +9,7 @@ fun BeneficiaryEntity.toBeneficiary() = Beneficiary(
     share = share,
     isShareFixed = isShareFixed,
     sharePercentage = sharePercentage,
+    shareWeight = shareWeight,
 )
 
 fun Beneficiary.toBeneficiaryEntity() = BeneficiaryEntity(
@@ -17,5 +18,6 @@ fun Beneficiary.toBeneficiaryEntity() = BeneficiaryEntity(
     share = share,
     isShareFixed = isShareFixed,
     sharePercentage = sharePercentage,
+    shareWeight = shareWeight,
 )
 

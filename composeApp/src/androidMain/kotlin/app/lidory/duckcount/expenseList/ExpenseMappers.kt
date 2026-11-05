@@ -288,6 +288,7 @@ fun BeneficiaryDB.toExpenseListModel(): Beneficiary = Beneficiary(
     share = share,
     isShareFixed = isShareFixed,
     sharePercentage = sharePercentage,
+    shareWeight = shareWeight,
 )
 
 fun Beneficiary.toDb(): BeneficiaryDB = BeneficiaryDB(
@@ -297,6 +298,7 @@ fun Beneficiary.toDb(): BeneficiaryDB = BeneficiaryDB(
     share = share,
     isShareFixed = isShareFixed,
     sharePercentage = sharePercentage,
+    shareWeight = shareWeight,
 )
 
 fun UserDB.toExpenseListModel(): User = User(

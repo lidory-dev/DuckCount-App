@@ -130,6 +130,7 @@ class AmountFieldTest {
             beneficiaryUserUuids: List<String>,
             fixedUuid: Map<String, String>,
             sharePercentages: Map<String, String>,
+            shareWeights: Map<String, String>,
             expenseUuid: String,
         ): List<Beneficiary> {
             val fixed = fixedUuid.values.fold(BigDecimal.ZERO) { sum, share -> sum + BigDecimal(share) }

@@ -20,7 +20,7 @@ class OneTimeExpenseListingResponseTest {
         {"uuid":"8d1e5823-c00c-83b7-8212-500089e3b975","signature":$sealed,
          "creditor_uuid":"01234567-89ab-4cde-8f01-23456789abcd","title":$sealed,
          "description":$sealed,"amount":$sealed,"currency":$sealed,"timestamp":$sealed,
-         "beneficiaries":[{"user_uuid":"11111111-1111-1111-1111-111111111111","share":$sealed,"is_share_fixed":$sealed,"share_percentage":$sealed}],
+         "beneficiaries":[{"user_uuid":"11111111-1111-1111-1111-111111111111","share":$sealed,"is_share_fixed":$sealed,"share_percentage":$sealed,"share_weight":$sealed}],
          "key_copy":null,"is_settled":null,"added_later":{"by":"a newer server"}}
     """.trimIndent()
 

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "60e77de93e329654c31bbc57d911c905",
+    "identityHash": "d80e3cee43c718cf4b5ea7b445777c71",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -159,7 +159,7 @@
       },
       {
         "tableName": "BeneficiaryEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `userUuid` TEXT NOT NULL, `share` TEXT NOT NULL, `isShareFixed` INTEGER NOT NULL, `sharePercentage` TEXT, PRIMARY KEY(`expenseUuid`, `userUuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `userUuid` TEXT NOT NULL, `share` TEXT NOT NULL, `isShareFixed` INTEGER NOT NULL, `sharePercentage` TEXT, `shareWeight` TEXT, PRIMARY KEY(`expenseUuid`, `userUuid`))",
         "fields": [
           {
             "fieldPath": "expenseUuid",
@@ -188,6 +188,11 @@
           {
             "fieldPath": "sharePercentage",
             "columnName": "sharePercentage",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "shareWeight",
+            "columnName": "shareWeight",
             "affinity": "TEXT"
           }
         ],
@@ -1199,7 +1204,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '60e77de93e329654c31bbc57d911c905')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd80e3cee43c718cf4b5ea7b445777c71')"
     ]
   }
 }

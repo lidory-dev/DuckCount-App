@@ -1,14 +1,9 @@
 package app.lidory.duckcount.expenseList.viewmodel
 
-import app.lidory.duckcount.expenseList.callBacks.CreateExpenseCallBacks
 import app.lidory.duckcount.expenseList.model.Beneficiary
 import app.lidory.duckcount.expenseList.model.Currency
-import app.lidory.duckcount.expenseList.model.Expense
 import app.lidory.duckcount.expenseList.model.ExpenseSaveError
 import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
-import app.lidory.duckcount.expenseList.model.User
-import java.math.BigDecimal
-import java.math.RoundingMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -55,7 +50,7 @@ class PercentageShareFormTest {
     }
 
     /** A new expense of [amount] for Alice and Bob, read and ready to be filled in. */
-    private fun newForm(callBacks: CallBacks = CallBacks(), amount: String = "100.00"): CreateExpenseViewModel {
+    private fun newForm(callBacks: ShareCalculatingCallBacks = ShareCalculatingCallBacks(), amount: String = "100.00"): CreateExpenseViewModel {
         val viewModel = CreateExpenseViewModel(groupUuid = null, expenseUuid = null, createExpenseCallBacks = callBacks)
 
         mainDispatcher.scheduler.runCurrent()
@@ -71,7 +66,7 @@ class PercentageShareFormTest {
 
     @Test
     fun `a percentage is handed over as one and not as an amount`() {
-        val callBacks = CallBacks()
+        val callBacks = ShareCalculatingCallBacks()
         val viewModel = newForm(callBacks)
 
         viewModel.setBeneficiaryPercentage(userUuid = BOB, percentage = "25")
@@ -112,7 +107,7 @@ class PercentageShareFormTest {
 
     @Test
     fun `a fixed amount stays as it is next to a percentage`() {
-        val callBacks = CallBacks()
+        val callBacks = ShareCalculatingCallBacks()
         val viewModel = newForm(callBacks)
 
         viewModel.onBeneficiariesSelected(setOf(ALICE, BOB, CAROL))
@@ -128,7 +123,7 @@ class PercentageShareFormTest {
     /** As the screen does for an amount typed in a share's field. */
     @Test
     fun `an amount typed over a percentage replaces it`() {
-        val callBacks = CallBacks()
+        val callBacks = ShareCalculatingCallBacks()
         val viewModel = newForm(callBacks)
 
         viewModel.setBeneficiaryPercentage(userUuid = BOB, percentage = "25")
@@ -146,7 +141,7 @@ class PercentageShareFormTest {
 
     @Test
     fun `a percentage set over a typed amount replaces it and what was typed`() {
-        val callBacks = CallBacks()
+        val callBacks = ShareCalculatingCallBacks()
         val viewModel = newForm(callBacks)
 
         viewModel.typeBeneficiaryShare(userUuid = BOB, text = "30")
@@ -161,7 +156,7 @@ class PercentageShareFormTest {
 
     @Test
     fun `taking a fixed share off takes its percentage off too`() {
-        val callBacks = CallBacks()
+        val callBacks = ShareCalculatingCallBacks()
         val viewModel = newForm(callBacks)
 
         viewModel.setBeneficiaryPercentage(userUuid = BOB, percentage = "25")
@@ -175,7 +170,7 @@ class PercentageShareFormTest {
 
     @Test
     fun `a percentage stays as the others are selected and goes with who is unselected`() {
-        val callBacks = CallBacks()
+        val callBacks = ShareCalculatingCallBacks()
         val viewModel = newForm(callBacks)
 
         viewModel.setBeneficiaryPercentage(userUuid = BOB, percentage = "25")
@@ -215,7 +210,7 @@ class PercentageShareFormTest {
     fun `an expense read with a percentage keeps it through an edit of its amount`() = runTest(mainDispatcher) {
         val saved = mutableListOf<ExpenseWithBeneficiaries>()
 
-        val callBacks = object : CallBacks() {
+        val callBacks = object : ShareCalculatingCallBacks() {
             override fun getExpenseWithBeneficiaries(expenseUuid: String): Flow<ExpenseWithBeneficiaries> =
                 flowOf(
                     ExpenseWithBeneficiaries(
@@ -266,67 +261,5 @@ class PercentageShareFormTest {
 
         assertEquals("20.00", bob.share)
         assertEquals("25", bob.sharePercentage)
-    }
-
-    /**
-     * Works the shares out as the library does for what these tests look at, without its rounding of
-     * subunits: fixed ones as they are, percentages of the whole amount, an even split of the rest.
-     * Nothing else the form asks of these tests is more than a placeholder.
-     */
-    private open class CallBacks : CreateExpenseCallBacks {
-
-        var lastFixedShares: Map<String, String> = emptyMap()
-        var lastPercentages: Map<String, String> = emptyMap()
-
-        override val maxTitleLength = 50
-        override val maxDescriptionLength = 500
-        override val maxBeneficiaries = 100
-
-        override fun computeBeneficiaries(
-            amount: String,
-            currency: Currency,
-            beneficiaryUserUuids: List<String>,
-            fixedUuid: Map<String, String>,
-            sharePercentages: Map<String, String>,
-            expenseUuid: String,
-        ): List<Beneficiary> {
-            lastFixedShares = fixedUuid
-            lastPercentages = sharePercentages
-
-            val total = amount.toBigDecimal()
-
-            val set = fixedUuid.mapValues { it.value.toBigDecimal() } +
-                sharePercentages.mapValues {
-                    (total * it.value.toBigDecimal()).movePointLeft(2).setScale(2, RoundingMode.HALF_UP)
-                }
-
-            val left = set.values.fold(total) { rest, share -> rest - share }
-            val others = (beneficiaryUserUuids.size - set.size).coerceAtLeast(1).toBigDecimal()
-            val split: BigDecimal = left.divide(others, 2, RoundingMode.HALF_UP)
-
-            return beneficiaryUserUuids.map { userUuid ->
-                Beneficiary(
-                    expenseUuid = expenseUuid,
-                    userUuid = userUuid,
-                    share = (set[userUuid] ?: split).toPlainString(),
-                    sharePercentage = sharePercentages[userUuid],
-                )
-            }
-        }
-
-        override fun getCurrencies(): List<Currency> = listOf(EURO)
-        override fun getDefaultCurrency(): Currency = EURO
-        override fun getGroupCurrency(groupUuid: String): Flow<Currency> = flowOf(EURO)
-        override fun getAuthenticatedUserUuid(): String? = ALICE
-        override fun getUserFullName(userUuid: String): Flow<String?> = flowOf(null)
-        override fun validateExpense(amount: String, currency: Currency, beneficiaries: List<Beneficiary>): Int? = null
-        override fun getCurrencyDisplayName(code: String): String = code
-        override fun getAllUsersFiltered(filter: String): Flow<List<User>> = flowOf(emptyList())
-        override fun getAllUsersFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> = flowOf(emptyList())
-        override fun getExpenseWithBeneficiaries(expenseUuid: String): Flow<ExpenseWithBeneficiaries> = error("Not read")
-        override suspend fun insert(expense: Expense) = Unit
-        override suspend fun insertBeneficiary(beneficiary: Beneficiary) = Unit
-        override suspend fun insertWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseSaveError? = null
-        override suspend fun updateExpenseWithBeneficiaries(expenseWithBeneficiaries: ExpenseWithBeneficiaries): ExpenseSaveError? = null
     }
 }

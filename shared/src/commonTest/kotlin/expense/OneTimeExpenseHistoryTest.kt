@@ -254,6 +254,7 @@ class OneTimeExpenseHistoryTest {
                     share = sealed,
                     is_share_fixed = sealed,
                     share_percentage = sealed,
+                    share_weight = sealed,
                 ),
             ),
         )

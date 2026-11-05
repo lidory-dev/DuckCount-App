@@ -45,6 +45,7 @@ fun DBBeneficiary.toGroupListModel(): Beneficiary {
         share = share,
         isShareFixed = isShareFixed,
         sharePercentage = sharePercentage,
+        shareWeight = shareWeight,
     )
 }
 
@@ -56,5 +57,6 @@ fun Beneficiary.toDb(): DBBeneficiary {
         share = share,
         isShareFixed = isShareFixed,
         sharePercentage = sharePercentage,
+        shareWeight = shareWeight,
     )
 }

@@ -193,7 +193,8 @@ class CreateExpenseViewModel: ObservableObject, CreateExpenseFormState {
                 userUuid: draft.userUuid,
                 share: draft.share,
                 isShareFixed: false,
-                sharePercentage: nil
+                sharePercentage: nil,
+                shareWeight: nil
             )
             beneficiaryRepository.insert(beneficiary: kotlinBeneficiary) { _ in
             }
@@ -255,7 +256,8 @@ class CreateExpenseViewModel: ObservableObject, CreateExpenseFormState {
                 userUuid: draft.userUuid,
                 share: draft.share,
                 isShareFixed: false,  // TODO: Use automatic calculation of shares.
-                sharePercentage: nil
+                sharePercentage: nil,
+                shareWeight: nil
             )
         }
 

@@ -18,4 +18,13 @@ data class Beneficiary(
      * [isShareFixed] holds for it too.
      */
     val sharePercentage: String? = null,
+
+    /**
+     * How many parts of what the fixed shares and percentages leave the share was set as, next to
+     * the parts of the others, null for one set otherwise. Like [sharePercentage], it is what [share]
+     * is worked out again from. An expense using any weight states one for everybody sharing what is
+     * left, `1` for those who were given none, for whom [isShareFixed] does not hold, unlike who it
+     * was set by hand for.
+     */
+    val shareWeight: String? = null,
 )

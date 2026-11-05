@@ -128,6 +128,39 @@ class GroupExpenseSealingTest {
         assertEquals(1, lengths.toSet().size)
     }
 
+    @Test
+    fun `shares set as weights open with them`() {
+        val opened = assertNotNull(open(content = sealed(expense = dinnerWithWeights(alice = "1", bob = "2"))))
+
+        assertEquals(
+            mapOf(ALICE to "1", BOB to "2"),
+            opened.expense.beneficiaries.associate { it.userUuid to it.shareWeight },
+        )
+    }
+
+    /** It would show one thing and charge another, and an edit would work the shares out again from it. */
+    @Test
+    fun `shares their weights do not come to do not open`() {
+        assertNull(open(content = sealed(expense = dinnerWithWeights(alice = "1", bob = "1"))))
+    }
+
+    /** Sealing hides who pays a weight but not how long what it seals is, which would say it as well. */
+    @Test
+    fun `a weight of any length and none seal to the same length`() {
+        val lengths = listOf(null, "2", "12.5", "100.00").map { weight ->
+            sealed(expense = dinnerWithWeights(alice = "1", bob = weight)).ciphertext.length
+        }
+
+        assertEquals(1, lengths.toSet().size)
+    }
+
+    private fun dinnerWithWeights(alice: String?, bob: String?) =
+        dinner.copy(
+            beneficiaries = dinner.beneficiaries.map { beneficiary ->
+                beneficiary.copy(shareWeight = if (beneficiary.userUuid == ALICE) alice else bob)
+            },
+        )
+
     private fun dinnerWithBobsPercentage(percentage: String?) =
         dinner.copy(
             beneficiaries = dinner.beneficiaries.map { beneficiary ->
@@ -171,6 +204,7 @@ class GroupExpenseSealingTest {
             "share" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("share", JsonPrimitive("50.00")) } },
             "fixed share" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("is_share_fixed", JsonPrimitive(1)) } },
             "percentage" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("share_percentage", JsonPrimitive("66.67 ")) } },
+            "weight" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("share_weight", JsonPrimitive("2     ")) } },
             "beneficiary" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("user_uuid", JsonPrimitive(CAROL)) } },
             "settlement" to { it.with("is_settlement", JsonPrimitive(1)) },
             "author" to { it.with("author_uuid", JsonPrimitive(BOB)) },
@@ -401,7 +435,7 @@ class GroupExpenseSealingTest {
             title = "\u0001".repeat(ExpenseLimits.MAX_TITLE_LENGTH),
             description = "\u0001".repeat(ExpenseLimits.MAX_DESCRIPTION_LENGTH),
         ).let { expense ->
-            expense.copy(beneficiaries = expense.beneficiaries.map { it.copy(isShareFixed = true, sharePercentage = "100.00") })
+            expense.copy(beneficiaries = expense.beneficiaries.map { it.copy(isShareFixed = true, sharePercentage = "100.00", shareWeight = "100.00") })
         }
 
         val content = sealed(expense = longest, revision = Long.MAX_VALUE)

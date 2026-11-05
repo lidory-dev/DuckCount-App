@@ -62,6 +62,7 @@ interface CreateExpenseCallBacks {
         beneficiaryUserUuids: List<String>,
         fixedUuid: Map<String, String>,
         sharePercentages: Map<String, String>,
+        shareWeights: Map<String, String>,
         expenseUuid: String,
     ): List<Beneficiary>
 

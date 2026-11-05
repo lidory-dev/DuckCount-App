@@ -538,7 +538,7 @@ class CreateExpenseViewModel(
         updateBeneficiaries(
             state.beneficiaries.map { beneficiary ->
                 if (beneficiary.userUuid == userUuid) {
-                    beneficiary.copy(isShareFixed = false, sharePercentage = null)
+                    beneficiary.copy(isShareFixed = false, sharePercentage = null, shareWeight = null)
                 } else {
                     beneficiary
                 }
@@ -558,9 +558,10 @@ class CreateExpenseViewModel(
             currency = state.currency,
             beneficiaryUserUuids = uuids.toList(),
             fixedUuid = selected
-                .filter { it.sharePercentage == null }
+                .filter { it.isFixedAmount() }
                 .associate { it.userUuid to it.share },
             sharePercentages = selected.sharePercentages(),
+            shareWeights = selected.shareWeightsSetByHand(),
         )
 
         updateBeneficiaries(
@@ -576,6 +577,7 @@ class CreateExpenseViewModel(
         beneficiaryUserUuids: List<String>,
         fixedUuid: Map<String, String>,
         sharePercentages: Map<String, String>,
+        shareWeights: Map<String, String>,
     ): List<Beneficiary> {
         return createExpenseCallBacks.computeBeneficiaries(
             amount = amount.toValidNumber(),
@@ -583,9 +585,10 @@ class CreateExpenseViewModel(
             beneficiaryUserUuids = beneficiaryUserUuids,
             fixedUuid = fixedUuid,
             sharePercentages = sharePercentages,
+            shareWeights = shareWeights,
             expenseUuid = _expenseUuid.value ?: "",
         ).map { beneficiary ->
-            if (beneficiary.userUuid in fixedUuid || beneficiary.userUuid in sharePercentages)
+            if (beneficiary.userUuid in fixedUuid || beneficiary.userUuid in sharePercentages || beneficiary.userUuid in shareWeights)
                 beneficiary.copy(isShareFixed = true)
             else
                 beneficiary
@@ -598,22 +601,31 @@ class CreateExpenseViewModel(
             currency = state.currency,
             beneficiaryUserUuids = state.beneficiaries.map { it.userUuid },
             fixedUuid = state.beneficiaries
-                .filter { it.isShareFixed && it.sharePercentage == null }
+                .filter { it.isFixedAmount() }
                 .associate { it.userUuid to (it.share.toValidNumber()) },
             sharePercentages = state.beneficiaries.sharePercentages(),
+            shareWeights = state.beneficiaries.shareWeightsSetByHand(),
         )
 
         beneficiaries.forEach {
             updateBeneficiaryShare(it.userUuid, it.share)
         }
+
+        // The library states a weight for everybody sharing what is left once anybody has one, and
+        // for nobody once nobody does.
+        val weights = beneficiaries.associate { it.userUuid to it.shareWeight }
+
+        state = state.copy(
+            beneficiaries = state.beneficiaries.map { it.copy(shareWeight = weights[it.userUuid]) },
+        )
     }
 
-    /** Makes the share of [userUuid] the amount it is now: if it was a percentage, it is one no more. */
+    /** Makes the share of [userUuid] the amount it is now: if it was a percentage or a weight, it is one no more. */
     fun setBeneficiaryFixedShare(userUuid: String) {
         state = state.copy(
             beneficiaries = state.beneficiaries.map { beneficiary ->
                 if (beneficiary.userUuid == userUuid)
-                    beneficiary.copy(isShareFixed = true, sharePercentage = null)
+                    beneficiary.copy(isShareFixed = true, sharePercentage = null, shareWeight = null)
                 else
                     beneficiary
             },
@@ -632,7 +644,29 @@ class CreateExpenseViewModel(
         state = state.copy(
             beneficiaries = state.beneficiaries.map { beneficiary ->
                 if (beneficiary.userUuid == userUuid)
-                    beneficiary.copy(isShareFixed = true, sharePercentage = percentage.trim())
+                    beneficiary.copy(isShareFixed = true, sharePercentage = percentage.trim(), shareWeight = null)
+                else
+                    beneficiary
+            },
+        )
+
+        calculateShares()
+    }
+
+    /**
+     * Makes the share of [userUuid] [weight] parts of what the fixed shares and percentages leave,
+     * next to the parts of the others, who count for one until they are given theirs, and works the
+     * shares out again from it. What is typed for a share no longer stands, see
+     * [typeBeneficiaryShare]. A weight the library cannot read leaves the share blank, and the form
+     * unable to save, until a later one replaces it.
+     */
+    fun setBeneficiaryWeight(userUuid: String, weight: String) {
+        finishBeneficiaryShare(userUuid = userUuid)
+
+        state = state.copy(
+            beneficiaries = state.beneficiaries.map { beneficiary ->
+                if (beneficiary.userUuid == userUuid)
+                    beneficiary.copy(isShareFixed = true, sharePercentage = null, shareWeight = weight.trim())
                 else
                     beneficiary
             },
@@ -738,12 +772,26 @@ private fun CreateExpenseState.savedContent(): List<Any> =
         amount,
         currency,
         creditorUuid,
-        beneficiaries.mapTo(HashSet()) { listOf(it.userUuid, it.share, it.isShareFixed, it.sharePercentage) },
+        beneficiaries.mapTo(HashSet()) { listOf(it.userUuid, it.share, it.isShareFixed, it.sharePercentage, it.shareWeight) },
     )
 
 /** The percentages the shares of [this] were set as, by the beneficiary's user uuid. */
 private fun List<Beneficiary>.sharePercentages(): Map<String, String> =
     mapNotNull { beneficiary -> beneficiary.sharePercentage?.let { beneficiary.userUuid to it } }.toMap()
+
+/**
+ * The weights the shares of [this] were set as by hand, by the beneficiary's user uuid: not the `1`
+ * the library states for who was given none, which would keep the expense using weights once
+ * nobody set one any more.
+ */
+private fun List<Beneficiary>.shareWeightsSetByHand(): Map<String, String> =
+    filter { it.isShareFixed }
+        .mapNotNull { beneficiary -> beneficiary.shareWeight?.let { beneficiary.userUuid to it } }
+        .toMap()
+
+/** Whether this share was named as an amount by hand, and not set as a percentage or a weight. */
+private fun Beneficiary.isFixedAmount(): Boolean =
+    isShareFixed && sharePercentage == null && shareWeight == null
 
 data class UserListState(
     val users: List<User> = emptyList(),

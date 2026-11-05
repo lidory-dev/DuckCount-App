@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * Server representation of a beneficiary.
- * `share`, `is_share_fixed` and `share_percentage` are opaque to the server.
+ * `share`, `is_share_fixed`, `share_percentage` and `share_weight` are opaque to the server.
  */
 @Serializable
 data class BeneficiaryDto(
@@ -14,4 +14,5 @@ data class BeneficiaryDto(
     val share: EncryptedFieldDto,
     val is_share_fixed: EncryptedFieldDto,
     val share_percentage: EncryptedFieldDto,
+    val share_weight: EncryptedFieldDto,
 )

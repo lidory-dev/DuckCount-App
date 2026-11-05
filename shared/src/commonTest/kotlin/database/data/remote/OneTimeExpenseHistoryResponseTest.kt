@@ -20,7 +20,7 @@ class OneTimeExpenseHistoryResponseTest {
               "modified_at":"2026-10-13T08:15:42.317Z",
               "previous_signature":$sealed,"previous_title":$sealed,"previous_description":$sealed,
               "previous_amount":$sealed,"previous_currency":$sealed,"previous_timestamp":$sealed,
-              "previous_beneficiaries":[{"user_uuid":"11111111-1111-1111-1111-111111111111","share":$sealed,"is_share_fixed":$sealed,"share_percentage":$sealed}]}]
+              "previous_beneficiaries":[{"user_uuid":"11111111-1111-1111-1111-111111111111","share":$sealed,"is_share_fixed":$sealed,"share_percentage":$sealed,"share_weight":$sealed}]}]
             """.trimIndent(),
         )
 

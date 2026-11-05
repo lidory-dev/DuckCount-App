@@ -244,7 +244,8 @@ class ExpenseListViewModel: ObservableObject {
                     userUuid: userUuid,
                     share: share,
                     isShareFixed: false,
-                    sharePercentage: nil
+                    sharePercentage: nil,
+                    shareWeight: nil
                 )
                 beneficiaryRepository.insert(beneficiary: beneficiary) { _ in
                 }

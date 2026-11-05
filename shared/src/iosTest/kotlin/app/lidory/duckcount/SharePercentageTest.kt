@@ -26,6 +26,7 @@ class SharePercentageTest {
             beneficiaryUserUuids = listOf(ALICE, BOB),
             fixedShares = emptyMap(),
             sharePercentages = mapOf(ALICE to "25"),
+            shareWeights = emptyMap(),
         )
 
         assertEquals(mapOf(ALICE to "25", BOB to null), beneficiaries.associate { it.userUuid to it.sharePercentage })
@@ -41,6 +42,7 @@ class SharePercentageTest {
             beneficiaryUserUuids = listOf(ALICE, BOB),
             fixedShares = emptyMap(),
             sharePercentages = mapOf(ALICE to "25", BOB to "50"),
+            shareWeights = emptyMap(),
         )
 
         assertEquals(mapOf(ALICE to "25", BOB to "50"), beneficiaries.associate { it.userUuid to it.sharePercentage })
