@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "d80e3cee43c718cf4b5ea7b445777c71",
+    "identityHash": "e52733787107070a4fbba3ba59f1d956",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -717,6 +717,41 @@
         }
       },
       {
+        "tableName": "BlockedUserEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `fullName` TEXT, `isBackedUp` INTEGER NOT NULL, `isUnblocked` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
+        "fields": [
+          {
+            "fieldPath": "userUuid",
+            "columnName": "userUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fullName",
+            "columnName": "fullName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isBackedUp",
+            "columnName": "isBackedUp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isUnblocked",
+            "columnName": "isUnblocked",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "userUuid"
+          ]
+        }
+      },
+      {
         "tableName": "OneTimeExpenseKeyEntity",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `record` BLOB NOT NULL, PRIMARY KEY(`expenseUuid`))",
         "fields": [
@@ -1204,7 +1239,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd80e3cee43c718cf4b5ea7b445777c71')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e52733787107070a4fbba3ba59f1d956')"
     ]
   }
 }

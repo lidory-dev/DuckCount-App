@@ -8,21 +8,42 @@ private const val ALICE = "11111111-1111-1111-1111-111111111111"
 private const val BOB = "33333333-3333-3333-3333-333333333333"
 private const val CAROL = "55555555-5555-5555-5555-555555555555"
 private const val MALLORY = "77777777-7777-7777-7777-777777777777"
+private const val TRENT = "88888888-8888-8888-8888-888888888888"
 
 /**
  * Who may wake the user: Bob is a contact, and Alice has a contact request from the user she
  * has yet to answer. Carol shares a group the user is still in with them, and is no contact.
- * Mallory is a stranger, or a former contact, which comes to the same.
+ * Mallory is a stranger, or a former contact, which comes to the same. Trent is somebody the user
+ * blocked.
  */
 class WakeDecisionTest {
 
-    private val wakeList = WakeListOf(contacts = setOf(BOB), requested = setOf(ALICE), coMembers = setOf(CAROL))
+    private val wakeList = WakeListOf(
+        contacts = setOf(BOB),
+        requested = setOf(ALICE),
+        coMembers = setOf(CAROL),
+        blocked = setOf(TRENT),
+    )
 
     @Test
     fun `a contact request wakes the user whoever sent it`() {
         assertTrue(signal(PushSignal.Kind.CONTACT_REQUEST, from = MALLORY).mayWake(wakeList))
         assertTrue(signal(PushSignal.Kind.CONTACT_REQUEST, from = BOB).mayWake(wakeList))
         assertTrue(signal(PushSignal.Kind.CONTACT_REQUEST, from = null).mayWake(wakeList))
+    }
+
+    /** Every request of his is refused unread, see `ContactRequestRepository.refresh`. */
+    @Test
+    fun `a contact request from somebody the user blocked does not wake the user`() {
+        assertFalse(signal(PushSignal.Kind.CONTACT_REQUEST, from = TRENT).mayWake(wakeList))
+    }
+
+    /** A stranger he is: blocking a contact removes them. */
+    @Test
+    fun `nothing from somebody the user blocked wakes the user`() {
+        PushSignal.Kind.entries.forEach { kind ->
+            assertFalse(signal(kind, from = TRENT).mayWake(wakeList), "$kind")
+        }
     }
 
     @Test
@@ -152,6 +173,7 @@ private class WakeListOf(
     private val contacts: Set<String>,
     private val requested: Set<String>,
     private val coMembers: Set<String>,
+    private val blocked: Set<String>,
 ) : WakeListStore {
     override fun isContact(userUuid: String): Boolean = userUuid in contacts
 
@@ -159,7 +181,14 @@ private class WakeListOf(
 
     override fun isCoMember(userUuid: String): Boolean = userUuid in coMembers
 
-    override suspend fun replace(contacts: Set<String>, requested: Set<String>, coMembers: Set<String>) {
+    override fun isBlocked(userUuid: String): Boolean = userUuid in blocked
+
+    override suspend fun replace(
+        contacts: Set<String>,
+        requested: Set<String>,
+        coMembers: Set<String>,
+        blocked: Set<String>,
+    ) {
         error("Only read here")
     }
 

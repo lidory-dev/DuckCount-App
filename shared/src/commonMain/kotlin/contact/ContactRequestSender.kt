@@ -1,6 +1,7 @@
 package contact
 
 import authenticationUtils.getAuthenticatedUserUuid
+import database.data.local.dao.BlockedUserDao
 import database.data.local.dao.ContactRequestDao
 import database.data.local.dao.GroupDao
 import database.data.local.dao.IdentityConflictDao
@@ -44,9 +45,10 @@ import kotlin.io.encoding.Base64
  *    them looks like a stranger, see [ContactRepository.restore].
  * 2. The member is checked: not the user, not a contact already, no request of the user's out to
  *    them already that the server is known to hold, see [OutgoingContactRequestEntity.isStored],
- *    and not blocked, see [IdentityConflictEntity][database.data.local.entity.IdentityConflictEntity].
- *    All of it before a key package of theirs is spent, which the server only refuses a request
- *    after.
+ *    not blocked, see [IdentityConflictEntity][database.data.local.entity.IdentityConflictEntity],
+ *    and not blocked by the user either, see
+ *    [BlockedUserEntity][database.data.local.entity.BlockedUserEntity]. All of it before a key
+ *    package of theirs is spent, which the server only refuses a request after.
  * 3. The group is checked: one of the user's, which they were not removed from, with its MLS state
  *    on this device, and whose creator is not blocked, the group's tree being their word. The
  *    member is then pinned to the identity they hold in it, see [pinMemberOf].
@@ -55,7 +57,8 @@ import kotlin.io.encoding.Base64
  *
  * [selfUuid] is [getAuthenticatedUserUuid], [restoreContacts] and [isContact] are
  * [ContactRepository.restore] and [ContactRepository.isContact], [hasStoredOutgoingTo] is
- * [ContactRequestDao.hasStoredOutgoingTo], [isBlocked] is [IdentityConflictDao.isBlocked], [group]
+ * [ContactRequestDao.hasStoredOutgoingTo], [isBlocked] is [IdentityConflictDao.isBlocked],
+ * [isBlockedByUser] is [BlockedUserDao.isBlocked], [group]
  * is [GroupDao.get], [client] is [MlsIdentityRepository.client], [consumeKeyPackage] is
  * [KeyPackageApi.consumeKeyPackage], [profileKey] is
  * [VaultRepository.getOrCreateProfileEncryptionKey], [insertOutgoing], [markStored],
@@ -70,6 +73,7 @@ class ContactRequestSender internal constructor(
     private val isContact: suspend (userUuid: String) -> Boolean,
     private val hasStoredOutgoingTo: suspend (recipientUserUuid: String) -> Boolean,
     private val isBlocked: suspend (peerUuid: String) -> Boolean,
+    private val isBlockedByUser: suspend (userUuid: String) -> Boolean,
     private val group: suspend (groupUuid: String) -> GroupEntity?,
     private val client: suspend () -> Result<MlsClient, MlsIdentityError>,
     private val consumeKeyPackage: suspend (userUuid: String) -> Result<ConsumeKeyPackageDto, NetworkError>,
@@ -85,6 +89,7 @@ class ContactRequestSender internal constructor(
         contactRepository: ContactRepository,
         contactRequestDao: ContactRequestDao,
         identityConflictDao: IdentityConflictDao,
+        blockedUserDao: BlockedUserDao,
         groupDao: GroupDao,
         mlsIdentityRepository: MlsIdentityRepository,
         keyPackageApi: KeyPackageApi,
@@ -97,6 +102,7 @@ class ContactRequestSender internal constructor(
         isContact = contactRepository::isContact,
         hasStoredOutgoingTo = contactRequestDao::hasStoredOutgoingTo,
         isBlocked = identityConflictDao::isBlocked,
+        isBlockedByUser = blockedUserDao::isBlocked,
         group = groupDao::get,
         client = mlsIdentityRepository::client,
         consumeKeyPackage = keyPackageApi::consumeKeyPackage,
@@ -132,6 +138,9 @@ class ContactRequestSender internal constructor(
 
         // [sendTo] refuses them too, but only once one of their key packages is spent.
         if (isBlocked(userUuid)) return Result.Error(SendContactRequestError.IdentityChanged)
+
+        // The same.
+        if (isBlockedByUser(userUuid)) return Result.Error(SendContactRequestError.Blocked)
 
         // A group the user is no longer in, removed or left, has had its MLS state deleted, and
         // one brought back after a log-out never had any here: nothing is left to vouch for
@@ -194,6 +203,10 @@ class ContactRequestSender internal constructor(
      * [ContactRequestRepository.sendContactRequest][database.data.repository.ContactRequestRepository.sendContactRequest].
      */
     internal suspend fun sendTo(recipientUserUuid: String, keyPackage: String): EmptyResult<SendContactRequestError> {
+        // Their answer would be acknowledged unread, see BlockedUserEntity. Only the lookup of a
+        // username finds out whose it is, which spent one of their key packages already.
+        if (isBlockedByUser(recipientUserUuid)) return Result.Error(SendContactRequestError.Blocked)
+
         // The server stores key packages without reading them, so this is whatever the
         // recipient's client published.
         val decodedKeyPackage = runCatching { Base64.Default.decode(keyPackage) }.getOrNull()

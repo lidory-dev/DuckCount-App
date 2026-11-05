@@ -392,6 +392,7 @@ class AuthenticationCallBacksImpl(
         VaultError.MalformedKeyRing,
         VaultError.MalformedContactBook,
         VaultError.MalformedMemberProfileBook,
+        VaultError.MalformedBlockList,
         VaultError.OrphanedEntry,
         VaultError.Contended,
             -> AuthError.CRYPTO_ERROR

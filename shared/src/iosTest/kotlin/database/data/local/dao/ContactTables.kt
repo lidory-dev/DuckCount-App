@@ -1,5 +1,6 @@
 package database.data.local.dao
 
+import database.data.local.entity.BlockedUserEntity
 import database.data.local.entity.ContactEntity
 import database.data.local.entity.DirectChannelEntity
 import database.data.local.entity.IdentityConflictEntity
@@ -16,7 +17,7 @@ import kotlinx.coroutines.flow.flow
 /**
  * The tables about the user's contacts, for the length of a test, read and written through the
  * DAOs that reach them as their queries would: the contacts, the names shown for them, who is
- * blocked, and whose profile key this device is missing.
+ * blocked, who the user blocked, and whose profile key this device is missing.
  *
  * Only what the contact code asks of them. Anything else fails the test, as a call nobody
  * expected.
@@ -37,6 +38,9 @@ internal class ContactTables {
 
     /** Who is blocked, see [IdentityConflictEntity]. */
     val blocked = mutableSetOf<String>()
+
+    /** Who the user blocked, tombstones included, see [BlockedUserEntity], by user UUID. */
+    val blockedByUser = LinkedHashMap<String, BlockedUserEntity>()
 
     /** See [PendingProfileKeyEntity], by user UUID. */
     val pending = LinkedHashMap<String, PendingProfileKeyEntity>()
@@ -186,6 +190,42 @@ internal class ContactTables {
         override suspend fun isBlocked(peerUuid: String): Boolean = peerUuid in blocked
 
         override suspend fun getBlocked(): List<String> = blocked.toList()
+    }
+
+    val blockedUserDao: BlockedUserDao = object : BlockedUserDao {
+        override suspend fun upsert(blocked: BlockedUserEntity) {
+            blockedByUser[blocked.userUuid] = blocked
+        }
+
+        override suspend fun insertNew(blocked: List<BlockedUserEntity>) {
+            blocked.forEach { blockedByUser.getOrPut(it.userUuid) { it } }
+        }
+
+        override suspend fun unblock(userUuid: String) {
+            val row = blockedByUser[userUuid]?.takeUnless { it.isUnblocked } ?: return
+
+            blockedByUser[userUuid] = row.copy(isUnblocked = true, isBackedUp = false)
+        }
+
+        override suspend fun isBlocked(userUuid: String): Boolean = blockedByUser[userUuid]?.isUnblocked == false
+
+        override suspend fun getBlockedUuids(): List<String> =
+            blockedByUser.values.filterNot { it.isUnblocked }.map { it.userUuid }
+
+        override fun getBlockedAsFlow(): Flow<List<BlockedUserEntity>> =
+            flow { emit(blockedByUser.values.filterNot { it.isUnblocked }) }
+
+        override suspend fun getNotBackedUp(): List<BlockedUserEntity> = blockedByUser.values.filterNot { it.isBackedUp }
+
+        override suspend fun markBackedUp(userUuid: String, fullName: String?) {
+            val row = blockedByUser[userUuid]?.takeIf { !it.isUnblocked && it.fullName == fullName } ?: return
+
+            blockedByUser[userUuid] = row.copy(isBackedUp = true)
+        }
+
+        override suspend fun deleteUnblocked(userUuids: List<String>) {
+            userUuids.filter { blockedByUser[it]?.isUnblocked == true }.forEach { blockedByUser.remove(it) }
+        }
     }
 
     /** The names, shown or hidden, which is all the contact code asks of the users. */

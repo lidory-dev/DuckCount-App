@@ -53,6 +53,19 @@ class LocalDataDaoTest {
         assertTrue("GroupExpenseDeletionEntity" in wiped.tables, "left behind: ${wiped.tables}")
         assertTrue("ChangeFeedEntity" in wiped.tables, "left behind: ${wiped.tables}")
     }
+
+    /**
+     * Who the user blocked belongs to the account signed in: the next account to sign in has
+     * blocked nobody, and gets its own blocks back from its vault.
+     */
+    @Test
+    fun `a log-out wipes who the user blocked`() = runBlocking<Unit> {
+        val wiped = Wiped()
+
+        wiped.deleteAll()
+
+        assertTrue("BlockedUserEntity" in wiped.tables, "left behind: ${wiped.tables}")
+    }
 }
 
 /** Records which tables a log-out deletes, see [LocalDataDao.deleteAll]. */
@@ -75,6 +88,7 @@ private class Wiped : LocalDataDao {
     override suspend fun deleteContacts() { tables += "ContactEntity" }
     override suspend fun deleteDirectChannels() { tables += "DirectChannelEntity" }
     override suspend fun deleteIdentityConflicts() { tables += "IdentityConflictEntity" }
+    override suspend fun deleteBlockedUsers() { tables += "BlockedUserEntity" }
     override suspend fun deleteOneTimeExpenseKeys() { tables += "OneTimeExpenseKeyEntity" }
     override suspend fun deleteUnverifiedExpenseKeys() { tables += "UnverifiedExpenseKeyEntity" }
     override suspend fun deleteExpenseRevisions() { tables += "ExpenseRevisionEntity" }

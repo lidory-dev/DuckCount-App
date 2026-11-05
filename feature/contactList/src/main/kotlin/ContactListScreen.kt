@@ -42,6 +42,7 @@ import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureC
 import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.android.ui.text.nameOrder
+import component.BlockedUsersCard
 import component.ContactRequestsCard
 import model.User
 import org.koin.androidx.compose.koinViewModel
@@ -56,6 +57,7 @@ fun ContactListScreen(
     navigateToDetailScreen: (String) -> Unit,
     navigateToUsernameReservation: () -> Unit,
     navigateToContactRequests: () -> Unit,
+    navigateToBlockedUsers: () -> Unit,
     modifier: Modifier = Modifier,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
@@ -85,10 +87,12 @@ fun ContactListScreen(
                 users = state.users,
                 hasContacts = state.hasContacts,
                 contactRequestCount = state.contactRequestCount,
+                blockedUserCount = state.blockedUserCount,
                 searchQuery = viewModel.searchQuery,
                 onSearchQueryChange = { viewModel.onSearchQueryChange(query = it) },
                 navigateToDetailScreen = navigateToDetailScreen,
                 navigateToContactRequests = navigateToContactRequests,
+                navigateToBlockedUsers = navigateToBlockedUsers,
                 modifier = modifier,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedVisibilityScope = animatedVisibilityScope,
@@ -145,10 +149,12 @@ private fun ContactList(
     users: List<User>,
     hasContacts: Boolean,
     contactRequestCount: Int,
+    blockedUserCount: Int,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     navigateToDetailScreen: (String) -> Unit,
     navigateToContactRequests: () -> Unit,
+    navigateToBlockedUsers: () -> Unit,
     modifier: Modifier = Modifier,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
@@ -197,6 +203,10 @@ private fun ContactList(
             )
         }
 
+        // At the end of the list, out of the way: blocking is rare, and nothing about it is urgent.
+        // Not while searching, which finds contacts alone.
+        val isBlockedUsersCardShown = searchQuery.isBlank() && blockedUserCount > 0
+
         if (groupedContactList.isEmpty()) {
             // Nobody to find, whatever is searched, or nobody whose name holds what is.
             if (hasContacts) {
@@ -206,8 +216,17 @@ private fun ContactList(
                 )
             } else {
                 EmptyContentContainer(
+                    modifier = if (isBlockedUsersCardShown) Modifier.weight(1f) else Modifier,
                     icon = androidUiR.drawable.ic_contacts_group,
                     text = R.string.no_contacts_yet,
+                )
+            }
+
+            if (isBlockedUsersCardShown) {
+                BlockedUsersCard(
+                    modifier = Modifier.padding(bottom = 80.dp),
+                    count = blockedUserCount,
+                    onClick = navigateToBlockedUsers,
                 )
             }
         } else {
@@ -276,6 +295,18 @@ private fun ContactList(
                     }
                 }
 
+                if (isBlockedUsersCardShown) {
+                    item(key = BLOCKED_USERS_KEY) {
+                        BlockedUsersCard(
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(vertical = Padding.medium),
+                            count = blockedUserCount,
+                            onClick = navigateToBlockedUsers,
+                        )
+                    }
+                }
+
                 item {
                     Spacer(modifier = Modifier.height(80.dp))
                 }
@@ -283,6 +314,9 @@ private fun ContactList(
         }
     }
 }
+
+/** The key of the list's entry for the blocked users, which no user's UUID can be. */
+private const val BLOCKED_USERS_KEY = "blocked_users"
 
 /** The section for names that do not start with a letter, listed last. */
 private const val OTHER_SECTION = "#"

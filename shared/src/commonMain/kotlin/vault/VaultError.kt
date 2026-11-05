@@ -40,6 +40,13 @@ sealed interface VaultError : Error {
     data object MalformedMemberProfileBook : VaultError
 
     /**
+     * The plaintext of the users the user blocked is not the map of them it is supposed to be, see
+     * [BlockList], so it is left alone rather than overwritten with the users this build could make
+     * sense of.
+     */
+    data object MalformedBlockList : VaultError
+
+    /**
      * The vault holds a part whose key the key ring does not carry, so the part can
      * never be read again.
      */

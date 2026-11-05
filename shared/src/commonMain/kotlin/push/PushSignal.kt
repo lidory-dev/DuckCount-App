@@ -142,7 +142,9 @@ data class PushSignal(
      * Whether this signal may wake the user, by who sent it, see [WakeList].
      *
      * A request to become a contact comes from a stranger by definition, so it is taken from
-     * anybody. An acceptance only from somebody the user sent a contact request still waiting
+     * anybody the user did not block, see
+     * [BlockedUserEntity][database.data.local.entity.BlockedUserEntity], or from nobody named. An
+     * acceptance only from somebody the user sent a contact request still waiting
      * for its answer, since they are a contact only once the sync has read it. An expense of a
      * group, a change to one and a leave from one from a contact, or from somebody the user shares
      * a group they are still in with, whoever sends one being a member of it. Everything else only
@@ -150,7 +152,7 @@ data class PushSignal(
      * naming nobody is from nobody the user knows.
      */
     fun mayWake(wakeList: WakeListStore): Boolean {
-        if (kind == Kind.CONTACT_REQUEST) return true
+        if (kind == Kind.CONTACT_REQUEST) return from == null || !wakeList.isBlocked(userUuid = from)
 
         val from = from ?: return false
 

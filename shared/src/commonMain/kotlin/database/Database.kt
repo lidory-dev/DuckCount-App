@@ -7,6 +7,7 @@ import androidx.room.RoomDatabaseConstructor
 import androidx.room.TypeConverters
 import database.data.converter.CurrencyConverter
 import database.data.local.dao.BeneficiaryDao
+import database.data.local.dao.BlockedUserDao
 import database.data.local.dao.ContactDao
 import database.data.local.dao.ContactRequestDao
 import database.data.local.dao.CurrencyDao
@@ -26,6 +27,7 @@ import database.data.local.dao.PendingExpenseKeyDao
 import database.data.local.dao.PendingProfileKeyDao
 import database.data.local.dao.UserDao
 import database.data.local.entity.BeneficiaryEntity
+import database.data.local.entity.BlockedUserEntity
 import database.data.local.entity.ChangeFeedEntity
 import database.data.local.entity.ContactEntity
 import database.data.local.entity.ContactRequestEntity
@@ -82,6 +84,7 @@ import org.koin.mp.KoinPlatform.getKoin
         ContactEntity::class,
         DirectChannelEntity::class,
         IdentityConflictEntity::class,
+        BlockedUserEntity::class,
         OneTimeExpenseKeyEntity::class,
         UnverifiedExpenseKeyEntity::class,
         ExpenseRevisionEntity::class,
@@ -114,6 +117,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract val contactDao: ContactDao
     abstract val directChannelDao: DirectChannelDao
     abstract val identityConflictDao: IdentityConflictDao
+    abstract val blockedUserDao: BlockedUserDao
     abstract val oneTimeExpenseKeyDao: OneTimeExpenseKeyDao
     abstract val pendingExpenseKeyDao: PendingExpenseKeyDao
     abstract val pendingProfileKeyDao: PendingProfileKeyDao

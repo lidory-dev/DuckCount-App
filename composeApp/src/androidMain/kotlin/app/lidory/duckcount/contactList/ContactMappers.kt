@@ -51,6 +51,7 @@ fun SendContactRequestError.toAddContactError(isOnline: Boolean): AddContactErro
     SendContactRequestError.AlreadyPending -> AddContactError.ALREADY_PENDING
     SendContactRequestError.RateLimited -> AddContactError.RATE_LIMITED
     SendContactRequestError.IdentityChanged -> AddContactError.IDENTITY_CHANGED
+    SendContactRequestError.Blocked -> AddContactError.BLOCKED
 
     is SendContactRequestError.Network -> error.toAddContactError(isOnline = isOnline)
 
@@ -95,6 +96,7 @@ private fun VaultError.toAddContactError(isOnline: Boolean): AddContactError = w
     VaultError.MalformedKeyRing,
     VaultError.MalformedContactBook,
     VaultError.MalformedMemberProfileBook,
+    VaultError.MalformedBlockList,
     VaultError.OrphanedEntry,
     VaultError.Contended,
         -> AddContactError.UNKNOWN
@@ -158,6 +160,7 @@ private fun VaultError.toAnswerContactRequestError(isOnline: Boolean): AnswerCon
         VaultError.MalformedKeyRing,
         VaultError.MalformedContactBook,
         VaultError.MalformedMemberProfileBook,
+        VaultError.MalformedBlockList,
         VaultError.OrphanedEntry,
         VaultError.Contended,
             -> AnswerContactRequestError.UNKNOWN
@@ -195,6 +198,7 @@ private fun VaultError.toRemoveContactError(isOnline: Boolean): RemoveContactErr
     VaultError.MalformedKeyRing,
     VaultError.MalformedContactBook,
     VaultError.MalformedMemberProfileBook,
+    VaultError.MalformedBlockList,
     VaultError.OrphanedEntry,
     VaultError.Contended,
         -> RemoveContactError.UNKNOWN
@@ -240,6 +244,7 @@ private fun VaultError.toContactVerificationError(isOnline: Boolean): ContactVer
     VaultError.MalformedKeyRing,
     VaultError.MalformedContactBook,
     VaultError.MalformedMemberProfileBook,
+    VaultError.MalformedBlockList,
     VaultError.OrphanedEntry,
     VaultError.Contended,
         -> ContactVerificationError.UNKNOWN

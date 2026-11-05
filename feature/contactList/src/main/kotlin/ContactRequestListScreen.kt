@@ -30,6 +30,7 @@ import app.lidory.contactList.R
 import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.constant.Padding
+import component.BlockUserDialog
 import component.ContactRequestCard
 import model.AnswerContactRequestError
 import model.messageRes
@@ -61,6 +62,21 @@ fun ContactRequestListScreen(
             snackbarHostState.showSnackbar(message)
             pendingError = null
         }
+    }
+
+    // The request whose sender the user asked to block, until they confirm or dismiss it.
+    var blockedRequestUuid by remember { mutableStateOf<String?>(null) }
+
+    blockedRequestUuid?.let { requestUuid ->
+        BlockUserDialog(
+            title = R.string.block_contact_request_sender_title,
+            text = R.string.block_contact_request_sender_confirmation,
+            onDismiss = { blockedRequestUuid = null },
+            onConfirm = {
+                viewModel.block(requestUuid = requestUuid)
+                blockedRequestUuid = null
+            },
+        )
     }
 
     Scaffold(
@@ -130,6 +146,7 @@ fun ContactRequestListScreen(
                                 answer = content.answers[request.uuid],
                                 onAccept = { viewModel.accept(requestUuid = request.uuid) },
                                 onRefuse = { viewModel.refuse(requestUuid = request.uuid) },
+                                onBlock = { blockedRequestUuid = request.uuid },
                             )
                         }
                     }

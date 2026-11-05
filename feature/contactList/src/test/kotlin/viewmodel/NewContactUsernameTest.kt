@@ -4,6 +4,7 @@ import ContactCallBacks
 import kotlinx.coroutines.flow.Flow
 import model.AddContactError
 import model.AnswerContactRequestError
+import model.BlockedUser
 import model.ContactRequest
 import model.ContactVerification
 import model.RemoveContactError
@@ -59,6 +60,12 @@ class NewContactUsernameTest {
 
         override suspend fun removeContact(userUuid: String): RemoveContactError? = notWhileTyping()
 
+        override suspend fun blockContact(userUuid: String): RemoveContactError? = notWhileTyping()
+
+        override fun getBlockedUsers(): Flow<List<BlockedUser>> = notWhileTyping()
+
+        override suspend fun unblock(userUuid: String) { notWhileTyping() }
+
         override fun getVerification(userUuid: String): Flow<ContactVerification> = notWhileTyping()
 
         override suspend fun markVerified(userUuid: String, safetyNumber: String) { notWhileTyping() }
@@ -81,6 +88,9 @@ class NewContactUsernameTest {
             notWhileTyping()
 
         override suspend fun refuseContactRequest(requestUuid: String): AnswerContactRequestError? =
+            notWhileTyping()
+
+        override suspend fun blockContactRequestSender(requestUuid: String): AnswerContactRequestError? =
             notWhileTyping()
 
         override suspend fun sendContactRequest(username: String): AddContactError? = notWhileTyping()

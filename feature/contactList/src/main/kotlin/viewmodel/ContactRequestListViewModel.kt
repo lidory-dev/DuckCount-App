@@ -68,6 +68,13 @@ class ContactRequestListViewModel(
         }
     }
 
+    /** Blocks the request's sender without accepting it, see [ContactCallBacks.blockContactRequestSender]. */
+    fun block(requestUuid: String) {
+        answer(requestUuid = requestUuid, answer = ContactRequestAnswer.BLOCK) {
+            contactCallBacks.blockContactRequestSender(requestUuid = requestUuid)
+        }
+    }
+
     private fun answer(
         requestUuid: String,
         answer: ContactRequestAnswer,
@@ -87,6 +94,9 @@ class ContactRequestListViewModel(
 enum class ContactRequestAnswer {
     ACCEPT,
     REFUSE,
+
+    /** Refusing it, and blocking its sender. */
+    BLOCK,
 }
 
 sealed interface ContactRequestListState {

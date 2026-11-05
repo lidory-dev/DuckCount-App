@@ -2,6 +2,7 @@ package app.lidory.duckcount.navigation
 
 import AuthenticationFlow
 import ContactDetailScreen
+import BlockedUserListScreen
 import ContactRequestListScreen
 import ContactVerificationScreen
 import NewContactScreen
@@ -39,6 +40,7 @@ import app.lidory.duckcount.groupList.GroupHistoryScreen
 import app.lidory.duckcount.groupList.GroupSettingsScreen
 import app.lidory.duckcount.groupList.GroupSettleUpScreen
 import app.lidory.duckcount.navigation.key.ContactDetailScreenKey
+import app.lidory.duckcount.navigation.key.BlockedUserListScreenKey
 import app.lidory.duckcount.navigation.key.ContactRequestListScreenKey
 import app.lidory.duckcount.navigation.key.ContactVerificationScreenKey
 import app.lidory.duckcount.navigation.key.CreateExpenseScreenKey
@@ -133,6 +135,11 @@ fun NavigationRoot(
                                 navigateToContactRequests = {
                                     backStack.add(
                                         ContactRequestListScreenKey,
+                                    )
+                                },
+                                navigateToBlockedUsers = {
+                                    backStack.add(
+                                        BlockedUserListScreenKey,
                                     )
                                 },
                                 navigateToCreateGroupScreen = {
@@ -281,6 +288,16 @@ fun NavigationRoot(
                         ) {
                             ContactRequestListScreen(
                                 onBack = dropUnlessResumed { backStack.removeIf { it is ContactRequestListScreenKey } },
+                            )
+                        }
+                    }
+
+                    is BlockedUserListScreenKey -> {
+                        NavEntry(
+                            key = key,
+                        ) {
+                            BlockedUserListScreen(
+                                onBack = dropUnlessResumed { backStack.removeIf { it is BlockedUserListScreenKey } },
                             )
                         }
                     }

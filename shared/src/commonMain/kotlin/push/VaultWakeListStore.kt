@@ -10,6 +10,8 @@ private const val REQUESTED = "wakeListRequested"
 
 private const val CO_MEMBERS = "wakeListCoMembers"
 
+private const val BLOCKED = "wakeListBlocked"
+
 /**
  * Who may wake the user, kept in the vault where [PushSignal.mayWake] can read it with the
  * screen locked, see [WakeList].
@@ -29,11 +31,19 @@ internal class VaultWakeListStore(private val vault: KSafe) : WakeListStore {
 
     override fun isCoMember(userUuid: String): Boolean = userUuid in listed(key = CO_MEMBERS)
 
-    /** Written before this returns, so that a removal outlives the process. */
-    override suspend fun replace(contacts: Set<String>, requested: Set<String>, coMembers: Set<String>) {
+    override fun isBlocked(userUuid: String): Boolean = userUuid in listed(key = BLOCKED)
+
+    /** Written before this returns, so that a removal, or a block, outlives the process. */
+    override suspend fun replace(
+        contacts: Set<String>,
+        requested: Set<String>,
+        coMembers: Set<String>,
+        blocked: Set<String>,
+    ) {
         vault.put(key = CONTACTS, value = contacts, mode = READABLE_WHILE_LOCKED)
         vault.put(key = REQUESTED, value = requested, mode = READABLE_WHILE_LOCKED)
         vault.put(key = CO_MEMBERS, value = coMembers, mode = READABLE_WHILE_LOCKED)
+        vault.put(key = BLOCKED, value = blocked, mode = READABLE_WHILE_LOCKED)
     }
 
     /**
@@ -44,6 +54,7 @@ internal class VaultWakeListStore(private val vault: KSafe) : WakeListStore {
         vault.delete(key = CONTACTS)
         vault.delete(key = REQUESTED)
         vault.delete(key = CO_MEMBERS)
+        vault.delete(key = BLOCKED)
     }
 
     private fun listed(key: String): Set<String> = vault.getDirect<Set<String>>(key = key, defaultValue = emptySet())

@@ -1,6 +1,7 @@
 import kotlinx.coroutines.flow.Flow
 import model.AddContactError
 import model.AnswerContactRequestError
+import model.BlockedUser
 import model.ContactRequest
 import model.ContactVerification
 import model.RemoveContactError
@@ -26,6 +27,25 @@ interface ContactCallBacks {
      * been told, so the user can try again.
      */
     suspend fun removeContact(userUuid: String): RemoveContactError?
+
+    /**
+     * Blocks the contact [userUuid]: removes them as [removeContact] does, telling them as for any
+     * removal, never that they were blocked, then refuses anything coming from them from then on,
+     * their contact requests included.
+     *
+     * Returns null once blocked, or why it could not be. Nothing is done until they have been told,
+     * so the user can try again.
+     */
+    suspend fun blockContact(userUuid: String): RemoveContactError?
+
+    /** Emits everybody the user blocked, again whenever that changes. */
+    fun getBlockedUsers(): Flow<List<BlockedUser>>
+
+    /**
+     * Lifts the block on [userUuid]. They are no contact of the user's for it: a new request, from
+     * either of the two, is what makes them one again.
+     */
+    suspend fun unblock(userUuid: String)
 
     /**
      * Emits where the user stands with checking that the contact [userUuid] is who this device
@@ -98,6 +118,16 @@ interface ContactCallBacks {
      * added as a contact, which [AnswerContactRequestError.ALREADY_ACCEPTED] says.
      */
     suspend fun refuseContactRequest(requestUuid: String): AnswerContactRequestError?
+
+    /**
+     * Blocks the sender of the contact request [requestUuid] without accepting it: refuses it as
+     * [refuseContactRequest] does, which they are not told, then refuses anything coming from them
+     * from then on, every request of theirs included.
+     *
+     * Returns null once blocked, or why it could not be, the same way as [refuseContactRequest]:
+     * nobody is blocked while the request could not be refused, nor when it turns out accepted.
+     */
+    suspend fun blockContactRequestSender(requestUuid: String): AnswerContactRequestError?
 
     /**
      * Returns why [username] cannot be looked up as typed, or null when it is valid, or empty:

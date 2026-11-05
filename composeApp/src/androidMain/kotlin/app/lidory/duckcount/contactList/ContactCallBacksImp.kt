@@ -11,6 +11,7 @@ import contact.AnswerContactRequestError as SharedAnswerContactRequestError
 import contact.ContactArrivals
 import contact.ContactSync
 import contact.SafetyNumbers
+import database.data.repository.BlockedUserRepository
 import database.data.repository.ContactRepository
 import database.data.repository.ContactRequestRepository
 import database.data.repository.UserRepository
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import model.AddContactError
 import model.AnswerContactRequestError
+import model.BlockedUser
 import model.ContactRequest
 import model.ContactVerification
 import model.RemoveContactError
@@ -34,6 +36,7 @@ class ContactCallBacksImp(
     val userRepository: UserRepository,
     private val contactRequestRepository: ContactRequestRepository,
     private val contactRepository: ContactRepository,
+    private val blockedUserRepository: BlockedUserRepository,
     private val contactSync: ContactSync,
     private val contactArrivals: ContactArrivals,
     private val contactNotifier: ContactNotifier,
@@ -92,6 +95,39 @@ class ContactCallBacksImp(
                 removal.error.toRemoveContactError(isOnline = networkConnectivity.isOnline())
             }
         }
+
+    override suspend fun blockContact(userUuid: String): RemoveContactError? =
+        when (val blocking = contactRepository.block(userUuid = userUuid)) {
+            is Result.Success -> {
+                // Removed and blocked on this device, so a vault write failing from here on is
+                // retried by the next refresh rather than reported, as for a removal.
+                syncContacts(caller = "blockContact")
+
+                // As for a removal: what a notification announced about them is no longer true.
+                contactNotifier.forget(userUuids = listOf(userUuid))
+
+                null
+            }
+
+            is Result.Error -> {
+                Log.w(TAG, "blockContact: could not block the contact: ${blocking.error}")
+
+                blocking.error.toRemoveContactError(isOnline = networkConnectivity.isOnline())
+            }
+        }
+
+    override fun getBlockedUsers(): Flow<List<BlockedUser>> =
+        blockedUserRepository.getBlocked().map { blocked ->
+            blocked.map { BlockedUser(userUuid = it.userUuid, fullName = it.fullName) }
+        }
+
+    override suspend fun unblock(userUuid: String) {
+        blockedUserRepository.unblock(userUuid = userUuid)
+
+        // Lifted on this device, which is what the user sees, so a vault write failing from here
+        // on is retried by the next refresh rather than reported.
+        syncContacts(caller = "unblock")
+    }
 
     override fun getVerification(userUuid: String): Flow<ContactVerification> {
         return safetyNumbers.observe(userUuid = userUuid).map { verification ->
@@ -185,6 +221,28 @@ class ContactCallBacksImp(
                 }
 
                 refusal.error.toAnswerContactRequestError(isOnline = networkConnectivity.isOnline())
+            }
+        }
+
+    override suspend fun blockContactRequestSender(requestUuid: String): AnswerContactRequestError? =
+        when (val blocking = contactRequestRepository.blockSender(requestUuid = requestUuid)) {
+            is Result.Success -> {
+                // Blocked on this device, so a vault write failing from here on is retried by the
+                // next refresh rather than reported.
+                syncContacts(caller = "blockContactRequestSender")
+
+                null
+            }
+
+            is Result.Error -> {
+                Log.w(TAG, "blockContactRequestSender: could not block the sender: ${blocking.error}")
+
+                // Not refused, accepted, as for a refusal: its sender is a contact now.
+                if (blocking.error == SharedAnswerContactRequestError.AlreadyAccepted) {
+                    syncContacts(caller = "blockContactRequestSender")
+                }
+
+                blocking.error.toAnswerContactRequestError(isOnline = networkConnectivity.isOnline())
             }
         }
 

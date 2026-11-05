@@ -35,6 +35,9 @@ enum class AddContactError {
      */
     IDENTITY_CHANGED,
 
+    /** The user blocked this user, and has to unblock them first. */
+    BLOCKED,
+
     /** No connectivity. */
     NO_INTERNET,
 
@@ -57,6 +60,7 @@ fun AddContactError.messageRes(): Int = when (this) {
     AddContactError.ALREADY_PENDING -> R.string.add_contact_error_already_pending
     AddContactError.RATE_LIMITED -> R.string.add_contact_error_rate_limited
     AddContactError.IDENTITY_CHANGED -> R.string.add_contact_error_identity_changed
+    AddContactError.BLOCKED -> R.string.add_contact_error_blocked
     AddContactError.NO_INTERNET -> R.string.add_contact_error_no_internet
     AddContactError.TIMEOUT -> R.string.add_contact_error_timeout
     AddContactError.SERVER_UNREACHABLE -> R.string.add_contact_error_server_unreachable

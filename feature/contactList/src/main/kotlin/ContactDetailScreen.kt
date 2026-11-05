@@ -35,13 +35,15 @@ import app.lidory.contactList.R
 import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.constant.Padding
+import component.BlockContactCard
+import component.BlockUserDialog
 import component.ContactDeletionDialog
 import component.ContactVerificationCard
 import model.ContactVerification
-import model.RemoveContactError
-import model.messageRes
 import org.koin.androidx.compose.koinViewModel
+import viewmodel.ContactDetailError
 import viewmodel.ContactDetailViewModel
+import viewmodel.messageRes
 import app.lidory.duckcount.android.ui.R as androidUiR
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,7 +70,7 @@ fun ContactDetailScreen(
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
-    var pendingError by remember { mutableStateOf<RemoveContactError?>(null) }
+    var pendingError by remember { mutableStateOf<ContactDetailError?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.errors.collect { pendingError = it }
@@ -95,6 +97,20 @@ fun ContactDetailScreen(
         )
     }
 
+    var isConfirmBlockDialogVisible by remember { mutableStateOf(false) }
+
+    if (isConfirmBlockDialogVisible) {
+        BlockUserDialog(
+            title = R.string.block_contact_title,
+            text = R.string.block_contact_confirmation,
+            onDismiss = { isConfirmBlockDialogVisible = false },
+            onConfirm = {
+                viewModel.blockContact()
+                isConfirmBlockDialogVisible = false
+            },
+        )
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -113,7 +129,7 @@ fun ContactDetailScreen(
                 actions = {
                     IconButton(
                         onClick = { isConfirmDeletionDialogVisible.value = true },
-                        enabled = !state.isRemoving && !isRemoved,
+                        enabled = !state.isRemoving && !state.isBlocking && !isRemoved,
                     ) {
                         if (state.isRemoving) {
                             CircularProgressIndicator(modifier = Modifier.size(24.dp))
@@ -176,6 +192,16 @@ fun ContactDetailScreen(
                     ContactVerificationCard(
                         isVerified = (shownVerification as? ContactVerification.Available)?.isVerified == true,
                         onClick = dropUnlessResumed { navigateToContactVerification() },
+                    )
+
+                    // Only a contact is blocked from here, as only a contact is removed: anybody
+                    // else is blocked from a request of theirs.
+                    Spacer(modifier = Modifier.height(Padding.medium))
+
+                    BlockContactCard(
+                        isBlocking = state.isBlocking,
+                        enabled = !state.isRemoving && !state.isBlocking && !isRemoved,
+                        onClick = { isConfirmBlockDialogVisible = true },
                     )
                 }
             }

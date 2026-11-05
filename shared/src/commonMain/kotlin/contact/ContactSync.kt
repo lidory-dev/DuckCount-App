@@ -1,5 +1,6 @@
 package contact
 
+import database.data.repository.BlockedUserRepository
 import database.data.repository.ContactRepository
 import database.data.repository.ContactRequestRepository
 import message.DirectMessageSync
@@ -37,6 +38,7 @@ class ContactSync(
     private val directMessageSync: DirectMessageSync,
     private val profileKeyDelivery: ProfileKeyDelivery,
     private val profileKeyPull: ProfileKeyPull,
+    private val blockedUserRepository: BlockedUserRepository,
     private val wakeList: WakeList,
 ) {
     /**
@@ -63,7 +65,8 @@ class ContactSync(
     }
 
     /**
-     * Carries the contact changes this device made to the vault, hands the key to the user's
+     * Carries the contact changes this device made to the vault, and who the user blocked or
+     * unblocked, see [BlockedUserRepository.backUp], hands the key to the user's
      * profile to the contacts who do not hold it yet, reads the profiles of the contacts it has
      * no name for, or was missing the current key of and has a new one from, see
      * [ContactRepository.resolveNames], asks those whose key it is missing for it, and rebuilds
@@ -98,6 +101,8 @@ class ContactSync(
         contactRepository.resolveNames().onError { failure = failure ?: it }
 
         profileKeyPull.requestMissingKeys().onError { failure = failure ?: it }
+
+        blockedUserRepository.backUp().onError { failure = failure ?: it }
 
         wakeList.rebuild()
 

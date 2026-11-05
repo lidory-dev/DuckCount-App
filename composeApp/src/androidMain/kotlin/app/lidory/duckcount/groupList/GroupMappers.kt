@@ -420,6 +420,7 @@ private fun VaultError.toGroupCreationFailure(isOnline: Boolean): GroupCreationF
     VaultError.MalformedKeyRing,
     VaultError.MalformedContactBook,
     VaultError.MalformedMemberProfileBook,
+    VaultError.MalformedBlockList,
     VaultError.OrphanedEntry,
     VaultError.Contended,
         -> GroupCreationFailure.UNKNOWN
@@ -480,6 +481,7 @@ fun SendContactRequestError.toContactRequestError(isOnline: Boolean): ContactReq
     SendContactRequestError.RateLimited -> ContactRequestError.RATE_LIMITED
     SendContactRequestError.IdentityChanged -> ContactRequestError.IDENTITY_CHANGED
     SendContactRequestError.NotInGroup -> ContactRequestError.NOT_IN_GROUP
+    SendContactRequestError.Blocked -> ContactRequestError.BLOCKED
 
     is SendContactRequestError.Network -> error.toContactRequestError(isOnline = isOnline)
 
@@ -527,6 +529,7 @@ private fun VaultError.toContactRequestError(isOnline: Boolean): ContactRequestE
     VaultError.MalformedKeyRing,
     VaultError.MalformedContactBook,
     VaultError.MalformedMemberProfileBook,
+    VaultError.MalformedBlockList,
     VaultError.OrphanedEntry,
     VaultError.Contended,
         -> ContactRequestError.UNKNOWN

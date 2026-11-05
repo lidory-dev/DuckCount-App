@@ -45,6 +45,13 @@ sealed interface SendContactRequestError : Error {
     data object IdentityChanged : SendContactRequestError
 
     /**
+     * The user blocked the recipient, see
+     * [database.data.local.entity.BlockedUserEntity], and would read nothing of their answer:
+     * unblocking them comes first.
+     */
+    data object Blocked : SendContactRequestError
+
+    /**
      * The group a request to one of its members is sent from cannot vouch for them on this
      * device: the group is not one of the user's, the user is no longer in it, removed or left,
      * its MLS state is not on this device, a log-out having taken it, or its tree, as this device

@@ -75,6 +75,7 @@ class ContactRequestRepository(
     private val contactRepository: ContactRepository,
     private val directChannelRepository: DirectChannelRepository,
     private val contactRequestSender: ContactRequestSender,
+    private val blockedUserRepository: BlockedUserRepository,
 ) {
     /**
      * Serialises the operations on the requests addressed to the user. Each one reads the
@@ -93,12 +94,15 @@ class ContactRequestRepository(
      */
     private val completedUuids = HashSet<String>()
 
-    /** How many requests are waiting for the user's answer. */
+    /**
+     * How many requests are waiting for the user's answer, those from somebody the user blocked
+     * aside, which the next [refresh] refuses, see [ContactRequestDao.getCountAsFlow].
+     */
     fun getPendingCount(): Flow<Int> {
         return contactRequestDao.getCountAsFlow()
     }
 
-    /** The requests waiting for the user's answer, oldest first. */
+    /** The requests waiting for the user's answer, oldest first, as [getPendingCount] counts them. */
     fun getPending(): Flow<List<ContactRequest>> {
         return contactRequestDao.getOpenedAsFlow().map { requests ->
             requests.map { it.toContactRequest() }
@@ -113,6 +117,13 @@ class ContactRequestRepository(
      * seeing it. Typically it was sent to a key package whose secret a log-out or a
      * reinstall took along. Its sender is not told, and is free to send a new one, which a
      * request left pending would prevent.
+     *
+     * So is one from somebody the user blocked, see
+     * [BlockedUserEntity][database.data.local.entity.BlockedUserEntity], without being opened:
+     * nothing of it is read, nor is its group joined. Its sender is not told either, and their
+     * own app keeps it out, never told of a refusal, so that an honest one sends no other. The
+     * contacts are brought back first, see [ContactRepository.restore], which brings back who the
+     * user blocked along with them: until then, a request of theirs would be opened and listed.
      *
      * A request the user accepted that the server no longer lists is settled by what the
      * server says became of it: completed when the acceptance took it, its sender pinned and
@@ -141,7 +152,10 @@ class ContactRequestRepository(
             .filter { it.mlsGroupId != null }
             .mapTo(HashSet()) { it.uuid }
 
-        listed.all { it.uuid in opened }
+        // One from somebody the user blocked is never opened, but refused, see [refresh].
+        val blocked = blockedUserRepository.getBlockedUuids()
+
+        listed.all { it.uuid in opened || it.senderUserUuid in blocked }
     }
 
     /**
@@ -178,6 +192,38 @@ class ContactRequestRepository(
      */
     suspend fun refuse(requestUuid: String): EmptyResult<AnswerContactRequestError> =
         mutex.withLock { refuseLocked(requestUuid = requestUuid) }
+
+    /**
+     * Blocks the sender of the request [requestUuid], see
+     * [BlockedUserEntity][database.data.local.entity.BlockedUserEntity], without accepting it:
+     * refuses it as [refuse] does, which its sender is never told, then blocks them, under the name
+     * the request showed for them. Every request of theirs from then on is refused unread, see
+     * [refresh].
+     *
+     * Nobody is blocked until the refusal is taken, so a failure can simply be retried. Nor when a
+     * request the user accepted before, without hearing back, turns out to have been taken: its
+     * sender is made a contact instead, see [AnswerContactRequestError.AlreadyAccepted], whom
+     * blocking then removes, see [ContactRepository.block].
+     */
+    suspend fun blockSender(requestUuid: String): EmptyResult<AnswerContactRequestError> =
+        mutex.withLock {
+            // Completed while the screen still offered it, see completedUuids: they are a contact.
+            if (requestUuid in completedUuids) {
+                return@withLock Result.Error(AnswerContactRequestError.AlreadyAccepted)
+            }
+
+            // Only listed requests are shown, but a refresh can drop one from under the screen.
+            val request = contactRequestDao.get(uuid = requestUuid)
+                ?: return@withLock Result.Error(AnswerContactRequestError.NotFound)
+
+            val refusal = refuseLocked(requestUuid = requestUuid)
+
+            if (refusal is Result.Error) return@withLock refusal
+
+            blockedUserRepository.record(userUuid = request.senderUserUuid, fullName = request.senderFullName)
+
+            Result.Success(Unit)
+        }
 
     /**
      * Asks the holder of the discovery [username] to become a contact, handing them the
@@ -361,6 +407,11 @@ class ContactRequestRepository(
     }
 
     private suspend fun refreshLocked(): EmptyResult<ContactSyncError> {
+        // Who the user blocked comes back with the contacts, see [refresh].
+        val restored = contactRepository.restore()
+
+        if (restored is Result.Error) return restored
+
         val listed = when (val response = contactApi.getContactRequests()) {
             is Result.Success -> response.data.requests.map { it.toContactRequestEntity() }
             is Result.Error -> return Result.Error(ContactSyncError.Network(response.error))
@@ -406,11 +457,21 @@ class ContactRequestRepository(
 
         contactRequestDao.reconcile(vanishedUuids = vanished.map { it.uuid }, listed = listed)
 
+        val blocked = blockedUserRepository.getBlockedUuids()
+
+        // One the user accepted is no longer theirs to refuse, see above: its sender is a contact
+        // by the time the user can block them, whom blocking removes.
+        for (request in contactRequestDao.getAll().filter { it.senderUserUuid in blocked && !it.isAcceptanceSent }) {
+            refuseUnseen(requestUuid = request.uuid).onError { failure = failure ?: it }
+        }
+
         // A request vanishes when the user's refusal took it without its answer coming back,
         // its sender accepted the user's own request to them, which clears this one, or
         // deleted their account. Either way its group is of no use.
         val abandonedGroupIds = vanished.mapNotNull { it.mlsGroupId }
-        val unopened = contactRequestDao.getUnopened()
+
+        // Never opened, one whose refusal failed above waiting for the next refresh to refuse it.
+        val unopened = contactRequestDao.getUnopened().filter { it.senderUserUuid !in blocked }
 
         // Opening the MLS client is not free, and most refreshes leave it nothing to do.
         if (abandonedGroupIds.isNotEmpty() || unopened.isNotEmpty()) {
@@ -438,12 +499,12 @@ class ContactRequestRepository(
     /** Opens [request], or refuses it when it can never be opened. */
     private suspend fun open(client: MlsClient, request: ContactRequestEntity): EmptyResult<ContactSyncError> {
         val envelope = ContactRequestEnvelope.parse(ciphertext = request.ciphertext)
-            ?: return refuseUnreadable(requestUuid = request.uuid)
+            ?: return refuseUnseen(requestUuid = request.uuid)
 
         return when (join(client = client, request = request, envelope = envelope)) {
             Opening.OPENED -> Result.Success(Unit)
             Opening.RETRY -> Result.Error(ContactSyncError.Storage)
-            Opening.UNREADABLE -> refuseUnreadable(requestUuid = request.uuid)
+            Opening.UNREADABLE -> refuseUnseen(requestUuid = request.uuid)
         }
     }
 
@@ -775,15 +836,16 @@ class ContactRequestRepository(
         contactApi.getContactRequestStatus(requestUuid = requestUuid).map { it.status }
 
     /**
-     * Refuses a request that can never be opened, see [refresh]. Never accepted either, since
-     * only an opened one can be.
+     * Refuses a request the user never sees, see [refresh]: one that can never be opened, or one
+     * from somebody they blocked. Never accepted either, since only an opened one can be, and only
+     * a listed one is.
      */
-    private suspend fun refuseUnreadable(requestUuid: String): EmptyResult<ContactSyncError> {
+    private suspend fun refuseUnseen(requestUuid: String): EmptyResult<ContactSyncError> {
         val refusal = contactApi.refuseContactRequest(requestUuid = requestUuid)
 
         // Not found means the request is gone already, which is all refusing it was for, or the
         // proxy answered while the API was being redeployed: the next refresh then lists it
-        // again, fails to open it again, and refuses it again.
+        // again, and refuses it again.
         if (refusal is Result.Error && refusal.error != NetworkError.NOT_FOUND) {
             return Result.Error(ContactSyncError.Network(refusal.error))
         }

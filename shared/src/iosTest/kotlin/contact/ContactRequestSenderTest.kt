@@ -82,6 +82,9 @@ class ContactRequestSenderTest {
     /** Who the vault blocks, see `IdentityConflictDao.isBlocked`. */
     private val blocked = mutableSetOf<String>()
 
+    /** Who Bob blocked, see `BlockedUserDao.isBlocked`. */
+    private val blockedByUser = mutableSetOf<String>()
+
     /** What restoring the contacts comes to. */
     private var restored: EmptyResult<ContactSyncError> = Result.Success(Unit)
 
@@ -122,6 +125,7 @@ class ContactRequestSenderTest {
             outgoing.any { it.recipientUserUuid == recipientUserUuid && it.isStored }
         },
         isBlocked = { it in blocked },
+        isBlockedByUser = { it in blockedByUser },
         group = { groups[it] },
         client = { opened },
         consumeKeyPackage = { userUuid ->
@@ -249,6 +253,35 @@ class ContactRequestSenderTest {
 
             assertNothingSpent()
         }
+
+    /** Her answer would be acknowledged unread: unblocking her comes first. */
+    @Test
+    fun `a member the user blocked is refused before any key package is spent`() = runBlocking<Unit> {
+        blockedByUser += CAROL
+
+        assertEquals(Result.Error(SendContactRequestError.Blocked), sendToCarol())
+
+        assertNothingSpent()
+    }
+
+    /**
+     * The lookup of a username finds out whose it is, spending one of their key packages, and
+     * nothing more is spent on it: no group is built, nothing recorded or sent.
+     */
+    @Test
+    fun `a request to somebody the user blocked is refused before anything is built`() = runBlocking<Unit> {
+        blockedByUser += CAROL
+
+        assertEquals(
+            Result.Error(SendContactRequestError.Blocked),
+            sender.sendTo(recipientUserUuid = CAROL, keyPackage = keyPackageOf(carol).keyPackage),
+        )
+
+        assertTrue(recorded.isEmpty())
+        assertTrue(sent.isEmpty())
+        assertEquals(1, groupsHeld())
+        assertNull(bob.pinnedSignatureKey(userUuid = CAROL))
+    }
 
     /** It may never have reached the server, which settles it once she is asked again. */
     @Test

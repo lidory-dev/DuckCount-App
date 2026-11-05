@@ -19,10 +19,17 @@ interface WakeListStore {
     fun isCoMember(userUuid: String): Boolean
 
     /**
-     * Replaces the whole list with [contacts], the recipients of the [requested] contact
-     * requests and the members of the user's groups, [coMembers], written before this returns.
+     * Whether the user blocked [userUuid], see
+     * [BlockedUserEntity][database.data.local.entity.BlockedUserEntity].
      */
-    suspend fun replace(contacts: Set<String>, requested: Set<String>, coMembers: Set<String>)
+    fun isBlocked(userUuid: String): Boolean
+
+    /**
+     * Replaces the whole list with [contacts], the recipients of the [requested] contact
+     * requests, the members of the user's groups, [coMembers], and the users the user [blocked],
+     * written before this returns.
+     */
+    suspend fun replace(contacts: Set<String>, requested: Set<String>, coMembers: Set<String>, blocked: Set<String>)
 
     /** Empties it, for good by the time this returns, as the session ends. */
     suspend fun clear()

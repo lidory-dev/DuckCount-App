@@ -83,8 +83,8 @@ enum class VaultEntryKey(val wireName: String) {
     DISCOVERY_USERNAME("discovery_username"),
 
     /**
-     * The user's blocklist, sealed whole, so the server never learns how many there
-     * are.
+     * The users the user blocked, each with the name they were blocked under, see [BlockList].
+     * Sealed whole and padded, so the server learns neither who they are nor how many.
      */
     BLOCKED_USERS("blocked_users"),
 

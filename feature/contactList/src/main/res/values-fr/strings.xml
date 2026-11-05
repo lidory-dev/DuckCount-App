@@ -26,6 +26,7 @@
     <string name="add_contact_error_already_pending">Une demande de contact est déjà en attente pour cet utilisateur</string>
     <string name="add_contact_error_rate_limited">Trop de tentatives, réessayez plus tard</string>
     <string name="add_contact_error_identity_changed">Votre numéro de sécurité avec cet utilisateur a changé, la demande n’a pas été envoyée</string>
+    <string name="add_contact_error_blocked">Vous avez bloqué cet utilisateur. Débloquez-le pour lui envoyer une demande.</string>
     <string name="add_contact_error_no_internet">Aucune connexion Internet</string>
     <string name="add_contact_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>
     <string name="add_contact_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
@@ -45,6 +46,23 @@
     <string name="remove_contact_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>
     <string name="remove_contact_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>
     <string name="remove_contact_error_unknown">Le contact n’a pas pu être supprimé, réessayez</string>
+    <string name="block_contact">Bloquer</string>
+    <string name="block_contact_title">Bloquer ce contact\u00A0?</string>
+    <string name="block_contact_confirmation">Cette personne sera retirée de vos contacts et ne pourra plus vous envoyer ni demande de contact ni dépense. Les groupes que vous partagez restent inchangés. Elle ne sera pas informée du blocage.</string>
+    <string name="block_contact_error_unknown">Le contact n’a pas pu être bloqué, réessayez</string>
+    <string name="block_contact_request_sender">Bloquer</string>
+    <string name="block_contact_request_sender_title">Bloquer cet utilisateur\u00A0?</string>
+    <string name="block_contact_request_sender_confirmation">Sa demande sera refusée et cette personne ne pourra plus vous envoyer de demande de contact. Elle n’en sera pas informée.</string>
+    <string name="blocked_users">Utilisateurs bloqués</string>
+    <plurals name="blocked_users_count">
+        <item quantity="one" tools:ignore="ImpliedQuantity">%1$d utilisateur bloqué</item>
+        <item quantity="other">%1$d utilisateurs bloqués</item>
+    </plurals>
+    <string name="blocked_users_explanation">Les utilisateurs bloqués ne peuvent plus vous envoyer ni demande de contact ni dépense. Débloquer quelqu’un ne l’ajoute pas à vos contacts.</string>
+    <string name="no_blocked_users">Aucun utilisateur bloqué</string>
+    <string name="unblock_user">Débloquer</string>
+    <string name="unblock_user_title">Débloquer cet utilisateur\u00A0?</string>
+    <string name="unblock_user_confirmation">Cette personne pourra de nouveau vous envoyer des demandes de contact.</string>
     <string name="safety_number">Numéro de sécurité</string>
     <string name="verify_safety_number">Vérifier le numéro de sécurité</string>
     <string name="contact_verified">Vérifié</string>

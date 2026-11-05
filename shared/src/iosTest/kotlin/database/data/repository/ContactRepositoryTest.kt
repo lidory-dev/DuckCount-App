@@ -106,7 +106,14 @@ class ContactRepositoryTest {
         contactDao = tables.contactDao,
         contactRequestDao = NoRequests,
         groupMemberDao = NoGroupMembers,
+        blockedUserDao = tables.blockedUserDao,
         store = null,
+    )
+
+    private val blockedUsers = BlockedUserRepository(
+        blockedUserDao = tables.blockedUserDao,
+        vaultRepository = vaultRepository,
+        wakeList = wakeList,
     )
 
     private val mlsIdentityRepository = MlsIdentityRepository(
@@ -134,6 +141,7 @@ class ContactRepositoryTest {
         directMessageApi = DirectMessageApi(client = client),
         mlsIdentityRepository = mlsIdentityRepository,
         wakeList = wakeList,
+        blockedUserRepository = blockedUsers,
     )
 
     private val pull = ProfileKeyPull(
@@ -166,6 +174,7 @@ class ContactRepositoryTest {
                 mlsIdentityRepository = mlsIdentityRepository,
             ),
             contactRequestSender = NoRequestSent,
+            blockedUserRepository = blockedUsers,
         ),
         contactRepository = contacts,
         profileKeyPull = pull,
@@ -432,6 +441,63 @@ class ContactRepositoryTest {
         assertTrue(alice.isRemoved)
         assertTrue(alice.rotatesProfileKey)
         assertFalse(leftPending.contentEquals(assertNotNull(userVault.pendingKey)))
+    }
+
+    /**
+     * Blocking Alice removes her as removing her does, owing the key she holds a rotation, and
+     * blocks her under the name the contact list showed, which the list of blocked users shows
+     * once she is no contact. The vault gets it with the next backup.
+     */
+    @Test
+    fun `blocking a contact removes them as a removal does and blocks them under their name`() = runBlocking<Unit> {
+        tables.add(contact(ALICE, key = aliceFirstKey))
+        tables.names[ALICE] = "Alice Martin"
+
+        assertIs<Result.Success<Unit>>(contacts.block(userUuid = ALICE))
+
+        val alice = tables.contacts.getValue(ALICE)
+
+        assertTrue(alice.isRemoved)
+        assertTrue(alice.rotatesProfileKey)
+        assertNotNull(userVault.pendingKey)
+        assertEquals("Alice Martin", tables.hidden[ALICE])
+
+        val blocked = tables.blockedByUser.getValue(ALICE)
+
+        assertEquals("Alice Martin", blocked.fullName)
+        assertFalse(blocked.isBackedUp)
+        assertFalse(blocked.isUnblocked)
+    }
+
+    /** As for a removal that cannot keep the key it owes: nothing is told or written, the block included. */
+    @Test
+    fun `a block whose owed key cannot be kept blocks nobody`() = runBlocking<Unit> {
+        tables.add(contact(ALICE, key = aliceFirstKey))
+        val channels = ChannelTo(peerUuid = ALICE, mlsGroupId = group)
+        userVault.isDeviceLocked = true
+
+        val blocking = contactsWith(directChannelDao = channels).block(userUuid = ALICE)
+
+        assertEquals(RemoveContactError.DeviceLocked, assertIs<Result.Error<RemoveContactError>>(blocking).error)
+        assertTrue(channels.lookedUp.isEmpty())
+        assertFalse(tables.contacts.getValue(ALICE).isRemoved)
+        assertTrue(tables.blockedByUser.isEmpty())
+    }
+
+    /**
+     * Dave is a former contact, whose notice of removal came in as the user was about to block him:
+     * he is blocked all the same, under the name kept for him, and nothing of his removal changes.
+     */
+    @Test
+    fun `blocking somebody who is no contact blocks them straight away`() = runBlocking<Unit> {
+        tables.add(contact(DAVE, key = aliceFirstKey).copy(isRemoved = true, isBackedUp = false, rotatesProfileKey = false))
+        tables.hidden[DAVE] = "Dave Moreau"
+
+        assertIs<Result.Success<Unit>>(contacts.block(userUuid = DAVE))
+
+        assertEquals("Dave Moreau", tables.blockedByUser.getValue(DAVE).fullName)
+        assertFalse(tables.contacts.getValue(DAVE).rotatesProfileKey)
+        assertNull(userVault.pendingKey)
     }
 
     /**
@@ -840,6 +906,7 @@ private val NoRequestSent = ContactRequestSender(
     isContact = { error("Not used here") },
     hasStoredOutgoingTo = { error("Not used here") },
     isBlocked = { error("Not used here") },
+    isBlockedByUser = { error("Not used here") },
     group = { error("Not used here") },
     client = { error("Not used here") },
     consumeKeyPackage = { error("Not used here") },
@@ -870,6 +937,7 @@ private object NoLocalData : LocalDataDao {
     override suspend fun deleteContacts() = error("Not used here")
     override suspend fun deleteDirectChannels() = error("Not used here")
     override suspend fun deleteIdentityConflicts() = error("Not used here")
+    override suspend fun deleteBlockedUsers() = error("Not used here")
     override suspend fun deleteOneTimeExpenseKeys() = error("Not used here")
     override suspend fun deleteUnverifiedExpenseKeys() = error("Not used here")
     override suspend fun deleteExpenseRevisions() = error("Not used here")

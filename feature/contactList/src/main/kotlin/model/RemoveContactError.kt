@@ -32,3 +32,15 @@ fun RemoveContactError.messageRes(): Int = when (this) {
     RemoveContactError.SERVER_UNREACHABLE -> R.string.remove_contact_error_server_unreachable
     RemoveContactError.UNKNOWN -> R.string.remove_contact_error_unknown
 }
+
+/** The same, for a contact being blocked, which removes them first, see [ContactCallBacks.blockContact]. */
+@StringRes
+fun RemoveContactError.blockMessageRes(): Int = when (this) {
+    RemoveContactError.UNKNOWN -> R.string.block_contact_error_unknown
+
+    RemoveContactError.RATE_LIMITED,
+    RemoveContactError.NO_INTERNET,
+    RemoveContactError.TIMEOUT,
+    RemoveContactError.SERVER_UNREACHABLE,
+        -> messageRes()
+}

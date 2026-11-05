@@ -45,6 +45,9 @@ enum class ContactRequestError {
      */
     NOT_IN_GROUP,
 
+    /** The user blocked them, and has to unblock them first, from the contacts. */
+    BLOCKED,
+
     /** No connectivity. */
     NO_INTERNET,
 
@@ -66,6 +69,7 @@ fun ContactRequestError.messageRes(): Int = when (this) {
     ContactRequestError.RATE_LIMITED -> R.string.member_contact_request_error_rate_limited
     ContactRequestError.IDENTITY_CHANGED -> R.string.member_contact_request_error_identity_changed
     ContactRequestError.NOT_IN_GROUP -> R.string.member_contact_request_error_not_in_group
+    ContactRequestError.BLOCKED -> R.string.member_contact_request_error_blocked
     ContactRequestError.NO_INTERNET -> R.string.member_contact_request_error_no_internet
     ContactRequestError.TIMEOUT -> R.string.member_contact_request_error_timeout
     ContactRequestError.SERVER_UNREACHABLE -> R.string.member_contact_request_error_server_unreachable

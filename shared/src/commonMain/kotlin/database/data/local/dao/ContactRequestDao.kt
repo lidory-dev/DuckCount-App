@@ -17,11 +17,15 @@ interface ContactRequestDao {
      * How many requests are waiting for an answer.
      *
      * Opened ones only: a request nobody has read yet cannot be answered, and one that
-     * turns out unreadable is refused without ever being shown.
+     * turns out unreadable is refused without ever being shown. Nor one from somebody the user
+     * blocked, see [BlockedUserEntity][database.data.local.entity.BlockedUserEntity]: the
+     * refresh refuses it, and until then, a request the user just blocked its sender from among
+     * them, it is gone from the user's sight all the same.
      */
     @Query(
         """SELECT COUNT(*) FROM ContactRequestEntity
-        WHERE mlsGroupId IS NOT NULL AND profileEncryptionKey IS NOT NULL""",
+        WHERE mlsGroupId IS NOT NULL AND profileEncryptionKey IS NOT NULL
+        AND senderUserUuid NOT IN (SELECT userUuid FROM BlockedUserEntity WHERE isUnblocked = 0)""",
     )
     fun getCountAsFlow(): Flow<Int>
 
@@ -31,6 +35,7 @@ interface ContactRequestDao {
         handedProfileKeyHash
         FROM ContactRequestEntity
         WHERE mlsGroupId IS NOT NULL AND profileEncryptionKey IS NOT NULL
+        AND senderUserUuid NOT IN (SELECT userUuid FROM BlockedUserEntity WHERE isUnblocked = 0)
         ORDER BY createdAt, uuid""",
     )
     fun getOpenedAsFlow(): Flow<List<OpenedContactRequest>>
@@ -152,9 +157,9 @@ interface ContactRequestDao {
 
     /**
      * What the tables say of [userUuid], see [ContactStanding]: a contact, removed ones aside, as
-     * [ContactDao.get] reads one; a request of theirs waiting for the user's answer, opened, as
-     * [getOpenedAsFlow] lists them; and one of the user's out to them that the server is known to
-     * hold, see [OutgoingContactRequestEntity.isStored].
+     * [ContactDao.get] reads one; a request of theirs waiting for the user's answer, opened, and
+     * from nobody the user blocked, as [getOpenedAsFlow] lists them; and one of the user's out to
+     * them that the server is known to hold, see [OutgoingContactRequestEntity.isStored].
      *
      * In one query, so that the three are read together, never one of them as it stood before a
      * write and another as it stands after. A change made in several writes is still seen between
@@ -168,6 +173,7 @@ interface ContactRequestDao {
         EXISTS (
             SELECT 1 FROM ContactRequestEntity
             WHERE senderUserUuid = :userUuid AND mlsGroupId IS NOT NULL AND profileEncryptionKey IS NOT NULL
+            AND senderUserUuid NOT IN (SELECT userUuid FROM BlockedUserEntity WHERE isUnblocked = 0)
         ) AS hasRequestFrom,
         EXISTS (
             SELECT 1 FROM OutgoingContactRequestEntity WHERE recipientUserUuid = :userUuid AND isStored = 1

@@ -63,6 +63,7 @@ fun Dashboard(
     navigateToContactDetailScreen: (String) -> Unit,
     navigateToNewContact: () -> Unit,
     navigateToContactRequests: () -> Unit,
+    navigateToBlockedUsers: () -> Unit,
     navigateToCreateGroupScreen: () -> Unit,
     navigateToGroupDetailScreen: (String) -> Unit,
     navigateToSettingsScreen: () -> Unit,
@@ -179,6 +180,7 @@ fun Dashboard(
                                     navigateToDetailScreen = navigateToContactDetailScreen,
                                     navigateToUsernameReservation = navigateToUsernameReservation,
                                     navigateToContactRequests = navigateToContactRequests,
+                                    navigateToBlockedUsers = navigateToBlockedUsers,
                                     animatedVisibilityScope = animatedVisibilityScope,
                                     sharedTransitionScope = sharedTransitionScope,
                                 )

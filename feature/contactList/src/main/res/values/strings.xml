@@ -26,6 +26,7 @@
     <string name="add_contact_error_already_pending">You already sent this user a contact request</string>
     <string name="add_contact_error_rate_limited">Too many attempts, please try again later</string>
     <string name="add_contact_error_identity_changed">Your safety number with this user has changed, so the request was not sent</string>
+    <string name="add_contact_error_blocked">You blocked this user. Unblock them to send a request.</string>
     <string name="add_contact_error_no_internet">No internet connection</string>
     <string name="add_contact_error_timeout">The server took too long to answer, please try again</string>
     <string name="add_contact_error_server_unreachable">The server is unreachable, please try again later</string>
@@ -45,6 +46,23 @@
     <string name="remove_contact_error_timeout">The server took too long to answer, please try again</string>
     <string name="remove_contact_error_server_unreachable">The server is unreachable, please try again later</string>
     <string name="remove_contact_error_unknown">The contact could not be deleted, please try again</string>
+    <string name="block_contact">Block</string>
+    <string name="block_contact_title">Block this contact?</string>
+    <string name="block_contact_confirmation">They will be removed from your contacts and won’t be able to send you contact requests or expenses any more. Groups you share stay as they are. They won’t be told you blocked them.</string>
+    <string name="block_contact_error_unknown">This contact could not be blocked, please try again</string>
+    <string name="block_contact_request_sender">Block</string>
+    <string name="block_contact_request_sender_title">Block this user?</string>
+    <string name="block_contact_request_sender_confirmation">Their request will be declined and they won’t be able to send you contact requests any more. They won’t be told.</string>
+    <string name="blocked_users">Blocked users</string>
+    <plurals name="blocked_users_count">
+        <item quantity="one">%1$d blocked user</item>
+        <item quantity="other">%1$d blocked users</item>
+    </plurals>
+    <string name="blocked_users_explanation">Blocked users can’t send you contact requests or expenses. Unblocking someone doesn’t add them back to your contacts.</string>
+    <string name="no_blocked_users">No blocked users</string>
+    <string name="unblock_user">Unblock</string>
+    <string name="unblock_user_title">Unblock this user?</string>
+    <string name="unblock_user_confirmation">They will be able to send you contact requests again.</string>
     <string name="safety_number">Safety number</string>
     <string name="verify_safety_number">Verify safety number</string>
     <string name="contact_verified">Verified</string>

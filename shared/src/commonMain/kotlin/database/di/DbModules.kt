@@ -8,6 +8,7 @@ import contact.ProfileKeyPull
 import contact.SafetyNumbers
 import database.AppDatabase
 import database.data.repository.BeneficiaryRepository
+import database.data.repository.BlockedUserRepository
 import database.data.repository.ContactRepository
 import database.data.repository.ContactRequestRepository
 import database.data.repository.CurrencyRepository
@@ -35,6 +36,7 @@ val dbModule = module {
             contactRepository = get(),
             contactRequestDao = get(),
             identityConflictDao = get(),
+            blockedUserDao = get(),
             groupDao = get(),
             mlsIdentityRepository = get(),
             keyPackageApi = get(),
@@ -44,6 +46,7 @@ val dbModule = module {
         )
     }
     singleOf(::ContactRepository)
+    singleOf(::BlockedUserRepository)
     singleOf(::ContactSync)
     single {
         ProfileKeyDelivery(
@@ -78,6 +81,7 @@ val dbModule = module {
     single { get<AppDatabase>().contactDao }
     single { get<AppDatabase>().directChannelDao }
     single { get<AppDatabase>().identityConflictDao }
+    single { get<AppDatabase>().blockedUserDao }
     single { get<AppDatabase>().oneTimeExpenseKeyDao }
     single { get<AppDatabase>().pendingExpenseKeyDao }
     single { get<AppDatabase>().pendingProfileKeyDao }

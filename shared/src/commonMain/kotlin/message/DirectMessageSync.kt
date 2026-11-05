@@ -5,6 +5,7 @@ import channel.DirectChannelRepository
 import channel.Reply
 import contact.ContactSyncError
 import database.data.local.dao.GroupDao
+import database.data.local.dao.BlockedUserDao
 import database.data.local.dao.IdentityConflictDao
 import database.data.remote.AcknowledgeDirectMessagesBody
 import database.data.remote.DirectMessageApi
@@ -65,7 +66,8 @@ import util.Result
  *
  * [restoreContacts] is [ContactRepository.restore], [listMessages] and [acknowledge] are
  * [DirectMessageApi.getDirectMessages] and [DirectMessageApi.acknowledgeDirectMessages],
- * [client] is [MlsIdentityRepository.client], [isBlocked] is [IdentityConflictDao.isBlocked],
+ * [client] is [MlsIdentityRepository.client], [isBlocked] is [IdentityConflictDao.isBlocked] or
+ * [BlockedUserDao.isBlocked],
  * [isGroup] is [GroupDao.hasMlsGroup], [completeAcceptanceIn] is
  * [ContactRequestRepository.completeAcceptanceIn], [isKnownPeer], [adopt], [noteReadIn] and
  * [claimReply] are those of [DirectChannelRepository], and [replyIn] is
@@ -98,6 +100,7 @@ class DirectMessageSync internal constructor(
         directMessageSender: DirectMessageSender,
         mlsIdentityRepository: MlsIdentityRepository,
         identityConflictDao: IdentityConflictDao,
+        blockedUserDao: BlockedUserDao,
         groupDao: GroupDao,
         handlers: List<DirectMessageHandler>,
     ) : this(
@@ -105,7 +108,7 @@ class DirectMessageSync internal constructor(
         listMessages = directMessageApi::getDirectMessages,
         acknowledge = directMessageApi::acknowledgeDirectMessages,
         client = mlsIdentityRepository::client,
-        isBlocked = identityConflictDao::isBlocked,
+        isBlocked = { peerUuid -> identityConflictDao.isBlocked(peerUuid) || blockedUserDao.isBlocked(peerUuid) },
         isGroup = groupDao::hasMlsGroup,
         completeAcceptanceIn = contactRequestRepository::completeAcceptanceIn,
         isKnownPeer = directChannelRepository::isKnownPeer,
@@ -238,7 +241,9 @@ class DirectMessageSync internal constructor(
      * [Delivery.Settled] covers a message acted on, one no handler wanted and one that can
      * never be read: none is worth keeping, so all are acknowledged. So is one from a blocked
      * sender, see [database.data.local.entity.IdentityConflictEntity], left unread: only a
-     * log-out lifts the block, and the groups it could be read in go with it.
+     * log-out lifts the block, and the groups it could be read in go with it. And one from somebody
+     * the user blocked, see [database.data.local.entity.BlockedUserEntity], whatever it says, which
+     * is what blocking them is for: their answer to a request of the user's, a key, a notice.
      */
     private suspend fun deliver(
         client: MlsClient,

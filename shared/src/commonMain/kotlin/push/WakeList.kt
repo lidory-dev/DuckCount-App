@@ -1,6 +1,7 @@
 package push
 
 import authenticationUtils.SessionLeftovers
+import database.data.local.dao.BlockedUserDao
 import database.data.local.dao.ContactDao
 import database.data.local.dao.ContactRequestDao
 import database.data.local.dao.GroupMemberDao
@@ -57,6 +58,7 @@ class WakeList(
     private val contactDao: ContactDao,
     private val contactRequestDao: ContactRequestDao,
     private val groupMemberDao: GroupMemberDao,
+    private val blockedUserDao: BlockedUserDao,
     private val store: WakeListStore?,
 ) : SessionLeftovers {
     private val mutex = Mutex()
@@ -66,11 +68,14 @@ class WakeList(
         val store = store ?: return
 
         mutex.withLock {
+            val blocked = blockedUserDao.getBlockedUuids().toSet()
+
             store.replace(
                 contacts = contactDao.getUnblockedUserUuids().toSet(),
                 requested = contactRequestDao.getUnblockedOutgoing()
-                    .mapTo(mutableSetOf()) { it.recipientUserUuid },
+                    .mapTo(mutableSetOf()) { it.recipientUserUuid } - blocked,
                 coMembers = groupMemberDao.getUnblockedCurrentMemberUuids().toSet(),
+                blocked = blocked,
             )
         }
     }

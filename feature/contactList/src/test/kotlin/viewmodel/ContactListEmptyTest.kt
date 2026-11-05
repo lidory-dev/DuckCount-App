@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import model.AddContactError
 import model.AnswerContactRequestError
+import model.BlockedUser
 import model.ContactRequest
 import model.ContactVerification
 import model.RemoveContactError
@@ -77,6 +78,25 @@ class ContactListEmptyTest {
         assertFalse(state().hasContacts)
     }
 
+    /** Offered at the end of the list, whatever it lists. */
+    @Test
+    fun `how many people the user blocked is told whatever is searched`() = runTest(mainDispatcher) {
+        val blocked = listOf(
+            BlockedUser(userUuid = "mallory", fullName = "Mallory"),
+            BlockedUser(userUuid = "trent", fullName = null),
+        )
+        val viewModel = ContactListViewModel(
+            contactCallBacks = ListCallBacks(users = listOf(self, bruno), blocked = blocked),
+        )
+        val state = listed(viewModel)
+
+        assertEquals(2, state().blockedUserCount)
+
+        search(viewModel, "ffsef")
+
+        assertEquals(2, state().blockedUserCount)
+    }
+
     @Test
     fun `a contact found is listed`() = runTest(mainDispatcher) {
         val viewModel = ContactListViewModel(contactCallBacks = ListCallBacks(users = listOf(self, bruno)))
@@ -108,9 +128,12 @@ class ContactListEmptyTest {
 
     /**
      * The contacts tab's view of [users], the user among them as the database lists them, searched
-     * by name as the database does, with a username reserved and no request waiting.
+     * by name as the database does, with a username reserved, no request waiting, and the [blocked].
      */
-    private class ListCallBacks(users: List<User>) : ContactCallBacks {
+    private class ListCallBacks(
+        users: List<User>,
+        private val blocked: List<BlockedUser> = emptyList(),
+    ) : ContactCallBacks {
         private val users = MutableStateFlow(users)
 
         override val maxUsernameLength: Int = 20
@@ -132,6 +155,12 @@ class ContactListEmptyTest {
 
         override suspend fun removeContact(userUuid: String): RemoveContactError? = notOnTheList()
 
+        override suspend fun blockContact(userUuid: String): RemoveContactError? = notOnTheList()
+
+        override fun getBlockedUsers(): Flow<List<BlockedUser>> = flowOf(blocked)
+
+        override suspend fun unblock(userUuid: String) { notOnTheList() }
+
         override fun getVerification(userUuid: String): Flow<ContactVerification> = notOnTheList()
 
         override suspend fun markVerified(userUuid: String, safetyNumber: String) { notOnTheList() }
@@ -143,6 +172,9 @@ class ContactListEmptyTest {
         override fun contactRequestsSeen() { notOnTheList() }
 
         override suspend fun acceptContactRequest(requestUuid: String): AnswerContactRequestError? =
+            notOnTheList()
+
+        override suspend fun blockContactRequestSender(requestUuid: String): AnswerContactRequestError? =
             notOnTheList()
 
         override suspend fun refuseContactRequest(requestUuid: String): AnswerContactRequestError? =

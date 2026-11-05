@@ -345,6 +345,58 @@ class VaultRepository(
         )
     }
 
+    /**
+     * The users the user blocked as the vault holds them, see [BlockList]. Empty when the vault
+     * holds none, the user having never blocked anybody.
+     */
+    suspend fun getBlockList(): Result<BlockList, VaultError> {
+        val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
+
+        return when (val partRead = readPart(rootKey = rootKey, part = VaultEntryKey.BLOCKED_USERS)) {
+            is Result.Success -> blockListOf(read = partRead.data)
+            is Result.Error -> Result.Error(partRead.error)
+        }
+    }
+
+    /**
+     * Writes each user in [blocked], keyed by their user UUID, as blocked under the name it maps
+     * them to, and drops each one in [unblocked], see [BlockList.withChanges].
+     *
+     * Sealed whole, so any change rewrites all of them, in one write against the version they were
+     * read at: a block another device wrote in between is refused as [VaultError.Contended] rather
+     * than overwritten, for the next backup to read and merge again.
+     */
+    suspend fun updateBlockList(blocked: Map<String, String?>, unblocked: Set<String>): EmptyResult<VaultError> {
+        val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
+
+        val read = when (val partRead = readPart(rootKey = rootKey, part = VaultEntryKey.BLOCKED_USERS)) {
+            is Result.Success -> partRead.data
+            is Result.Error -> return Result.Error(partRead.error)
+        }
+
+        val blockList = when (val parsed = blockListOf(read = read)) {
+            is Result.Success -> parsed.data
+            is Result.Error -> return Result.Error(parsed.error)
+        }
+
+        return writePart(
+            rootKey = rootKey,
+            keyRing = read.keyRing,
+            part = VaultEntryKey.BLOCKED_USERS,
+            plaintext = blockList.withChanges(blocked = blocked, unblocked = unblocked).serialize(),
+            expectedVersion = read.version,
+        )
+    }
+
+    /** The list [read] of [VaultEntryKey.BLOCKED_USERS] holds, empty when the vault holds none. */
+    private fun blockListOf(read: PartRead): Result<BlockList, VaultError> =
+        when (val plaintext = read.plaintext) {
+            null -> Result.Success(BlockList.EMPTY)
+
+            else -> BlockList.parse(plaintext = plaintext)?.let { Result.Success(it) }
+                ?: Result.Error(VaultError.MalformedBlockList)
+        }
+
     /** The book [read] of [VaultEntryKey.MEMBER_PROFILE_KEYS] holds, empty when the vault holds none. */
     private fun memberProfileBookOf(read: PartRead): Result<MemberProfileBook, VaultError> =
         when (val plaintext = read.plaintext) {

@@ -87,6 +87,7 @@ private fun VaultError.toExpenseWriteError(isOnline: Boolean): ExpenseWriteError
     VaultError.MalformedKeyRing,
     VaultError.MalformedContactBook,
     VaultError.MalformedMemberProfileBook,
+    VaultError.MalformedBlockList,
     VaultError.OrphanedEntry,
         -> ExpenseWriteError.UNKNOWN
 }

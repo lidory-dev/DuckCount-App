@@ -50,6 +50,7 @@ val messageModule = module {
             directMessageSender = get(),
             mlsIdentityRepository = get(),
             identityConflictDao = get(),
+            blockedUserDao = get(),
             groupDao = get(),
             handlers = get(),
         )

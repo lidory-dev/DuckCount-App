@@ -34,6 +34,7 @@ interface LocalDataDao {
         deleteContacts()
         deleteDirectChannels()
         deleteIdentityConflicts()
+        deleteBlockedUsers()
         deleteOneTimeExpenseKeys()
         deleteUnverifiedExpenseKeys()
         deleteExpenseRevisions()
@@ -99,6 +100,9 @@ interface LocalDataDao {
 
     @Query("DELETE FROM IdentityConflictEntity")
     suspend fun deleteIdentityConflicts()
+
+    @Query("DELETE FROM BlockedUserEntity")
+    suspend fun deleteBlockedUsers()
 
     @Query("DELETE FROM OneTimeExpenseKeyEntity")
     suspend fun deleteOneTimeExpenseKeys()

@@ -115,6 +115,7 @@
     <string name="member_contact_request_error_rate_limited">Trop de tentatives, réessayez plus tard</string>
     <string name="member_contact_request_error_identity_changed">Votre numéro de sécurité avec ce membre a changé, la demande n’a pas été envoyée</string>
     <string name="member_contact_request_error_not_in_group">Impossible de confirmer l’identité de ce membre à partir de ce groupe sur cet appareil, la demande n’a pas été envoyée</string>
+    <string name="member_contact_request_error_blocked">Vous avez bloqué ce membre. Débloquez-le depuis vos contacts pour lui envoyer une demande.</string>
     <string name="member_contact_request_error_no_internet">Aucune connexion Internet</string>
     <string name="member_contact_request_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>
     <string name="member_contact_request_error_server_unreachable">Le serveur est injoignable, réessayez plus tard</string>

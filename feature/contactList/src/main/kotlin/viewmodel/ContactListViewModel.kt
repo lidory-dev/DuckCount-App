@@ -53,7 +53,8 @@ class ContactListViewModel(
             users,
             hasContacts,
             contactCallBacks.getContactRequestCount(),
-        ) { reservedUsername, users, hasContacts, contactRequestCount ->
+            contactCallBacks.getBlockedUsers().map { it.size }.distinctUntilChanged(),
+        ) { reservedUsername, users, hasContacts, contactRequestCount, blockedUserCount ->
             // Until a username is reserved nobody can reach this user, so the list would
             // stay empty whatever they do: ask for one instead of showing nothing.
             if (reservedUsername == null) {
@@ -63,6 +64,7 @@ class ContactListViewModel(
                     users = users,
                     hasContacts = hasContacts,
                     contactRequestCount = contactRequestCount,
+                    blockedUserCount = blockedUserCount,
                 )
             }
         }.onStart {
@@ -88,11 +90,13 @@ sealed interface ContactListState {
     /**
      * The contacts whose name holds what is searched, [users], and whether the user has any at all,
      * [hasContacts], whatever is searched: a search that finds nobody is told apart from a user
-     * with nobody to find.
+     * with nobody to find. And how many people the user blocked, [blockedUserCount], whom the
+     * list offers to show at its end.
      */
     data class Content(
         val users: List<User>,
         val hasContacts: Boolean,
         val contactRequestCount: Int,
+        val blockedUserCount: Int,
     ) : ContactListState
 }

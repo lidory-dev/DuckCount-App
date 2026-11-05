@@ -1,6 +1,7 @@
 package expense
 
 import database.data.local.dao.ContactDao
+import database.data.local.dao.BlockedUserDao
 import database.data.local.dao.IdentityConflictDao
 import database.data.local.dao.OneTimeExpenseKeyDao
 import database.data.local.dao.PendingExpenseKeyDao
@@ -52,6 +53,7 @@ import vault.unseal
 class OneTimeExpenseKeyRepository(
     private val oneTimeExpenseKeyDao: OneTimeExpenseKeyDao,
     private val identityConflictDao: IdentityConflictDao,
+    private val blockedUserDao: BlockedUserDao,
     private val contactDao: ContactDao,
     private val pendingExpenseKeyDao: PendingExpenseKeyDao,
     private val vaultRepository: VaultRepository,
@@ -126,9 +128,16 @@ class OneTimeExpenseKeyRepository(
     /**
      * The keys this device takes from [creditorUuid], and asks them for, see [ExpectedKeys]:
      * any while they are a contact, and otherwise the ones it was already waiting for when
-     * they stopped being one.
+     * they stopped being one. None from somebody the user blocked, see
+     * [BlockedUserEntity][database.data.local.entity.BlockedUserEntity]: they are asked for
+     * nothing, and whatever they send is acknowledged unread anyway. Unblocked, they are asked
+     * again for what was awaited from them.
      */
     internal suspend fun expectedFrom(creditorUuid: String): ExpectedKeys {
+        if (blockedUserDao.isBlocked(userUuid = creditorUuid)) {
+            return ExpectedKeys(isContact = false, awaitedAtRemoval = emptySet())
+        }
+
         if (contactDao.get(userUuid = creditorUuid) != null) {
             return ExpectedKeys(isContact = true, awaitedAtRemoval = emptySet())
         }

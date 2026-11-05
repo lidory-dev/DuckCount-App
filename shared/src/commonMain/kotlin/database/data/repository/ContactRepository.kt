@@ -62,6 +62,9 @@ import vault.VaultContact
  * see [ProfileKeyDelivery][contact.ProfileKeyDelivery]. A contact's own key, handed over the
  * same way, can go missing on the way, and reading their profile is what tells, see
  * [resolveNames].
+ *
+ * Blocking a contact removes them the same way, blocking them as they are forgotten, see [block],
+ * and [BlockedUserRepository] keeps who the user blocked.
  */
 class ContactRepository(
     private val contactDao: ContactDao,
@@ -76,6 +79,7 @@ class ContactRepository(
     private val directMessageApi: DirectMessageApi,
     private val mlsIdentityRepository: MlsIdentityRepository,
     private val wakeList: WakeList,
+    private val blockedUserRepository: BlockedUserRepository,
 ) {
     /**
      * Serializes [backUp]. The contacts are sealed whole, so two writes from this device
@@ -139,7 +143,7 @@ class ContactRepository(
      * see [forget], already open by then: the notice was just read with it.
      */
     internal suspend fun receiveRemoval(senderUserUuid: String) {
-        forget(userUuid = senderUserUuid, client = null, rotatesProfileKey = false)
+        forget(userUuid = senderUserUuid, client = null, rotatesProfileKey = false, blocks = false)
     }
 
     /**
@@ -182,7 +186,7 @@ class ContactRepository(
      */
     internal suspend fun receiveAccountDeletion(userUuid: String) {
         withContext(NonCancellable) {
-            forget(userUuid = userUuid, client = null, rotatesProfileKey = false)
+            forget(userUuid = userUuid, client = null, rotatesProfileKey = false, blocks = false)
         }
     }
 
@@ -245,19 +249,48 @@ class ContactRepository(
         // Not a contact any more, which is all removing them was for.
         contactDao.get(userUuid = userUuid) ?: return Result.Success(Unit)
 
-        return profileRepository.oweProfileKeyRotation { tellAndForget(userUuid = userUuid) }
+        return profileRepository.oweProfileKeyRotation { tellAndForget(userUuid = userUuid, blocks = false) }
+            ?: Result.Error(RemoveContactError.DeviceLocked)
+    }
+
+    /**
+     * Blocks [userUuid], see [BlockedUserEntity][database.data.local.entity.BlockedUserEntity],
+     * nothing coming from them being taken in from then on.
+     *
+     * A contact is removed first, exactly as [remove] removes one, told and forgotten, and owed a
+     * rotation of the key to the user's profile: their app drops the user as for any removal, and
+     * stops sending, and they read nothing the user writes after. They are blocked as they are
+     * forgotten, so that there is no moment when they are no contact and still taken in: a request
+     * of theirs that came in then would be listed. Nothing is blocked while the notice has yet to
+     * go out, so a failure can simply be retried, as for a removal.
+     *
+     * Anybody else is blocked straight away, under the name this device shows for them: a contact
+     * whose notice of removal came in while the user was about to block them, say.
+     */
+    suspend fun block(userUuid: String): EmptyResult<RemoveContactError> {
+        if (contactDao.get(userUuid = userUuid) == null) {
+            blockedUserRepository.record(
+                userUuid = userUuid,
+                fullName = userRepository.getFullNameEvenIfHidden(uuid = userUuid),
+            )
+
+            return Result.Success(Unit)
+        }
+
+        return profileRepository.oweProfileKeyRotation { tellAndForget(userUuid = userUuid, blocks = true) }
             ?: Result.Error(RemoveContactError.DeviceLocked)
     }
 
     /**
      * Tells the contact [userUuid] that the user removed them, when this device holds a group to
-     * tell them in, then forgets them, for [remove], once the rotation is owed.
+     * tell them in, then forgets them, for [remove] and [block], once the rotation is owed, blocking
+     * them as it does when [blocks].
      */
-    private suspend fun tellAndForget(userUuid: String): EmptyResult<RemoveContactError> {
+    private suspend fun tellAndForget(userUuid: String, blocks: Boolean): EmptyResult<RemoveContactError> {
         val mlsGroupId = directChannelDao.get(peerUuid = userUuid)?.mlsGroupId
 
         if (mlsGroupId == null) {
-            forget(userUuid = userUuid, client = null, rotatesProfileKey = true)
+            forget(userUuid = userUuid, client = null, rotatesProfileKey = true, blocks = blocks)
 
             return Result.Success(Unit)
         }
@@ -284,7 +317,7 @@ class ContactRepository(
             // is, see [receiveAccountDeletion], owing the key no rotation. The new key the removal
             // already minted stays owed all the same, which costs one rotation more, at the next
             // edit, see [ProfileRepository.oweProfileKeyRotation].
-            forget(userUuid = userUuid, client = client, rotatesProfileKey = notice.rotatesProfileKey)
+            forget(userUuid = userUuid, client = client, rotatesProfileKey = notice.rotatesProfileKey, blocks = blocks)
         }
 
         return Result.Success(Unit)
@@ -506,12 +539,14 @@ class ContactRepository(
      * The safety number the user verified with each of them comes back too, see
      * [ContactEntity.verifiedSafetyNumber], and counts again only if it is still the one computed
      * from the identities now pinned, see [SafetyNumbers][contact.SafetyNumbers]. So does the name
-     * of each former contact, as nobody's contact, see [putBack].
+     * of each former contact, as nobody's contact, see [putBack], and everybody the user blocked,
+     * see [BlockedUserRepository.putBack].
      *
      * Whatever needs to know who the contacts are runs this first: reading the messages, see
-     * [DirectMessageSync][message.DirectMessageSync], and sending or accepting a contact
-     * request, see [ContactRequestRepository], which would otherwise pin one of them from
-     * whatever identity the server hands over, and creating or joining a group, see
+     * [DirectMessageSync][message.DirectMessageSync], and reading, sending or accepting a contact
+     * request, see [ContactRequestRepository], which would otherwise list one from somebody the
+     * user blocked, or pin one of them from whatever identity the server hands over, and creating
+     * or joining a group, see
      * [GroupCreator][group.GroupCreator] and [GroupSync][group.GroupSync], which would take
      * them for strangers.
      *
@@ -534,10 +569,15 @@ class ContactRepository(
 
     /**
      * Puts back the contacts the vault holds, and their pins, along with the names of the former
-     * ones, for [restore].
+     * ones and everybody the user blocked, for [restore].
      */
     private suspend fun bringBack(): EmptyResult<ContactSyncError> {
         val book = when (val read = vaultRepository.getContactBook()) {
+            is Result.Success -> read.data
+            is Result.Error -> return Result.Error(ContactSyncError.Vault(read.error))
+        }
+
+        val blockList = when (val read = vaultRepository.getBlockList()) {
             is Result.Success -> read.data
             is Result.Error -> return Result.Error(ContactSyncError.Vault(read.error))
         }
@@ -558,6 +598,8 @@ class ContactRepository(
         } catch (_: MlsException) {
             return Result.Error(ContactSyncError.Storage)
         }
+
+        blockedUserRepository.putBack(blockList = blockList)
 
         putBack(book = book)
 
@@ -682,8 +724,18 @@ class ContactRepository(
      *
      * Nor is their own profile key asked for any longer, see
      * [PendingProfileKeyEntity][database.data.local.entity.PendingProfileKeyEntity].
+     *
+     * When [blocks], they are blocked first of all, see [block], and so whether or not they still
+     * are a contact by then: a notice of removal of theirs read in between forgot them already.
      */
-    private suspend fun forget(userUuid: String, client: MlsClient?, rotatesProfileKey: Boolean) {
+    private suspend fun forget(userUuid: String, client: MlsClient?, rotatesProfileKey: Boolean, blocks: Boolean) {
+        if (blocks) {
+            blockedUserRepository.record(
+                userUuid = userUuid,
+                fullName = userRepository.getFullNameEvenIfHidden(uuid = userUuid),
+            )
+        }
+
         contactDao.get(userUuid = userUuid) ?: return
 
         // First, so that there is no moment when they are no longer a contact and what they

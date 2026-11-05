@@ -2,6 +2,7 @@ package expense
 
 import authenticationUtils.getAuthenticatedUserUuid
 import database.data.local.dao.GroupDao
+import database.data.local.dao.BlockedUserDao
 import database.data.local.dao.IdentityConflictDao
 import database.data.local.dao.UserDao
 import database.domain.ExpenseWithBeneficiaries
@@ -72,6 +73,7 @@ class GroupExpenseUpdates(
     private val groupDao: GroupDao,
     private val userDao: UserDao,
     private val identityConflictDao: IdentityConflictDao,
+    private val blockedUserDao: BlockedUserDao,
 ) {
     /** What of [changes], a sync's, the user is told about, see [announcedUpdates]. */
     suspend fun of(changes: List<GroupExpenseChange>): List<GroupExpenseUpdate> {
@@ -82,7 +84,7 @@ class GroupExpenseUpdates(
         val announced = announcedUpdates(
             changes = changes,
             selfUuid = selfUuid,
-            blocked = identityConflictDao.getBlocked().toHashSet(),
+            blocked = identityConflictDao.getBlocked().toHashSet() + blockedUserDao.getBlockedUuids(),
         )
 
         val groupTitles = mutableMapOf<String, String?>()
@@ -123,7 +125,9 @@ class GroupExpenseUpdates(
  * [GroupExpenseChange.isFirstListing]: every one of them is new to it after a join or a log-out, and
  * none of them news to the user. And none from somebody blocked, whose signals wake the user no
  * more, see [push.WakeList]: a sync somebody else woke the user for would otherwise tell of them all
- * the same.
+ * the same. Nor from somebody the user blocked, see
+ * [BlockedUserEntity][database.data.local.entity.BlockedUserEntity], whose expenses still count in
+ * the group's balances, as every member's do, but are not told of.
  *
  * An expense new to this device is added, unless it is deleted already, which counts in no balance.
  * A change deleting the expense shown, its deletion flag's, is a deletion, one undoing that a
