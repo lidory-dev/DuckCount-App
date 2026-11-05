@@ -2,6 +2,7 @@ package expense
 
 import app.lidory.duckcount.ExpenseLimits.MAX_DESCRIPTION_LENGTH
 import app.lidory.duckcount.ExpenseLimits.MAX_TITLE_LENGTH
+import app.lidory.duckcount.ExpenseLimits.SEALED_AMOUNT_LENGTH
 import app.lidory.duckcount.validateExpense
 import database.data.remote.BeneficiaryDto
 import database.data.remote.EncryptedFieldDto
@@ -84,7 +85,7 @@ internal fun ExpenseWithBeneficiaries.sealOneTime(
             share = sealBound(
                 key = expenseKey,
                 context = Context.share(userUuid = beneficiary.userUuid),
-                plaintext = beneficiary.share.encodeToByteArray(),
+                plaintext = beneficiary.share.toSealedAmount().encodeToByteArray(),
             ) ?: return null,
             is_share_fixed = sealBound(
                 key = expenseKey,
@@ -107,7 +108,7 @@ internal fun ExpenseWithBeneficiaries.sealOneTime(
     val sealedTitle = sealBound(expenseKey, Context.TITLE, title.encodeToByteArray()) ?: return null
     val sealedDescription = sealBound(expenseKey, Context.DESCRIPTION, description.encodeToByteArray())
         ?: return null
-    val sealedAmount = sealBound(expenseKey, Context.AMOUNT, amount.encodeToByteArray()) ?: return null
+    val sealedAmount = sealBound(expenseKey, Context.AMOUNT, amount.toSealedAmount().encodeToByteArray()) ?: return null
     val sealedCurrency = sealBound(expenseKey, Context.CURRENCY, currency.uuid.encodeToByteArray()) ?: return null
     val sealedTimestamp = sealBound(expenseKey, Context.TIMESTAMP, timestamp.encodeToByteArray())
         ?: return null
@@ -166,7 +167,8 @@ internal class OpenedOneTimeExpense(
  *
  * So is one, signed or not, whose title or description is longer than the form allows,
  * whose timestamp is not written exactly as the app writes one, whose currency is not one the
- * app ships with, or whose amount or shares [validateExpense] refuses. The screens read these
+ * app ships with, whose amount or shares were not sealed at one length, see [toAmountOrNull], or
+ * whose amount or shares [validateExpense] refuses. The screens read these
  * values as the app writes them, and the expense list is the first thing the app shows: one
  * timestamp it cannot parse would crash it on every launch, with the expense out of the
  * user's reach on the server. The uuids are checked before this, in
@@ -206,7 +208,7 @@ internal fun ExpenseDto.unsealOneTime(record: OneTimeExpenseKeyRecord): OpenedOn
             key = expenseKey,
             context = Context.share(userUuid = beneficiary.user_uuid),
             content = beneficiary.share,
-        )?.decodeToString() ?: return null
+        )?.decodeToString()?.toAmountOrNull() ?: return null
 
         val isShareFixed = unsealBound(
             key = expenseKey,
@@ -244,7 +246,7 @@ internal fun ExpenseDto.unsealOneTime(record: OneTimeExpenseKeyRecord): OpenedOn
         description = unsealBound(expenseKey, Context.DESCRIPTION, description)?.decodeToString()
             ?.takeIf { it.length <= MAX_DESCRIPTION_LENGTH }
             ?: return null,
-        amount = unsealBound(expenseKey, Context.AMOUNT, amount)?.decodeToString() ?: return null,
+        amount = unsealBound(expenseKey, Context.AMOUNT, amount)?.decodeToString()?.toAmountOrNull() ?: return null,
         currency = unsealBound(expenseKey, Context.CURRENCY, currency)?.toCurrency() ?: return null,
         timestamp = unsealBound(expenseKey, Context.TIMESTAMP, timestamp)?.decodeToString()
             ?.takeIf { it.isCanonicalTimestamp() }
@@ -363,6 +365,29 @@ private fun ByteArray.toFlagOrNull(): Boolean? =
         "0" -> false
         else -> null
     }
+
+/**
+ * An amount or a share as it is sealed, in any currency: padded to [SEALED_AMOUNT_LENGTH], the
+ * length of the longest amount there is. AES-GCM does not hide how long what it seals is, and the
+ * server would read from the length of this field alone how large an expense is, and how much each
+ * beneficiary pays of it. A version of a group expense seals them the same way, see
+ * `group.GroupExpenseSealing`. Only what is sealed is padded: everything else, the signature over a
+ * group's versions among it, deals with the amount as it is written.
+ */
+internal fun String.toSealedAmount(): String = padEnd(SEALED_AMOUNT_LENGTH)
+
+/** Whether this is as long as [toSealedAmount] seals an amount. */
+internal fun String.isSealedAmount(): Boolean = length == SEALED_AMOUNT_LENGTH
+
+/** The amount [toSealedAmount] padded. What it says is left to [validateExpense]. */
+internal fun String.withoutAmountPadding(): String = trimEnd(' ')
+
+/**
+ * The amount [toSealedAmount] sealed, or null for what is not as long as it seals one: refused
+ * whatever it says, rather than taken from a client whose amounts the server can read the size of,
+ * so that a write that came to leave its amounts unpadded shows at once.
+ */
+internal fun String.toAmountOrNull(): String? = if (isSealedAmount()) withoutAmountPadding() else null
 
 /**
  * The longest a percentage or a weight is written, `100.00`, or anything else [validateExpense]

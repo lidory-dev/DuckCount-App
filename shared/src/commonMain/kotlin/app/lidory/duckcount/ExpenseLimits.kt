@@ -2,6 +2,7 @@ package app.lidory.duckcount
 
 import uniffi.lib_duckcount.maxBeneficiaries as maxBeneficiariesUniffi
 import uniffi.lib_duckcount.maxGroupExpenseEdits as maxGroupExpenseEditsUniffi
+import uniffi.lib_duckcount.sealedAmountLength as sealedAmountLengthUniffi
 
 object ExpenseLimits {
     const val MAX_TITLE_LENGTH = 50
@@ -24,4 +25,11 @@ object ExpenseLimits {
      * that had every edit it takes is still deleted and restored.
      */
     val MAX_GROUP_EXPENSE_EDITS: Int = maxGroupExpenseEditsUniffi().toInt()
+
+    /**
+     * How long every amount and share is sealed, padded up to it, see `expense.toSealedAmount`:
+     * as long as the longest amount there is. Read from the library, which decides how long that
+     * is, rather than repeating the number.
+     */
+    val SEALED_AMOUNT_LENGTH: Int = sealedAmountLengthUniffi().toInt()
 }

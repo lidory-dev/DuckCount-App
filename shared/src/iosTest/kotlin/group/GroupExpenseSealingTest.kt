@@ -5,6 +5,7 @@ import database.data.local.entity.ExpenseWithBeneficiariesEntity
 import database.data.local.entity.GroupEntity
 import database.data.remote.EncryptedFieldDto
 import database.domain.ExpenseWithBeneficiaries
+import expense.toSealedAmount
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -168,6 +169,72 @@ class GroupExpenseSealingTest {
             },
         )
 
+    /** Sealing hides how large an amount is but not how long it is written, which would say it as well. */
+    @Test
+    fun `a version seals to the same length however large its amounts are`() {
+        val lengths = listOf(
+            Triple("3.00", "1.00", "2.00"),
+            Triple("90.00", "30.00", "60.00"),
+            Triple("300000.00", "100000.00", "200000.00"),
+            Triple("999999999999999.99", "333333333333333.33", "666666666666666.66"),
+        ).map { (amount, alice, bob) ->
+            val expense = dinner.copy(
+                amount = amount,
+                beneficiaries = dinner.beneficiaries.map {
+                    it.copy(share = if (it.userUuid == ALICE) alice else bob)
+                },
+            )
+
+            assertNotNull(open(content = sealed(expense = expense)), amount)
+
+            sealed(expense = expense).ciphertext.length
+        }
+
+        assertEquals(1, lengths.toSet().size)
+    }
+
+    /**
+     * Whose author signed just what they say, a version being signed with its amounts as they are
+     * written, and which is refused for good rather than kept for a key that would open it no better.
+     */
+    @Test
+    fun `a version whose amounts are not padded to the one length is refused`() = runBlocking<Unit> {
+        val opener = GroupExpenseOpener(
+            group = groupEntity(),
+            selfUuid = BOB,
+            client = bob,
+            keyOf = { _, _, _ -> Result.Success(groupKey) },
+            recorded = { _, _ -> null },
+        )
+
+        suspend fun opening(content: EncryptedFieldDto) =
+            opener.open(expenseUuid = EXPENSE, revision = 1, keyGeneration = 1, content = content)
+
+        // Padded as it should be, as a control: the same content, re-sealed unchanged, opens.
+        assertTrue(opening(sealed().tamperedWith { it }) is GroupExpenseOpening.Opened)
+
+        val changes: Map<String, (JsonObject) -> JsonObject> = mapOf(
+            "an amount not padded" to { it.with("amount", JsonPrimitive("90.00")) },
+            "an amount padded short" to { it.with("amount", JsonPrimitive("90.00".padEnd(17))) },
+            "an amount padded long" to { it.with("amount", JsonPrimitive("90.00".padEnd(19))) },
+            "a share not padded" to { it.withBeneficiary(0) { beneficiary -> beneficiary.with("share", JsonPrimitive("30.00")) } },
+            "a share padded short" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("share", JsonPrimitive("60.00".padEnd(17))) } },
+        )
+
+        changes.forEach { (change, apply) ->
+            val content = sealed().tamperedWith(change = apply)
+
+            // Its signature holds, so it is the length alone that refuses it.
+            val signed = assertNotNull(
+                content.unsealGroupExpense(groupKey = groupKey, groupUuid = GROUP, expenseUuid = EXPENSE, revision = 1),
+                change,
+            )
+            assertTrue(signed.isSignedBy(authorKey = alice.signaturePublicKey()), change)
+
+            assertEquals(GroupExpenseOpening.Refused, opening(content), change)
+        }
+    }
+
     /** The writes put it right, so only a client of its own would seal this. */
     @Test
     fun `a version whose amounts are written any other way does not open`() {
@@ -210,10 +277,10 @@ class GroupExpenseSealingTest {
         val changes: Map<String, (JsonObject) -> JsonObject> = mapOf(
             "title" to { it.with("title", JsonPrimitive("Lunch")) },
             "description" to { it.with("description", JsonPrimitive("")) },
-            "amount" to { it.with("amount", JsonPrimitive("900.00")) },
+            "amount" to { it.with("amount", JsonPrimitive("900.00".toSealedAmount())) },
             "timestamp" to { it.with("timestamp", JsonPrimitive("2026-10-31T19:45:00")) },
             "creditor" to { it.with("creditor_uuid", JsonPrimitive(BOB)) },
-            "share" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("share", JsonPrimitive("50.00")) } },
+            "share" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("share", JsonPrimitive("50.00".toSealedAmount())) } },
             "fixed share" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("is_share_fixed", JsonPrimitive(1)) } },
             "percentage" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("share_percentage", JsonPrimitive("66.67 ")) } },
             "weight" to { it.withBeneficiary(1) { beneficiary -> beneficiary.with("share_weight", JsonPrimitive("2     ")) } },

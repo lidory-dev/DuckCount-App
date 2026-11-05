@@ -11,7 +11,11 @@ import database.domain.ExpenseWithBeneficiaries
 import database.domain.withCanonicalAmounts
 import mls.InMemoryMlsStore
 import uniffi.lib_duckcount.MlsClient
+import uniffi.lib_duckcount.OneTimeExpenseBeneficiary
+import uniffi.lib_duckcount.OneTimeExpenseManifest
+import uniffi.lib_duckcount.SealedValue
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
+import vault.sealBound
 import kotlin.io.encoding.Base64
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -160,6 +164,114 @@ class OneTimeExpenseHistoryVerificationTest {
         )
 
         assertNull(moved.open())
+    }
+
+    /** Sealing hides how large an amount is but not how long it is written, which would say it as well. */
+    @Test
+    fun `an amount and a share seal to the same length however large they are`() {
+        val amounts = listOf(
+            Triple("3.00", "2.00", "1.00"),
+            Triple("20.00", "12.00", "8.00"),
+            Triple("300000.00", "200000.00", "100000.00"),
+            Triple("999999999999999.99", "666666666666666.66", "333333333333333.33"),
+        )
+
+        val lengths = amounts.flatMap { (amount, bob, carol) ->
+            val expense = expense().let { expense ->
+                expense.copy(
+                    amount = amount,
+                    beneficiaries = expense.beneficiaries.map {
+                        it.copy(share = if (it.userUuid == BOB) bob else carol)
+                    },
+                )
+            }
+
+            val entry = expense.signedBy(creditor, revision = 1)
+
+            assertEquals(amount, assertNotNull(entry.open(), amount).expense.amount)
+
+            listOf(entry.previous_amount) + entry.previous_beneficiaries.map { it.share }
+        }.map { Base64.Default.decode(it.ciphertext).size }
+
+        assertEquals(1, lengths.toSet().size)
+    }
+
+    /** In a currency without subunits too: its length would otherwise say it has none. */
+    @Test
+    fun `an amount seals to the same length in every currency`() {
+        val lengths = CurrencyCatalog.defaultCurrencies.map { currency ->
+            Base64.Default.decode(expense(currency = currency).signedBy(creditor, revision = 1).previous_amount.ciphertext).size
+        }
+
+        assertEquals(1, lengths.toSet().size)
+    }
+
+    /**
+     * Signed by its creditor over just what it holds, so that nothing but the length refuses it, as a
+     * client of its own would seal it: unsealed under the expense's key, each field bound to its place.
+     */
+    @Test
+    fun `an expense whose amounts are not padded to the one length does not open`() {
+        val entry = expense().signedBy(creditor, revision = 1)
+
+        fun sealedAs(context: String, text: String) =
+            assertNotNull(sealBound(key = expenseKey, context = context, plaintext = text.encodeToByteArray()))
+
+        // Padded as it should be, as a control: the same fields, signed again unchanged, open.
+        assertNotNull(entry.signedAgain().open())
+
+        val anotherLength = mapOf(
+            "an amount not padded" to entry.copy(previous_amount = sealedAs("one_time_expense:amount", "20.00")),
+            "an amount padded short" to entry.copy(previous_amount = sealedAs("one_time_expense:amount", "20.00".padEnd(17))),
+            "an amount padded long" to entry.copy(previous_amount = sealedAs("one_time_expense:amount", "20.00".padEnd(19))),
+            "a share not padded" to entry.copy(
+                previous_beneficiaries = entry.previous_beneficiaries.map { beneficiary ->
+                    if (beneficiary.user_uuid == BOB) {
+                        beneficiary.copy(share = sealedAs("one_time_expense:share:$BOB", "12.00"))
+                    } else {
+                        beneficiary
+                    }
+                },
+            ),
+        )
+
+        anotherLength.forEach { (change, changed) -> assertNull(changed.signedAgain().open(), change) }
+    }
+
+    /** This entry with its creditor's signature made anew over what it holds now. */
+    private fun OneTimeExpenseHistoryEntryDto.signedAgain(): OneTimeExpenseHistoryEntryDto {
+        fun EncryptedFieldDto.toSealedValue() =
+            SealedValue(nonce = Base64.Default.decode(nonce), ciphertext = Base64.Default.decode(ciphertext))
+
+        val signature = creditor.signOneTimeExpense(
+            manifest = OneTimeExpenseManifest(
+                revision = 1u,
+                title = previous_title.toSealedValue(),
+                description = previous_description.toSealedValue(),
+                amount = previous_amount.toSealedValue(),
+                currency = previous_currency.toSealedValue(),
+                timestamp = previous_timestamp.toSealedValue(),
+                beneficiaries = previous_beneficiaries.map { beneficiary ->
+                    OneTimeExpenseBeneficiary(
+                        userUuid = beneficiary.user_uuid,
+                        share = beneficiary.share.toSealedValue(),
+                        isShareFixed = beneficiary.is_share_fixed.toSealedValue(),
+                        sharePercentage = beneficiary.share_percentage.toSealedValue(),
+                        shareWeight = beneficiary.share_weight.toSealedValue(),
+                    )
+                },
+            ),
+        )
+
+        return copy(
+            previous_signature = assertNotNull(
+                sealBound(
+                    key = expenseKey,
+                    context = "one_time_expense:signature",
+                    plaintext = """{"revision":1,"signature":"${Base64.Default.encode(signature)}"}""".encodeToByteArray(),
+                ),
+            ),
+        )
     }
 
     /** The form and the writes put it right, so only a client of its own would seal this. */
