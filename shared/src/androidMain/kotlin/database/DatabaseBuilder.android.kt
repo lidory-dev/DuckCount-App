@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import eu.anifantakis.lib.ksafe.KSafe
+import kotlinx.coroutines.runBlocking
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 import org.koin.core.qualifier.named
 import org.koin.mp.KoinPlatform.getKoin
@@ -13,12 +14,14 @@ fun getDatabaseBuilder(context: Context): RoomDatabase.Builder<AppDatabase> {
     System.loadLibrary("sqlcipher")
 
     val vault: KSafe = getKoin().get(named("vault"))
-    val password = getDatabasePassword(vault).toByteArray()
+
+    // SQLCipher reads the raw key form from the bytes handed to it just as from `PRAGMA key`.
+    val key = runBlocking { getDatabaseKey(vault) }.encodeToByteArray()
 
     val appContext = context.applicationContext
     val dbFile = appContext.getDatabasePath(AppDatabase.DATABASE_NAME)
 
-    val factory = SupportOpenHelperFactory(password)
+    val factory = SupportOpenHelperFactory(key)
 
     return Room.databaseBuilder<AppDatabase>(
         context = appContext,

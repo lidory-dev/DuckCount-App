@@ -9,7 +9,7 @@ import authenticationUtils.getLongLivedToken
 import authenticationUtils.getShortLivedToken
 import authenticationUtils.isAccountDeletionInDoubt
 import authenticationUtils.setTokens
-import database.clearDatabasePassword
+import database.clearDatabaseKey
 import database.data.local.dao.LocalDataDao
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
@@ -537,7 +537,7 @@ class DuckCountClient(
 
             localDataDao.deleteAll()
 
-            clearDatabasePassword()
+            clearDatabaseKey()
 
             sessionLeftovers.forEach { it.clear() }
         }

@@ -61,7 +61,7 @@ import database.data.local.entity.UnverifiedExpenseKeyEntity
 import database.data.local.entity.UserEntity
 import eu.anifantakis.lib.ksafe.KSafe
 import eu.anifantakis.lib.ksafe.KSafeEncryptedProtection
-import eu.anifantakis.lib.ksafe.KSafeWriteMode
+import eu.anifantakis.lib.ksafe.getOrCreateSecret
 import org.koin.core.qualifier.named
 import org.koin.mp.KoinPlatform.getKoin
 
@@ -131,7 +131,6 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "DuckCount.db"
-        const val DATABASE_PASSWORD_VAULT_KEY = "database_password"
     }
 }
 
@@ -142,41 +141,73 @@ expect object AppDatabaseConstructor : RoomDatabaseConstructor<AppDatabase> {
 
 expect fun getRoomDatabase(builder: RoomDatabase.Builder<AppDatabase>): AppDatabase
 
+/** What the database key is called when asking KSafe for it, see [getDatabaseKey]. */
+private const val DATABASE_KEY_SECRET = "database"
+
 /**
- * The SQLCipher key the local database is opened with, created on first use and kept in the vault
- * from then on.
+ * The vault entry KSafe keeps [DATABASE_KEY_SECRET] in, which it names itself rather than taking
+ * the caller's name: `ksafe_secret_` before the name, the entry its own refusal to replace an
+ * unreadable secret says to delete. Needed apart from the secret to tell a key never made from one
+ * that cannot be read, and to drop it at log-out.
+ */
+private const val DATABASE_KEY_VAULT_ENTRY = "ksafe_secret_$DATABASE_KEY_SECRET"
+
+/**
+ * The SQLCipher key the local database is opened with, as SQLCipher's raw key, its 32 bytes in hex
+ * within `x'` and `'`. Random bytes gain nothing from a key derivation, which SQLCipher would
+ * otherwise run on a passphrase for every connection it opens, about half a second each on a
+ * Pixel, Room keeping several open at once.
+ *
+ * Made on first use by KSafe's `getOrCreateSecret`, from the platform's secure random source, and
+ * kept in the vault from then on: like the root key, isolated in hardware on a device that has it,
+ * and readable only while the device is unlocked. Its write is awaited before the key is handed
+ * out, the database being created under it right after: a key that never reached the disk would
+ * have the next launch discard everything written under it.
  *
  * Read once per process on both platforms.
  *
- * No key means the last one was dropped at log-out ([clearDatabasePassword]), which leaves a file
+ * No key means the last one was dropped at log-out ([clearDatabaseKey]), which leaves a file
  * on disk sealed under a key that no longer exists anywhere: the rows the log-out deleted are gone,
  * but whatever SQLite left in freed pages is now unreadable for good. That file cannot be opened
  * with the key minted here, so it goes first and the new key starts on an empty one.
+ *
+ * A key the vault holds but cannot read goes the same way, file and all, which KSafe refuses to do
+ * on its own. That is what a backup restored on another phone brings: the vault and the database,
+ * without the keystore keys they are sealed under, which never leave the phone. The database can
+ * never be opened again, so refusing would only stop the app from starting. A read that fails for
+ * now, on a locked device, throws instead and discards nothing.
  *
  * Being read once per process is also why a log-out restarts the process: the one that dropped
  * the key would otherwise keep writing under it, and this would discard all of it at the next
  * launch.
  */
-fun getDatabasePassword(vault: KSafe): String {
-    var databasePassword = vault.getDirect(AppDatabase.DATABASE_PASSWORD_VAULT_KEY, "")
-
-    if (databasePassword == "") {
+suspend fun getDatabaseKey(vault: KSafe): String {
+    if (vault.getKeyInfo(DATABASE_KEY_VAULT_ENTRY) == null) {
         deleteDatabaseFile()
-
-        databasePassword = uniffi.lib_duckcount.generateDatabaseEncryptionKey()
-
-        vault.putDirect(
-            AppDatabase.DATABASE_PASSWORD_VAULT_KEY,
-            databasePassword,
-            mode = KSafeWriteMode.Encrypted(
-                protection = KSafeEncryptedProtection.DEFAULT,
-                requireUnlockedDevice = true,
-            ),
-        )
     }
 
-    return databasePassword
+    val key = try {
+        vault.getOrCreateDatabaseKey()
+    } catch (refusal: IllegalStateException) {
+        // A read failing for now throws this too, and reading again throws it again.
+        if (vault.get<String?>(DATABASE_KEY_VAULT_ENTRY, defaultValue = null) != null) throw refusal
+
+        vault.delete(DATABASE_KEY_VAULT_ENTRY)
+
+        deleteDatabaseFile()
+
+        vault.getOrCreateDatabaseKey()
+    }
+
+    return "x'${key.toHexString()}'"
 }
+
+private suspend fun KSafe.getOrCreateDatabaseKey(): ByteArray = getOrCreateSecret(
+    key = DATABASE_KEY_SECRET,
+    size = 32,
+    protection = KSafeEncryptedProtection.HARDWARE_ISOLATED,
+    requireUnlockedDevice = true,
+)
 
 /**
  * Drops the key the local database is sealed with, so the file the log-out just emptied can never
@@ -186,17 +217,17 @@ fun getDatabasePassword(vault: KSafe): String {
  * vault also offers: this runs in the non-cancellable tail of a log-out, where a deletion still
  * queued when the process dies would hand the next launch the previous account's key.
  */
-suspend fun clearDatabasePassword() {
+suspend fun clearDatabaseKey() {
     val vault: KSafe = getKoin().get(named("vault"))
 
     vault.delete(
-        key = AppDatabase.DATABASE_PASSWORD_VAULT_KEY,
+        key = DATABASE_KEY_VAULT_ENTRY,
     )
 }
 
 /**
  * Removes the database and the sidecar files SQLite keeps next to it, if any are there.
  *
- * Only ever called with no key in the vault, where nothing on disk can be opened anyway.
+ * Only ever called with no readable key in the vault, where nothing on disk can be opened anyway.
  */
 internal expect fun deleteDatabaseFile()

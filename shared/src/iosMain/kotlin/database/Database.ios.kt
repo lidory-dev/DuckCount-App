@@ -4,6 +4,7 @@ import androidx.room.RoomDatabase
 import androidx.sqlite.driver.NativeSQLiteDriver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.runBlocking
 import org.koin.core.qualifier.named
 import org.koin.mp.KoinPlatform.getKoin
 
@@ -16,7 +17,7 @@ actual fun getRoomDatabase(
         .fallbackToDestructiveMigration(dropAllTables = true)
         .setDriver(
             SqlCipherDriver(driver = NativeSQLiteDriver()) {
-                getDatabasePassword(vault = getKoin().get(named("vault")))
+                runBlocking { getDatabaseKey(vault = getKoin().get(named("vault"))) }
             },
         )
         .setQueryCoroutineContext(Dispatchers.IO)

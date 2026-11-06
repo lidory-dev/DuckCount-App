@@ -84,7 +84,7 @@ class DuckCountPushService : PushService() {
         }
 
         // Past who may wake the user, nothing this device stores can be read while it is
-        // locked: the session, the keys and the database password are all sealed by
+        // locked: the session, the keys and the database key are all sealed by
         // Keystore entries that require an unlocked device. So the sync waits, and what the signal itself
         // said is said now, since it is all anybody knows at this point.
         if (isDeviceLocked()) {

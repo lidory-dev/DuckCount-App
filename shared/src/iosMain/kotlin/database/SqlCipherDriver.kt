@@ -13,23 +13,24 @@ import androidx.sqlite.execSQL
  */
 internal class SqlCipherDriver(
     private val driver: SQLiteDriver,
-    readPassword: () -> String,
+    readKey: () -> String,
 ) : SQLiteDriver by driver {
 
     /**
      * Read when the first connection is about to be made, and not before: reading it deletes
-     * the file of a database whose key is gone, see [getDatabasePassword], which has to happen
+     * the file of a database whose key is gone, see [getDatabaseKey], which has to happen
      * while no connection has it open.
      */
-    private val password by lazy(readPassword)
+    private val key by lazy(readKey)
 
     override fun open(fileName: String): SQLiteConnection {
-        val password = password
+        val key = key
 
         val connection = driver.open(fileName)
 
         try {
-            connection.execSQL("PRAGMA key = '$password'")
+            // Double quotes, the raw key form holding single ones.
+            connection.execSQL("PRAGMA key = \"$key\"")
 
             val isSqlCipher = connection.prepare("PRAGMA cipher_version").use { it.step() }
 
