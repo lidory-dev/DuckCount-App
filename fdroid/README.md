@@ -41,6 +41,7 @@ Moving any of these is fine, as long as a release is then checked with the comma
 | What | Where | Also in |
 |---|---|---|
 | NDK | `android-ndk` in `gradle/libs.versions.toml` | recipe's `ndk` |
+| SDK platform | `android-compileSdk` in `gradle/libs.versions.toml`, installed ahead of Gradle by `build-release.sh`, since AGP 8.13.2 fails the build that downloads it | recipe's `sudo` |
 | Rust | `lib-duckcount/rust-toolchain.toml` | |
 | Crates | `lib-duckcount/Cargo.lock`, taken with `--locked` | |
 | JDK | 21, the image's default | |

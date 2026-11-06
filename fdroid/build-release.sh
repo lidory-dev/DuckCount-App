@@ -14,19 +14,25 @@ IMAGE=registry.gitlab.com/fdroid/fdroidserver:buildserver-trixie
 root=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 output=${1:-$root/fdroid/out}
 ndk=$(sed -n 's/^android-ndk = "\(.*\)"$/\1/p' "$root/gradle/libs.versions.toml")
+compile_sdk=$(sed -n 's/^android-compileSdk = "\(.*\)"$/\1/p' "$root/gradle/libs.versions.toml")
 mkdir -p "$output"
 
 docker run --rm --interactive --platform linux/amd64 \
     --volume "$root:/source:ro" \
     --volume "$output:/output" \
     --env ndk="$ndk" \
+    --env compile_sdk="$compile_sdk" \
     "$IMAGE" bash -euo pipefail <<'IN_IMAGE'
 source /etc/profile.d/bsenv.sh
 
-# What the recipe's sudo and ndk fields ask for.
+# What the recipe's sudo and ndk fields ask for. The image has no platform past 33, and AGP
+# 8.13.2 cannot use one it downloads itself: it installs the platform it is missing, then fails
+# that same build ("Failed to find target with hash string 'android-37'"). So it goes in first,
+# under the name it has from 37 on, with its minor version: android-37.0.
 apt-get update -qq
 apt-get install -y -qq cmake gcc libc6-dev make rustup > /dev/null
 sdkmanager "ndk;$ndk" > /dev/null
+sdkmanager "platforms;android-$compile_sdk.0" > /dev/null
 chown -R vagrant "$ANDROID_HOME"
 
 sudo --preserve-env=ANDROID_HOME,LC_ALL,CARGO_HOME --set-home --user vagrant bash -euo pipefail <<'AS_BUILD_USER'

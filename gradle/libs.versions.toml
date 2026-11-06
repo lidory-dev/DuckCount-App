@@ -1,9 +1,9 @@
 [versions]
 # Do not update AGP to v9.x.x until this issue is fixed: https://github.com/gobley/gobley/issues/153
 agp = "8.13.2"
-android-compileSdk = "36"
+android-compileSdk = "37"
 android-minSdk = "26"
-android-targetSdk = "36"
+android-targetSdk = "37"
 # Builds the Rust library and strips every native library in the APK, so it is part of what
 # makes a release the bytes it is. F-Droid's recipe names the same one, see fdroid/README.md.
 android-ndk = "29.0.14206865"
@@ -12,8 +12,8 @@ android-ndk = "29.0.14206865"
 android-versionCode = "1"
 # NOTE: The following versions are held back to stay compatible with AGP 8.13.2
 # (see the AGP pin above). Newer releases (androidx-core 1.19, lifecycle/nav3 2.11,
-# material3-adaptive 1.3.0-rc01, CMP 1.11.1, material 1.14) hard-require AGP 9.1.0 /
-# compileSdk 37 and break the build until gobley#153 lets us move off AGP 8.
+# material3-adaptive 1.3.0-rc01, CMP 1.11.1, material 1.14) hard-require AGP 9.1.0
+# and break the build until gobley#153 lets us move off AGP 8.
 androidx-activity = "1.12.4"
 androidx-appcompat = "1.7.1"
 androidx-core = "1.17.0"

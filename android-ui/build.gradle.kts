@@ -35,7 +35,7 @@ android {
     namespace = "app.lidory.duckcount.android.ui"
 
     compileSdk {
-        version = release(36)
+        version = release(libs.versions.android.compileSdk.get().toInt())
     }
 
     defaultConfig {

@@ -21,7 +21,7 @@ kotlin {
 android {
     namespace = "app.lidory.duckcount.authentication"
     compileSdk {
-        version = release(36)
+        version = release(libs.versions.android.compileSdk.get().toInt())
     }
 
     defaultConfig {
