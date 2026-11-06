@@ -114,6 +114,7 @@ private class NothingReservedCallBacks : SettingsCallBacks {
     override val maxFullNameLength: Int get() = TODO()
     override val minimumPasswordStrength: Int get() = TODO()
     override val learnMoreLink: String get() = TODO()
+    override val privacyPolicyLink: String get() = TODO()
     override val appVersionName: String get() = TODO()
     override val licences: List<String> get() = TODO()
 

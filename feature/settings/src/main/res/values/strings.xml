@@ -15,6 +15,7 @@
     <string name="error_password_too_short">Your password must have at least %1$s characters</string>
     <string name="error_new_password_blank">Your password can’t be only spaces</string>
     <string name="licences">Licences</string>
+    <string name="privacy_policy">Privacy policy</string>
     <string name="logout">Log out</string>
     <string name="learn_more">Learn more</string>
     <string name="logout_confirmation">Are you sure you want to log out?\nYou’ll need to log back in to access your groups and expenses</string>

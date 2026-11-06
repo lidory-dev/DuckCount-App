@@ -14,9 +14,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import app.lidory.duckcount.settings.component.ButtonLine
+import app.lidory.duckcount.settings.viewmodel.SettingsViewModel
+import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,6 +33,9 @@ fun SettingsScreen(
     navigateToAboutScreen: () -> Unit,
     navigateToLicencesScreen: () -> Unit,
 ) {
+    val viewModel: SettingsViewModel = koinViewModel()
+    val uriHandler = LocalUriHandler.current
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -95,6 +101,14 @@ fun SettingsScreen(
                     text = R.string.licences,
                     icon = R.drawable.ic_license,
                     onClick = navigateToLicencesScreen,
+                )
+            }
+
+            item {
+                ButtonLine(
+                    text = R.string.privacy_policy,
+                    icon = androidUiR.drawable.ic_eye_with_lock,
+                    onClick = { uriHandler.openUri(viewModel.privacyPolicyLink) },
                 )
             }
         }
