@@ -16,6 +16,7 @@
     <string name="error_password_too_short">Le mot de passe doit contenir au moins %1$s caractères</string>
     <string name="error_new_password_blank">Le mot de passe ne peut pas être composé uniquement d’espaces</string>
     <string name="licences">Licences</string>
+    <string name="source_code">Code source</string>
     <string name="terms_of_use">Conditions d’utilisation</string>
     <string name="privacy_policy">Politique de confidentialité</string>
     <string name="logout">Se déconnecter</string>

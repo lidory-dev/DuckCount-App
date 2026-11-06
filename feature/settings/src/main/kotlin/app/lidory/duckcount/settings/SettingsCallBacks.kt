@@ -19,6 +19,9 @@ interface SettingsCallBacks {
 
     val learnMoreLink: String
 
+    /** The app's source code the settings list opens in the browser. */
+    val sourceCodeLink: String
+
     /** The terms of use the settings list opens in the browser. */
     val termsOfUseLink: String
 

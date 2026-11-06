@@ -7,6 +7,8 @@ class SettingsViewModel(
     settingsCallBacks: SettingsCallBacks,
 ) : ViewModel() {
 
+    val sourceCodeLink = settingsCallBacks.sourceCodeLink
+
     val termsOfUseLink = settingsCallBacks.termsOfUseLink
 
     val privacyPolicyLink = settingsCallBacks.privacyPolicyLink

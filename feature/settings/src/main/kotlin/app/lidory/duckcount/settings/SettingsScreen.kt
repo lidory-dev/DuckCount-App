@@ -106,6 +106,14 @@ fun SettingsScreen(
 
             item {
                 ButtonLine(
+                    text = R.string.source_code,
+                    icon = R.drawable.ic_code,
+                    onClick = { uriHandler.openUri(viewModel.sourceCodeLink) },
+                )
+            }
+
+            item {
+                ButtonLine(
                     text = R.string.terms_of_use,
                     icon = R.drawable.ic_description,
                     onClick = { uriHandler.openUri(viewModel.termsOfUseLink) },
