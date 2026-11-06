@@ -8,6 +8,12 @@ interface AuthenticationCallBacks {
     /** Longest full name the server takes on a profile, which the profile's form stops at. */
     val maxFullNameLength: Int
 
+    /** The terms of use creating an account accepts, which the registration form links to. */
+    val termsOfUseLink: String
+
+    /** The privacy policy the registration form links to beside the terms of use. */
+    val privacyPolicyLink: String
+
     /** Number of times the password appears in known breaches (Have I Been Pwned). */
     suspend fun passwordLeakAmount(password: String): AuthOutcome<Int>
 

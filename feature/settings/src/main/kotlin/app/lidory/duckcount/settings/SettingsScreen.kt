@@ -106,6 +106,14 @@ fun SettingsScreen(
 
             item {
                 ButtonLine(
+                    text = R.string.terms_of_use,
+                    icon = R.drawable.ic_description,
+                    onClick = { uriHandler.openUri(viewModel.termsOfUseLink) },
+                )
+            }
+
+            item {
+                ButtonLine(
                     text = R.string.privacy_policy,
                     icon = androidUiR.drawable.ic_eye_with_lock,
                     onClick = { uriHandler.openUri(viewModel.privacyPolicyLink) },

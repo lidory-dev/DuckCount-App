@@ -20,6 +20,10 @@ class RegisterViewModel(
 
     val passwordStrength = authenticationCallBacks.passwordStrength
 
+    val termsOfUseLink = authenticationCallBacks.termsOfUseLink
+
+    val privacyPolicyLink = authenticationCallBacks.privacyPolicyLink
+
     // Snapshot state rather than a flow: the fields have to get their text back in the same frame
     // as the edit, which a collected flow only delivers a frame later.
     var state by mutableStateOf(RegisterScreenState())

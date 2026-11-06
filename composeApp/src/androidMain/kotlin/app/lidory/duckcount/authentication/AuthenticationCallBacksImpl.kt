@@ -6,6 +6,8 @@ import AuthenticationCallBacks
 import PendingProfile
 import UsernameInputError
 import android.util.Log
+import app.lidory.duckcount.ExternalLinks.PRIVACY_POLICY
+import app.lidory.duckcount.ExternalLinks.TERMS_OF_USE
 import app.lidory.duckcount.PasswordRequirements
 import app.lidory.duckcount.ProfileLimits
 import app.lidory.duckcount.hashLoginUsername
@@ -69,6 +71,10 @@ class AuthenticationCallBacksImpl(
     override val maxFullNameLength: Int = ProfileLimits.MAX_FULL_NAME_LENGTH
 
     override val passwordStrength: Int = PasswordRequirements.MINIMUM_PASSWORD_STRENGTH
+
+    override val termsOfUseLink: String = TERMS_OF_USE
+
+    override val privacyPolicyLink: String = PRIVACY_POLICY
 
     override suspend fun passwordLeakAmount(password: String): AuthOutcome<Int> =
         when (val result = haveIBeenPwnedClient.passwordLeakCount(password = password)) {

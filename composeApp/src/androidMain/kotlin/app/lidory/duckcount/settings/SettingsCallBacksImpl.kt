@@ -7,6 +7,7 @@ import android.util.Log
 import app.lidory.duckcount.BuildConfig
 import app.lidory.duckcount.ExternalLinks.LIDORY_WEBSITE
 import app.lidory.duckcount.ExternalLinks.PRIVACY_POLICY
+import app.lidory.duckcount.ExternalLinks.TERMS_OF_USE
 import app.lidory.duckcount.LICENCES_LIST
 import app.lidory.duckcount.PasswordRequirements
 import app.lidory.duckcount.ProfileLimits
@@ -55,6 +56,8 @@ class SettingsCallBacksImpl(
     override val minimumPasswordStrength: Int = PasswordRequirements.MINIMUM_PASSWORD_STRENGTH
 
     override val learnMoreLink: String = LIDORY_WEBSITE
+
+    override val termsOfUseLink: String = TERMS_OF_USE
 
     override val privacyPolicyLink: String = PRIVACY_POLICY
 

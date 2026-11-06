@@ -13,6 +13,8 @@ class TypingOnlyCallBacks : AuthenticationCallBacks {
     override val passwordStrength = 15
     override val maxUsernameLength = 32
     override val maxFullNameLength = 64
+    override val termsOfUseLink = "https://example.com/terms"
+    override val privacyPolicyLink = "https://example.com/privacy"
 
     override suspend fun passwordLeakAmount(password: String): AuthOutcome<Int> = TODO()
     override suspend fun registration(username: String, password: String): AuthOutcome<String> = TODO()

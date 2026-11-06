@@ -250,6 +250,14 @@ fun RegisterScreen(
 
                     Spacer(modifier = Modifier.height(32.dp))
 
+                    RegistrationConsent(
+                        modifier = Modifier.fillMaxWidth(),
+                        termsOfUseLink = viewModel.termsOfUseLink,
+                        privacyPolicyLink = viewModel.privacyPolicyLink,
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
                     DuckCountLoadingButton(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {

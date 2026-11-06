@@ -5,6 +5,9 @@
     <string name="sign_up">Sign up</string>
     <string name="welcome">Welcome!</string>
     <string name="register">Register</string>
+    <string name="registration_consent">By registering, you accept the %1$s and the %2$s.</string>
+    <string name="registration_consent_terms_of_use">terms of use</string>
+    <string name="registration_consent_privacy_policy">privacy policy</string>
     <string name="welcome_back">Welcome back!</string>
     <string name="sign_in">Sign in</string>
     <string name="username_not_blank">The username can’t be empty</string>

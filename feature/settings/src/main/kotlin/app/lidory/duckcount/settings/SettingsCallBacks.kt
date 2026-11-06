@@ -19,6 +19,9 @@ interface SettingsCallBacks {
 
     val learnMoreLink: String
 
+    /** The terms of use the settings list opens in the browser. */
+    val termsOfUseLink: String
+
     /** The privacy policy the settings list opens in the browser. */
     val privacyPolicyLink: String
 
