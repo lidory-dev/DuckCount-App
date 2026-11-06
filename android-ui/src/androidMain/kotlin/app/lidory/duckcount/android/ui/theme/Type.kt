@@ -11,7 +11,7 @@ val bodyFontFamily = FontFamily(
 )
 
 val displayFontFamily = FontFamily(
-    Font(R.font.acme_regular),
+    Font(R.font.duckcount_display),
 )
 
 // Default Material 3 typography values
