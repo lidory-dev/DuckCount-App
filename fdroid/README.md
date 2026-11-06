@@ -28,6 +28,10 @@ apksigcopier compare fdroid/out/DuckCount-1.0.0-fdroid.apk --unsigned fdroid/out
 
 Attach the signed APK to the tag's release on GitHub as `DuckCount-1.0.0-fdroid.apk`, the URL in the recipe's `Binaries` field. Raise the API's `MIN_ANDROID_BUILD` only once F-Droid has published that version, or its users get the update screen with no update to install. F-Droid takes a day or two after the tag, and skips a version whose build does not match.
 
+## The listing
+
+The listing's text and images are under `fastlane/metadata/android/`, in English (`en-US`) and French (`fr-FR`): `short_description.txt`, `full_description.txt`, and the screenshots and feature graphic, Google Play's, in `images/`. F-Droid reads them from the commit of the latest version it publishes, so a change shows once the next version is out. fdroiddata takes no screenshots, and a `Summary` or `Description` in the recipe would replace the text of every language with its own, so neither goes back there. Only the anti-features' reasons stay in the recipe, in both languages.
+
 ## Why not a build on a Mac
 
 A build on a Mac is reproducible among Macs, and matches F-Droid's in everything but `liblib_duckcount.so`, all four of them. Cargo mixes the build machine's own architecture into the id of every crate that depends on something compiled for the build machine, a proc-macro for instance. 47 of the library's crates end up with other ids, so other symbols, in another order. The NDK's Mac and Linux compilers also sign `.comment` differently. Neither says anything about the code, but F-Droid compares bytes.

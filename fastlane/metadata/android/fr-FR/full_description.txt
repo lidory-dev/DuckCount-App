@@ -1,0 +1,20 @@
+DuckCount vous aide à gérer vos dépenses partagées en toute confidentialité. Que vous soyez en vacances entre amis ou au restaurant avec un collègue, vous pouvez être sûr que chacun paiera sa juste part.
+
+Partagez vos dépenses à votre façon
+• Des groupes jusqu’à 100 personnes, pour un voyage, une colocation ou des dîners réguliers
+• Des dépenses ponctuelles, sans créer de groupe
+• Répartissez à parts égales, ou fixez exactement ce que doit chacun
+• Choisissez la devise de chaque dépense
+• Voyez d’un coup d’œil qui doit quoi à qui, et soldez les comptes d’un groupe en un minimum de remboursements
+• Marquez les dépenses comme remboursées une fois réglées
+• Chaque modification est conservée dans l’historique, et une dépense de groupe supprimée peut être restaurée
+
+La confidentialité avant tout
+• Dépenses, groupes et profils sont chiffrés de bout en bout : seules les personnes concernées peuvent les lire, pas nous
+• Les groupes sont chiffrés avec MLS, avec une protection post-quantique
+• Les noms d’utilisateur ne parviennent à nos serveurs que sous forme d’empreinte : seule une personne qui connaît déjà le vôtre peut vous trouver
+• Votre mot de passe est comparé aux fuites de données connues sans jamais être envoyé
+
+Bon à savoir
+• Les notifications passent par UnifiedPush, avec n’importe quel distributeur compatible. Sur un téléphone qui n’en a aucun, elles passent par Firebase Cloud Messaging, de Google, si les services Google Play sont installés. Sans l’un ni l’autre, l’application se synchronise tout de même à chaque ouverture.
+• Un compte ne peut être créé que sur un téléphone récent au bootloader verrouillé, avec son système officiel ou GrapheneOS.
