@@ -1,6 +1,6 @@
-# DuckCount
-
-**Share your expenses, not your data.**
+<p align="center">
+  <img src="docs/banner.png" alt="DuckCount: share your expenses, not your data.">
+</p>
 
 DuckCount keeps track of shared expenses between friends, flatmates, travel companions or family. Everyone records what they paid, and DuckCount works out what each person owes and the settlements that even things out. Everything you write is encrypted on your phone before it leaves it: the people involved can read it, and the server, us included, cannot.
 
