@@ -88,7 +88,7 @@ android {
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = libs.versions.android.versionCode.get().toInt()
-        versionName = "1.0.0"
+        versionName = "1.0.1"
 
         // Where the update screen sends a phone with no app store, see UpdateRequiredScreen.
         buildConfigField(

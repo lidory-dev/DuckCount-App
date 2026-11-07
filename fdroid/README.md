@@ -9,24 +9,24 @@ F-Droid builds the app itself from the tagged commit, compares the result with t
 On Linux x86_64, or anywhere Docker can run an `amd64` image at a decent speed (see below):
 
 ```bash
-git switch --detach v1.0.0
+git switch --detach v1.0.1
 git submodule update --init
 fdroid/build-release.sh
 ```
 
-That leaves `fdroid/out/DuckCount-1.0.0-fdroid-unsigned.apk`. Sign it with `apksigner` from **build-tools 34**, since F-Droid cannot copy a signature made by 35 or later (tried with 36.1.0: it does not verify):
+That leaves `fdroid/out/DuckCount-1.0.1-fdroid-unsigned.apk`. Sign it with `apksigner` from **build-tools 34**, since F-Droid cannot copy a signature made by 35 or later (tried with 36.1.0: it does not verify):
 
 ```bash
-$ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks release.jks --in fdroid/out/DuckCount-1.0.0-fdroid-unsigned.apk --out fdroid/out/DuckCount-1.0.0-fdroid.apk
+$ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks release.jks --in fdroid/out/DuckCount-1.0.1-fdroid-unsigned.apk --out fdroid/out/DuckCount-1.0.1-fdroid.apk
 ```
 
 Check it the way F-Droid will, with [apksigcopier](https://github.com/obfusk/apksigcopier), `apksigner` on the `PATH`:
 
 ```bash
-apksigcopier compare fdroid/out/DuckCount-1.0.0-fdroid.apk --unsigned fdroid/out/DuckCount-1.0.0-fdroid-unsigned.apk
+apksigcopier compare fdroid/out/DuckCount-1.0.1-fdroid.apk --unsigned fdroid/out/DuckCount-1.0.1-fdroid-unsigned.apk
 ```
 
-Attach the signed APK to the tag's release on GitHub as `DuckCount-1.0.0-fdroid.apk`, the URL in the recipe's `Binaries` field. Raise the API's `MIN_ANDROID_BUILD` only once F-Droid has published that version, or its users get the update screen with no update to install. F-Droid takes a day or two after the tag, and skips a version whose build does not match.
+Attach the signed APK to the tag's release on GitHub as `DuckCount-1.0.1-fdroid.apk`, the URL in the recipe's `Binaries` field. Raise the API's `MIN_ANDROID_BUILD` only once F-Droid has published that version, or its users get the update screen with no update to install. F-Droid takes a day or two after the tag, and skips a version whose build does not match.
 
 ## The listing
 
