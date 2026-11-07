@@ -1,6 +1,6 @@
 # Publishing on F-Droid
 
-F-Droid builds the app itself from the tagged commit, compares the result with the APK we signed, and publishes ours only if the two match byte for byte, signature aside. Users therefore get our signature, the same one as on any other channel, which is what the API's registration attestation checks (`ANDROID_APP_SIGNING_DIGESTS`), and F-Droid holds no key the API trusts.
+F-Droid builds the app itself from the tagged commit, compares the result with the APK we signed, and publishes ours only if the two match byte for byte, signature aside. Users therefore get our signature, the one the APK attached to the GitHub release carries too, which the API's registration attestation checks (`ANDROID_APP_SIGNING_DIGESTS`), and F-Droid holds no key the API trusts. Play is the one channel signed with another key, Google's own, which never signs anything but what Play installs: a copy from Play and one from F-Droid cannot update each other.
 
 `metadata/app.lidory.duckcount.yml` is the recipe, a draft until its placeholders are filled in. It goes to [fdroiddata](https://gitlab.com/fdroid/fdroiddata), not in here. F-Droid clones the public repositories, [lidory-dev/DuckCount-App](https://github.com/lidory-dev/DuckCount-App) and, through the submodule's relative URL, [lidory-dev/Lib-DuckCount](https://github.com/lidory-dev/Lib-DuckCount).
 
