@@ -10,12 +10,16 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 
 private const val GROUP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 private const val DAVE = "44444444-4444-4444-4444-444444444444"
 
 /** How a Commit of the user's is written for the server, and kept until it is taken. */
 class PendingMembershipChangeTest {
+
+    /** As the client writes every body it sends. */
+    private val clientJson = Json { ignoreUnknownKeys = true }
 
     private val previousKey = EncryptedFieldDto(ciphertext = "cHJldmlvdXM=", nonce = "bm9uY2U5")
 
@@ -54,6 +58,13 @@ class PendingMembershipChangeTest {
         removedMemberUuids = listOf(DAVE),
         previousKey = previousKey,
         keyCopy = keyCopy,
+    )
+
+    private val rejoin = RejoinGroupBody(
+        nonce = "AAECAwQFBgcICQoLDA0ODw==",
+        commitMessage = "Y29tbWl0",
+        keyCopy = keyCopy,
+        previousKey = previousKey,
     )
 
     @Test
@@ -139,6 +150,46 @@ class PendingMembershipChangeTest {
 
         assertEquals(replacement, change.body)
         assertEquals(4, change.commitEpoch)
+    }
+
+    @Test
+    fun `a rejoin is written with the names the server reads`() {
+        assertEquals(
+            setOf("nonce", "commit_message", "key_copy", "previous_key"),
+            keysOf(PendingMembershipChange.Rejoin(groupUuid = GROUP, body = rejoin, commitEpoch = 3).toEntity()),
+        )
+    }
+
+    /** No link to make, the user's copy being of an earlier epoch: none is sent, not even as null. */
+    @Test
+    fun `a rejoin with no link back leaves it out`() {
+        val unlinked = rejoin.copy(previousKey = null)
+
+        assertEquals(
+            setOf("nonce", "commit_message", "key_copy"),
+            keysOf(PendingMembershipChange.Rejoin(groupUuid = GROUP, body = unlinked, commitEpoch = 3).toEntity()),
+        )
+        assertEquals(
+            setOf("nonce", "commit_message", "key_copy"),
+            clientJson.encodeToJsonElement(RejoinGroupBody.serializer(), unlinked).jsonObject.keys,
+        )
+    }
+
+    @Test
+    fun `a rejoin kept pending is sent again as it was`() {
+        val kept = PendingMembershipChange.Rejoin(groupUuid = GROUP, body = rejoin, commitEpoch = 3).toEntity()
+
+        assertEquals(MembershipChangeKind.REJOIN, kept.kind)
+
+        val change = assertIs<PendingMembershipChange.Rejoin>(kept.toChange())
+
+        assertEquals(rejoin, change.body)
+        assertEquals(3, change.commitEpoch)
+
+        val unlinked = PendingMembershipChange.Rejoin(groupUuid = GROUP, body = rejoin.copy(previousKey = null), commitEpoch = 3)
+            .toEntity()
+
+        assertNull(assertIs<PendingMembershipChange.Rejoin>(unlinked.toChange()).body.previousKey)
     }
 
     /** What the server names the change by, with the committer's UUID. */

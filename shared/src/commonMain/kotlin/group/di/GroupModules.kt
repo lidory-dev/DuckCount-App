@@ -17,6 +17,7 @@ import group.GroupLeaver
 import group.GroupMembershipChanger
 import group.GroupMembershipSender
 import group.GroupProfileKeyDelivery
+import group.GroupRejoiner
 import group.GroupSync
 import group.MemberProfileRepository
 import org.koin.dsl.module
@@ -81,6 +82,16 @@ val groupModule = module {
             directMessageSender = get(),
             wakeList = get(),
             resendScheduler = get(),
+        )
+    }
+
+    single {
+        GroupRejoiner(
+            groupApi = get(),
+            groupDao = get(),
+            groupKeyCopies = get(),
+            groupMembershipSender = get(),
+            mlsIdentityRepository = get(),
         )
     }
 
@@ -186,6 +197,7 @@ val groupModule = module {
             groupKeyCopies = get(),
             groupKeyChain = get(),
             groupKeyLinks = get(),
+            groupRejoiner = get(),
             groupProfileKeyDelivery = get(),
             memberProfileRepository = get(),
             contactRepository = get(),

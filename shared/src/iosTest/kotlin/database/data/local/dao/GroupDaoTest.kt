@@ -278,6 +278,52 @@ class GroupDaoTest {
         }
     }
 
+    /**
+     * A rejoin after a log-out names the MLS group the library stored with it, see
+     * `group.GroupRejoiner`, and a refusal forgets both: the group is one brought back again.
+     */
+    @Test
+    fun `a rejoin is saved with the MLS group it was built in and forgotten with it`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            val mlsGroupId = GROUP.encodeToByteArray()
+
+            database.groupDao.insert(groupOf(GROUP, mlsGroupId = null))
+
+            database.groupDao.saveRejoin(mlsGroupId = mlsGroupId, change = changeOf(MembershipChangeKind.REJOIN, commitEpoch = 3))
+
+            assertContentEquals(mlsGroupId, database.groupDao.get(uuid = GROUP)?.mlsGroupId)
+            assertEquals(listOf(MembershipChangeKind.REJOIN), database.groupDao.getMembershipChanges().map { it.kind })
+            assertTrue(database.groupDao.hasMlsGroup(mlsGroupId = mlsGroupId))
+            assertTrue(database.groupDao.hasChangeOnServer(groupUuid = GROUP))
+
+            database.groupDao.forgetRejoin(groupUuid = GROUP)
+
+            assertNull(assertNotNull(database.groupDao.get(uuid = GROUP)).mlsGroupId)
+            assertTrue(database.groupDao.getMembershipChanges().isEmpty())
+            assertFalse(database.groupDao.hasMlsGroup(mlsGroupId = mlsGroupId))
+        }
+    }
+
+    /** Its key carried the user's copy, as any Commit of theirs does. */
+    @Test
+    fun `a key a rejoin led to backs the group up and drops the rejoin`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.groupDao.insert(groupOf(GROUP, mlsGroupId = null, groupKey = OLD_KEY))
+            database.groupDao.saveRejoin(
+                mlsGroupId = GROUP.encodeToByteArray(),
+                change = changeOf(MembershipChangeKind.REJOIN, commitEpoch = 1),
+            )
+
+            database.groupDao.takeCommittedKey(key = keyOf(generation = 2, NEW_KEY))
+
+            val group = assertNotNull(database.groupDao.get(uuid = GROUP))
+
+            assertTrue(group.isBackedUp)
+            assertEquals(2L, group.keyGeneration)
+            assertTrue(database.groupDao.getMembershipChanges().isEmpty())
+        }
+    }
+
     /** The user's own Commit carried their copy of the key it leads to. */
     @Test
     fun `a key a Commit of the user's led to backs the group up and drops the change`() = runBlocking<Unit> {

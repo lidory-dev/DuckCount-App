@@ -169,6 +169,16 @@ class GroupSyncMembershipTest {
     /** What Alice does once the server listed Bob's groups to the next sync, as it runs. */
     private var afterListing: (suspend () -> Unit)? = null
 
+    /**
+     * The groups Bob asked the other members of for a GroupInfo to rejoin from, in order, see
+     * [GroupRejoiner], and what the server answers each.
+     */
+    private val rejoinRequests = mutableListOf<String>()
+    private var rejoinRequestAnswer: EmptyResult<NetworkError> = Result.Success(Unit)
+
+    /** The groups the rejoin finds nothing to rejoin from, as it would without a GroupInfo, see [GroupRejoinPass]. */
+    private var unanswered = emptySet<String>()
+
     private val groupSync = GroupSync(
         userUuid = { BOB },
         resendPending = {
@@ -260,6 +270,14 @@ class GroupSyncMembershipTest {
         keyOf = { _, _, _ -> error("Alice edits nothing here.") },
         // What becomes of the links is GroupKeyLinksTest's.
         checkKeyLinks = { Result.Success(Unit) },
+        // What becomes of a group brought back after a log-out is GroupSyncRejoinTest's, but for
+        // the request for a way back in it makes as it is brought back.
+        requestRejoin = { groupUuid ->
+            rejoinRequests += groupUuid
+            rejoinRequestAnswer
+        },
+        rejoinRestored = { _, _ -> GroupRejoinPass(pending = emptySet(), unanswered = unanswered, failure = null) },
+        publishGroupInfos = { _, _ -> Result.Success(Unit) },
         setAwaitingOwner = { groupUuid, isAwaitingOwner ->
             groups[groupUuid] = groups.getValue(groupUuid).with(isAwaitingOwner = isAwaitingOwner)
         },
@@ -1399,6 +1417,84 @@ class GroupSyncMembershipTest {
             assertTrue(bobStore.keys(namespace_ = MlsNamespace.GROUP_STATE).isEmpty())
             assertTrue(declined.isEmpty())
             assertTrue(left.isEmpty())
+        }
+
+    /**
+     * Brought back, the group asks its other members for a GroupInfo to rejoin it from at once, see
+     * [GroupRejoiner], the server waking their devices for it: theirs publish one as they sync.
+     */
+    @Test
+    fun `a group brought back after a log-out asks its members for a way back in`() = runBlocking<Unit> {
+        loggedOut()
+
+        assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+        assertNull(groups.getValue(GROUP).mlsGroupId)
+        assertEquals(listOf(GROUP), rejoinRequests)
+    }
+
+    /**
+     * A server taking no rejoin yet answers `404`, as the proxy does while it is redeployed: the
+     * group is brought back all the same, and the next pass asks again, see [GroupRejoiner].
+     */
+    @Test
+    fun `a request for a way back in the server does not take fails nothing`() = runBlocking<Unit> {
+        loggedOut()
+        rejoinRequestAnswer = Result.Error(NetworkError.NOT_FOUND)
+
+        assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+        assertEquals(FIELDS.title, groups.getValue(GROUP).title)
+        assertEquals(listOf(GROUP), rejoinRequests)
+    }
+
+    /** Nobody else in it, whose device could publish a GroupInfo for Bob: nobody is asked for one. */
+    @Test
+    fun `a group brought back after a log-out with nobody else in it asks nobody for a way back in`() =
+        runBlocking<Unit> {
+            loggedOut()
+            serverMembers.retainAll(listOf(BOB))
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            assertEquals(FIELDS.title, groups.getValue(GROUP).title)
+            assertTrue(rejoinRequests.isEmpty())
+        }
+
+    /** Nothing to rejoin from yet: the request is made again, which keeps it from lapsing. */
+    @Test
+    fun `a group brought back after a log-out with nothing to rejoin from asks for a way back in again`() =
+        runBlocking<Unit> {
+            broughtBack()
+            unanswered = setOf(GROUP)
+
+            assertNull(groupSync.sync(contactsTakenIn = true).failure)
+
+            assertEquals(listOf(GROUP), rejoinRequests)
+        }
+
+    /**
+     * Alice removed Bob and added him back between two of his syncs, which prunes the GroupInfos and
+     * closes his request: nothing to rejoin from, and the pass joins from her Welcome instead, asking
+     * nobody for anything once it has, the request standing otherwise until it lapsed.
+     */
+    @Test
+    fun `a group brought back after a log-out and joined again from its creator's Welcome asks for no way back in`() =
+        runBlocking<Unit> {
+            broughtBack()
+
+            aliceRemoves(BOB)
+            aliceCommits()
+            aliceAdds(bob)
+
+            unanswered = setOf(GROUP)
+
+            val pass = groupSync.sync(contactsTakenIn = true)
+
+            assertNull(pass.failure)
+            assertEquals(listOf(GROUP), pass.joined.map { it.groupUuid })
+            assertNotNull(groups.getValue(GROUP).mlsGroupId)
+            assertTrue(rejoinRequests.isEmpty())
         }
 
     /**

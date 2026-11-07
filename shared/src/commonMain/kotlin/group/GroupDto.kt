@@ -215,6 +215,46 @@ data class ReplaceGroupCommitBody(
 )
 
 /**
+ * Body of `POST /groups/{group_uuid}/commits/rejoin`, which any current member may send: the Commit
+ * from outside the group with which their device rejoins it once a log-out took its MLS state, see
+ * [GroupRejoiner], built from a GroupInfo another member published of the epoch the server lists
+ * the group in, see [GroupInfoDto]. It removes the leaf the user had and seats the one this device
+ * holds, under the same signature key, and changes nobody: every member's device takes it from any
+ * member, and nothing else from outside the group. Named by its [nonce] and held to the group's
+ * epoch as an addition is, see [AddGroupMembersBody]. The server stores it as that epoch's one
+ * Commit, drops whatever still waited for the caller in the group, every bit of it from epochs
+ * this device holds nothing of, and closes their request, see [GroupApi.requestRejoin].
+ */
+@Serializable
+data class RejoinGroupBody(
+    /** 16 random bytes, Base64 encoded, drawn for this rejoin alone. */
+    val nonce: String,
+
+    /**
+     * The MLS Commit, Base64 encoded, a PublicMessage, as MLS has every Commit from outside a group
+     * travel: the one thing of the group the server reads in the clear, but for the GroupInfo it
+     * was built from.
+     */
+    @SerialName("commit_message")
+    val commitMessage: String,
+
+    /** The rejoiner's copy of the key the Commit leads to, see [AddGroupMembersBody.keyCopy]. */
+    @SerialName("key_copy")
+    val keyCopy: EncryptedFieldDto,
+
+    /**
+     * The link back to the key of the epoch the Commit is built in, see
+     * [AddGroupMembersBody.previousKey], when this device holds that key from the user's copy, see
+     * [GroupKeyCopies], and null, which leaves it out, when it does not: the Commit gives a device
+     * from outside the group the key of the epoch it leads to alone, so that only a copy of the
+     * epoch it is built in can make it. The members' devices publish their own then, as they reach
+     * that epoch, see [GroupKeyLinks].
+     */
+    @SerialName("previous_key")
+    val previousKey: EncryptedFieldDto? = null,
+)
+
+/**
  * Body of `PUT /groups/{group_uuid}`, which the creator alone sends to edit the group's information,
  * see [GroupEditor]: its title and description, the currency staying the one it was created in.
  *
@@ -282,6 +322,56 @@ data class PublishGroupKeyLinkBody(
 )
 
 /**
+ * Body of `PUT /groups/{group_uuid}/group-info`, which any current member sends once the server
+ * lists the group with [GroupDto.groupInfoWanted]: the GroupInfo of the epoch their device is in,
+ * for a member a log-out took the group's MLS state from to rejoin it from, see [GroupRejoiner].
+ * The server takes one of the epoch the group is in alone, answering the JSON `409` of
+ * [KeyGenerationConflictResponse] otherwise, and only while another member asks for one, answering
+ * the plain `409` "No rejoin requested." otherwise.
+ */
+@Serializable
+data class PublishGroupInfoBody(
+    /**
+     * The GroupInfo, an MLS message, Base64 encoded, see [mls.rejoinGroupInfoIn]: the group's tree,
+     * with its members' user UUIDs and public keys, which the server reads, and nothing anybody could
+     * read the group with.
+     */
+    @SerialName("group_info")
+    val groupInfo: String,
+)
+
+/**
+ * One member who published a GroupInfo of the epoch a group is in, as `GET
+ * /groups/{group_uuid}/group-infos` lists them, oldest first, see [GroupRejoiner].
+ */
+@Serializable
+data class GroupInfoPublisherDto(
+    @SerialName("publisher_uuid")
+    val publisherUuid: String,
+
+    /** The epoch it is of: the group's current one, the server dropping every other as the group moves on. */
+    val epoch: Long,
+)
+
+/**
+ * Body of `GET /groups/{group_uuid}/group-infos/{publisher_uuid}`: the GroupInfo [publisherUuid]
+ * published of [epoch], see [PublishGroupInfoBody]. The server's word for who published it, which
+ * the library does not take: it rejoins only from a GroupInfo signed by a member this device pinned,
+ * or by the user, see [mls.rejoinGroupOf].
+ */
+@Serializable
+data class GroupInfoDto(
+    @SerialName("publisher_uuid")
+    val publisherUuid: String,
+
+    val epoch: Long,
+
+    /** The GroupInfo, Base64 encoded, as it was published. */
+    @SerialName("group_info")
+    val groupInfo: String,
+)
+
+/**
  * Body of the `410` refusing a group creation, or an addition to a group: every invitee with no
  * account, whether they deleted it or it never existed, sorted.
  */
@@ -301,7 +391,8 @@ data class DeletedInviteesResponse(
  * their key ring, see [keyCopy]. [ownerUuid], [members] and [departed] are the server's word, see
  * [GroupSync]. Of a group whose MLS state this device holds, they decide one thing alone: whom this
  * device removes, of those still in its tree. A group brought back after a log-out, with no tree to
- * tell them, takes its creator and its members as they are listed.
+ * tell them, takes its creator and its members as they are listed, until it is rejoined, see
+ * [GroupRejoiner], from a tree holding exactly those members and those departed.
  */
 @Serializable
 data class GroupDto(
@@ -385,6 +476,15 @@ data class GroupDto(
      */
     @SerialName("key_generation")
     val keyGeneration: Long,
+
+    /**
+     * Whether another current member asked for a GroupInfo to rejoin the group from, see
+     * [GroupApi.requestRejoin], and the server holds none from the caller of the epoch the group is
+     * in: their device then publishes its own, if it is in that epoch, see [GroupRejoiner]. False
+     * from a server that predates rejoins, which lists no such field.
+     */
+    @SerialName("group_info_wanted")
+    val groupInfoWanted: Boolean = false,
 )
 
 /** One member listed among the [GroupDto.departed]. */

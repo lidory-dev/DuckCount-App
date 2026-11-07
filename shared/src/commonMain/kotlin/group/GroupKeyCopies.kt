@@ -16,7 +16,11 @@ import vault.unsealBound
  * The user's copies of the keys of their groups, which the server keeps with each group: the only
  * copy of a group's key to survive a log-out. A log-out wipes the local database, and the device's
  * copy of each key with it, while the Welcome or the message that handed a key over is acknowledged
- * once read: without these, nothing would open a group's fields again.
+ * once read: without these, nothing would open a group's fields again. Nor would the group sync
+ * bring the group back, with no MLS state, to be rejoined from there, see [GroupRejoiner], whose
+ * Commit can give a device from outside the group the key of the epoch it leads to alone: only a
+ * copy of the epoch it is built in links that key back to the ones before, see
+ * [RejoinGroupBody.previousKey], the members publishing that link otherwise.
  *
  * Each copy is the bare key, sealed under the user's [VaultEntryKey.GROUP_MASTER_KEY] key, which
  * only their key ring holds, and bound to its group and to the generation it is of the group's
@@ -27,10 +31,10 @@ import vault.unsealBound
  * [GroupKeyChain].
  *
  * The creator's copy goes up with the group as it is created, see [CreateGroupBody.keyCopy], and
- * every committer's with each Commit they make, see [AddGroupMembersBody.keyCopy]. Every other
- * member puts up their own as they join the group, and as each Commit they read takes it to a new
- * epoch, see [putUp]. The server drops a member's copy as a Commit removes them, or as they leave,
- * see [GroupLeaver].
+ * every committer's with each Commit they make, see [AddGroupMembersBody.keyCopy], a member's
+ * rejoin after a log-out included, see [RejoinGroupBody.keyCopy]. Every other member puts up their
+ * own as they join the group, and as each Commit they read takes it to a new epoch, see [putUp].
+ * The server drops a member's copy as a Commit removes them, or as they leave, see [GroupLeaver].
  *
  * [sealingKey] is [VaultRepository.getOrCreatePartKey] for [VaultEntryKey.GROUP_MASTER_KEY],
  * [saveCopy] is [GroupApi.saveKeyCopy], [storedGroups] and [markBackedUp] are [GroupDao.getAll] and

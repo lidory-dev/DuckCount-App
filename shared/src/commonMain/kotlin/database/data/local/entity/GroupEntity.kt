@@ -50,9 +50,13 @@ class GroupEntity(
 
     /**
      * The MLS group the members talk in, or null for a group brought back after a log-out, which
-     * takes every MLS group with it: its fields open with [groupKey] from the user's copy the
-     * server kept, see `group.GroupKeyCopies`, and the keys before it the chain leads back to, but
-     * nothing the members send in it can be read any more, nor any key after it derived.
+     * takes every MLS group with it, until this device rejoins it, see `group.GroupRejoiner`: its
+     * fields open with [groupKey] from the user's copy the server kept, see `group.GroupKeyCopies`,
+     * and the keys before it the chain leads back to, but nothing the members send in it can be read
+     * meanwhile, nor any key after it derived. Set as the rejoin is saved, with it, and the group
+     * held from then on as any is, but for being left alone while the server has not been heard to
+     * take it, as for any change of the user's; cleared again should the server refuse it, see
+     * `group.GroupMembershipSender`.
      *
      * Kept once the user is no longer in the group, see [isLeft], although its MLS state is gone:
      * a direct message naming it is still one never to be read, see `message.DirectMessageSync`.
@@ -136,8 +140,8 @@ class GroupEntity(
      * write nothing the server would take, sealing under a key of an epoch the group has left, and
      * waits for the group's creator to replace that Commit, which their device does as it finds
      * itself in the same place. Not for the creator's own device, which replaces it, nor for a
-     * group brought back after a log-out, which follows no epoch at all. Cleared once the device is
-     * in step with the server again.
+     * group brought back after a log-out and not rejoined yet, which follows no epoch at all, see
+     * [mlsGroupId]. Cleared once the device is in step with the server again.
      */
     val isAwaitingOwner: Boolean = false,
 

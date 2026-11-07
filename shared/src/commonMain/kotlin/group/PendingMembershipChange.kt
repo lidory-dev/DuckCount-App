@@ -46,6 +46,17 @@ internal sealed interface PendingMembershipChange {
         val body: ReplaceGroupCommitBody,
         override val commitEpoch: Long,
     ) : PendingMembershipChange
+
+    /**
+     * Any member's rejoin of a group a log-out took the MLS state of, by the Commit from outside it
+     * [body] carries, see [GroupRejoiner]: built from a GroupInfo of [commitEpoch], and applied
+     * already, the group on this device in the epoch after it from the start.
+     */
+    class Rejoin(
+        override val groupUuid: String,
+        val body: RejoinGroupBody,
+        override val commitEpoch: Long,
+    ) : PendingMembershipChange
 }
 
 /** This change as it is kept, see [toChange]. */
@@ -78,6 +89,13 @@ internal fun PendingMembershipChange.toEntity(): PendingMembershipChangeEntity =
             body = Json.encodeToString(ReplaceGroupCommitBody.serializer(), body),
             commitEpoch = commitEpoch,
         )
+
+        is PendingMembershipChange.Rejoin -> PendingMembershipChangeEntity(
+            groupUuid = groupUuid,
+            kind = MembershipChangeKind.REJOIN,
+            body = Json.encodeToString(RejoinGroupBody.serializer(), body),
+            commitEpoch = commitEpoch,
+        )
     }
 
 /** The change [toEntity] kept. */
@@ -104,6 +122,12 @@ internal fun PendingMembershipChangeEntity.toChange(): PendingMembershipChange =
         MembershipChangeKind.REPLACEMENT -> PendingMembershipChange.Replacement(
             groupUuid = groupUuid,
             body = Json.decodeFromString(ReplaceGroupCommitBody.serializer(), body),
+            commitEpoch = commitEpoch,
+        )
+
+        MembershipChangeKind.REJOIN -> PendingMembershipChange.Rejoin(
+            groupUuid = groupUuid,
+            body = Json.decodeFromString(RejoinGroupBody.serializer(), body),
             commitEpoch = commitEpoch,
         )
     }

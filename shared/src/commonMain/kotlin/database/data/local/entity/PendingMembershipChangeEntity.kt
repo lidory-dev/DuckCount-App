@@ -6,7 +6,8 @@ import androidx.room.Entity
  * A Commit of the user's to a group that the server has not been heard to take yet, or whose
  * taking this device has yet to act on: exactly what goes out, kept until then, see
  * `group.GroupMembershipSender`. Any member may have one: the creator's additions, removals and
- * replacement of a Commit nobody could apply, and any member's removal of those who departed.
+ * replacement of a Commit nobody could apply, any member's removal of those who departed, and any
+ * member's rejoin of a group a log-out took the MLS state of, see `group.GroupRejoiner`.
  *
  * One per group at most waiting on the server: the library keeps one Commit pending per group.
  * Written before the request first goes out, and sent again by every later sync until the server
@@ -24,14 +25,16 @@ data class PendingMembershipChangeEntity(
 
     /**
      * The body of the request, serialized: `group.AddGroupMembersBody`,
-     * `group.RemoveGroupMembersBody`, `group.RemoveDepartedMembersBody` or
-     * `group.ReplaceGroupCommitBody`, as [kind] says.
+     * `group.RemoveGroupMembersBody`, `group.RemoveDepartedMembersBody`,
+     * `group.ReplaceGroupCommitBody` or `group.RejoinGroupBody`, as [kind] says.
      */
     val body: String,
 
     /**
      * The epoch the group was in when its Commit was built. The group past it is the Commit
-     * applied, whether or not this row was dropped after, see `group.GroupMembershipSender`.
+     * applied, whether or not this row was dropped after, see `group.GroupMembershipSender`. For a
+     * rejoin, the epoch of the GroupInfo it was built from, which this device never held: its
+     * group is past it from the start, see [MembershipChangeKind.REJOIN].
      */
     val commitEpoch: Long,
 
@@ -63,4 +66,11 @@ enum class MembershipChangeKind {
 
     /** `POST /groups/{group_uuid}/commits/replacement`, which the creator sends. */
     REPLACEMENT,
+
+    /**
+     * `POST /groups/{group_uuid}/commits/rejoin`, which any member sends of a group a log-out took
+     * the MLS state of, see `group.GroupRejoiner`. Its Commit is applied already, mls-rs building
+     * a Commit from outside a group so, and pending nowhere: what became of it, its nonce tells.
+     */
+    REJOIN,
 }

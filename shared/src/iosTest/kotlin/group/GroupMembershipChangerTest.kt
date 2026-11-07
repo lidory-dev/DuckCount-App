@@ -246,6 +246,7 @@ class GroupMembershipChangerTest {
 
             replaceAnswer
         },
+        rejoin = { _, _ -> error("Alice holds every group here.") },
         group = { groups[it] },
         listPending = { pending.values + outdated.values },
         dropPending = { pending.remove(it) },
@@ -253,6 +254,7 @@ class GroupMembershipChangerTest {
             outdated[groupUuid] = checkNotNull(pending.remove(groupUuid)).copy(isOutdated = true)
         },
         dropOutdated = { outdated.remove(it) },
+        forgetRejoin = { error("Alice holds every group here.") },
         replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
         recordSignatureKeys = { recorded ->
             recorded.forEach { signatureKeys[it.userUuid] = it.signatureKey }

@@ -13,8 +13,10 @@ import mls.GroupRoster
 import mls.MlsIdentityError
 import mls.MlsIdentityRepository
 import mls.applyPendingCommitIn
+import mls.deleteGroupOf
 import mls.discardPendingCommitIn
 import mls.epochKeyIn
+import mls.holdsGroup
 import mls.rosterOf
 import push.WakeList
 import uniffi.lib_duckcount.MemberInfo
@@ -34,9 +36,10 @@ private const val UNANSWERED_RESEND_SECONDS = 60L
 /**
  * Sends a Commit of the user's to the members of a group, and acts on what the server answers: the
  * one place that decides what becomes of one, whether it is the first send, see
- * [GroupMembershipChanger], or a resend at a later sync, see [resendPending]. The creator's
- * additions and removals, any member's removal of those who departed, and the creator's
- * replacement of a Commit nobody could apply, see [PendingMembershipChange].
+ * [GroupMembershipChanger] and [GroupRejoiner], or a resend at a later sync, see [resendPending].
+ * The creator's additions and removals, any member's removal of those who departed, the creator's
+ * replacement of a Commit nobody could apply, and any member's rejoin of a group a log-out took
+ * the MLS state of, see [PendingMembershipChange].
  *
  * The change was saved before the first send, see [PendingMembershipChangeEntity], its Commit
  * pending in the library, so that whatever the answer, or none, the device holds what the server
@@ -58,7 +61,8 @@ private const val UNANSWERED_RESEND_SECONDS = 60L
  *   them, is kept and made anew, see [GroupMembershipChanger.remakeOutdatedUnderGroupsLock].
  * - The server has not taken it yet, see [GroupMembershipAnswer.RateLimited] and
  *   [GroupMembershipAnswer.Failed]: everything stays, and the next sync is booked for when it may
- *   go through, see [ResendScheduler].
+ *   go through, see [ResendScheduler]. But for a rejoin answered `404`, see [isRejoinNotFound],
+ *   which waits for whatever syncs next.
  *
  * Every step can be cut short, the process killed, and taken up again by the next sync from where
  * it stopped: a Commit still pending is sent again, the server answering `409` for one it took; one
@@ -66,12 +70,24 @@ private const val UNANSWERED_RESEND_SECONDS = 60L
  * built in, see [PendingMembershipChangeEntity.commitEpoch], and discarded otherwise, the key of
  * the epoch it applied in derived then, the group still being in it.
  *
+ * A rejoin is the exception, see [GroupRejoiner]: mls-rs builds a Commit from outside a group
+ * applied, so nothing is ever pending in the library, and the group is past the epoch it was built
+ * in from the start. Its nonce alone tells what became of it, so it is sent again for as long as
+ * the library holds the state it was built in, see
+ * [database.data.local.entity.MembershipChangeKind.REJOIN]. Taken, the members are those the state
+ * holds, the key of its epoch becomes the group's, backed up already, as for any Commit of the
+ * user's, and the next sync is booked, see [rejoined]. Refused, its state is deleted, then the
+ * group's MLS id forgotten with the rejoin, see [GroupDao.forgetRejoin], the group brought back
+ * after a log-out again, for the next sync to rejoin anew: a state found deleted as it is sent again
+ * is one whose refusal the process did not live to finish with.
+ *
  * To be called under [withGroupsLock], which it does not take itself, as for a creation.
  *
  * [addMembers], [removeMembers], [removeDeparted] and [replaceCommit] are those of [GroupApi],
- * [group] is [GroupDao.get], [listPending] is [GroupDao.getMembershipChanges], [dropPending],
- * [markOutdated] and [dropOutdated] are [GroupDao.deleteMembershipChange],
- * [GroupDao.markMembershipChangeOutdated] and [GroupDao.deleteOutdatedMembershipChange],
+ * [rejoin] is [GroupApi.rejoin], [group] is [GroupDao.get], [listPending] is
+ * [GroupDao.getMembershipChanges], [dropPending], [markOutdated], [dropOutdated] and [forgetRejoin]
+ * are [GroupDao.deleteMembershipChange], [GroupDao.markMembershipChangeOutdated],
+ * [GroupDao.deleteOutdatedMembershipChange] and [GroupDao.forgetRejoin],
  * [replaceMembers] is [GroupDao.replaceMembers],
  * [recordSignatureKeys] is [GroupDao.upsertSignatureKeys], [rebuildWakeList] is
  * [WakeList.rebuild], [takeCommittedKey] is [GroupDao.takeCommittedKey], [client] is
@@ -83,11 +99,13 @@ class GroupMembershipSender internal constructor(
     private val removeMembers: suspend (groupUuid: String, body: RemoveGroupMembersBody) -> GroupMembershipAnswer,
     private val removeDeparted: suspend (groupUuid: String, body: RemoveDepartedMembersBody) -> GroupMembershipAnswer,
     private val replaceCommit: suspend (groupUuid: String, body: ReplaceGroupCommitBody) -> GroupMembershipAnswer,
+    private val rejoin: suspend (groupUuid: String, body: RejoinGroupBody) -> GroupMembershipAnswer,
     private val group: suspend (groupUuid: String) -> GroupEntity?,
     private val listPending: suspend () -> List<PendingMembershipChangeEntity>,
     private val dropPending: suspend (groupUuid: String) -> Unit,
     private val markOutdated: suspend (groupUuid: String) -> Unit,
     private val dropOutdated: suspend (groupUuid: String) -> Unit,
+    private val forgetRejoin: suspend (groupUuid: String) -> Unit,
     private val replaceMembers: suspend (groupUuid: String, members: List<GroupMemberEntity>) -> Unit,
     private val recordSignatureKeys: suspend (signatureKeys: List<GroupMemberSignatureKeyEntity>) -> Unit,
     private val rebuildWakeList: suspend () -> Unit,
@@ -108,11 +126,13 @@ class GroupMembershipSender internal constructor(
         removeMembers = groupApi::removeMembers,
         removeDeparted = groupApi::removeDeparted,
         replaceCommit = groupApi::replaceCommit,
+        rejoin = groupApi::rejoin,
         group = groupDao::get,
         listPending = groupDao::getMembershipChanges,
         dropPending = groupDao::deleteMembershipChange,
         markOutdated = groupDao::markMembershipChangeOutdated,
         dropOutdated = groupDao::deleteOutdatedMembershipChange,
+        forgetRejoin = groupDao::forgetRejoin,
         replaceMembers = groupDao::replaceMembers,
         recordSignatureKeys = groupDao::upsertSignatureKeys,
         rebuildWakeList = wakeList::rebuild,
@@ -123,8 +143,9 @@ class GroupMembershipSender internal constructor(
     )
 
     /**
-     * Sends [change] to the group [group], whose MLS state [client] holds, its Commit pending, and
-     * acts on the answer, see [GroupMembershipSender], which it returns.
+     * Sends [change] to the group [group], whose MLS state [client] holds, its Commit pending, or
+     * applied already for a rejoin, and acts on the answer, see [GroupMembershipSender], which it
+     * returns.
      */
     internal suspend fun send(
         change: PendingMembershipChange,
@@ -133,7 +154,7 @@ class GroupMembershipSender internal constructor(
     ): GroupMembershipAnswer {
         val answer = answerTo(change = change)
 
-        actOn(answer = answer, group = group, client = client)
+        actOn(answer = answer, change = change, group = group, client = client)
 
         return answer
     }
@@ -145,25 +166,42 @@ class GroupMembershipSender internal constructor(
             is PendingMembershipChange.Removal -> removeMembers(change.groupUuid, change.body)
             is PendingMembershipChange.DepartedRemoval -> removeDeparted(change.groupUuid, change.body)
             is PendingMembershipChange.Replacement -> replaceCommit(change.groupUuid, change.body)
+            is PendingMembershipChange.Rejoin -> rejoin(change.groupUuid, change.body)
         }
 
-    /** Acts on [answer], the server's to the change pending for [group], see [GroupMembershipSender]. */
-    private suspend fun actOn(answer: GroupMembershipAnswer, group: GroupEntity, client: MlsClient) {
+    /**
+     * Acts on [answer], the server's to [change], the change pending for [group], see
+     * [GroupMembershipSender].
+     */
+    private suspend fun actOn(
+        answer: GroupMembershipAnswer,
+        change: PendingMembershipChange,
+        group: GroupEntity,
+        client: MlsClient,
+    ) {
         when (answer) {
-            GroupMembershipAnswer.Made, GroupMembershipAnswer.AlreadyMade -> taken(group = group, client = client)
+            GroupMembershipAnswer.Made, GroupMembershipAnswer.AlreadyMade ->
+                if (change is PendingMembershipChange.Rejoin) {
+                    rejoined(group = group, client = client)
+                } else {
+                    taken(group = group, client = client)
+                }
 
             is GroupMembershipAnswer.DeletedMembers -> {
-                discard(group = group, client = client)
+                refused(change = change, group = group, client = client)
                 receiveAccountDeletions(answer.userUuids)
             }
 
             is GroupMembershipAnswer.KeyGenerationNotCurrent,
             is GroupMembershipAnswer.Refused,
-            -> discard(group = group, client = client)
+            -> refused(change = change, group = group, client = client)
 
             is GroupMembershipAnswer.RateLimited -> resendScheduler.resendAfter(seconds = answer.retryAfterSeconds)
 
-            is GroupMembershipAnswer.Failed -> resendScheduler.resendAfter(seconds = UNANSWERED_RESEND_SECONDS)
+            is GroupMembershipAnswer.Failed ->
+                if (!change.isRejoinNotFound(answer = answer)) {
+                    resendScheduler.resendAfter(seconds = UNANSWERED_RESEND_SECONDS)
+                }
         }
     }
 
@@ -181,7 +219,9 @@ class GroupMembershipSender internal constructor(
      * the resend booked for it goes for them all.
      *
      * Fails with what kept the first one from going through, the limit aside, which is no failure:
-     * nothing needs doing but waiting for the resend.
+     * nothing needs doing but waiting for the resend. Nor is a rejoin answered `404`, see
+     * [isRejoinNotFound], which is passed over for the next: it says nothing of the others, which
+     * every pass would otherwise leave unsent for as long as the server keeps its rejoins shut.
      */
     suspend fun resendPending(): EmptyResult<GroupSyncError> {
         val pending = listPending()
@@ -206,12 +246,13 @@ class GroupMembershipSender internal constructor(
                 continue
             }
 
-            when (answer) {
-                is GroupMembershipAnswer.Failed -> return Result.Error(failure ?: GroupSyncError.Network(answer.error))
+            when {
+                // See above: waits for the next sync, whatever wakes it.
+                change.isRejoinNotFound(answer = answer) -> Unit
 
-                is GroupMembershipAnswer.RateLimited -> break
+                answer is GroupMembershipAnswer.Failed -> return Result.Error(failure ?: GroupSyncError.Network(answer.error))
 
-                else -> Unit
+                answer is GroupMembershipAnswer.RateLimited -> break
             }
         }
 
@@ -237,6 +278,11 @@ class GroupMembershipSender internal constructor(
      * any read before the change was built whose acknowledgement did not go through, which is of an
      * earlier epoch. Fails with the first thing that kept one from being settled, which the next sync
      * tries again.
+     *
+     * A rejoin is forgotten whatever waits there, see [forget]: its Commit applied from the start,
+     * there is nothing pending to apply or discard, and the user is out of the group whether or not
+     * the server took it, the group sync then finding it brought back after a log-out and no longer
+     * listed, which it marks left, see [GroupSync].
      */
     internal suspend fun settleUnlisted(
         listedUuids: Set<String>,
@@ -263,6 +309,13 @@ class GroupMembershipSender internal constructor(
             }
 
             val change = pendingChange.toChange()
+
+            // Applied from the start, see above, and of no use: the user is out of the group.
+            if (change is PendingMembershipChange.Rejoin) {
+                forget(group = heldGroupOf(change = change), client = client)
+
+                continue
+            }
 
             val firstCommitEpoch = when (val read = firstCommitEpochIn(change.groupUuid, change.commitEpoch)) {
                 is Result.Success -> read.data
@@ -301,6 +354,10 @@ class GroupMembershipSender internal constructor(
     private suspend fun resend(change: PendingMembershipChange, client: MlsClient): GroupMembershipAnswer? {
         val group = heldGroupOf(change = change)
 
+        if (change is PendingMembershipChange.Rejoin) {
+            return resendRejoin(change = change, group = group, client = client)
+        }
+
         val roster = client.rosterOf(mlsGroupId = group.heldMlsGroupId())
 
         if (!roster.hasPendingCommit) {
@@ -315,8 +372,32 @@ class GroupMembershipSender internal constructor(
         if (answer is GroupMembershipAnswer.KeyGenerationNotCurrent && change.isTheUsers()) {
             outdate(group = group, client = client)
         } else {
-            actOn(answer = answer, group = group, client = client)
+            actOn(answer = answer, change = change, group = group, client = client)
         }
+
+        return answer
+    }
+
+    /**
+     * Takes up [change], the rejoin pending for [group], from where it was left, see
+     * [GroupMembershipSender], and returns what the server answered, or null when nothing needed
+     * sending: the state it was built in deleted already, its refusal acted on but for the group
+     * forgetting its MLS id, which is done now.
+     */
+    private suspend fun resendRejoin(
+        change: PendingMembershipChange.Rejoin,
+        group: GroupEntity,
+        client: MlsClient,
+    ): GroupMembershipAnswer? {
+        if (!client.holdsGroup(mlsGroupId = group.heldMlsGroupId())) {
+            forgetRejoin(group.uuid)
+
+            return null
+        }
+
+        val answer = answerTo(change = change)
+
+        actOn(answer = answer, change = change, group = group, client = client)
 
         return answer
     }
@@ -365,6 +446,32 @@ class GroupMembershipSender internal constructor(
     }
 
     /**
+     * Acts on the server holding the rejoin pending for [group], see [GroupRejoiner]: its Commit
+     * applied already, the group's members are those its tree holds, and the key of the epoch it is
+     * in the group's, backed up with the copy the rejoin carried, see [applied]. The next sync is
+     * booked, a minute on, by which the members' devices will have read the Commit and published the
+     * link back from that key the user may have been unable to, see [RejoinGroupBody.previousKey],
+     * which what was sealed in the epochs this device skipped is read through, see [GroupKeyChain].
+     */
+    private suspend fun rejoined(group: GroupEntity, client: MlsClient) {
+        val mlsGroupId = group.heldMlsGroupId()
+
+        val (roster, key) = try {
+            client.rosterOf(mlsGroupId = mlsGroupId) to
+                client.epochKeyIn(mlsGroupId = mlsGroupId, groupUuid = group.uuid)
+        } catch (_: MlsException) {
+            // Taken all the same: sent again, it is answered 409, and acted on then.
+            resendScheduler.resendAfter(seconds = UNANSWERED_RESEND_SECONDS)
+
+            return
+        }
+
+        applied(group = group, members = roster.members, key = key)
+
+        resendScheduler.resendAfter(seconds = UNANSWERED_RESEND_SECONDS)
+    }
+
+    /**
      * Records the members of [group] once the Commit of the change pending for it is applied,
      * [members] as its tree holds them, the creator their admin, with the signature key each holds
      * there, see [GroupMemberSignatureKeyEntity], rebuilds who may wake the user with them, see
@@ -404,6 +511,34 @@ class GroupMembershipSender internal constructor(
         markOutdated(group.uuid)
     }
 
+    /** Forgets [change], the change pending for [group], refused by the server, see [discard] and [forget]. */
+    private suspend fun refused(change: PendingMembershipChange, group: GroupEntity, client: MlsClient) {
+        if (change is PendingMembershipChange.Rejoin) {
+            forget(group = group, client = client)
+        } else {
+            discard(group = group, client = client)
+        }
+    }
+
+    /**
+     * Forgets the rejoin pending for [group], refused by the server, or of no use any more: the
+     * state it was built in first, then the group's MLS id with the rejoin, see
+     * [GroupDao.forgetRejoin], so that a forgetting cut short leaves a rejoin the next sync finds
+     * the state of deleted, see [resendRejoin]. A state that could not be deleted leaves the rejoin
+     * for the next sync, which hears the refusal again.
+     */
+    private suspend fun forget(group: GroupEntity, client: MlsClient) {
+        try {
+            client.deleteGroupOf(mlsGroupId = group.heldMlsGroupId())
+        } catch (_: MlsException) {
+            resendScheduler.resendAfter(seconds = UNANSWERED_RESEND_SECONDS)
+
+            return
+        }
+
+        forgetRejoin(group.uuid)
+    }
+
     /**
      * Forgets the change pending for [group], refused by the server: its Commit first, then the
      * change, so that a discard cut short leaves a change the next sync finds discarded, see
@@ -423,9 +558,30 @@ class GroupMembershipSender internal constructor(
     }
 }
 
-/** Whether the user asked for this change, rather than the group sync making it, see [GroupSync]. */
+/**
+ * Whether the user asked for this change, rather than the group sync making it, see [GroupSync]: a
+ * rejoin is the sync's, see [GroupRejoiner].
+ */
 private fun PendingMembershipChange.isTheUsers(): Boolean =
     this is PendingMembershipChange.Addition || this is PendingMembershipChange.Removal
+
+/**
+ * Whether this is a rejoin, and [answer], the server's to it, a `404`: a server that takes no
+ * rejoin, which answers so on every route of theirs for as long as some phone it serves could not
+ * read one, its minimum build lowered again say, or the proxy in front of it as it is redeployed,
+ * see [GroupRejoiner.rejoinUnderGroupsLock]; or a user no longer in the group, whose rejoin the same
+ * pass forgets, see [GroupMembershipSender.settleUnlisted].
+ *
+ * Not a send gone unanswered, then, which booking the next sync a minute on is for: sent again
+ * every minute, it would be answered the same for as long as the server keeps its rejoins shut, and
+ * hold back every change pending after it, see [GroupMembershipSender.resendPending]. It waits for
+ * whatever syncs next, which takes it up from where it is: a server taking rejoins again answers it
+ * as any, its nonce telling whether it took it already.
+ */
+private fun PendingMembershipChange.isRejoinNotFound(answer: GroupMembershipAnswer?): Boolean =
+    this is PendingMembershipChange.Rejoin &&
+        answer is GroupMembershipAnswer.Failed &&
+        answer.error == NetworkError.NOT_FOUND
 
 /** The MLS group of this group, which every group a change is pending for has, see [GroupMembershipChanger]. */
 private fun GroupEntity.heldMlsGroupId(): ByteArray =

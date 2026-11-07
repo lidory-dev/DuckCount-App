@@ -339,6 +339,39 @@ interface GroupDao {
     suspend fun upsertMembershipChange(change: PendingMembershipChangeEntity)
 
     /**
+     * Records [mlsGroupId] as the MLS group of the group [uuid], or none, see [GroupEntity.mlsGroupId]:
+     * what a rejoin after a log-out sets, and clears again should the server refuse it, see
+     * [saveRejoin] and [forgetRejoin].
+     */
+    @Query("UPDATE GroupEntity SET mlsGroupId = :mlsGroupId WHERE uuid = :uuid")
+    suspend fun setMlsGroupId(uuid: String, mlsGroupId: ByteArray?)
+
+    /**
+     * Records [mlsGroupId], the MLS group the library just stored as it rejoined the group of
+     * [change] from outside it, as that group's, with [change], the rejoin that sends its Commit,
+     * see `group.GroupRejoiner`, in one transaction: a group naming its MLS group with no rejoin
+     * pending would take a state the server may never hear of for one in step with it, and a rejoin
+     * pending for a group naming none would have every sync find nothing to send it from.
+     */
+    @Transaction
+    suspend fun saveRejoin(mlsGroupId: ByteArray, change: PendingMembershipChangeEntity) {
+        setMlsGroupId(uuid = change.groupUuid, mlsGroupId = mlsGroupId)
+        upsertMembershipChange(change = change)
+    }
+
+    /**
+     * Forgets the rejoin pending for the group [groupUuid] and the MLS group it was built in, once
+     * the server refused it and the library deleted that state, see `group.GroupMembershipSender`,
+     * in one transaction: the group is one brought back after a log-out again, which the next sync
+     * rejoins anew, see `group.GroupRejoiner`.
+     */
+    @Transaction
+    suspend fun forgetRejoin(groupUuid: String) {
+        setMlsGroupId(uuid = groupUuid, mlsGroupId = null)
+        deleteMembershipChange(groupUuid = groupUuid)
+    }
+
+    /**
      * Every Commit of the user's the server has not been heard to take, or whose taking this device
      * has yet to act on, see [PendingMembershipChangeEntity].
      */

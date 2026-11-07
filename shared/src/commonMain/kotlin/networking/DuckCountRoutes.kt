@@ -135,6 +135,30 @@ object DuckCountRoutes {
         val COMMIT_REPLACEMENT = "$GROUP_BASE_URL/:group_uuid/commits/replacement"
 
         /**
+         * `POST` stores the Commit from outside one group with which the caller rejoins it after a
+         * log-out, the resync of their own leaf, any current member.
+         */
+        val COMMIT_REJOIN = "$GROUP_BASE_URL/:group_uuid/commits/rejoin"
+
+        /**
+         * `PUT` asks the other current members of one group for a GroupInfo to rejoin it from, any
+         * current member.
+         */
+        val REJOIN_REQUEST = "$GROUP_BASE_URL/:group_uuid/rejoin-request"
+
+        /**
+         * `PUT` publishes the caller's GroupInfo of the epoch one group is in, for a member who asked
+         * for one, any current member.
+         */
+        val GROUP_INFO = "$GROUP_BASE_URL/:group_uuid/group-info"
+
+        /** `GET` lists who published a GroupInfo of the epoch one group is in, any current member. */
+        val GROUP_INFOS = "$GROUP_BASE_URL/:group_uuid/group-infos"
+
+        /** `GET` returns the GroupInfo one member published of the epoch one group is in, any current member. */
+        val PUBLISHED_GROUP_INFO = "$GROUP_BASE_URL/:group_uuid/group-infos/:publisher_uuid"
+
+        /**
          * `GET` lists the candidates for the links of the chain back through the keys of one group,
          * each the key of a generation sealed under the next, any current member.
          */

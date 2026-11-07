@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 import uniffi.lib_duckcount.AddMembersOutput
 import uniffi.lib_duckcount.CommitPolicy
 import uniffi.lib_duckcount.GroupCreation
+import uniffi.lib_duckcount.GroupRejoin
 import uniffi.lib_duckcount.InviteeKeyPackage
 import uniffi.lib_duckcount.MemberInfo
 import uniffi.lib_duckcount.MlsClient
@@ -443,6 +444,59 @@ internal suspend fun MlsClient.joinGroupFrom(
     }
 
 /**
+ * A GroupInfo of a group of several members this device holds, see [rejoinGroupInfoIn]: [groupInfo],
+ * as the library serialised it, of [epoch], the epoch the group was in as it was exported.
+ */
+internal class ExportedGroupInfo(val epoch: Long, val groupInfo: ByteArray)
+
+/**
+ * The GroupInfo of the epoch the group of several members [mlsGroupId] is in, see
+ * [MlsGroup.rejoinGroupInfo], with that epoch, read from the same copy of the group: what a member
+ * whose device a log-out emptied rejoins the group from, see [rejoinGroupOf], which another
+ * member's device exports for them once the server says they asked for one, see
+ * [group.GroupRejoiner]. It travels unsealed, and holds the group's tree, its members' user UUIDs
+ * and public keys, and nothing anybody could read the group with.
+ */
+internal suspend fun MlsClient.rejoinGroupInfoIn(mlsGroupId: ByteArray): ExportedGroupInfo =
+    withGroup(mlsGroupId = mlsGroupId) { group ->
+        ExportedGroupInfo(epoch = group.epoch().toLong(), groupInfo = group.rejoinGroupInfo())
+    }
+
+/**
+ * Rejoins the group of several members the server lists as [groupUuid] from outside it, from
+ * [groupInfo], a GroupInfo another member exported for [expectedEpoch], see [rejoinGroupInfoIn],
+ * and returns its id, the Commit to send and the epoch it takes the group to, see
+ * [MlsClient.rejoinGroup]: the resync of the user's own leaf, for a group a log-out took the MLS
+ * state of, see [group.GroupRejoiner].
+ *
+ * Refused unless the GroupInfo was signed by a member this device pinned, or by the user, see
+ * [MlsException.UntrustedGroupInfo], and is of [groupUuid] and [expectedEpoch], with a tree holding
+ * the user, under the signature key this device holds, and exactly [expectedMembers] besides, the
+ * members the server lists and those departed whom no Commit removed yet; nothing is deleted then.
+ * Past those checks, whatever this device held of the group is deleted, and the state built stored
+ * at once, in the epoch the Commit makes and with nothing pending: mls-rs builds a Commit from
+ * outside a group already applied.
+ *
+ * Carries its own dispatcher, as [joinGroupOf] does, and what stands in for the group lock around
+ * it is [group.withGroupsLock], held by the group sync for the whole of it, and
+ * [group.withGroupJoinLock], held until the database names the group.
+ */
+internal suspend fun MlsClient.rejoinGroupOf(
+    groupInfo: ByteArray,
+    groupUuid: String,
+    expectedEpoch: Long,
+    expectedMembers: List<String>,
+): GroupRejoin =
+    withContext(Dispatchers.IO) {
+        rejoinGroup(
+            groupInfo = groupInfo,
+            expectedGroupUuid = groupUuid,
+            expectedEpoch = expectedEpoch.toULong(),
+            expectedMembers = expectedMembers,
+        )
+    }
+
+/**
  * Whether the group [mlsGroupId] is still stored on this device.
  *
  * Only a group found missing says no: one that could not be read for any other reason is
@@ -568,15 +622,23 @@ private fun MlsGroup.epochKey(groupUuid: String) =
 
 /**
  * The epoch the MLS Commit [message] was built in, read from its cleartext header, or null when
- * it is no Commit encrypted to a group: what the server reads of a Commit to hold it to the group's
+ * it is no Commit the server stores: what the server reads of a Commit to hold it to the group's
  * epoch, see [group.GroupSync]. Nothing is decrypted or checked, and the header is whatever its
  * sender wrote: what this tells of a message the library refused is only ever what its sender
  * claimed, to tell a Commit refused from anything else refused.
  *
- * RFC 9420, §6: the protocol version, `mls10`, and the wire format, `mls_private_message`, as
- * 16-bit integers, then the group id, a vector whose length is a variable-length integer of one,
- * two or four bytes as its first two bits say, the epoch as a 64-bit integer, and the content type,
- * `commit` being 3. All big-endian.
+ * Every member's Commit is encrypted to the group, but for the one a member rejoins it with from
+ * outside it after a log-out, see [rejoinGroupOf], which MLS has travel in the clear: a member's
+ * device refusing that one reads it as a Commit refused at its epoch too, which the group's creator
+ * replaces as any, see [group.GroupSync]. No other message in the clear is one the server stores
+ * as a Commit, a member's or a Proposal from outside the group, and none is read as one here.
+ *
+ * RFC 9420, §6: the protocol version, `mls10`, and the wire format as 16-bit integers, then the
+ * group id, a vector whose length is a variable-length integer of one, two or four bytes as its
+ * first two bits say, and the epoch as a 64-bit integer. Then, for `mls_private_message`, the
+ * content type, `commit` being 3. For `mls_public_message`, the sender first, its type as an 8-bit
+ * integer, `new_member_commit` being 4, which carries nothing more, and the authenticated data, a
+ * vector as the group id is, before the content type. All big-endian.
  */
 internal fun commitEpochOf(message: ByteArray): Long? {
     var at = 0
@@ -586,23 +648,38 @@ internal fun commitEpochOf(message: ByteArray): Long? {
 
     fun ByteArray.toNumber(): Long = fold(0L) { number, byte -> (number shl 8) or (byte.toLong() and 0xff) }
 
-    if (take(2)?.toNumber() != MLS_10 || take(2)?.toNumber() != PRIVATE_MESSAGE) return null
+    // The length of the vector starting here, or null when it says none.
+    fun vectorLength(): Long? {
+        val first = take(1)?.toNumber() ?: return null
 
-    val first = take(1)?.toNumber() ?: return null
-
-    val groupIdLength = when (first shr 6) {
-        0L -> first and 0x3f
-        1L -> ((first and 0x3f) shl 8) or (take(1)?.toNumber() ?: return null)
-        2L -> ((first and 0x3f) shl 24) or (take(3)?.toNumber() ?: return null)
-        else -> return null
+        return when (first shr 6) {
+            0L -> first and 0x3f
+            1L -> ((first and 0x3f) shl 8) or (take(1)?.toNumber() ?: return null)
+            2L -> ((first and 0x3f) shl 24) or (take(3)?.toNumber() ?: return null)
+            else -> null
+        }
     }
 
-    take(groupIdLength.toInt()) ?: return null
+    if (take(2)?.toNumber() != MLS_10) return null
+
+    val wireFormat = take(2)?.toNumber()
+
+    if (wireFormat != PRIVATE_MESSAGE && wireFormat != PUBLIC_MESSAGE) return null
+
+    take(vectorLength()?.toInt() ?: return null) ?: return null
 
     val epoch = take(8)?.toNumber() ?: return null
 
     // An epoch past what a signed 64-bit integer holds is one no group reaches.
-    if (epoch < 0 || take(1)?.toNumber() != COMMIT) return null
+    if (epoch < 0) return null
+
+    if (wireFormat == PUBLIC_MESSAGE) {
+        if (take(1)?.toNumber() != NEW_MEMBER_COMMIT) return null
+
+        take(vectorLength()?.toInt() ?: return null) ?: return null
+    }
+
+    if (take(1)?.toNumber() != COMMIT) return null
 
     return epoch
 }
@@ -610,8 +687,17 @@ internal fun commitEpochOf(message: ByteArray): Long? {
 /** The only MLS protocol version, `mls10`, see [commitEpochOf]. */
 private const val MLS_10 = 1L
 
+/**
+ * The wire format of a `PublicMessage`, which a Commit from outside a group travels as, see
+ * [commitEpochOf].
+ */
+private const val PUBLIC_MESSAGE = 1L
+
 /** The wire format of a `PrivateMessage`, which every member's message travels as, see [commitEpochOf]. */
 private const val PRIVATE_MESSAGE = 2L
+
+/** The sender type of a Commit from outside a group, `new_member_commit`, see [commitEpochOf]. */
+private const val NEW_MEMBER_COMMIT = 4L
 
 /** The content type of a Commit, see [commitEpochOf]. */
 private const val COMMIT = 3L
@@ -639,8 +725,8 @@ internal fun MlsException.isRetryable(): Boolean =
  * through a function above. The two this cannot cover are creating and joining a group,
  * whose id is either known to nobody yet or known only once the join has stored it: those
  * are [createGroupWith] and [joinGroupFrom], and what stands in for the group lock around
- * them is [withPeerLock], which locks the peer instead, and [createGroupOf] and
- * [joinGroupOf], around which [group.withGroupsLock] does.
+ * them is [withPeerLock], which locks the peer instead, and [createGroupOf], [joinGroupOf]
+ * and [rejoinGroupOf], around which [group.withGroupsLock] does.
  */
 private suspend fun <T> MlsClient.withGroup(mlsGroupId: ByteArray, block: (MlsGroup) -> T): T =
     withGroupLock(mlsGroupId = mlsGroupId) {

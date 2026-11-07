@@ -291,6 +291,7 @@ class GroupMembershipChanger internal constructor(
 
             is PendingMembershipChange.DepartedRemoval,
             is PendingMembershipChange.Replacement,
+            is PendingMembershipChange.Rejoin,
             -> error("Only a change the user asked for is made again.")
         }
 

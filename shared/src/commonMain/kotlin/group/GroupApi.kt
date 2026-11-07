@@ -233,6 +233,88 @@ class GroupApi(
         }
 
     /**
+     * Stores the Commit from outside the group [groupUuid] that [body] carries, with which the
+     * caller rejoins it after a log-out, see [RejoinGroupBody], which any current member may do, see
+     * [GroupMembershipAnswer]: answered as every other route storing a Commit is, its nonce first,
+     * then its epoch. Given as long as a removal, the Commit carrying a path to every member.
+     */
+    suspend fun rejoin(groupUuid: String, body: RejoinGroupBody): GroupMembershipAnswer =
+        changeMembers {
+            client.httpClient.post(urlString = DuckCountRoutes.Group.COMMIT_REJOIN.replace(":group_uuid", groupUuid)) {
+                timeout { requestTimeoutMillis = LARGE_BODY_TIMEOUT_MILLIS }
+                setBody(body)
+                contentType(ContentType.Application.Json)
+            }
+        }
+
+    /**
+     * Asks the other current members of the group [groupUuid] for a GroupInfo of the epoch it is in,
+     * for the caller to rejoin it from, see [GroupRejoiner]: the server lists the group to each of
+     * them with [GroupDto.groupInfoWanted], and wakes them for it, see
+     * [push.PushSignal.Kind.GROUP_CHANGED]. Asking again changes nothing, and the server closes the
+     * request as it takes the caller's rejoin.
+     *
+     * A `404` is a caller who is no current member of the group, a server that takes no rejoin yet,
+     * which answers it on every route of theirs, or the proxy in front of the server answering as it
+     * is redeployed: for a group the server lists, nothing to do but wait.
+     */
+    suspend fun requestRejoin(groupUuid: String): EmptyResult<NetworkError> =
+        client.put<Unit, Unit>(
+            route = DuckCountRoutes.Group.REJOIN_REQUEST,
+            pathParams = mapOf("group_uuid" to groupUuid),
+            // A `Unit` goes out as no body at all.
+            body = Unit,
+        )
+
+    /**
+     * Who published a GroupInfo of the epoch the group [groupUuid] is in, oldest first, see
+     * [GroupInfoPublisherDto]. A `404` as for [requestRejoin].
+     */
+    suspend fun listGroupInfos(groupUuid: String): Result<List<GroupInfoPublisherDto>, NetworkError> =
+        client.get<List<GroupInfoPublisherDto>>(
+            route = DuckCountRoutes.Group.GROUP_INFOS,
+            pathParams = mapOf("group_uuid" to groupUuid),
+        )
+
+    /**
+     * The GroupInfo [publisherUuid] published of the epoch the group [groupUuid] is in, see
+     * [GroupInfoDto]. Given [LARGE_BODY_TIMEOUT_MILLIS], for the group's whole tree it carries, about
+     * the size of a Welcome. A `404` as for [requestRejoin], or none of theirs of that epoch any more,
+     * the group having moved on since it was listed.
+     */
+    suspend fun groupInfoOf(groupUuid: String, publisherUuid: String): Result<GroupInfoDto, NetworkError> =
+        client.execute {
+            client.httpClient.get(
+                urlString = DuckCountRoutes.Group.PUBLISHED_GROUP_INFO
+                    .replace(":group_uuid", groupUuid)
+                    .replace(":publisher_uuid", publisherUuid),
+            ) {
+                timeout { requestTimeoutMillis = LARGE_BODY_TIMEOUT_MILLIS }
+            }
+        }
+
+    /**
+     * Publishes [groupInfo], the caller's GroupInfo of the epoch the group [groupUuid] is in, see
+     * [PublishGroupInfoBody], for a member who asked for one to rejoin it from, in place of any of
+     * theirs. Given as long as [groupInfoOf]. Either `409` is as good as its being stored: the JSON one
+     * of a GroupInfo of an epoch the group left, the next listing deciding again, and the plain one
+     * when nobody asks for one any more. A `404` as for [requestRejoin].
+     */
+    suspend fun publishGroupInfo(groupUuid: String, groupInfo: ByteArray): EmptyResult<NetworkError> =
+        when (
+            val sent = client.execute<Unit> {
+                client.httpClient.put(urlString = DuckCountRoutes.Group.GROUP_INFO.replace(":group_uuid", groupUuid)) {
+                    timeout { requestTimeoutMillis = LARGE_BODY_TIMEOUT_MILLIS }
+                    setBody(PublishGroupInfoBody(groupInfo = Base64.Default.encode(groupInfo)))
+                    contentType(ContentType.Application.Json)
+                }
+            }
+        ) {
+            is Result.Success -> sent
+            is Result.Error -> if (sent.error == NetworkError.CONFLICT) Result.Success(Unit) else sent
+        }
+
+    /**
      * Stores [keyCopy] as the caller's own copy of the key of the group [groupUuid], the generation
      * [keyGeneration] of its keys, in place of any they had, see [GroupKeyCopies.putUp]. A `404`
      * means the caller is no current member of the group, removed since it was listed say, or the
@@ -549,8 +631,9 @@ internal fun postAnswerOf(error: NetworkError): GroupPostAnswer =
 /**
  * What the server answered a change to the members of a group, `POST` or `DELETE
  * /groups/{group_uuid}/members`, the removal of its departed members, `DELETE
- * /groups/{group_uuid}/departed`, or the owner's replacement of a Commit, `POST
- * /groups/{group_uuid}/commits/replacement`: every route that stores a Commit.
+ * /groups/{group_uuid}/departed`, the owner's replacement of a Commit, `POST
+ * /groups/{group_uuid}/commits/replacement`, or a member's rejoin after a log-out, `POST
+ * /groups/{group_uuid}/commits/rejoin`: every route that stores a Commit.
  *
  * The server writes nothing unless it takes the whole change, so every refusal is final for that
  * request, and only [Failed] leaves open whether the change was stored.

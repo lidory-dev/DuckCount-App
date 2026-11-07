@@ -273,6 +273,10 @@ class GroupSyncTest {
         settleUnlisted = { _, _ -> Result.Success(Unit) },
         keyOf = { _, _, _ -> error("No key is got back through the chain here.") },
         checkKeyLinks = { Result.Success(Unit) },
+        // What becomes of a group brought back after a log-out is GroupSyncRejoinTest's.
+        requestRejoin = { Result.Success(Unit) },
+        rejoinRestored = { _, _ -> GroupRejoinPass(pending = emptySet(), unanswered = emptySet(), failure = null) },
+        publishGroupInfos = { _, _ -> Result.Success(Unit) },
         setAwaitingOwner = { _, _ -> },
         keyLinks = { Result.Success(serverLinks.toList()) },
         now = { error("Nobody departed from a group here.") },

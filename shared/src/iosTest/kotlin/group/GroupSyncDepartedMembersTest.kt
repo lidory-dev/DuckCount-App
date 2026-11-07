@@ -1095,6 +1095,7 @@ class GroupSyncDepartedMembersTest {
             removeMembers = { _, body -> server.remove(body = body) },
             removeDeparted = { _, body -> server.removeDeparted(senderUuid = userUuid, body = body) },
             replaceCommit = { _, body -> server.replace(body = body) },
+            rejoin = { _, _ -> error("Nobody rejoins anything here.") },
             group = { groups[it] },
             listPending = { pending.values + outdated.values },
             dropPending = { pending.remove(it) },
@@ -1102,6 +1103,7 @@ class GroupSyncDepartedMembersTest {
                 outdated[groupUuid] = checkNotNull(pending.remove(groupUuid)).copy(isOutdated = true)
             },
             dropOutdated = { outdated.remove(it) },
+            forgetRejoin = { error("Nobody rejoins anything here.") },
             replaceMembers = { groupUuid, groupMembers -> members[groupUuid] = groupMembers },
             recordSignatureKeys = {},
             rebuildWakeList = {},
@@ -1187,6 +1189,10 @@ class GroupSyncDepartedMembersTest {
             settleUnlisted = sender::settleUnlisted,
             keyOf = { _, _, _ -> error("Nobody edits anything here.") },
             checkKeyLinks = { Result.Success(Unit) },
+            // What becomes of a group brought back after a log-out is GroupSyncRejoinTest's.
+            requestRejoin = { Result.Success(Unit) },
+            rejoinRestored = { _, _ -> GroupRejoinPass(pending = emptySet(), unanswered = emptySet(), failure = null) },
+            publishGroupInfos = { _, _ -> Result.Success(Unit) },
             fullName = { null },
             fullNameEvenIfHidden = { null },
             hasPendingChange = { it in pending || it in pendingCreations },

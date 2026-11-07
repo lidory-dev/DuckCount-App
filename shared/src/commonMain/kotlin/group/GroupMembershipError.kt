@@ -37,8 +37,9 @@ sealed interface GroupMembershipError : Error {
 
     /**
      * This device holds no MLS state for the group to build a Commit in: it was brought back after
-     * a log-out, which takes every MLS group with it, or it is no longer on this device at all, its
-     * creation refused.
+     * a log-out, which takes every MLS group with it, and is not rejoined yet, which the group sync
+     * sees to once another member's device publishes what it is rejoined from, see [GroupRejoiner],
+     * or it is no longer on this device at all, its creation refused.
      */
     data object NotHeld : GroupMembershipError
 

@@ -120,6 +120,10 @@ class GroupSyncEditsTest {
             if (generation == FIRST_KEY_GENERATION) Result.Success(groupKey) else Result.Error(GroupKeyChainError.NotHeld)
         },
         checkKeyLinks = { Result.Success(Unit) },
+        // What becomes of a group brought back after a log-out is GroupSyncRejoinTest's.
+        requestRejoin = { Result.Success(Unit) },
+        rejoinRestored = { _, _ -> GroupRejoinPass(pending = emptySet(), unanswered = emptySet(), failure = null) },
+        publishGroupInfos = { _, _ -> Result.Success(Unit) },
         setAwaitingOwner = { _, _ -> },
         keyLinks = { Result.Success(emptyList()) },
         now = { error("Nobody departed from a group here.") },
