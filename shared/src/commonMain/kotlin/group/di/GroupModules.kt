@@ -36,6 +36,7 @@ val groupModule = module {
             memberProfileDao = get(),
             memberProfileVault = get(),
             profileRepository = get(),
+            groupDao = get(),
         )
     }
 
@@ -92,6 +93,7 @@ val groupModule = module {
             groupKeyCopies = get(),
             groupMembershipSender = get(),
             mlsIdentityRepository = get(),
+            memberProfileVault = get(),
         )
     }
 

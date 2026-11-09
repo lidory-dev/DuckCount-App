@@ -536,6 +536,49 @@ interface GroupDao {
     suspend fun upsertSignatureKeys(signatureKeys: List<GroupMemberSignatureKeyEntity>)
 
     /**
+     * The signature keys of the current members of every group this device holds the MLS state of,
+     * the user being [selfUuid] and left out, as their trees last held them: what the vault keeps of
+     * each group for a rejoin after a log-out, see [group.MemberProfileRepository.backUp]. A group
+     * this device holds no state of has no tree to read them from, so none of its keys are here:
+     * one brought back after a log-out, its rejoin not settled yet included.
+     */
+    @Query(
+        """SELECT k.* FROM GroupMemberSignatureKeyEntity k
+        JOIN GroupMemberEntity m ON m.groupUuid = k.groupUuid AND m.userUuid = k.userUuid
+        JOIN GroupEntity g ON g.uuid = k.groupUuid
+        WHERE g.isLeft = 0 AND g.mlsGroupId IS NOT NULL AND k.userUuid != :selfUuid""",
+    )
+    suspend fun getHeldMemberSignatureKeys(selfUuid: String): List<GroupMemberSignatureKeyEntity>
+
+    /**
+     * The UUIDs of the groups nobody is left to vouch for: those the user is no longer in, removed,
+     * left or deleted, and those this device holds the MLS state of with nobody but the user, the
+     * user being [selfUuid], in it. By the rows of its members rather than of their keys, so that a
+     * rejoin saved and not settled yet, whose members are the server's and whose keys are not read
+     * yet, is not taken for one: what the vault holds of it is what it would start over from.
+     */
+    @Query(
+        """SELECT uuid FROM GroupEntity g
+        WHERE g.isLeft = 1 OR (
+            g.mlsGroupId IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM GroupMemberEntity m WHERE m.groupUuid = g.uuid AND m.userUuid != :selfUuid)
+        )""",
+    )
+    suspend fun getGroupsNobodyVouchesFor(selfUuid: String): List<String>
+
+    /**
+     * The groups this device holds the MLS state of that nothing recorded the keys of the members
+     * of: those the user created, which nothing records until their first Commit, see
+     * [GroupMemberSignatureKeyEntity], whichever build created them.
+     */
+    @Query(
+        """SELECT * FROM GroupEntity g
+        WHERE g.isLeft = 0 AND g.mlsGroupId IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM GroupMemberSignatureKeyEntity k WHERE k.groupUuid = g.uuid)""",
+    )
+    suspend fun getHeldWithoutSignatureKeys(): List<GroupEntity>
+
+    /**
      * The signature key [userUuid] signs with as the tree of the group [groupUuid] last held them,
      * see [GroupMemberSignatureKeyEntity], once they left it too; or, when this device never read
      * them there, as the tree of another group of the same creator's held them, their MLS identity

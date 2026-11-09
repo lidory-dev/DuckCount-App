@@ -1193,6 +1193,7 @@ class GroupSyncDepartedMembersTest {
             requestRejoin = { Result.Success(Unit) },
             rejoinRestored = { _, _ -> GroupRejoinPass(pending = emptySet(), unanswered = emptySet(), failure = null) },
             publishGroupInfos = { _, _ -> Result.Success(Unit) },
+            recordMissingSignatureKeys = {},
             fullName = { null },
             fullNameEvenIfHidden = { null },
             hasPendingChange = { it in pending || it in pendingCreations },

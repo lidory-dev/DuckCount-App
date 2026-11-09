@@ -4,6 +4,7 @@ import database.data.local.dao.ContactTables
 import database.data.local.dao.MemberProfileTables
 import database.data.local.dao.copy
 import database.data.local.entity.ContactEntity
+import database.data.local.entity.GroupMemberSignatureKeyEntity
 import database.data.local.entity.MemberProfileEntity
 import kotlinx.coroutines.runBlocking
 import profile.InMemoryProfileStore
@@ -29,6 +30,9 @@ import kotlin.test.assertTrue
 
 private const val NINA = "44444444-4444-4444-4444-444444444444"
 private const val PAUL = "66666666-6666-6666-6666-666666666666"
+
+private const val GROUP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+private const val OTHER_GROUP = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 private const val CAROL = "55555555-5555-5555-5555-555555555555"
 
 /** When the server stored the post each key from its owner comes in, in milliseconds since the epoch. */
@@ -43,6 +47,9 @@ private const val SENT_AT = 1_000L
  * Nina and Paul are members of a group of the user's, neither of them a contact. Carol is a
  * contact. Each of them filled their profile in under a key of their own.
  */
+/** How many times a backup writes the profile keys before it gives them up to another device, see `BACK_UP_ATTEMPTS`. */
+private const val BACK_UP_ATTEMPTS_MADE = 3
+
 class MemberProfileRepositoryTest {
 
     private val contactTables = ContactTables()
@@ -70,6 +77,15 @@ class MemberProfileRepositoryTest {
 
     private var toRestore = true
 
+    /** The signature keys of the members of the groups this device holds, as the database lists them. */
+    private var heldKeys = emptyList<GroupMemberSignatureKeyEntity>()
+
+    /** The groups nobody is left to vouch for. */
+    private var leftGroups = emptyList<String>()
+
+    /** What the last backup of the groups' member keys found the vault holding. */
+    private var backedUpDigest: Int? = null
+
     private val members = MemberProfileRepository(
         memberProfileDao = tables.memberProfileDao,
         memberProfileVault = vault,
@@ -80,7 +96,143 @@ class MemberProfileRepositoryTest {
         },
         isToRestore = { toRestore },
         markRestored = { toRestore = false },
+        heldMemberKeys = { heldKeys },
+        groupsToForget = { leftGroups },
+        backedUpMemberKeys = { backedUpDigest },
+        markMemberKeysBackedUp = { backedUpDigest = it },
     )
+
+    private val ninaSignatureKey = byteArrayOf(1, 1, 1)
+    private val paulSignatureKey = byteArrayOf(2, 2, 2)
+
+    private fun signatureKey(groupUuid: String, userUuid: String, key: ByteArray) =
+        GroupMemberSignatureKeyEntity(groupUuid = groupUuid, userUuid = userUuid, signatureKey = key)
+
+    /** A device coming back from a log-out takes a GroupInfo from any of them, see GroupRejoiner. */
+    @Test
+    fun `the signature keys of each group's members reach the vault`() = runBlocking<Unit> {
+        heldKeys = listOf(
+            signatureKey(GROUP, NINA, ninaSignatureKey),
+            signatureKey(GROUP, PAUL, paulSignatureKey),
+            signatureKey(OTHER_GROUP, PAUL, paulSignatureKey),
+        )
+
+        assertIs<Result.Success<Unit>>(members.backUp())
+
+        val held = vault.book.memberKeysOf(groupUuid = GROUP)
+
+        assertEquals(setOf(NINA, PAUL), held.keys)
+        assertContentEquals(ninaSignatureKey, held[NINA])
+        assertEquals(setOf(PAUL), vault.book.memberKeysOf(groupUuid = OTHER_GROUP).keys)
+    }
+
+    /** Somebody removed from a group vouches for it no more, once this device has read the removal. */
+    @Test
+    fun `a member no longer in a group goes from what the vault holds of it`() = runBlocking<Unit> {
+        heldKeys = listOf(signatureKey(GROUP, NINA, ninaSignatureKey), signatureKey(GROUP, PAUL, paulSignatureKey))
+        members.backUp()
+
+        heldKeys = listOf(signatureKey(GROUP, PAUL, paulSignatureKey))
+        assertIs<Result.Success<Unit>>(members.backUp())
+
+        assertEquals(setOf(PAUL), vault.book.memberKeysOf(groupUuid = GROUP).keys)
+    }
+
+    @Test
+    fun `a group the user is no longer in goes from the vault with its members`() = runBlocking<Unit> {
+        heldKeys = listOf(signatureKey(GROUP, NINA, ninaSignatureKey), signatureKey(OTHER_GROUP, PAUL, paulSignatureKey))
+        members.backUp()
+
+        heldKeys = listOf(signatureKey(OTHER_GROUP, PAUL, paulSignatureKey))
+        leftGroups = listOf(GROUP)
+        assertIs<Result.Success<Unit>>(members.backUp())
+
+        assertTrue(vault.book.memberKeysOf(groupUuid = GROUP).isEmpty())
+        assertEquals(setOf(PAUL), vault.book.memberKeysOf(groupUuid = OTHER_GROUP).keys)
+    }
+
+    /**
+     * Brought back after a log-out, a group has no tree on this device, so the database lists
+     * nobody for it: what the vault holds is all there is to rejoin it from.
+     */
+    @Test
+    fun `a group this device holds no tree of keeps what the vault holds of it`() = runBlocking<Unit> {
+        vault.book = vault.book.withMemberKeys(changed = mapOf(GROUP to mapOf(NINA to ninaSignatureKey)), forgotten = emptySet())
+
+        heldKeys = listOf(signatureKey(OTHER_GROUP, PAUL, paulSignatureKey))
+        assertIs<Result.Success<Unit>>(members.backUp())
+
+        assertContentEquals(ninaSignatureKey, vault.book.memberKeysOf(groupUuid = GROUP)[NINA])
+        assertEquals(setOf(PAUL), vault.book.memberKeysOf(groupUuid = OTHER_GROUP).keys)
+    }
+
+    @Test
+    fun `a sync that changed no member asks the vault nothing whatever order the keys come in`() = runBlocking<Unit> {
+        heldKeys = listOf(signatureKey(GROUP, NINA, ninaSignatureKey), signatureKey(GROUP, PAUL, paulSignatureKey))
+        members.backUp()
+
+        heldKeys = heldKeys.reversed()
+        assertIs<Result.Success<Unit>>(members.backUp())
+
+        assertEquals(1, vault.memberKeyUpdates)
+        assertEquals(1, vault.writes)
+    }
+
+    /** A log-in forgets what the last backup found, and the vault holding it all already takes no write. */
+    @Test
+    fun `what the vault holds already is not written again`() = runBlocking<Unit> {
+        heldKeys = listOf(signatureKey(GROUP, NINA, ninaSignatureKey))
+        members.backUp()
+
+        backedUpDigest = null
+        assertIs<Result.Success<Unit>>(members.backUp())
+
+        assertEquals(2, vault.memberKeyUpdates)
+        assertEquals(1, vault.writes)
+    }
+
+    @Test
+    fun `a vault out of reach is asked again by the next backup`() = runBlocking<Unit> {
+        heldKeys = listOf(signatureKey(GROUP, NINA, ninaSignatureKey))
+        vault.failsWriting = true
+
+        assertIs<Result.Error<GroupSyncError>>(members.backUp())
+        assertNull(backedUpDigest)
+
+        vault.failsWriting = false
+
+        assertIs<Result.Success<Unit>>(members.backUp())
+        assertEquals(setOf(NINA), vault.book.memberKeysOf(groupUuid = GROUP).keys)
+    }
+
+    @Test
+    fun `another device writing in between is read and merged again`() = runBlocking<Unit> {
+        heldKeys = listOf(signatureKey(GROUP, NINA, ninaSignatureKey))
+        vault.racingWrites += mapOf(PAUL to VaultMemberProfile(profileEncryptionKey = paulKey, isFromOwner = true, fullName = null))
+
+        assertIs<Result.Success<Unit>>(members.backUp())
+
+        assertEquals(setOf(NINA), vault.book.memberKeysOf(groupUuid = GROUP).keys)
+        assertEquals(setOf(PAUL), vault.book.members.keys)
+    }
+
+    /** Neither waits on the other. */
+    @Test
+    fun `the keys of the groups' members go up though the profile keys could not`() = runBlocking<Unit> {
+        tables.memberProfileDao.fillGap(userUuid = NINA, profileEncryptionKey = ninaKey)
+        heldKeys = listOf(signatureKey(GROUP, NINA, ninaSignatureKey))
+        var writesFailed = 0
+
+        vault.duringWrite = {
+            if (writesFailed++ < BACK_UP_ATTEMPTS_MADE) {
+                vault.racingWrites += mapOf(PAUL to VaultMemberProfile(profileEncryptionKey = paulKey, isFromOwner = true, fullName = null))
+            }
+        }
+
+        assertIs<Result.Error<GroupSyncError>>(members.backUp())
+
+        assertEquals(setOf(NINA), vault.book.memberKeysOf(groupUuid = GROUP).keys)
+    }
 
     /** [userUuid]'s profile, filled in under [key]. */
     private suspend fun upload(userUuid: String, key: ByteArray, fullName: String) {

@@ -249,6 +249,10 @@ class GroupSyncProfileKeyOrderTest {
             readFullName = { _, _ -> Result.Error(ProfileError.NotStored) },
             isToRestore = { false },
             markRestored = {},
+            heldMemberKeys = { emptyList() },
+            groupsToForget = { emptyList() },
+            backedUpMemberKeys = { null },
+            markMemberKeysBackedUp = {},
         )
 
         return GroupSync(
@@ -299,6 +303,7 @@ class GroupSyncProfileKeyOrderTest {
             requestRejoin = { Result.Success(Unit) },
             rejoinRestored = { _, _ -> GroupRejoinPass(pending = emptySet(), unanswered = emptySet(), failure = null) },
             publishGroupInfos = { _, _ -> Result.Success(Unit) },
+            recordMissingSignatureKeys = {},
             setAwaitingOwner = { _, _ -> },
             keyLinks = { Result.Success(emptyList()) },
             now = { error("Nobody departed from a group here.") },

@@ -18,4 +18,10 @@ interface MemberProfileVault {
 
     /** See [VaultRepository.updateMemberProfiles]. */
     suspend fun updateMemberProfiles(added: Map<String, VaultMemberProfile>): EmptyResult<VaultError>
+
+    /** See [VaultRepository.updateGroupMemberKeys]. */
+    suspend fun updateGroupMemberKeys(
+        changed: Map<String, Map<String, ByteArray>>,
+        forgotten: Set<String>,
+    ): EmptyResult<VaultError>
 }

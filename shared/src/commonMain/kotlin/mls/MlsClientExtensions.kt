@@ -15,6 +15,7 @@ import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import uniffi.lib_duckcount.MlsGroup
 import uniffi.lib_duckcount.ProcessedMessage
+import uniffi.lib_duckcount.VouchedMember
 import uniffi.lib_duckcount.WelcomeInspection
 import kotlin.io.encoding.Base64
 
@@ -469,7 +470,8 @@ internal suspend fun MlsClient.rejoinGroupInfoIn(mlsGroupId: ByteArray): Exporte
  * [MlsClient.rejoinGroup]: the resync of the user's own leaf, for a group a log-out took the MLS
  * state of, see [group.GroupRejoiner].
  *
- * Refused unless the GroupInfo was signed by a member this device pinned, or by the user, see
+ * Refused unless the GroupInfo was signed by a member this device pinned, by one it pinned nothing
+ * for under the key [vouchedMembers] holds for them, by user UUID, or by the user, see
  * [MlsException.UntrustedGroupInfo], and is of [groupUuid] and [expectedEpoch], with a tree holding
  * the user, under the signature key this device holds, and exactly [expectedMembers] besides, the
  * members the server lists and those departed whom no Commit removed yet; nothing is deleted then.
@@ -486,6 +488,7 @@ internal suspend fun MlsClient.rejoinGroupOf(
     groupUuid: String,
     expectedEpoch: Long,
     expectedMembers: List<String>,
+    vouchedMembers: Map<String, ByteArray>,
 ): GroupRejoin =
     withContext(Dispatchers.IO) {
         rejoinGroup(
@@ -493,6 +496,9 @@ internal suspend fun MlsClient.rejoinGroupOf(
             expectedGroupUuid = groupUuid,
             expectedEpoch = expectedEpoch.toULong(),
             expectedMembers = expectedMembers,
+            vouchedMembers = vouchedMembers.map { (userUuid, signatureKey) ->
+                VouchedMember(userUuid = userUuid, signatureKey = signatureKey)
+            },
         )
     }
 

@@ -22,6 +22,8 @@ import uniffi.lib_duckcount.MlsNamespace
 import util.EmptyResult
 import util.NetworkError
 import util.Result
+import vault.MemberProfileBook
+import vault.VaultError
 import kotlin.io.encoding.Base64
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -42,6 +44,7 @@ private const val DAVE = "44444444-4444-4444-4444-444444444444"
 private const val MALLORY = "77777777-7777-7777-7777-777777777777"
 
 private const val GROUP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+private const val OTHER_GROUP = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 
 /** When Dave left the group, as the server lists his departure. */
 private const val DAVE_LEFT_AT = "2026-10-30T12:00:00.000Z"
@@ -144,6 +147,107 @@ class GroupSyncRejoinTest {
             assertEquals(2L, aliceBack.keyCopies.generationOf(GROUP))
             assertTrue(aliceBack.handedOutBehind.last().isEmpty())
         }
+
+    /**
+     * Carol is nobody Alice's device pinned, no contact left of hers: what vouches for her is the key
+     * a device of Alice's recorded from the group's tree while it held the group.
+     */
+    @Test
+    fun `a restored owner rejoins from a member the vault holds the key of whether a contact or not`() = runBlocking<Unit> {
+        val aliceBack = loggedBackIn(alice, pinned = emptyList(), contacts = setOf(BOB, CAROL))
+        aliceBack.vaultBook = vouching(GROUP, CAROL, carol.signaturePublicKey())
+
+        assertNull(aliceBack.sync().failure)
+        assertNull(carolDevice.sync().failure)
+        assertNull(aliceBack.sync().failure)
+
+        assertContentEquals(creation.mlsGroupId, aliceBack.group().mlsGroupId)
+        assertEquals(2L, aliceBack.group().keyGeneration)
+        assertEquals(1, server.rejoins.size)
+
+        // What the vault vouches for may be out of date: no link for a signer it alone answers for.
+        assertNull(server.rejoins.single().second.previousKey)
+
+        // The group in step: the member who vouched takes the rejoin as any other.
+        assertNull(carolDevice.sync().failure)
+        assertContentEquals(aliceBack.group().groupKey, carolDevice.group().groupKey)
+    }
+
+    /** Nothing records them for a group the user created until its first Commit, and the vault needs them. */
+    @Test
+    fun `a group created here records its members' keys from its tree for the vault`() = runBlocking<Unit> {
+        assertTrue(aliceDevice.signatureKeys.isEmpty())
+
+        assertNull(aliceDevice.sync().failure)
+
+        assertEquals(setOf(ALICE, BOB, CAROL, DAVE), aliceDevice.signatureKeys.keys)
+        assertContentEquals(carol.signaturePublicKey(), aliceDevice.signatureKeys[CAROL])
+    }
+
+    /** The tree of a rejoin the server has not taken is one it may still refuse. */
+    @Test
+    fun `a rejoin not settled records no keys from its tree`() = runBlocking<Unit> {
+        val aliceBack = loggedBackIn(alice, pinned = listOf(bob), contacts = setOf(BOB, CAROL))
+
+        assertNull(aliceBack.sync().failure)
+        assertNull(bobDevice.sync().failure)
+
+        aliceBack.diesBeforeSend = true
+        aliceBack.sync()
+
+        assertTrue(aliceBack.pending.isNotEmpty())
+        assertTrue(aliceBack.signatureKeys.isEmpty())
+    }
+
+    /** A tree is its creator's word for that group alone. */
+    @Test
+    fun `what the vault holds of another group vouches for nobody in this one`() = runBlocking<Unit> {
+        val aliceBack = loggedBackIn(alice, pinned = emptyList(), contacts = setOf(BOB, CAROL))
+        aliceBack.vaultBook = vouching(OTHER_GROUP, CAROL, carol.signaturePublicKey())
+
+        assertNull(aliceBack.sync().failure)
+        assertNull(carolDevice.sync().failure)
+        assertNull(aliceBack.sync().failure)
+
+        assertNull(aliceBack.group().mlsGroupId)
+        assertTrue(server.rejoins.isEmpty())
+    }
+
+    @Test
+    fun `a member signing under another key than the vault holds is not taken`() = runBlocking<Unit> {
+        val aliceBack = loggedBackIn(alice, pinned = emptyList(), contacts = setOf(BOB, CAROL))
+        aliceBack.vaultBook = vouching(GROUP, CAROL, bob.signaturePublicKey())
+
+        assertNull(aliceBack.sync().failure)
+        assertNull(carolDevice.sync().failure)
+        assertNull(aliceBack.sync().failure)
+
+        assertNull(aliceBack.group().mlsGroupId)
+        assertTrue(server.rejoins.isEmpty())
+    }
+
+    /** The vault is read as the key ring is, and failing, stops the pass the same way. */
+    @Test
+    fun `a vault out of reach leaves the rejoin for the next sync`() = runBlocking<Unit> {
+        val aliceBack = loggedBackIn(alice, pinned = listOf(bob), contacts = setOf(BOB, CAROL))
+
+        assertNull(aliceBack.sync().failure)
+        assertNull(bobDevice.sync().failure)
+
+        aliceBack.vaultBook = null
+
+        assertNotNull(aliceBack.sync().failure)
+        assertNull(aliceBack.group().mlsGroupId)
+        assertTrue(server.rejoins.isEmpty())
+
+        aliceBack.vaultBook = MemberProfileBook.EMPTY
+
+        assertNull(aliceBack.sync().failure)
+        assertContentEquals(creation.mlsGroupId, aliceBack.group().mlsGroupId)
+    }
+
+    private fun vouching(groupUuid: String, userUuid: String, signatureKey: ByteArray): MemberProfileBook =
+        MemberProfileBook.EMPTY.withMemberKeys(changed = mapOf(groupUuid to mapOf(userUuid to signatureKey)), forgotten = emptySet())
 
     /** In step again: every member's device takes the rejoin, and Alice's makes the next Commit. */
     @Test
@@ -588,6 +692,7 @@ class GroupSyncRejoinTest {
             groupUuid = GROUP,
             expectedEpoch = FIRST_KEY_GENERATION,
             expectedMembers = listOf(BOB, CAROL, DAVE),
+            vouchedMembers = emptyMap(),
         )
 
         assertEquals(FIRST_KEY_GENERATION, exported.epoch)
@@ -956,6 +1061,10 @@ class GroupSyncRejoinTest {
          * storage failing with it from then on, and the process dies before sending it.
          */
         var areMessagesReachable = true
+
+        /** What the vault holds of the groups' members, or null when it cannot be read. */
+        var vaultBook: MemberProfileBook? = MemberProfileBook.EMPTY
+
         var failsSave = false
         var failsStorageWithSave = false
         var diesBeforeSend = false
@@ -1022,6 +1131,11 @@ class GroupSyncRejoinTest {
         private val rejoiner = GroupRejoiner(
             client = { Result.Success(client) },
             keyCopySealer = keyCopies::readSealer,
+            memberProfileBook = { vaultBook?.let { Result.Success(it) } ?: Result.Error(VaultError.Network(NetworkError.UNREACHABLE)) },
+            groupsMissingSignatureKeys = {
+                groups.values.filter { !it.isLeft && it.mlsGroupId != null && signatureKeys.isEmpty() }
+            },
+            recordSignatureKeys = { recorded -> recorded.forEach { signatureKeys[it.userUuid] = it.signatureKey } },
             storedGroups = { groups.values.toList() },
             group = { groups[it] },
             hasPendingChange = { it in pending || it in outdated },
@@ -1119,6 +1233,7 @@ class GroupSyncRejoinTest {
             requestRejoin = { server.requestRejoin(userUuid = userUuid) },
             rejoinRestored = rejoiner::rejoinUnderGroupsLock,
             publishGroupInfos = rejoiner::publishUnderGroupsLock,
+            recordMissingSignatureKeys = rejoiner::recordMissingSignatureKeys,
             fullName = { null },
             fullNameEvenIfHidden = { null },
             hasPendingChange = { it in pending },

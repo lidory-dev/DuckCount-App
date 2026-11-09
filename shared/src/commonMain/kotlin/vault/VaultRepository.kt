@@ -323,7 +323,27 @@ class VaultRepository(
      * version they were read at: a member another device wrote in between is refused as
      * [VaultError.Contended] rather than overwritten, for the caller to read and merge again.
      */
-    override suspend fun updateMemberProfiles(added: Map<String, VaultMemberProfile>): EmptyResult<VaultError> {
+    override suspend fun updateMemberProfiles(added: Map<String, VaultMemberProfile>): EmptyResult<VaultError> =
+        updateMemberProfileBook { book -> book.withChanges(added = added) }
+
+    /**
+     * Writes the signature keys of the members of each group in [changed] into what the vault
+     * holds, and drops those of each group in [forgotten], see [MemberProfileBook.withMemberKeys]:
+     * written against the version read, as [updateMemberProfiles], and not at all when the vault
+     * holds them already.
+     */
+    override suspend fun updateGroupMemberKeys(
+        changed: Map<String, Map<String, ByteArray>>,
+        forgotten: Set<String>,
+    ): EmptyResult<VaultError> =
+        updateMemberProfileBook { book ->
+            book.withMemberKeys(changed = changed, forgotten = forgotten).takeUnless { it.holdsSameAs(book) }
+        }
+
+    /** Writes what [change] makes of the book the vault holds, or nothing when it makes it nothing. */
+    private suspend fun updateMemberProfileBook(
+        change: (MemberProfileBook) -> MemberProfileBook?,
+    ): EmptyResult<VaultError> {
         val rootKey = getRootKey() ?: return Result.Error(VaultError.MissingRootKey)
 
         val read = when (val partRead = readPart(rootKey = rootKey, part = VaultEntryKey.MEMBER_PROFILE_KEYS)) {
@@ -340,7 +360,7 @@ class VaultRepository(
             rootKey = rootKey,
             keyRing = read.keyRing,
             part = VaultEntryKey.MEMBER_PROFILE_KEYS,
-            plaintext = book.withChanges(added = added).serialize(),
+            plaintext = (change(book) ?: return Result.Success(Unit)).serialize(),
             expectedVersion = read.version,
         )
     }

@@ -127,6 +127,10 @@ enum class VaultEntryKey(val wireName: String) {
      * after one reads nothing until its creator adds the user back: without this entry, every
      * member who is not a contact would go unnamed until then, and one who left the group for
      * good would never be named again.
+     *
+     * It also keeps, group by group, the signature key each member of a group the user holds signs
+     * with, see [MemberProfileBook.memberKeysOf]: who may vouch for that group to a device coming
+     * back from a log-out, whether they are a contact of the user's or not.
      */
     MEMBER_PROFILE_KEYS("member_profile_keys");
 

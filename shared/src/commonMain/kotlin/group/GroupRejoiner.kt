@@ -3,6 +3,7 @@ package group
 import database.data.local.dao.GroupDao
 import database.data.local.entity.GroupEntity
 import database.data.local.entity.GroupKeyEntity
+import database.data.local.entity.GroupMemberSignatureKeyEntity
 import database.data.local.entity.PendingMembershipChangeEntity
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -15,12 +16,15 @@ import mls.epochKeyIn
 import mls.isRetryable
 import mls.rejoinGroupInfoIn
 import mls.rejoinGroupOf
+import mls.rosterOf
 import uniffi.lib_duckcount.GroupRejoin
 import uniffi.lib_duckcount.MlsClient
 import uniffi.lib_duckcount.MlsException
 import util.EmptyResult
 import util.NetworkError
 import util.Result
+import vault.MemberProfileBook
+import vault.MemberProfileVault
 import vault.VaultError
 import kotlin.io.encoding.Base64
 
@@ -56,8 +60,9 @@ internal class GroupRejoinPass(val pending: Set<String>, val unanswered: Set<Str
  *    epoch then, see [publishUnderGroupsLock], which the server wakes the user's device for.
  * 3. The user's device takes the first of those it can trust, see [rejoinUnderGroupsLock]: one its
  *    signer is a member this device pinned, one of the user's contacts, whose pins the vault brought
- *    back, or the user, from a device of theirs before the log-out; of the group, of the epoch the
- *    server lists, and whose tree holds the members the server lists and those who departed, and the
+ *    back; a member nothing is pinned for, a contact or not, under the key the vault holds for them
+ *    in this group, see [MemberProfileBook.memberKeysOf]; or the user, from a device of theirs before
+ *    the log-out; of the group, of the epoch the server lists, and whose tree holds the members the server lists and those who departed, and the
  *    user under the signature key this device holds, see [mls.rejoinGroupOf]. With none, or none to
  *    trust, the group sync asks again, which keeps the request from lapsing, and waits, see
  *    [GroupRejoinPass.unanswered]: once it has taken in what it could, so that a group its creator
@@ -93,7 +98,9 @@ internal class GroupRejoinPass(val pending: Set<String>, val unanswered: Set<Str
  * members: the group sync's.
  *
  * [client] is [MlsIdentityRepository.client], [keyCopySealer] is [GroupKeyCopies.sealer],
- * [storedGroups], [group], [hasPendingChange], [heldKeys] and [saveRejoin] are [GroupDao.getAll],
+ * [memberProfileBook] is [MemberProfileVault.getMemberProfileBook],
+ * [groupsMissingSignatureKeys] and [recordSignatureKeys] are [GroupDao.getHeldWithoutSignatureKeys]
+ * and [GroupDao.upsertSignatureKeys], [storedGroups], [group], [hasPendingChange], [heldKeys] and [saveRejoin] are [GroupDao.getAll],
  * [GroupDao.get], [GroupDao.hasPendingChange], [GroupDao.getKeys] and [GroupDao.saveRejoin],
  * [listGroupInfos], [groupInfoOf] and [publishGroupInfo] are those of [GroupApi], [bookResend] and
  * [send] are [GroupMembershipSender.bookResend] and [GroupMembershipSender.send], or what a test
@@ -102,6 +109,9 @@ internal class GroupRejoinPass(val pending: Set<String>, val unanswered: Set<Str
 class GroupRejoiner internal constructor(
     private val client: suspend () -> Result<MlsClient, MlsIdentityError>,
     private val keyCopySealer: suspend () -> Result<KeyCopySealer, VaultError>,
+    private val memberProfileBook: suspend () -> Result<MemberProfileBook, VaultError>,
+    private val groupsMissingSignatureKeys: suspend () -> List<GroupEntity>,
+    private val recordSignatureKeys: suspend (signatureKeys: List<GroupMemberSignatureKeyEntity>) -> Unit,
     private val storedGroups: suspend () -> List<GroupEntity>,
     private val group: suspend (groupUuid: String) -> GroupEntity?,
     private val hasPendingChange: suspend (groupUuid: String) -> Boolean,
@@ -123,9 +133,13 @@ class GroupRejoiner internal constructor(
         groupKeyCopies: GroupKeyCopies,
         groupMembershipSender: GroupMembershipSender,
         mlsIdentityRepository: MlsIdentityRepository,
+        memberProfileVault: MemberProfileVault,
     ) : this(
         client = mlsIdentityRepository::client,
         keyCopySealer = groupKeyCopies::sealer,
+        memberProfileBook = memberProfileVault::getMemberProfileBook,
+        groupsMissingSignatureKeys = groupDao::getHeldWithoutSignatureKeys,
+        recordSignatureKeys = groupDao::upsertSignatureKeys,
         storedGroups = groupDao::getAll,
         group = groupDao::get,
         hasPendingChange = groupDao::hasPendingChange,
@@ -163,7 +177,8 @@ class GroupRejoiner internal constructor(
      *
      * The key ring is read before anything is built, once in the pass, as the first group with a
      * GroupInfo to build from needs it, see [GroupKeyCopies.sealer]: as is, so that the device locking
-     * throws, and the pass stops there, see [GroupSyncError.DeviceLocked]. From the build to the
+     * throws, and the pass stops there, see [GroupSyncError.DeviceLocked]; the members the vault holds
+     * the keys of with it. From the build to the
      * answer is not cancellable: a state stored and never saved would be one nothing names, and one
      * saved and never sent waits for the next sync. A process that does not live from the build to
      * the save leaves one all the same, as a join does, see [GroupSync]: the next rejoin of the group
@@ -210,6 +225,12 @@ class GroupRejoiner internal constructor(
             read?.let { Result.Success(it) } ?: keyCopySealer().also { if (it is Result.Success) read = it.data }
         }
 
+        var readBook: MemberProfileBook? = null
+
+        val book: suspend () -> Result<MemberProfileBook, VaultError> = {
+            readBook?.let { Result.Success(it) } ?: memberProfileBook().also { if (it is Result.Success) readBook = it.data }
+        }
+
         for (group in restored) {
             // Between groups, never inside one: a state stored and never saved would be lost.
             currentCoroutineContext().ensureActive()
@@ -220,6 +241,7 @@ class GroupRejoiner internal constructor(
                 listing = listings.getValue(group.uuid),
                 selfUuid = selfUuid,
                 sealer = sealer,
+                book = book,
             )
 
             when (rejoining) {
@@ -274,7 +296,7 @@ class GroupRejoiner internal constructor(
      * Rejoins [group], brought back after a log-out, from the first GroupInfo the server lists of the
      * epoch [listing] says it is in that this device can trust, see [GroupRejoiner], the user being
      * [selfUuid], its copy of the next key sealed with what [sealer] reads, once a GroupInfo is in
-     * hand. With none, it is left for the group sync to ask for one again, see
+     * hand, and the members vouched for those [book] holds of the group. With none, it is left for the group sync to ask for one again, see
      * [GroupRejoinPass.unanswered].
      *
      * A GroupInfo refused for anything but its signer stops the group there for the pass: the tree
@@ -287,6 +309,7 @@ class GroupRejoiner internal constructor(
         listing: GroupDto,
         selfUuid: String,
         sealer: suspend () -> Result<KeyCopySealer, VaultError>,
+        book: suspend () -> Result<MemberProfileBook, VaultError>,
     ): Rejoining {
         val publishers = when (val listed = listGroupInfos(group.uuid)) {
             is Result.Success -> listed.data.filter { it.epoch == listing.keyGeneration }
@@ -325,6 +348,11 @@ class GroupRejoiner internal constructor(
                 is Result.Error -> return Rejoining.Stopped(failure = GroupSyncError.Vault(read.error))
             }
 
+            val vouchedMembers = when (val read = book()) {
+                is Result.Success -> read.data.memberKeysOf(groupUuid = group.uuid)
+                is Result.Error -> return Rejoining.Stopped(failure = GroupSyncError.Vault(read.error))
+            }
+
             val attempt = withContext(NonCancellable) {
                 attempt(
                     client = client,
@@ -332,6 +360,7 @@ class GroupRejoiner internal constructor(
                     groupInfo = groupInfo,
                     epoch = listing.keyGeneration,
                     expectedMembers = expectedMembers,
+                    vouchedMembers = vouchedMembers,
                     previousKey = previousKey,
                     sealer = keySealer,
                 )
@@ -354,8 +383,8 @@ class GroupRejoiner internal constructor(
 
     /**
      * Rejoins [group] from [groupInfo], of [epoch], whose tree is to hold the user and
-     * [expectedMembers], see [rejoinGroupOf], the user's copy of the key of [epoch] being
-     * [previousKey], if they hold it, and saves and sends the rejoin, its copy of the next key sealed
+     * [expectedMembers], signed by a member pinned or one [vouchedMembers] holds, see [rejoinGroupOf],
+     * the user's copy of the key of [epoch] being [previousKey], if they hold it, and saves and sends the rejoin, its copy of the next key sealed
      * with [sealer], see [GroupRejoiner].
      *
      * Built and saved under [withGroupJoinLock], so that no direct message is read in the group
@@ -371,6 +400,7 @@ class GroupRejoiner internal constructor(
         groupInfo: ByteArray,
         epoch: Long,
         expectedMembers: List<String>,
+        vouchedMembers: Map<String, ByteArray>,
         previousKey: ByteArray?,
         sealer: KeyCopySealer,
     ): Attempt {
@@ -381,6 +411,7 @@ class GroupRejoiner internal constructor(
                     groupUuid = group.uuid,
                     expectedEpoch = epoch,
                     expectedMembers = expectedMembers,
+                    vouchedMembers = vouchedMembers,
                 )
             } catch (exception: MlsException) {
                 return@withGroupJoinLock refusalOf(exception = exception)
@@ -437,6 +468,11 @@ class GroupRejoiner internal constructor(
      * it leads to, sealed with [sealer], and the link back from it to [previousKey], the user's copy
      * of the key of the epoch it was built in, if they hold it, see [RejoinGroupBody]; or what kept
      * the key from being derived or sealed, which says nothing of the GroupInfo.
+     *
+     * No link when the GroupInfo's signer was only vouched for, see [GroupRejoin.isSignerPinned]:
+     * whoever signed it can read the key the rejoin leads to, and what the vault vouches for may be
+     * out of date, a member removed since, whom the link would hand the keys sealed after that. The
+     * members publish it instead, as they do for a rejoin whose user held no key to link.
      */
     private suspend fun rejoinOf(
         client: MlsClient,
@@ -454,7 +490,7 @@ class GroupRejoiner internal constructor(
         val keyCopy = sealer.seal(groupUuid = group.uuid, groupKey = key.key, keyGeneration = key.epoch)
             ?: return Result.Error(GroupSyncError.Vault(VaultError.Crypto))
 
-        val link = previousKey?.let {
+        val link = previousKey?.takeIf { rejoin.isSignerPinned }?.let {
             sealKeyLink(previousKey = it, groupKey = key.key, groupUuid = group.uuid, generation = key.epoch)
         }
 
@@ -478,6 +514,34 @@ class GroupRejoiner internal constructor(
      */
     private suspend fun deleteAgain(client: MlsClient, mlsGroupId: ByteArray) {
         if (!client.deletes(mlsGroupId = mlsGroupId)) undeleted += mlsGroupId
+    }
+
+    /**
+     * Records the signature keys of the members of every group this device holds that nothing
+     * recorded them for yet, as its tree holds them: what the vault keeps of the group for a rejoin,
+     * see [MemberProfileRepository.backUp]. Those a group the user created holds, which nothing
+     * records until its first Commit, on this build as on a released one.
+     *
+     * Not one with a change pending in it: a rejoin saved and not settled is a tree the server may
+     * still refuse. Nothing here is a failure: what could not be read is read again by the next pass.
+     */
+    internal suspend fun recordMissingSignatureKeys() {
+        val missing = groupsMissingSignatureKeys().filterNot { hasPendingChange(it.uuid) }
+
+        // Most syncs find every group recorded, and opening the client reads the vault.
+        if (missing.isEmpty()) return
+
+        val client = (client() as? Result.Success)?.data ?: return
+
+        for (group in missing) {
+            val mlsGroupId = group.mlsGroupId ?: continue
+
+            try {
+                recordSignatureKeys(client.rosterOf(mlsGroupId = mlsGroupId).members.signatureKeysIn(groupUuid = group.uuid))
+            } catch (_: MlsException) {
+                continue
+            }
+        }
     }
 
     /**

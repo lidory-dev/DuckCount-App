@@ -205,6 +205,7 @@ class GroupLeaverTest {
         requestRejoin = { Result.Success(Unit) },
         rejoinRestored = { _, _ -> GroupRejoinPass(pending = emptySet(), unanswered = emptySet(), failure = null) },
         publishGroupInfos = { _, _ -> Result.Success(Unit) },
+        recordMissingSignatureKeys = {},
         setAwaitingOwner = { _, _ -> },
         keyLinks = { Result.Success(serverLinks.toList()) },
         now = { error("Nobody departed from a group here.") },

@@ -22,6 +22,10 @@ internal class InMemoryMemberProfileVault : MemberProfileVault {
     var writes = 0
         private set
 
+    /** How many times the signature keys of the groups' members were carried to the vault. */
+    var memberKeyUpdates = 0
+        private set
+
     /**
      * What other devices write ahead of this one's next writes, one each, every one of them
      * refusing this device's write as [VaultError.Contended].
@@ -59,6 +63,34 @@ internal class InMemoryMemberProfileVault : MemberProfileVault {
         }
 
         book = read.withChanges(added = added)
+        writes++
+
+        return Result.Success(Unit)
+    }
+
+    override suspend fun updateGroupMemberKeys(
+        changed: Map<String, Map<String, ByteArray>>,
+        forgotten: Set<String>,
+    ): EmptyResult<VaultError> {
+        memberKeyUpdates++
+
+        if (failsWriting) return Result.Error(VaultError.Network(NetworkError.UNREACHABLE))
+
+        val read = reread()
+
+        duringWrite()
+
+        racingWrites.removeFirstOrNull()?.let { racing ->
+            book = book.withChanges(added = racing)
+
+            return Result.Error(VaultError.Contended)
+        }
+
+        val updated = read.withMemberKeys(changed = changed, forgotten = forgotten)
+
+        if (updated.holdsSameAs(read)) return Result.Success(Unit)
+
+        book = updated
         writes++
 
         return Result.Success(Unit)

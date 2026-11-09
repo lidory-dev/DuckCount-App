@@ -1,8 +1,13 @@
 package group
 
 import authenticationUtils.clearMemberProfilesToRestore
+import authenticationUtils.getAuthenticatedUserUuid
+import authenticationUtils.getBackedUpMemberKeys
 import authenticationUtils.hasMemberProfilesToRestore
+import authenticationUtils.setBackedUpMemberKeys
+import database.data.local.dao.GroupDao
 import database.data.local.dao.MemberProfileDao
+import database.data.local.entity.GroupMemberSignatureKeyEntity
 import database.data.local.entity.MemberProfileEntity
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -15,6 +20,7 @@ import vault.MemberProfileBook
 import vault.MemberProfileVault
 import vault.VaultError
 import vault.VaultMemberProfile
+import kotlin.io.encoding.Base64
 
 /**
  * The names of the members of the user's groups who are not their contacts: the keys to their
@@ -40,9 +46,15 @@ import vault.VaultMemberProfile
  * as every name is: anybody can write any name under their own UUID, and nobody under somebody
  * else's.
  *
+ * The vault's copy also keeps the signature keys of each group's members, see [backUp], which come
+ * back only to vouch for a rejoin, see [GroupRejoiner].
+ *
  * [readFullName] is [ProfileRepository.getFullName], [isToRestore] and [markRestored] are
- * [hasMemberProfilesToRestore] and [clearMemberProfilesToRestore], or what a test stands in for any
- * of them.
+ * [hasMemberProfilesToRestore] and [clearMemberProfilesToRestore], [heldMemberKeys] and
+ * [groupsToForget] are [GroupDao.getHeldMemberSignatureKeys] and
+ * [GroupDao.getGroupsNobodyVouchesFor], for the user, and
+ * [backedUpMemberKeys] and [markMemberKeysBackedUp] are [getBackedUpMemberKeys] and
+ * [setBackedUpMemberKeys], or what a test stands in for any of them.
  */
 class MemberProfileRepository internal constructor(
     private val memberProfileDao: MemberProfileDao,
@@ -50,17 +62,30 @@ class MemberProfileRepository internal constructor(
     private val readFullName: suspend (userUuid: String, profileEncryptionKey: ByteArray) -> Result<String, ProfileError>,
     private val isToRestore: suspend () -> Boolean,
     private val markRestored: () -> Unit,
+    private val heldMemberKeys: suspend () -> List<GroupMemberSignatureKeyEntity>,
+    private val groupsToForget: suspend () -> List<String>,
+    private val backedUpMemberKeys: suspend () -> Int?,
+    private val markMemberKeysBackedUp: suspend (digest: Int) -> Unit,
 ) {
     constructor(
         memberProfileDao: MemberProfileDao,
         memberProfileVault: MemberProfileVault,
         profileRepository: ProfileRepository,
+        groupDao: GroupDao,
     ) : this(
         memberProfileDao = memberProfileDao,
         memberProfileVault = memberProfileVault,
         readFullName = profileRepository::getFullName,
         isToRestore = ::hasMemberProfilesToRestore,
         markRestored = ::clearMemberProfilesToRestore,
+        heldMemberKeys = {
+            getAuthenticatedUserUuid()?.let { groupDao.getHeldMemberSignatureKeys(selfUuid = it) }.orEmpty()
+        },
+        groupsToForget = {
+            getAuthenticatedUserUuid()?.let { groupDao.getGroupsNobodyVouchesFor(selfUuid = it) }.orEmpty()
+        },
+        backedUpMemberKeys = ::getBackedUpMemberKeys,
+        markMemberKeysBackedUp = ::setBackedUpMemberKeys,
     )
 
     /**
@@ -178,12 +203,22 @@ class MemberProfileRepository internal constructor(
      * [MemberProfileDao.markBackedUp]. A relayed key the vault already holds one from its owner in
      * place of is too: the vault holds better, and the row would otherwise be written again by
      * every backup, for nothing.
+     *
+     * The signature keys of each group's members go with them, see [backUpMemberKeys], whatever
+     * came of the rest.
      */
     suspend fun backUp(): EmptyResult<GroupSyncError> = backUpMutex.withLock {
+        val profiles = backUpProfiles()
+        val memberKeys = backUpMemberKeys()
+
+        if (profiles is Result.Error) profiles else memberKeys
+    }
+
+    private suspend fun backUpProfiles(): EmptyResult<GroupSyncError> {
         val pending = memberProfileDao.getNotBackedUp()
 
         // Most calls find nothing to write, and a write costs two requests at least.
-        if (pending.isEmpty()) return@withLock Result.Success(Unit)
+        if (pending.isEmpty()) return Result.Success(Unit)
 
         val added = pending.associate { member ->
             member.userUuid to VaultMemberProfile(
@@ -195,7 +230,7 @@ class MemberProfileRepository internal constructor(
 
         val write = write(added = added)
 
-        if (write is Result.Error) return@withLock Result.Error(GroupSyncError.Vault(write.error))
+        if (write is Result.Error) return Result.Error(GroupSyncError.Vault(write.error))
 
         pending.forEach { member ->
             memberProfileDao.markBackedUp(
@@ -206,21 +241,61 @@ class MemberProfileRepository internal constructor(
             )
         }
 
-        Result.Success(Unit)
+        return Result.Success(Unit)
     }
 
     /**
-     * Writes [added] into the vault, reading and merging again while another device's write keeps
-     * getting in first, at most [BACK_UP_ATTEMPTS] times.
+     * Carries to the vault the signature key of every current member of every group this device
+     * holds, as its tree last held them, see [GroupDao.getHeldMemberSignatureKeys], and drops those
+     * of the groups nobody is left to vouch for, see [GroupDao.getGroupsNobodyVouchesFor]: a device
+     * coming back from a log-out takes a GroupInfo from any of them, a contact or not, see
+     * [MemberProfileBook.memberKeysOf].
+     *
+     * A group this device holds no tree of is left as the vault holds it: one brought back after a
+     * log-out, which needs what the vault holds to rejoin at all.
+     *
+     * Compared first with what the last backup found, by [digestOf], as most calls find nothing has
+     * changed, and reading the vault costs two requests at least. Two different states with the same
+     * digest would at worst keep the vault a change behind until the next one.
      */
-    private suspend fun write(added: Map<String, VaultMemberProfile>): EmptyResult<VaultError> {
-        repeat(BACK_UP_ATTEMPTS - 1) {
-            val write = memberProfileVault.updateMemberProfiles(added = added)
+    private suspend fun backUpMemberKeys(): EmptyResult<GroupSyncError> {
+        val changed = heldMemberKeys()
+            .groupBy { it.groupUuid }
+            .mapValues { (_, keys) -> keys.associate { it.userUuid to it.signatureKey } }
 
-            if (write !is Result.Error || write.error != VaultError.Contended) return write
+        val forgotten = groupsToForget().toSet()
+
+        if (changed.isEmpty() && forgotten.isEmpty()) return Result.Success(Unit)
+
+        val digest = digestOf(changed = changed, forgotten = forgotten)
+
+        if (digest == backedUpMemberKeys()) return Result.Success(Unit)
+
+        val write = whileContended { memberProfileVault.updateGroupMemberKeys(changed = changed, forgotten = forgotten) }
+
+        if (write is Result.Error) return Result.Error(GroupSyncError.Vault(write.error))
+
+        markMemberKeysBackedUp(digest)
+
+        return Result.Success(Unit)
+    }
+
+    /** Writes [added] into the vault, see [whileContended]. */
+    private suspend fun write(added: Map<String, VaultMemberProfile>): EmptyResult<VaultError> =
+        whileContended { memberProfileVault.updateMemberProfiles(added = added) }
+
+    /**
+     * Runs [write], reading and merging again while another device's write keeps getting in first,
+     * at most [BACK_UP_ATTEMPTS] times.
+     */
+    private suspend fun whileContended(write: suspend () -> EmptyResult<VaultError>): EmptyResult<VaultError> {
+        repeat(BACK_UP_ATTEMPTS - 1) {
+            val written = write()
+
+            if (written !is Result.Error || written.error != VaultError.Contended) return written
         }
 
-        return memberProfileVault.updateMemberProfiles(added = added)
+        return write()
     }
 
     /**
@@ -275,6 +350,19 @@ class MemberProfileRepository internal constructor(
             },
         )
     }
+}
+
+/** What tells one state of the groups' member keys from another, whatever order they were read in. */
+private fun digestOf(changed: Map<String, Map<String, ByteArray>>, forgotten: Set<String>): Int {
+    val held = changed.entries.sortedBy { it.key }.joinToString(separator = ";") { (groupUuid, members) ->
+        val keys = members.entries.sortedBy { it.key }.joinToString(separator = ",") { (userUuid, key) ->
+            "$userUuid=${Base64.Default.encode(key)}"
+        }
+
+        "$groupUuid:$keys"
+    }
+
+    return "$held|${forgotten.sorted().joinToString(separator = ",")}".hashCode()
 }
 
 /**

@@ -278,6 +278,7 @@ class GroupSyncMembershipTest {
         },
         rejoinRestored = { _, _ -> GroupRejoinPass(pending = emptySet(), unanswered = unanswered, failure = null) },
         publishGroupInfos = { _, _ -> Result.Success(Unit) },
+        recordMissingSignatureKeys = {},
         setAwaitingOwner = { groupUuid, isAwaitingOwner ->
             groups[groupUuid] = groups.getValue(groupUuid).with(isAwaitingOwner = isAwaitingOwner)
         },

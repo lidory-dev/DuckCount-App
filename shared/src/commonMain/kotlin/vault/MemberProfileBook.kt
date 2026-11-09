@@ -17,6 +17,9 @@ private const val FROM_OWNER = "from_owner"
 /** The field of a member holding the name read with it. */
 private const val FULL_NAME = "full_name"
 
+/** The entry holding the signature keys of each group's members, which is nobody's, see [MemberProfileBook.memberKeysOf]. */
+private const val GROUP_MEMBER_KEYS = "group_member_keys"
+
 /**
  * The plaintext of [VaultEntryKey.MEMBER_PROFILE_KEYS]. Every member of the user's groups this
  * device learned the profile key of through a group, keyed by their user UUID, each an object whose
@@ -92,6 +95,49 @@ class MemberProfileBook private constructor(private val entries: JsonObject) {
         return MemberProfileBook(JsonObject(entries + (userUuid to JsonObject(fields))))
     }
 
+    /**
+     * The signature key each member of the group [groupUuid] signs with, keyed by their user UUID,
+     * as the group's tree held them on a device of the user's that held the group: who may vouch
+     * for that group to a device coming back from a log-out, see [group.GroupRejoiner].
+     *
+     * Group by group, and never read for any other group: a tree is its creator's word for who is
+     * in it, and only for that group, see [database.data.local.dao.GroupDao.getMemberSignatureKey].
+     * A member can read their own group anyway, and the library holds every other leaf of the tree
+     * they sign to what this says, so taking a GroupInfo from them there gives them nothing they did
+     * not have but the word on who joined since, where a key good for every group would let anybody
+     * the user ever shared a group with, helped by the server, stand in for any of them.
+     *
+     * Kept apart from the pins, for the same reason: the user never checked who these keys are.
+     *
+     * Empty for a group nothing was recorded of. A key that is not Base64 is left out, which only
+     * a newer build could have written.
+     */
+    fun memberKeysOf(groupUuid: String): Map<String, ByteArray> =
+        ((entries[GROUP_MEMBER_KEYS] as? JsonObject)?.get(groupUuid) as? JsonObject)
+            .orEmpty()
+            .mapNotNull { (userUuid, encoded) -> encoded.decoded()?.let { userUuid to it } }
+            .toMap()
+
+    /**
+     * This book with the members of each group in [changed] as it maps them, in place of those it
+     * held, the members a device read from the group's tree being all there is to say of who is in
+     * it, and those of each group in [forgotten] gone: an entry of their own, which is nobody's and
+     * which [members] leaves out as it does any entry with no profile key, and every other left as
+     * it was read.
+     */
+    fun withMemberKeys(changed: Map<String, Map<String, ByteArray>>, forgotten: Set<String>): MemberProfileBook {
+        val groups = (entries[GROUP_MEMBER_KEYS] as? JsonObject).orEmpty() - forgotten + changed.mapValues { (_, members) ->
+            JsonObject(members.mapValues { (_, key) -> JsonPrimitive(Base64.Default.encode(key)) })
+        }
+
+        return MemberProfileBook(
+            JsonObject(if (groups.isEmpty()) entries - GROUP_MEMBER_KEYS else entries + (GROUP_MEMBER_KEYS to JsonObject(groups))),
+        )
+    }
+
+    /** Whether this book says exactly what [other] does. */
+    fun holdsSameAs(other: MemberProfileBook): Boolean = entries == other.entries
+
     /** This book with each member in [added] written, see [with]. */
     fun withChanges(added: Map<String, VaultMemberProfile>): MemberProfileBook =
         added.entries.fold(this) { book, (userUuid, member) -> book.with(userUuid = userUuid, member = member) }
@@ -134,11 +180,10 @@ class VaultMemberProfile(
     val fullName: String?,
 )
 
-private fun JsonElement.key(): ByteArray? {
-    val encoded = ((this as? JsonObject)?.get(PROFILE_ENCRYPTION_KEY) as? JsonPrimitive)
-        ?.takeIf { it.isString }
-        ?.contentOrNull
-        ?: return null
+private fun JsonElement.key(): ByteArray? = (this as? JsonObject)?.get(PROFILE_ENCRYPTION_KEY)?.decoded()
+
+private fun JsonElement.decoded(): ByteArray? {
+    val encoded = (this as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull ?: return null
 
     return runCatching { Base64.Default.decode(encoded) }.getOrNull()
 }

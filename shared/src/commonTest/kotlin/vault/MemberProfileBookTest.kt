@@ -228,6 +228,83 @@ class MemberProfileBookTest {
         assertNull(held.fullName)
     }
 
+    private val group = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    private val otherGroup = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+    private fun bookWithMemberKeys(changed: Map<String, Map<String, ByteArray>>, forgotten: Set<String> = emptySet()) =
+        reread(MemberProfileBook.EMPTY.withMemberKeys(changed = changed, forgotten = forgotten))
+
+    /** Through its plaintext, as a device reading the vault gets it. */
+    private fun reread(book: MemberProfileBook): MemberProfileBook = MemberProfileBook.parse(plaintext = book.serialize())!!
+
+    @Test
+    fun `the keys of a group's members read back for that group and no other`() {
+        val book = bookWithMemberKeys(changed = mapOf(group to mapOf(nina to ninaKey, paul to paulKey)))
+
+        val held = book.memberKeysOf(groupUuid = group)
+
+        assertEquals(setOf(nina, paul), held.keys)
+        assertContentEquals(ninaKey, held[nina])
+        assertContentEquals(paulKey, held[paul])
+        assertTrue(book.memberKeysOf(groupUuid = otherGroup).isEmpty())
+    }
+
+    /** What a device read from the tree says who is in the group, the member removed gone with it. */
+    @Test
+    fun `the keys of a group's members replace those it held and leave the other groups`() {
+        val book = bookWithMemberKeys(changed = mapOf(group to mapOf(nina to ninaKey), otherGroup to mapOf(paul to paulKey)))
+
+        val updated = reread(book.withMemberKeys(changed = mapOf(group to mapOf(paul to ninaNewKey)), forgotten = emptySet()))
+
+        assertEquals(setOf(paul), updated.memberKeysOf(groupUuid = group).keys)
+        assertContentEquals(ninaNewKey, updated.memberKeysOf(groupUuid = group)[paul])
+        assertEquals(setOf(paul), updated.memberKeysOf(groupUuid = otherGroup).keys)
+    }
+
+    @Test
+    fun `a group forgotten goes with its members and the last one takes the entry with it`() {
+        val book = bookWithMemberKeys(changed = mapOf(group to mapOf(nina to ninaKey), otherGroup to mapOf(paul to paulKey)))
+
+        val without = book.withMemberKeys(changed = emptyMap(), forgotten = setOf(group))
+
+        assertTrue(without.memberKeysOf(groupUuid = group).isEmpty())
+        assertEquals(setOf(paul), without.memberKeysOf(groupUuid = otherGroup).keys)
+
+        val empty = without.withMemberKeys(changed = emptyMap(), forgotten = setOf(otherGroup))
+
+        assertTrue(empty.holdsSameAs(MemberProfileBook.EMPTY))
+    }
+
+    /** It is no member's: a build that knows nothing of it lists nobody for it, and keeps it. */
+    @Test
+    fun `the keys of the groups' members leave the members as they were and the other way round`() {
+        val book = MemberProfileBook.EMPTY
+            .with(userUuid = nina, member = member(profileEncryptionKey = ninaKey, isFromOwner = true))
+            .withMemberKeys(changed = mapOf(group to mapOf(paul to paulKey)), forgotten = emptySet())
+
+        assertEquals(setOf(nina), reread(book).members.keys)
+
+        val withPaul = reread(book).with(userUuid = paul, member = member(profileEncryptionKey = paulKey, isFromOwner = false))
+
+        assertEquals(setOf(nina, paul), reread(withPaul).members.keys)
+        assertEquals(setOf(paul), reread(withPaul).memberKeysOf(groupUuid = group).keys)
+    }
+
+    @Test
+    fun `a key that is not Base64 vouches for nobody`() {
+        val plaintext = """{"group_member_keys": {"$group": {"$nina": "not base64 at all!", "$paul": 12}}}""".encodeToByteArray()
+
+        assertTrue(MemberProfileBook.parse(plaintext = plaintext)!!.memberKeysOf(groupUuid = group).isEmpty())
+    }
+
+    @Test
+    fun `a book holds the same as itself read back and not as one changed`() {
+        val book = bookWithMemberKeys(changed = mapOf(group to mapOf(nina to ninaKey)))
+
+        assertTrue(reread(book).holdsSameAs(book))
+        assertFalse(book.withMemberKeys(changed = mapOf(group to mapOf(nina to ninaNewKey)), forgotten = emptySet()).holdsSameAs(book))
+    }
+
     @Test
     fun `bytes that are not a JSON object are no book`() {
         assertNull(MemberProfileBook.parse(plaintext = "[1, 2]".encodeToByteArray()))

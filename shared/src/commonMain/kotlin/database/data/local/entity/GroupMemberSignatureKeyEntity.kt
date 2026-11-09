@@ -9,7 +9,9 @@ import androidx.room.Entity
  *
  * Recorded wherever the group's tree is read as it changes: as the user joins the group, and with
  * every Commit of its creator's read since, see `group.GroupSync`, or, on the creator's own device,
- * applied, see `group.GroupMembershipSender`. Kept once the member leaves the group, or is removed
+ * applied, see `group.GroupMembershipSender`; and by the sync for a group nothing recorded them
+ * for yet, as one the user created is until its first Commit, see
+ * `group.GroupRejoiner.recordMissingSignatureKeys`. Kept once the member leaves the group, or is removed
  * from it: what they wrote while in it stays in it, and is checked against this then. Gone with the
  * group only, see [database.data.local.dao.GroupDao.deleteRefusedCreation], and at log-out.
  *

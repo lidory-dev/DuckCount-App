@@ -114,6 +114,10 @@ class GroupSyncProfileKeysTest {
         )::getFullName,
         isToRestore = { toRestore },
         markRestored = { toRestore = false },
+        heldMemberKeys = { emptyList() },
+        groupsToForget = { emptyList() },
+        backedUpMemberKeys = { null },
+        markMemberKeysBackedUp = {},
     )
 
     /** Alice's MLS group, the key of the epoch she created it at, and the fields as the server holds them. */
@@ -215,6 +219,7 @@ class GroupSyncProfileKeysTest {
         requestRejoin = { Result.Success(Unit) },
         rejoinRestored = { _, _ -> GroupRejoinPass(pending = emptySet(), unanswered = emptySet(), failure = null) },
         publishGroupInfos = { _, _ -> Result.Success(Unit) },
+        recordMissingSignatureKeys = {},
         setAwaitingOwner = { _, _ -> },
         keyLinks = { Result.Success(emptyList()) },
         now = { error("Nobody departed from a group here.") },

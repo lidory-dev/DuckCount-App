@@ -519,6 +519,73 @@ class GroupDaoTest {
             }
         }
 
+    /** Only what this device read from a tree it still holds, for those still in the group. */
+    @Test
+    fun `the keys to back up are those of the current members of the groups held the user aside`() =
+        runBlocking<Unit> {
+            withInMemoryDatabase { database ->
+                val restored = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+                val left = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+
+                database.groupDao.insert(groupOf(GROUP))
+                database.groupDao.insert(groupOf(restored, mlsGroupId = null))
+                database.groupDao.insert(groupOf(left, isLeft = true))
+                database.groupDao.insertMembers(listOf(ALICE, BOB).map(::memberOf))
+                database.groupDao.insertMembers(
+                    listOf(restored, left).map { GroupMemberEntity(userUuid = BOB, groupUuid = it, isAdmin = false) },
+                )
+                database.groupDao.upsertSignatureKeys(
+                    signatureKeys = listOf(
+                        signatureKeyOf(ALICE, OLD_KEY),
+                        signatureKeyOf(BOB, NEW_KEY),
+                        // Dave's rows outlive him, what he wrote staying in the group; he is no member.
+                        signatureKeyOf(DAVE, NEWER_KEY),
+                        GroupMemberSignatureKeyEntity(groupUuid = restored, userUuid = BOB, signatureKey = NEW_KEY),
+                        GroupMemberSignatureKeyEntity(groupUuid = left, userUuid = BOB, signatureKey = NEW_KEY),
+                    ),
+                )
+
+                val held = database.groupDao.getHeldMemberSignatureKeys(selfUuid = ALICE)
+
+                assertEquals(listOf(GROUP to BOB), held.map { it.groupUuid to it.userUuid })
+                assertContentEquals(NEW_KEY, held.single().signatureKey)
+            }
+        }
+
+    /** A rejoin saved and not settled keeps what the vault holds of it, its members being the server's. */
+    @Test
+    fun `nobody vouches for a group left or held with only the user in it`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            val left = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+            val restored = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+
+            database.groupDao.insert(groupOf(GROUP))
+            database.groupDao.insert(groupOf(OTHER_GROUP))
+            database.groupDao.insert(groupOf(left, isLeft = true))
+            database.groupDao.insert(groupOf(restored, mlsGroupId = null))
+            database.groupDao.insertMembers(listOf(ALICE, BOB).map(::memberOf))
+            database.groupDao.insertMembers(listOf(GroupMemberEntity(userUuid = ALICE, groupUuid = OTHER_GROUP, isAdmin = true)))
+            database.groupDao.insertMembers(listOf(GroupMemberEntity(userUuid = ALICE, groupUuid = restored, isAdmin = true)))
+
+            assertEquals(setOf(OTHER_GROUP, left), database.groupDao.getGroupsNobodyVouchesFor(selfUuid = ALICE).toSet())
+        }
+    }
+
+    /** Those the user created, whose first Commit is what records them otherwise. */
+    @Test
+    fun `a group held with no key recorded is listed until one is`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.groupDao.insert(groupOf(GROUP))
+            database.groupDao.insert(groupOf(OTHER_GROUP, mlsGroupId = null))
+
+            assertEquals(listOf(GROUP), database.groupDao.getHeldWithoutSignatureKeys().map { it.uuid })
+
+            database.groupDao.upsertSignatureKeys(signatureKeys = listOf(signatureKeyOf(BOB, NEW_KEY)))
+
+            assertTrue(database.groupDao.getHeldWithoutSignatureKeys().isEmpty())
+        }
+    }
+
     /**
      * Mallory's tree seats a leaf of her own under Bob's UUID, which is only her word: what Bob
      * wrote in a group of Alice's is not held to it.

@@ -279,6 +279,7 @@ class GroupSyncPass(
  * [GroupMembershipChanger.replaceUnderGroupsLock] and
  * [GroupMembershipChanger.remakeOutdatedUnderGroupsLock], [keyOf] is [GroupKeyChain.keyOf],
  * [checkKeyLinks] is [GroupKeyLinks.check], [requestRejoin] is [GroupApi.requestRejoin],
+ * [recordMissingSignatureKeys] is [GroupRejoiner.recordMissingSignatureKeys],
  * [rejoinRestored] and [publishGroupInfos] are [GroupRejoiner.rejoinUnderGroupsLock] and
  * [GroupRejoiner.publishUnderGroupsLock], [isUnblockedContact] is [ContactDao.isUnblocked],
  * [client] is [MlsIdentityRepository.client], [fullName] and [fullNameEvenIfHidden] are
@@ -347,6 +348,7 @@ class GroupSync internal constructor(
     private val requestRejoin: suspend (groupUuid: String) -> EmptyResult<NetworkError>,
     private val rejoinRestored: suspend (listings: Map<String, GroupDto>, selfUuid: String) -> GroupRejoinPass,
     private val publishGroupInfos: suspend (listed: List<GroupDto>, behind: Set<String>) -> EmptyResult<GroupSyncError>,
+    private val recordMissingSignatureKeys: suspend () -> Unit,
     private val fullName: suspend (userUuid: String) -> String?,
     private val fullNameEvenIfHidden: suspend (userUuid: String) -> String?,
     private val hasPendingChange: suspend (groupUuid: String) -> Boolean,
@@ -427,6 +429,7 @@ class GroupSync internal constructor(
         requestRejoin = groupApi::requestRejoin,
         rejoinRestored = groupRejoiner::rejoinUnderGroupsLock,
         publishGroupInfos = groupRejoiner::publishUnderGroupsLock,
+        recordMissingSignatureKeys = groupRejoiner::recordMissingSignatureKeys,
         fullName = userDao::getFullName,
         fullNameEvenIfHidden = userDao::getFullNameEvenIfHidden,
         hasPendingChange = groupDao::hasChangeOnServer,
@@ -630,6 +633,9 @@ class GroupSync internal constructor(
 
         // As for the links: a member who asked for a GroupInfo is the only one waiting on it.
         publishGroupInfos(listed, behind).onError { failure = failure ?: it }
+
+        // Before the backup that carries them to the vault, once every group is taken in.
+        recordMissingSignatureKeys()
 
         return failure
     }
