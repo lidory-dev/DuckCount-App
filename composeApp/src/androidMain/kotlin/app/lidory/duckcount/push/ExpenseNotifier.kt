@@ -8,6 +8,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import app.lidory.duckcount.EXTRA_OPEN_GROUPS
+import app.lidory.duckcount.EXTRA_OPEN_GROUP_UUID
 import app.lidory.duckcount.MainActivity
 import app.lidory.duckcount.R
 import expense.ExpenseArrival
@@ -385,7 +386,10 @@ class ExpenseNotifier(
                     count,
                     announcement.groupTitle,
                 ),
-                contentIntent = groupsIntent(requestCode = announcement.groupUuid.hashCode()),
+                contentIntent = groupsIntent(
+                    requestCode = announcement.groupUuid.hashCode(),
+                    groupUuid = announcement.groupUuid,
+                ),
                 publicVersion = namelessGroupExpensesNotification(
                     title = R.string.push_group_expense_changed_title,
                     count = count,
@@ -417,7 +421,9 @@ class ExpenseNotifier(
                     announcement.groupTitle,
                 ),
             )
-            .setContentIntent(groupsIntent(requestCode = announcement.groupUuid.hashCode()))
+            .setContentIntent(
+                groupsIntent(requestCode = announcement.groupUuid.hashCode(), groupUuid = announcement.groupUuid),
+            )
             .setCategory(NotificationCompat.CATEGORY_SOCIAL)
             // Which group is the user's business and nobody else's, so a lockscreen set to hide
             // notification content shows the nameless form instead of this one.
@@ -737,7 +743,7 @@ class ExpenseNotifier(
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(title))
             .setContentText(text)
-            .setContentIntent(groupsIntent(requestCode = update.expenseUuid.hashCode()))
+            .setContentIntent(groupsIntent(requestCode = update.expenseUuid.hashCode(), groupUuid = update.groupUuid))
             .setCategory(NotificationCompat.CATEGORY_SOCIAL)
             // Under its own group's heading, never another's.
             .setGroup(groupExpenseGroupOf(groupUuid = update.groupUuid))
@@ -902,14 +908,16 @@ class ExpenseNotifier(
     }
 
     /**
-     * Opens the app on the group list, where the group whose expense it is is, as a notification
-     * about a group does, see `GroupNotifier`.
+     * Opens the app on the group list, and on [groupUuid] over it, for a notification naming the
+     * group whose expense it is, as a notification about a group does, see `GroupNotifier`, which
+     * also says why [requestCode] has to differ from one group to another.
      */
-    private fun groupsIntent(requestCode: Int): PendingIntent {
+    private fun groupsIntent(requestCode: Int, groupUuid: String? = null): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
 
             putExtra(EXTRA_OPEN_GROUPS, true)
+            putExtra(EXTRA_OPEN_GROUP_UUID, groupUuid)
         }
 
         return PendingIntent.getActivity(

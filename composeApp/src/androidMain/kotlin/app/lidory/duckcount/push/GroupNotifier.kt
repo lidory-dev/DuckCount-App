@@ -9,6 +9,7 @@ import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import app.lidory.duckcount.EXTRA_OPEN_GROUPS
+import app.lidory.duckcount.EXTRA_OPEN_GROUP_UUID
 import app.lidory.duckcount.MainActivity
 import app.lidory.duckcount.R
 import group.GroupArrival
@@ -152,7 +153,7 @@ class GroupNotifier(
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(title))
             .setContentText(text)
-            .setContentIntent(contentIntent(requestCode = groupUuid.hashCode()))
+            .setContentIntent(contentIntent(requestCode = groupUuid.hashCode(), groupUuid = groupUuid))
             .setCategory(NotificationCompat.CATEGORY_SOCIAL)
             // Who put the user in which group, or took them out, is their business and nobody
             // else's, so a lockscreen set to hide notification content shows the nameless form.
@@ -191,14 +192,18 @@ class GroupNotifier(
             .build()
 
     /**
-     * Opens the app on the group list, where the group is, which also takes down whatever other
-     * group the user was told about, see [clearGroups].
+     * Opens the app on the group list, which also takes down whatever other group the user was
+     * told about, see [clearGroups], and on [groupUuid] over it, for a notification naming a group.
+     *
+     * [requestCode] has to differ from one group to another: the extras are no part of what tells
+     * two pending intents apart, so sharing one would have every notification open the last group.
      */
-    private fun contentIntent(requestCode: Int): PendingIntent {
+    private fun contentIntent(requestCode: Int, groupUuid: String? = null): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
 
             putExtra(EXTRA_OPEN_GROUPS, true)
+            putExtra(EXTRA_OPEN_GROUP_UUID, groupUuid)
         }
 
         return PendingIntent.getActivity(

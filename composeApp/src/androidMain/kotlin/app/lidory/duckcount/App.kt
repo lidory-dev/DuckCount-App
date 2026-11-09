@@ -16,17 +16,22 @@ import app.lidory.duckcount.android.ui.theme.AppTheme
 import app.lidory.duckcount.navigation.NavigationRoot
 import app.lidory.duckcount.navigation.key.ContactRequestListScreenKey
 import app.lidory.duckcount.navigation.key.DashboardKey
+import app.lidory.duckcount.navigation.key.GroupDetailScreenKey
 import authenticationUtils.SessionEnd
+import database.data.repository.GroupRepository
+import kotlinx.coroutines.flow.first
 import navigation.key.OnBoardingScreenKey
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 
 /**
  * [openContactRequests] comes from a notification about a request waiting to be
  * answered, and is what takes the user straight to it. [openGroups] comes from one about a
- * group the user was added to, and opens the dashboard on the group list.
+ * group the user was added to, and opens the dashboard on the group list. [openGroupUuid] comes
+ * from one that says which group it is about, and opens that group over the list.
  */
 @Composable
-fun App(openContactRequests: Boolean = false, openGroups: Boolean = false) {
+fun App(openContactRequests: Boolean = false, openGroups: Boolean = false, openGroupUuid: String? = null) {
     AppTheme {
         val appViewModel = koinViewModel<AppViewModel>()
         val isUpdateRequired by appViewModel.isUpdateRequired.collectAsState()
@@ -66,6 +71,18 @@ fun App(openContactRequests: Boolean = false, openGroups: Boolean = false) {
                     // going back from the requests lands where the app would have opened.
                     LaunchedEffect(Unit) {
                         if (openContactRequests) backStack.add(ContactRequestListScreenKey)
+                    }
+
+                    if (openGroupUuid != null) {
+                        val groupRepository = koinInject<GroupRepository>()
+
+                        // Likewise over the group list the dashboard opens on. A notification can
+                        // outlive its group, deleted since by its owner, which leaves the list.
+                        LaunchedEffect(Unit) {
+                            if (groupRepository.getWithMembers(openGroupUuid).first() != null) {
+                                backStack.add(GroupDetailScreenKey(openGroupUuid))
+                            }
+                        }
                     }
                 }
 
