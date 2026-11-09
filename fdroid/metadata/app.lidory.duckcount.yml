@@ -25,8 +25,8 @@ Binaries:
   https://github.com/lidory-dev/DuckCount-App/releases/download/v%v/DuckCount-%v-fdroid.apk
 
 Builds:
-  - versionName: 1.1.0
-    versionCode: 4
+  - versionName: 1.1.1
+    versionCode: 5
     commit: '0000000000000000000000000000000000000000'
     subdir: composeApp
     submodules: true
@@ -49,5 +49,5 @@ AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v.*
 UpdateCheckData:
   gradle/libs.versions.toml|android-versionCode\s*=\s*"(\d+)"|composeApp/build.gradle.kts|versionName\s*=\s*"([^"]+)"
-CurrentVersion: 1.1.0
-CurrentVersionCode: 4
+CurrentVersion: 1.1.1
+CurrentVersionCode: 5
