@@ -38,7 +38,10 @@ fun GroupActionDropDownMenu(
         ) {
             DropdownMenuItem(
                 text = { Text(text = stringResource(R.string.group_settings)) },
-                onClick = navigateToGroupSettings,
+                onClick = {
+                    expanded = false
+                    navigateToGroupSettings()
+                },
             )
         }
     }
