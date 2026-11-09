@@ -88,7 +88,8 @@ fun DuckCountTextField(
     colors: TextFieldColors = TextFieldDefaults.colors(),
     keyboardOptions: KeyboardOptions = KeyboardOptions(
         keyboardType = KeyboardType.Text,
-        imeAction = ImeAction.Done,
+        // On a field of several lines, the key adds a line rather than closing the keyboard.
+        imeAction = if (singleLine) ImeAction.Done else ImeAction.Default,
     ),
     keyboardActions: KeyboardActions = KeyboardActions(
         onDone = { focusManager.clearFocus() },

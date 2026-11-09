@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
@@ -218,6 +219,8 @@ fun GroupSettingsScreen(
                                     animatedVisibilityScope = animatedVisibilityScope,
                                 ),
                                 text = group?.description ?: "",
+                                // Under its title, which is centred, whatever its lines are.
+                                textAlign = TextAlign.Center,
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
