@@ -4,26 +4,34 @@ import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CardColors
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.R
-import app.lidory.duckcount.android.ui.R as androidUiR
 
 /**
- * The group [groupUuid], marked when [isLeft], the user no longer being in it, removed or left, or
- * because its owner deleted it, [isDeleted].
+ * How much of the content of the card of a group the user is out of shows through: dimmed, but less
+ * than something disabled would be, the card still opening the group, its title kept above 3:1 on
+ * the gray.
+ */
+private const val LEFT_GROUP_CONTENT_ALPHA = 0.6f
+
+/**
+ * The group [groupUuid], grayed out and crossed out when [isLeft], the user no longer being in it,
+ * removed, left, or its owner having deleted it, [isDeleted]: which of them, screen readers are told.
  */
 @Composable
 fun GroupCard(
@@ -36,56 +44,57 @@ fun GroupCard(
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
 ) {
+    val leftMarker = stringResource(if (isDeleted) R.string.deleted_group_marker else R.string.left_group_marker)
+    val textDecoration = if (isLeft) TextDecoration.LineThrough else null
+
     ElevatedCard(
-        modifier = modifier,
+        modifier = if (isLeft) modifier.semantics { stateDescription = leftMarker } else modifier,
+        colors = if (isLeft) leftGroupCardColors() else CardDefaults.elevatedCardColors(),
+        elevation = if (isLeft) {
+            CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
+        } else {
+            CardDefaults.elevatedCardElevation()
+        },
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(all = Padding.large),
-            horizontalArrangement = Arrangement.spacedBy(Padding.medium),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.Center,
         ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center,
-            ) {
-                with(sharedTransitionScope) {
+            with(sharedTransitionScope) {
+                Text(
+                    modifier = Modifier.sharedBounds(
+                        sharedContentState = rememberSharedContentState(key = "group_title_$groupUuid"),
+                        animatedVisibilityScope = animatedVisibilityScope,
+                    ),
+                    text = title,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textDecoration = textDecoration,
+                    style = MaterialTheme.typography.titleLarge,
+                )
+
+                if (description.isNotEmpty()) {
                     Text(
                         modifier = Modifier.sharedBounds(
-                            sharedContentState = rememberSharedContentState(key = "group_title_$groupUuid"),
+                            sharedContentState = rememberSharedContentState(key = "group_description_$groupUuid"),
                             animatedVisibilityScope = animatedVisibilityScope,
                         ),
-                        text = title,
+                        text = description,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.titleLarge,
+                        textDecoration = textDecoration,
+                        style = MaterialTheme.typography.labelMedium,
                     )
-
-                    if (description.isNotEmpty()) {
-                        Text(
-                            modifier = Modifier.sharedBounds(
-                                sharedContentState = rememberSharedContentState(key = "group_description_$groupUuid"),
-                                animatedVisibilityScope = animatedVisibilityScope,
-                            ),
-                            text = description,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
                 }
-            }
-
-            if (isLeft) {
-                Icon(
-                    painter = painterResource(if (isDeleted) androidUiR.drawable.ic_delete else R.drawable.ic_person_off),
-                    contentDescription = stringResource(
-                        if (isDeleted) R.string.deleted_group_marker else R.string.left_group_marker,
-                    ),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
     }
 }
+
+@Composable
+private fun leftGroupCardColors(): CardColors = CardDefaults.elevatedCardColors(
+    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+    contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = LEFT_GROUP_CONTENT_ALPHA),
+)
