@@ -2,7 +2,7 @@ package app.lidory.duckcount.groupList.callBacks
 
 import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.Group
-import app.lidory.duckcount.groupList.model.GroupCreationError
+import app.lidory.duckcount.groupList.model.GroupCreationResult
 import app.lidory.duckcount.groupList.model.GroupEditError
 import app.lidory.duckcount.groupList.model.GroupHistory
 import app.lidory.duckcount.groupList.model.GroupMember
@@ -54,16 +54,16 @@ interface GroupListCallBacks {
      * at their next sync. Its [title] and [description] are taken without the whitespace around
      * them, see [app.lidory.duckcount.groupList.viewmodel.canConfirm].
      *
-     * Returns null once created, or why it could not be. Created means kept on this device: should
-     * the server not have taken it yet, it is sent again until it does, and reaches its members
-     * then.
+     * Returns the group once created, or why it could not be. Created means kept on this device:
+     * should the server not have taken it yet, it is sent again until it does, and reaches its
+     * members then.
      */
     suspend fun createGroup(
         title: String,
         description: String,
         currency: Currency,
         members: List<GroupMember>,
-    ): GroupCreationError?
+    ): GroupCreationResult
 
     fun getAuthenticatedUserUuid(): String?
 

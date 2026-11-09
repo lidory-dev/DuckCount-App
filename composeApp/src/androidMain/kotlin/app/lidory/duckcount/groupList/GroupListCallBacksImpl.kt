@@ -8,6 +8,7 @@ import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
 import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupCreationError
+import app.lidory.duckcount.groupList.model.GroupCreationResult
 import app.lidory.duckcount.groupList.model.GroupEditError
 import app.lidory.duckcount.groupList.model.GroupHistory
 import app.lidory.duckcount.groupList.model.GroupMember
@@ -118,7 +119,7 @@ class GroupListCallBacksImpl(
         description: String,
         currency: Currency,
         members: List<GroupMember>,
-    ): GroupCreationError? {
+    ): GroupCreationResult {
         // The form lists the user among the members, who creates the group rather than being invited.
         val selfUuid = getAuthenticatedUserUuid()
         val inviteeUuids = members.map { it.userUuid }.filter { it != selfUuid }
@@ -131,7 +132,7 @@ class GroupListCallBacksImpl(
                 inviteeUuids = inviteeUuids.toSet(),
             )
         ) {
-            is Result.Success -> null
+            is Result.Success -> GroupCreationResult.Created(groupUuid = creation.data)
 
             is Result.Error -> {
                 Log.w(TAG, "createGroup: could not create the group: ${creation.error}")
@@ -139,10 +140,12 @@ class GroupListCallBacksImpl(
                 // Hidden or not: a member who deleted their account has been forgotten for it by
                 // now, which hides them and keeps their name, see
                 // `message.DirectMessageSender.receiveAccountDeletions`.
-                creation.error.toGroupCreationError(
-                    isOnline = networkConnectivity.isOnline(),
-                    memberUuids = inviteeUuids,
-                    fullNameOf = { userRepository.getFullNameEvenIfHidden(uuid = it) },
+                GroupCreationResult.Failed(
+                    creation.error.toGroupCreationError(
+                        isOnline = networkConnectivity.isOnline(),
+                        memberUuids = inviteeUuids,
+                        fullNameOf = { userRepository.getFullNameEvenIfHidden(uuid = it) },
+                    ),
                 )
             }
         }

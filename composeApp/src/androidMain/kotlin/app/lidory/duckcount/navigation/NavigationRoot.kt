@@ -311,6 +311,12 @@ fun NavigationRoot(
                                     parametersOf(key.groupUuid)
                                 },
                                 onBack = dropUnlessResumed { backStack.removeIf { it is CreateGroupScreenKey } },
+                                // In the form's place, so that going back from the group leads to the list.
+                                onGroupCreated = { groupUuid ->
+                                    if (backStack.removeIf { it is CreateGroupScreenKey }) {
+                                        backStack.add(GroupDetailScreenKey(groupUuid))
+                                    }
+                                },
                             )
                         }
                     }

@@ -10,6 +10,7 @@ import app.lidory.duckcount.android.ui.text.sortedByName
 import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
 import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.GroupCreationError
+import app.lidory.duckcount.groupList.model.GroupCreationResult
 import app.lidory.duckcount.groupList.model.GroupEditError
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithFullName
@@ -70,6 +71,11 @@ class CreateGroupViewModel(
     // navigate, and the screen then closes once the user is back.
     private val _isSaved = MutableStateFlow(false)
     val isSaved: StateFlow<Boolean> = _isSaved.asStateFlow()
+
+    // The group created, set before isSaved so that the screen, once told, finds it here and opens
+    // it. Null for a group being edited, whose screen closes instead.
+    private val _createdGroupUuid = MutableStateFlow<String?>(null)
+    val createdGroupUuid: StateFlow<String?> = _createdGroupUuid.asStateFlow()
 
     // True once the group being edited is gone, deleted under the screen by a creation the server
     // refused, see GroupListCallBacks.getGroupWithMembers, or the user is no longer in it, removed
@@ -278,14 +284,21 @@ class CreateGroupViewModel(
         _isSaving.value = true
 
         try {
-            val error = groupListCallBacks.createGroup(
+            val result = groupListCallBacks.createGroup(
                 title = content.title,
                 description = content.description,
                 members = content.members.map { it.member },
                 currency = content.currency,
             )
 
-            if (error == null) _isSaved.value = true else _showError.send(error)
+            when (result) {
+                is GroupCreationResult.Created -> {
+                    _createdGroupUuid.value = result.groupUuid
+                    _isSaved.value = true
+                }
+
+                is GroupCreationResult.Failed -> _showError.send(result.error)
+            }
         } finally {
             _isSaving.value = false
         }

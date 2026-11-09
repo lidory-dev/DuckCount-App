@@ -63,6 +63,7 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 @Composable
 fun CreateOrEditGroupScreen(
     onBack: () -> Unit,
+    onGroupCreated: (groupUuid: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: CreateGroupViewModel = koinViewModel(),
 ) {
@@ -110,13 +111,17 @@ fun CreateOrEditGroupScreen(
             }
         }
 
-    // Navigate back only once the group is created or its edits saved (see
+    // Navigate only once the group is created or its edits saved (see
     // CreateGroupViewModel.isSaved), or the group being edited is gone (see
     // CreateGroupViewModel.isGone), and on resuming: onBack does nothing until the screen is
-    // resumed, so a creation that completes while the app is in the background closes the screen
-    // once the user is back.
+    // resumed, so a creation that completes while the app is in the background moves on once the
+    // user is back. To the group a creation made, and back from an edit.
     LifecycleResumeEffect(isSaved, isGone) {
-        if (isSaved || isGone) onBack()
+        if (isSaved || isGone) {
+            val createdGroupUuid = viewModel.createdGroupUuid.value
+
+            if (createdGroupUuid != null) onGroupCreated(createdGroupUuid) else onBack()
+        }
 
         onPauseOrDispose {}
     }

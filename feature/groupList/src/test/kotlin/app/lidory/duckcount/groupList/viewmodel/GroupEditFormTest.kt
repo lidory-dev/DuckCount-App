@@ -4,6 +4,8 @@ import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
 import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.Group
 import app.lidory.duckcount.groupList.model.GroupCreationError
+import app.lidory.duckcount.groupList.model.GroupCreationFailure
+import app.lidory.duckcount.groupList.model.GroupCreationResult
 import app.lidory.duckcount.groupList.model.GroupEditError
 import app.lidory.duckcount.groupList.model.GroupHistory
 import app.lidory.duckcount.groupList.model.GroupMember
@@ -23,6 +25,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -119,6 +122,55 @@ class GroupEditFormTest {
         return viewModel
     }
 
+    /** The screen opens this group once told the form is saved, see CreateOrEditGroupScreen. */
+    @Test
+    fun `a group created is the one the screen goes to`() = runTest(mainDispatcher) {
+        val viewModel = creationForm(result = GroupCreationResult.Created(groupUuid = GROUP))
+
+        viewModel.createGroup()
+        runCurrent()
+
+        assertTrue(viewModel.isSaved.value)
+        assertEquals(GROUP, viewModel.createdGroupUuid.value)
+    }
+
+    @Test
+    fun `a group that could not be created leaves the form where it is`() = runTest(mainDispatcher) {
+        val viewModel = creationForm(
+            result = GroupCreationResult.Failed(GroupCreationError.Failure(GroupCreationFailure.UNKNOWN)),
+        )
+
+        viewModel.createGroup()
+        runCurrent()
+
+        assertFalse(viewModel.isSaved.value)
+        assertNull(viewModel.createdGroupUuid.value)
+    }
+
+    /** Its screen closes instead: the user came from the group. */
+    @Test
+    fun `an edit saved names no group to go to`() = runTest(mainDispatcher) {
+        val viewModel = form()
+
+        viewModel.updateTitle("Ski trip 2027")
+        viewModel.updateGroup()
+        runCurrent()
+
+        assertTrue(viewModel.isSaved.value)
+        assertNull(viewModel.createdGroupUuid.value)
+    }
+
+    private fun TestScope.creationForm(result: GroupCreationResult): CreateGroupViewModel {
+        val viewModel = CreateGroupViewModel(
+            groupUuid = null,
+            groupListCallBacks = EditCallBacks(group = flowOf(null), creation = result),
+        )
+
+        runCurrent()
+
+        return viewModel
+    }
+
     private fun CreateGroupViewModel.content() = state as CreateGroupState.Content
 
     private fun CreateGroupViewModel.canConfirm() =
@@ -141,7 +193,10 @@ private fun groupShowing(title: String, description: String) = GroupWithMembers(
 )
 
 /** Shows the group as [group] holds it, and nothing else the form of a group being edited does not ask. */
-private class EditCallBacks(private val group: Flow<GroupWithMembers?>) : GroupListCallBacks {
+private class EditCallBacks(
+    private val group: Flow<GroupWithMembers?>,
+    private val creation: GroupCreationResult? = null,
+) : GroupListCallBacks {
 
     override val maxTitleLength: Int = 50
     override val maxDescriptionLength: Int = 1000
@@ -156,16 +211,17 @@ private class EditCallBacks(private val group: Flow<GroupWithMembers?>) : GroupL
     // Read as the form opens, for the member picker, which these tests leave closed.
     override fun getInvitableUsersFiltered(filter: String): Flow<List<User>> = flowOf(emptyList())
     override fun getUsersFromGroupFiltered(filter: String, groupUuid: String): Flow<List<User>> = TODO()
-    override fun getUserFullName(uuid: String): Flow<String?> = TODO()
-    override fun getDefaultCurrency(): Currency = TODO()
+    override fun getUserFullName(uuid: String): Flow<String?> = flowOf(null)
+    override fun getDefaultCurrency(): Currency =
+        Currency(uuid = "f4c08b14-5847-4d50-87b0-6ca4f3e961e1", name = "EUR", symbol = "€", hasSubunits = true)
     override fun getCurrencyDisplayName(code: String): String = TODO()
     override suspend fun createGroup(
         title: String,
         description: String,
         currency: Currency,
         members: List<GroupMember>,
-    ): GroupCreationError? = TODO()
-    override suspend fun updateGroup(uuid: String, title: String, description: String): GroupEditError? = TODO()
+    ): GroupCreationResult = checkNotNull(creation)
+    override suspend fun updateGroup(uuid: String, title: String, description: String): GroupEditError? = null
     override suspend fun getGroupHistory(uuid: String): GroupHistory = TODO()
     override suspend fun refreshGroups(): Unit = TODO()
     override suspend fun refreshGroupExpenses(uuid: String): Unit = TODO()

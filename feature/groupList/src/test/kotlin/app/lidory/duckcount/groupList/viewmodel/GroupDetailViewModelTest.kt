@@ -3,7 +3,7 @@ package app.lidory.duckcount.groupList.viewmodel
 import app.lidory.duckcount.groupList.callBacks.GroupListCallBacks
 import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.Group
-import app.lidory.duckcount.groupList.model.GroupCreationError
+import app.lidory.duckcount.groupList.model.GroupCreationResult
 import app.lidory.duckcount.groupList.model.GroupEditError
 import app.lidory.duckcount.groupList.model.GroupHistory
 import app.lidory.duckcount.groupList.model.GroupMember
@@ -180,7 +180,7 @@ private class DetailCallBacks(
         description: String,
         currency: Currency,
         members: List<GroupMember>,
-    ): GroupCreationError? = TODO()
+    ): GroupCreationResult = TODO()
     override fun getAuthenticatedUserUuid(): String? = TODO()
     override suspend fun updateGroup(uuid: String, title: String, description: String): GroupEditError? = TODO()
     override suspend fun getGroupHistory(uuid: String): GroupHistory = TODO()
