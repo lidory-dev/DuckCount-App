@@ -7,9 +7,11 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import mls.MlsIdentityError
 import mls.MlsIdentityRepository
+import mls.deleteGroupOf
 import mls.deleteGroupQuietly
 import push.WakeList
 import uniffi.lib_duckcount.MlsClient
+import uniffi.lib_duckcount.MlsException
 import util.EmptyResult
 import util.NetworkError
 import util.Result
@@ -48,12 +50,15 @@ import util.Result
  * keeps what it had of it read-only, see [GroupSync]. The owner's keeps nothing, having asked. One
  * that did not hear the answer, the device locking or the process going away, finds it gone the same
  * way and keeps its copy too, nothing saying it asked: a sync never takes anything off this device
- * on the server's word alone.
+ * on the server's word alone. That copy, and the one a member keeps of a group they left or were
+ * removed from, is theirs to take off this device, see [forgetLeft].
  *
  * [userUuid] is [getAuthenticatedUserUuid], [group] is [GroupDao.get], [hasPendingChange] is
  * [GroupDao.hasPendingChange], [sendDelete] and [listGroups] are [GroupApi.delete] and
- * [GroupApi.getGroups], [forget] is [GroupDao.forgetDeleted], [rebuildWakeList] is [WakeList.rebuild]
- * and [client] is [MlsIdentityRepository.client], or what a test stands in for any of them.
+ * [GroupApi.getGroups], [forget] and [forgetLeftGroup] are [GroupDao.forgetDeleted] and
+ * [GroupDao.forgetLeft], [rebuildWakeList] is [WakeList.rebuild] and [client] and [withLocalClient]
+ * are [MlsIdentityRepository.client] and [MlsIdentityRepository.withLocalClient], or what a test
+ * stands in for any of them.
  */
 class GroupDeleter internal constructor(
     private val userUuid: () -> String?,
@@ -62,8 +67,10 @@ class GroupDeleter internal constructor(
     private val sendDelete: suspend (groupUuid: String) -> EmptyResult<NetworkError>,
     private val listGroups: suspend () -> Result<List<GroupDto>, NetworkError>,
     private val forget: suspend (groupUuid: String) -> Unit,
+    private val forgetLeftGroup: suspend (groupUuid: String) -> Unit,
     private val rebuildWakeList: suspend () -> Unit,
     private val client: suspend () -> Result<MlsClient, MlsIdentityError>,
+    private val withLocalClient: suspend (block: suspend (MlsClient) -> Unit) -> EmptyResult<MlsIdentityError>,
 ) {
     constructor(
         groupApi: GroupApi,
@@ -77,8 +84,10 @@ class GroupDeleter internal constructor(
         sendDelete = groupApi::delete,
         listGroups = groupApi::getGroups,
         forget = groupDao::forgetDeleted,
+        forgetLeftGroup = groupDao::forgetLeft,
         rebuildWakeList = wakeList::rebuild,
         client = mlsIdentityRepository::client,
+        withLocalClient = mlsIdentityRepository::withLocalClient,
     )
 
     /** Deletes the group [groupUuid] for everybody, see [GroupDeleter]. */
@@ -99,6 +108,68 @@ class GroupDeleter internal constructor(
         if (hasPendingChange(groupUuid)) return@withGroupsLock Result.Error(GroupDeleteError.ChangePending)
 
         withContext(NonCancellable) { deleteHeld(held) }
+    }
+
+    /**
+     * Takes the group [groupUuid], which the user is no longer in, off this device, as they ask from
+     * its settings: left, removed from it, or found deleted, its copy stays here, read-only, until
+     * then, see [database.data.local.entity.GroupEntity.isLeft].
+     *
+     * Nothing is sent, the server having nothing of the user's left to take but a leave still owed,
+     * which goes out all the same, see [GroupDao.forgetLeft]. Who may wake the user does not change:
+     * the members of a group they are out of are on it no more. Refused for a group they are in
+     * again by now, see [GroupDeleteError.StillMember], under [withGroupsLock] as [delete] is. The
+     * creator adding them back later lets them in as for any group this device never held.
+     *
+     * Its MLS state goes before its row, unlike a deletion for everybody: the row is what names a
+     * state a leave or a removal could not delete, and a state nothing names would refuse the
+     * Welcome of every add-back from then on, see [MlsClient.inspectWelcome]. All of it on this
+     * device, the state deleted with a client that needs no server, see
+     * [MlsIdentityRepository.withLocalClient]: only storage that fails keeps the group, for the user
+     * to ask again.
+     */
+    suspend fun forgetLeft(groupUuid: String): Result<Unit, GroupDeleteError> = withGroupsLock {
+        // The device may have locked as this waited for the lock, see GroupLeaver.
+        try {
+            userUuid()
+        } catch (_: IllegalStateException) {
+            return@withGroupsLock Result.Error(GroupDeleteError.DeviceLocked)
+        } ?: return@withGroupsLock Result.Error(GroupDeleteError.NoSession)
+
+        val held = group(groupUuid) ?: return@withGroupsLock Result.Error(GroupDeleteError.NotHeld)
+
+        if (!held.isLeft) return@withGroupsLock Result.Error(GroupDeleteError.StillMember)
+
+        withContext(NonCancellable) { forgetLeftCopy(held) }
+    }
+
+    /** Takes [held], a group the user is no longer in, off this device, see [forgetLeft]. */
+    private suspend fun forgetLeftCopy(held: GroupEntity): Result<Unit, GroupDeleteError> {
+        held.mlsGroupId?.let { mlsGroupId ->
+            val deleted = try {
+                withLocalClient { client -> client.deleteGroupOf(mlsGroupId = mlsGroupId) }
+            } catch (_: IllegalStateException) {
+                return Result.Error(GroupDeleteError.DeviceLocked)
+            } catch (_: MlsException) {
+                return Result.Error(GroupDeleteError.Storage)
+            }
+
+            if (deleted is Result.Error) return Result.Error(deleted.error.toDeleteError())
+        }
+
+        try {
+            forgetLeftGroup(held.uuid)
+        } catch (_: Exception) {
+            return Result.Error(GroupDeleteError.Storage)
+        }
+
+        return Result.Success(Unit)
+    }
+
+    /** Why the user's MLS client not opening keeps a group, as the screen is told it. */
+    private fun MlsIdentityError.toDeleteError(): GroupDeleteError = when (this) {
+        MlsIdentityError.MissingSession -> GroupDeleteError.NoSession
+        MlsIdentityError.Crypto, is MlsIdentityError.Vault -> GroupDeleteError.Storage
     }
 
     /** Deletes [held], a group the user owns with no change waiting, from step 2 on, see [GroupDeleter]. */

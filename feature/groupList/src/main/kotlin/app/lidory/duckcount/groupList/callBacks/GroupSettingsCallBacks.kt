@@ -61,6 +61,12 @@ interface GroupSettingsCallBacks {
      */
     suspend fun deleteGroup(groupUuid: String): DeleteResult
 
+    /**
+     * Takes the group [groupUuid], which the user is no longer in, off this device, with everything
+     * this device kept of it, and tells what came of it. It changes nothing for anybody else.
+     */
+    suspend fun removeGroupFromDevice(groupUuid: String): DeleteResult
+
     /** Emits where the user stands with [userUuid], a member of the group, see [MemberRelation], as it changes. */
     fun getContactRelation(userUuid: String): Flow<MemberRelation>
 

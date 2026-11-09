@@ -152,6 +152,11 @@ class GroupSettingsViewModel(
     var isDeleteAsked by mutableStateOf(false)
         private set
 
+    // Whether what the user was asked to confirm is taking the group off this device alone, as they
+    // asked for it: the group can change under the confirmation, its creator adding them back.
+    var isDeleteFromDeviceOnly by mutableStateOf(false)
+        private set
+
     // Once the group is gone, which leaves this screen nothing to show.
     private val _deletions = Channel<Unit>(Channel.BUFFERED)
     val deletions: Flow<Unit> = _deletions.receiveAsFlow()
@@ -384,8 +389,12 @@ class GroupSettingsViewModel(
         }
     }
 
-    /** Asks the user to confirm deleting the group, see [delete]. */
-    fun askToDelete() {
+    /**
+     * Asks the user to confirm deleting the group, see [delete], or, for one they are no longer in,
+     * taking it off this device, [isFromDeviceOnly], see [removeFromDevice].
+     */
+    fun askToDelete(isFromDeviceOnly: Boolean = false) {
+        isDeleteFromDeviceOnly = isFromDeviceOnly
         isDeleteAsked = true
     }
 
@@ -404,13 +413,21 @@ class GroupSettingsViewModel(
      * confirmation once answered, telling why not if it did not go through, or that it is gone,
      * see [deletions].
      */
-    fun delete() = viewModelScope.launch {
+    fun delete() = deleting { groupSettingsCallBacks.deleteGroup(groupUuid = groupUuid) }
+
+    /**
+     * Takes the group, which the user is no longer in, off this device, see
+     * [GroupSettingsCallBacks.removeGroupFromDevice], and closes the confirmation as [delete] does.
+     */
+    fun removeFromDevice() = deleting { groupSettingsCallBacks.removeGroupFromDevice(groupUuid = groupUuid) }
+
+    private fun deleting(deletion: suspend () -> DeleteResult) = viewModelScope.launch {
         if (_isChanging.value) return@launch
 
         _isChanging.value = true
 
         try {
-            val result = groupSettingsCallBacks.deleteGroup(groupUuid = groupUuid)
+            val result = deletion()
 
             isDeleteAsked = false
 
@@ -510,6 +527,13 @@ fun GroupWithMembers.memberActions(): MemberActions = when {
  * deletes it instead, see [GroupWithMembers.canDelete].
  */
 fun GroupWithMembers.isLeavable(): Boolean = canLeave
+
+/**
+ * Whether the settings of [this] offer the user to take it off this device: a group they are no
+ * longer in, left, removed from it or found deleted, which nothing but a log-out would take away
+ * otherwise.
+ */
+fun GroupWithMembers.isRemovableFromDevice(): Boolean = isLeft
 
 /**
  * Whether the settings of [this] offer the user the history of its title and description, see

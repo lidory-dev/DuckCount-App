@@ -6,7 +6,7 @@ package app.lidory.duckcount.groupList.model
  */
 sealed interface DeleteResult {
 
-    /** The server took it: the group is gone, for everybody, and from this device. */
+    /** The group is gone from this device: for everybody too when the server took its deletion. */
     data object Deleted : DeleteResult
 
     /** The server did not take it, or was not heard to, for [failure], so it can be asked for again. */

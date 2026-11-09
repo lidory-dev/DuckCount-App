@@ -19,12 +19,14 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 
 /**
  * Asks the user to confirm deleting the group [groupTitle] for everybody, saying what becomes of it
- * and of its balances, whether settled or not, and shows the deletion under way, [isDeleting], until
- * it is answered, with both buttons disabled meanwhile, as for leaving it, see [GroupLeaveDialog].
+ * and of its balances, whether settled or not, or only from this device, [isFromThisDeviceOnly], for
+ * a group they are no longer in, and shows the deletion under way, [isDeleting], until it is
+ * answered, with both buttons disabled meanwhile, as for leaving it, see [GroupLeaveDialog].
  */
 @Composable
 fun GroupDeleteDialog(
     groupTitle: String,
+    isFromThisDeviceOnly: Boolean,
     isDeleting: Boolean,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
@@ -54,11 +56,26 @@ fun GroupDeleteDialog(
                 Text(text = stringResource(androidUiR.string.cancel))
             }
         },
-        title = { Text(text = stringResource(R.string.delete_the_group)) },
+        title = {
+            Text(
+                text = stringResource(
+                    if (isFromThisDeviceOnly) R.string.delete_group_from_device else R.string.delete_the_group,
+                ),
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Padding.large)) {
-                Text(text = stringResource(R.string.delete_group_confirmation, groupTitle))
-                Text(text = stringResource(R.string.delete_group_explanation))
+                Text(
+                    text = stringResource(
+                        if (isFromThisDeviceOnly) R.string.delete_group_from_device_confirmation else R.string.delete_group_confirmation,
+                        groupTitle,
+                    ),
+                )
+                Text(
+                    text = stringResource(
+                        if (isFromThisDeviceOnly) R.string.delete_group_from_device_explanation else R.string.delete_group_explanation,
+                    ),
+                )
             }
         },
     )

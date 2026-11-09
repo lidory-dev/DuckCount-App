@@ -76,6 +76,9 @@
     <string name="leave_group_confirmation">Leave “%1$s”?</string>
     <string name="leave_group_explanation">The group stays on this device, read-only. Only the person who created it can add you back.</string>
     <string name="delete_the_group">Delete the group</string>
+    <string name="delete_group_from_device">Delete from this device</string>
+    <string name="delete_group_from_device_confirmation">Delete “%1$s” from this device?</string>
+    <string name="delete_group_from_device_explanation">Its expenses and balances will no longer show on this phone. Nothing changes for the other members. This can’t be undone.</string>
     <string name="delete_group_confirmation">Delete “%1$s” for everyone?</string>
     <string name="delete_group_explanation">Its expenses and balances are erased from the server, even if some are unsettled, and are no longer tracked. Members keep a read-only copy on their phones, but it’s gone from yours. This can’t be undone.</string>
     <plurals name="group_members_error_not_contacts">

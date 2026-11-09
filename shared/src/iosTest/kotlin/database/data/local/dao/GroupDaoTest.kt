@@ -715,6 +715,37 @@ class GroupDaoTest {
         }
     }
 
+    /**
+     * The leave still owed is what has the sync leave the group on the server, and keeps it from
+     * taking the group back in meanwhile, see GroupSync.
+     */
+    @Test
+    fun `a group taken off this device goes with its changes and keeps its leave owed`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.groupDao.insert(groupOf(GROUP))
+            database.groupDao.insert(groupOf(OTHER_GROUP))
+            database.groupDao.insertMembers(listOf(ALICE, BOB).map(::memberOf))
+            database.groupDao.upsertKeys(keys = listOf(keyOf(generation = FIRST_KEY_GENERATION, groupKey = OLD_KEY)))
+            database.groupDao.upsertSignatureKeys(signatureKeys = listOf(signatureKeyOf(BOB, NEW_KEY)))
+            database.groupDao.markLeftAndOweLeave(groupUuid = GROUP)
+            database.groupDao.upsertMembershipChange(change = changeOf(MembershipChangeKind.DEPARTED_REMOVAL, commitEpoch = 1))
+
+            database.groupDao.forgetLeft(groupUuid = GROUP)
+
+            assertNull(database.groupDao.get(uuid = GROUP))
+            assertTrue(database.groupDao.getMemberUuids(groupUuid = GROUP).isEmpty())
+            assertTrue(database.groupDao.getKeys(groupUuid = GROUP).isEmpty())
+            assertFalse(database.groupDao.hasPendingChange(groupUuid = GROUP))
+            assertEquals(listOf(GROUP), database.groupDao.getDeclinedUuids())
+            assertNotNull(database.groupDao.get(uuid = OTHER_GROUP))
+
+            // Read through a row of the group: nothing of its signature keys is left to come back.
+            database.groupDao.insert(groupOf(GROUP))
+
+            assertNull(database.groupDao.getMemberSignatureKey(groupUuid = GROUP, userUuid = BOB))
+        }
+    }
+
     /** Whatever waited there is sent again by no sync, nothing being left to take it. */
     @Test
     fun `a group found deleted is left and takes every change to its members pending with it`() = runBlocking<Unit> {

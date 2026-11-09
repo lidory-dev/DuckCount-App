@@ -6,6 +6,7 @@ import kotlinx.coroutines.runBlocking
 import mls.InMemoryMlsStore
 import mls.holdsGroup
 import mls.inviteeKeyPackage
+import mls.MlsIdentityError
 import uniffi.lib_duckcount.MlsClient
 import util.NetworkError
 import util.Result
@@ -48,6 +49,15 @@ class GroupDeleterTest {
     private var isForgetFailing = false
     private var isClientLocked = false
 
+    /** Why the client opened from what this device stores does not open, if it does not. */
+    private var clientFailure: MlsIdentityError? = null
+
+    /** How many times the client that reads the vault, and so needs the server, was opened. */
+    private var vaultClientOpens = 0
+
+    /** Whether the MLS state the group's row named was still held as the row went. */
+    private var wasStateHeldAsForgotten: Boolean? = null
+
     private val deleter = GroupDeleter(
         userUuid = { selfUuid() },
         group = { groups[it] },
@@ -66,14 +76,28 @@ class GroupDeleterTest {
             steps += "forget $groupUuid"
             groups.remove(groupUuid)
         },
+        forgetLeftGroup = { groupUuid ->
+            if (isForgetFailing) error("Storage failed")
+
+            steps += "forget left $groupUuid"
+            groups[groupUuid]?.mlsGroupId?.let { wasStateHeldAsForgotten = bob.holdsGroup(mlsGroupId = it) }
+            groups.remove(groupUuid)
+        },
         rebuildWakeList = {
             // Once the group is gone: its members wake Bob no longer.
             steps += "wake list without the group: ${GROUP !in groups}"
         },
         client = {
+            vaultClientOpens++
+
             if (isClientLocked) throw IllegalStateException(DEVICE_LOCKED)
 
             Result.Success(bob)
+        },
+        withLocalClient = { block ->
+            if (isClientLocked) throw IllegalStateException(DEVICE_LOCKED)
+
+            clientFailure?.let { Result.Error(it) } ?: Result.Success(block(bob))
         },
     )
 
@@ -257,6 +281,151 @@ class GroupDeleterTest {
         groups[GROUP] = groupOf(ownerUuid = BOB, mlsGroupId = creation.mlsGroupId)
 
         return creation.mlsGroupId
+    }
+
+    /** Only this device holds it: nothing to send, whatever the server would say. */
+    @Test
+    fun `a group the user is no longer in comes off this device with nothing sent`() = runBlocking<Unit> {
+        groups[GROUP] = groupOf(ownerUuid = ALICE, isLeft = true)
+
+        assertEquals(Result.Success(Unit), deleter.forgetLeft(GROUP))
+
+        assertEquals(listOf("forget left $GROUP"), steps)
+        assertFalse(GROUP in groups)
+    }
+
+    /** The copy an owner keeps when the answer to their deletion was lost is theirs to take off too. */
+    @Test
+    fun `an owner's copy of a group found gone comes off this device`() = runBlocking<Unit> {
+        groups[GROUP] = groupOf(ownerUuid = BOB, isLeft = true)
+
+        assertEquals(Result.Success(Unit), deleter.forgetLeft(GROUP))
+
+        assertFalse(GROUP in groups)
+    }
+
+    /** Its row is what names a state a leave could not delete: gone first, it would be left for good. */
+    @Test
+    fun `a group coming off this device takes any MLS state left of it before its row`() = runBlocking<Unit> {
+        val mlsGroupId = bobCreates()
+        groups[GROUP] = groupOf(ownerUuid = ALICE, mlsGroupId = mlsGroupId, isLeft = true)
+
+        assertEquals(Result.Success(Unit), deleter.forgetLeft(GROUP))
+
+        assertEquals(false, wasStateHeldAsForgotten)
+        assertFalse(bob.holdsGroup(mlsGroupId = mlsGroupId))
+    }
+
+    /** The row of a group the user is out of keeps its id, the state itself being gone already. */
+    @Test
+    fun `a row naming a state long gone comes off this device`() = runBlocking<Unit> {
+        groups[GROUP] = groupOf(ownerUuid = ALICE, mlsGroupId = byteArrayOf(1), isLeft = true)
+
+        assertEquals(Result.Success(Unit), deleter.forgetLeft(GROUP))
+
+        assertFalse(GROUP in groups)
+    }
+
+    /** It is all on this device: a server out of reach since the app started keeps nothing from it. */
+    @Test
+    fun `taking a group off this device needs no client that reads the vault`() = runBlocking<Unit> {
+        val mlsGroupId = bobCreates()
+        groups[GROUP] = groupOf(ownerUuid = ALICE, mlsGroupId = mlsGroupId, isLeft = true)
+
+        assertEquals(Result.Success(Unit), deleter.forgetLeft(GROUP))
+
+        assertEquals(0, vaultClientOpens)
+        assertFalse(bob.holdsGroup(mlsGroupId = mlsGroupId))
+        assertFalse(GROUP in groups)
+    }
+
+    @Test
+    fun `nobody signed in as the client opens keeps the group`() = runBlocking<Unit> {
+        groups[GROUP] = groupOf(ownerUuid = ALICE, mlsGroupId = byteArrayOf(1), isLeft = true)
+        clientFailure = MlsIdentityError.MissingSession
+
+        assertEquals(Result.Error(GroupDeleteError.NoSession), deleter.forgetLeft(GROUP))
+
+        assertTrue(GROUP in groups)
+    }
+
+    @Test
+    fun `a client that does not open for any other reason keeps the group`() = runBlocking<Unit> {
+        groups[GROUP] = groupOf(ownerUuid = ALICE, mlsGroupId = byteArrayOf(1), isLeft = true)
+        clientFailure = MlsIdentityError.Crypto
+
+        assertEquals(Result.Error(GroupDeleteError.Storage), deleter.forgetLeft(GROUP))
+
+        assertTrue(GROUP in groups)
+    }
+
+    /** No state to delete, so no client to open: nothing keeps it from going offline. */
+    @Test
+    fun `a group whose row names no state comes off this device with no client`() = runBlocking<Unit> {
+        groups[GROUP] = groupOf(ownerUuid = ALICE, isLeft = true)
+        clientFailure = MlsIdentityError.Crypto
+
+        assertEquals(Result.Success(Unit), deleter.forgetLeft(GROUP))
+
+        assertFalse(GROUP in groups)
+    }
+
+    /** Its creator added them back as this waited for a sync: it is a group they are in. */
+    @Test
+    fun `a group the user is in again is refused and kept`() = runBlocking<Unit> {
+        groups[GROUP] = groupOf(ownerUuid = ALICE)
+
+        assertEquals(Result.Error(GroupDeleteError.StillMember), deleter.forgetLeft(GROUP))
+
+        assertTrue(steps.isEmpty())
+        assertTrue(GROUP in groups)
+    }
+
+    @Test
+    fun `taking off a group this device does not hold is refused`() = runBlocking<Unit> {
+        assertEquals(Result.Error(GroupDeleteError.NotHeld), deleter.forgetLeft(GROUP))
+
+        assertTrue(steps.isEmpty())
+    }
+
+    @Test
+    fun `taking a group off with nobody signed in is refused and keeps it`() = runBlocking<Unit> {
+        groups[GROUP] = groupOf(ownerUuid = ALICE, isLeft = true)
+        selfUuid = { null }
+
+        assertEquals(Result.Error(GroupDeleteError.NoSession), deleter.forgetLeft(GROUP))
+
+        assertTrue(GROUP in groups)
+    }
+
+    @Test
+    fun `taking a group off on a device locked as it waited is refused and keeps it`() = runBlocking<Unit> {
+        groups[GROUP] = groupOf(ownerUuid = ALICE, isLeft = true)
+        selfUuid = { throw IllegalStateException(DEVICE_LOCKED) }
+
+        assertEquals(Result.Error(GroupDeleteError.DeviceLocked), deleter.forgetLeft(GROUP))
+
+        assertTrue(GROUP in groups)
+    }
+
+    @Test
+    fun `storage failing as a group comes off this device is told`() = runBlocking<Unit> {
+        groups[GROUP] = groupOf(ownerUuid = ALICE, isLeft = true)
+        isForgetFailing = true
+
+        assertEquals(Result.Error(GroupDeleteError.Storage), deleter.forgetLeft(GROUP))
+
+        assertTrue(GROUP in groups)
+    }
+
+    @Test
+    fun `a client locked as a group comes off this device keeps it`() = runBlocking<Unit> {
+        groups[GROUP] = groupOf(ownerUuid = ALICE, mlsGroupId = byteArrayOf(1), isLeft = true)
+        isClientLocked = true
+
+        assertEquals(Result.Error(GroupDeleteError.DeviceLocked), deleter.forgetLeft(GROUP))
+
+        assertTrue(GROUP in groups)
     }
 
     private fun groupOf(

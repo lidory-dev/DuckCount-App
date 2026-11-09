@@ -85,6 +85,14 @@ class GroupSettingsCallBacksImpl(
         return deleted.toDeleteResult(isOnline = networkConnectivity.isOnline())
     }
 
+    override suspend fun removeGroupFromDevice(groupUuid: String): DeleteResult {
+        val forgotten = groupDeleter.forgetLeft(groupUuid = groupUuid)
+
+        if (forgotten is Result.Error) Log.w(TAG, "removeGroupFromDevice: could not remove the group: ${forgotten.error}")
+
+        return forgotten.toDeleteResult(isOnline = networkConnectivity.isOnline())
+    }
+
     override fun getContactRelation(userUuid: String): Flow<MemberRelation> =
         contactRequestRepository.relationTo(userUuid = userUuid).map { it.toMemberRelation() }
 

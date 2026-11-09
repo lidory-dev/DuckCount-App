@@ -337,6 +337,7 @@ fun Result<Unit, SharedGroupDeleteError>.toDeleteResult(isOnline: Boolean): Dele
         SharedGroupDeleteError.DeviceLocked,
         SharedGroupDeleteError.NotHeld,
         SharedGroupDeleteError.NotOwner,
+        SharedGroupDeleteError.StillMember,
         SharedGroupDeleteError.ChangePending,
         SharedGroupDeleteError.Storage,
             -> DeleteResult.Failed(GroupCreationFailure.UNKNOWN)

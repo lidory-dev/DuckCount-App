@@ -39,6 +39,7 @@ class GroupDeleteMappingTest {
             SharedGroupDeleteError.DeviceLocked,
             SharedGroupDeleteError.NotHeld,
             SharedGroupDeleteError.NotOwner,
+            SharedGroupDeleteError.StillMember,
             SharedGroupDeleteError.ChangePending,
             SharedGroupDeleteError.Storage,
         ).forEach { error ->

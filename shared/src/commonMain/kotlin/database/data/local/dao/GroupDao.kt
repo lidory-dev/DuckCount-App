@@ -188,6 +188,19 @@ interface GroupDao {
         deleteGroup(uuid = groupUuid)
     }
 
+    /**
+     * Forgets the group [groupUuid], which the user is no longer in and asked to take off this
+     * device, see `group.GroupDeleter.forgetLeft`, as [forgetDeleted] does, in one transaction, with
+     * any change to its members still recorded, which nothing can take now, see [markDeleted]. A
+     * leave still owed for it stays, see [DeclinedGroupEntity]: the server keeps the user a member
+     * until it hears it, and it is what keeps the sync from taking the group back in meanwhile.
+     */
+    @Transaction
+    suspend fun forgetLeft(groupUuid: String) {
+        deleteAllMembershipChanges(groupUuid = groupUuid)
+        forgetDeleted(groupUuid = groupUuid)
+    }
+
     @Query(
         """DELETE FROM BeneficiaryEntity
         WHERE expenseUuid IN (SELECT uuid FROM ExpenseEntity WHERE groupUuid = :groupUuid)""",

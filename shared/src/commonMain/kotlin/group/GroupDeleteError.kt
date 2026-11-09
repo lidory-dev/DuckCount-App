@@ -30,6 +30,13 @@ sealed interface GroupDeleteError : Error {
     data object NotOwner : GroupDeleteError
 
     /**
+     * The user asked to take a group they are no longer in off this device, see
+     * [GroupDeleter.forgetLeft], and are in it again by now, its creator having added them back as
+     * this waited for a sync.
+     */
+    data object StillMember : GroupDeleteError
+
+    /**
      * A change to the group waits on the server, its creation or a change to its members, as for an
      * edit, see [GroupEditError.ChangePending]: the group may not be on the server yet, and its
      * creation sent again after a deletion would bring it back.

@@ -47,6 +47,7 @@ import app.lidory.duckcount.groupList.viewmodel.GroupSettingsViewModel
 import app.lidory.duckcount.groupList.viewmodel.MemberActions
 import app.lidory.duckcount.groupList.viewmodel.isHistoryReadable
 import app.lidory.duckcount.groupList.viewmodel.isLeavable
+import app.lidory.duckcount.groupList.viewmodel.isRemovableFromDevice
 import app.lidory.duckcount.groupList.viewmodel.memberActions
 import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
@@ -283,6 +284,25 @@ fun GroupSettingsScreen(
                         }
                     }
                 }
+
+                // All that is left to do about a group the user is out of: the copy this device keeps.
+                if (group?.isRemovableFromDevice() == true) {
+                    item {
+                        DuckCountOutlinedButton(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = Padding.extraLarge),
+                            onClick = { viewModel.askToDelete(isFromDeviceOnly = true) },
+                            enabled = !isChanging,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error,
+                            ),
+                            border = ButtonDefaults.outlinedButtonBorder(enabled = !isChanging),
+                        ) {
+                            Text(text = stringResource(R.string.delete_group_from_device))
+                        }
+                    }
+                }
             }
 
             DuckCountSnackbarHost(hostState = snackbarHostState)
@@ -331,9 +351,10 @@ fun GroupSettingsScreen(
         if (viewModel.isDeleteAsked) {
             GroupDeleteDialog(
                 groupTitle = group?.title ?: "",
+                isFromThisDeviceOnly = viewModel.isDeleteFromDeviceOnly,
                 isDeleting = isChanging,
                 onDismiss = { viewModel.cancelDelete() },
-                onConfirm = { viewModel.delete() },
+                onConfirm = { if (viewModel.isDeleteFromDeviceOnly) viewModel.removeFromDevice() else viewModel.delete() },
             )
         }
     }

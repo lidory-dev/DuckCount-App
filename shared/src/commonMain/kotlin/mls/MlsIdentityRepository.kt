@@ -135,6 +135,40 @@ class MlsIdentityRepository(
     }
 
     /**
+     * Runs [block] with a client for what touches nothing but this device, deleting a group's stored
+     * state, say. [client] reads the vault to open, so it fails with no server, where this works from
+     * what the device stores itself, the identity every earlier open left there: the client already
+     * open if there is one, or else one opened for [block] alone. Held under [mutex] and closed after
+     * it, so that no other client opens beside it, and never handed out: it holds no pins, which
+     * nothing that deletes needs.
+     *
+     * Throws whatever [block] throws.
+     */
+    suspend fun withLocalClient(block: suspend (MlsClient) -> Unit): EmptyResult<MlsIdentityError> =
+        mutex.withLock {
+            opened?.let { client ->
+                block(client)
+
+                return@withLock Result.Success(Unit)
+            }
+
+            val userUuid = getAuthenticatedUserUuid() ?: return@withLock Result.Error(MlsIdentityError.MissingSession)
+
+            val rootKey = getRootKey() ?: return@withLock Result.Error(MlsIdentityError.MissingSession)
+
+            val client = openClient { MlsClient(userUuid = userUuid, secret = rootKey, store = mlsStore) }
+                ?: return@withLock Result.Error(MlsIdentityError.Crypto)
+
+            try {
+                block(client)
+            } finally {
+                client.close()
+            }
+
+            Result.Success(Unit)
+        }
+
+    /**
      * Pins in [client] the identity the vault holds for each of the user's contacts.
      *
      * On every open rather than once, which costs a vault read and nothing else: pinning a

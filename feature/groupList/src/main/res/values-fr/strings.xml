@@ -76,6 +76,9 @@
     <string name="leave_group_confirmation">Quitter le groupe «\u00A0%1$s\u00A0»\u00A0?</string>
     <string name="leave_group_explanation">Le groupe reste sur cet appareil, en lecture seule. Seule la personne qui l’a créé peut vous y ajouter à nouveau.</string>
     <string name="delete_the_group">Supprimer le groupe</string>
+    <string name="delete_group_from_device">Supprimer de cet appareil</string>
+    <string name="delete_group_from_device_confirmation">Voulez-vous vraiment supprimer «\u00A0%1$s\u00A0» de cet appareil\u00A0?</string>
+    <string name="delete_group_from_device_explanation">Ses dépenses et ses soldes ne s’afficheront plus sur ce téléphone. Rien ne change pour les autres membres. Cette action est définitive.</string>
     <string name="delete_group_confirmation">Voulez-vous vraiment supprimer «\u00A0%1$s\u00A0» pour tout le monde\u00A0?</string>
     <string name="delete_group_explanation">Ses dépenses et ses soldes sont effacés du serveur, même si des remboursements restent à faire, et ne sont plus suivis. Les membres en gardent une copie en lecture seule sur leur téléphone, mais il disparaît du vôtre. Cette action est irréversible.</string>
     <plurals name="group_members_error_not_contacts">

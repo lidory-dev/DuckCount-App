@@ -41,6 +41,18 @@ class LeaveActionTest {
         assertEquals(MemberActions.NONE, group.memberActions())
     }
 
+    /** Nothing but a log-out would take its copy away otherwise. */
+    @Test
+    fun `a group the user is no longer in can be taken off this device`() {
+        assertTrue(group(canChangeMembers = false, canLeave = false, isLeft = true).isRemovableFromDevice())
+    }
+
+    @Test
+    fun `a group the user is still in cannot be taken off this device alone`() {
+        assertFalse(group(canChangeMembers = false, canLeave = true).isRemovableFromDevice())
+        assertFalse(group(canChangeMembers = true, canLeave = false).isRemovableFromDevice())
+    }
+
     private fun group(
         canChangeMembers: Boolean,
         canLeave: Boolean,
