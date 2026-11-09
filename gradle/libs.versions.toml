@@ -9,7 +9,7 @@ android-targetSdk = "37"
 android-ndk = "29.0.14206865"
 # The build number the API's minimum for Android is compared to, see networking/ClientBuild.kt.
 # An integer that only goes up, unlike the version name.
-android-versionCode = "2"
+android-versionCode = "3"
 # NOTE: The following versions are held back to stay compatible with AGP 8.13.2
 # (see the AGP pin above). Newer releases (androidx-core 1.19, lifecycle/nav3 2.11,
 # material3-adaptive 1.3.0-rc01, CMP 1.11.1, material 1.14) hard-require AGP 9.1.0
