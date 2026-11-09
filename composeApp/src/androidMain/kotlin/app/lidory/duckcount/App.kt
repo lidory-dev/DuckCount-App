@@ -16,8 +16,10 @@ import app.lidory.duckcount.android.ui.theme.AppTheme
 import app.lidory.duckcount.navigation.NavigationRoot
 import app.lidory.duckcount.navigation.key.ContactRequestListScreenKey
 import app.lidory.duckcount.navigation.key.DashboardKey
+import app.lidory.duckcount.navigation.key.ExpenseDetailScreenKey
 import app.lidory.duckcount.navigation.key.GroupDetailScreenKey
 import authenticationUtils.SessionEnd
+import database.data.repository.ExpenseRepository
 import database.data.repository.GroupRepository
 import kotlinx.coroutines.flow.first
 import navigation.key.OnBoardingScreenKey
@@ -29,9 +31,16 @@ import org.koin.compose.koinInject
  * answered, and is what takes the user straight to it. [openGroups] comes from one about a
  * group the user was added to, and opens the dashboard on the group list. [openGroupUuid] comes
  * from one that says which group it is about, and opens that group over the list.
+ * [openExpenseUuid] comes from one about a single expense, and opens it over its group, or over
+ * the one-time expenses for one in no group.
  */
 @Composable
-fun App(openContactRequests: Boolean = false, openGroups: Boolean = false, openGroupUuid: String? = null) {
+fun App(
+    openContactRequests: Boolean = false,
+    openGroups: Boolean = false,
+    openGroupUuid: String? = null,
+    openExpenseUuid: String? = null,
+) {
     AppTheme {
         val appViewModel = koinViewModel<AppViewModel>()
         val isUpdateRequired by appViewModel.isUpdateRequired.collectAsState()
@@ -73,15 +82,19 @@ fun App(openContactRequests: Boolean = false, openGroups: Boolean = false, openG
                         if (openContactRequests) backStack.add(ContactRequestListScreenKey)
                     }
 
-                    if (openGroupUuid != null) {
+                    if (openGroupUuid != null || openExpenseUuid != null) {
                         val groupRepository = koinInject<GroupRepository>()
+                        val expenseRepository = koinInject<ExpenseRepository>()
 
-                        // Likewise over the group list the dashboard opens on. A notification can
-                        // outlive its group, deleted since by its owner, which leaves the list.
+                        // Likewise over the list the dashboard opens on. A notification can outlive
+                        // what it names, deleted since, which leaves that list. Both read before
+                        // either is pushed, for an expense to slide in over its group in one move.
                         LaunchedEffect(Unit) {
-                            if (groupRepository.getWithMembers(openGroupUuid).first() != null) {
-                                backStack.add(GroupDetailScreenKey(openGroupUuid))
-                            }
+                            val group = openGroupUuid?.takeIf { groupRepository.getWithMembers(it).first() != null }
+                            val expense = openExpenseUuid?.takeIf { expenseRepository.getWithBeneficiaries(it).first() != null }
+
+                            group?.let { backStack.add(GroupDetailScreenKey(it)) }
+                            expense?.let { backStack.add(ExpenseDetailScreenKey(groupUuid = group, expenseUuid = it)) }
                         }
                     }
                 }

@@ -28,6 +28,12 @@ const val EXTRA_OPEN_GROUPS = "app.lidory.duckcount.extra.OPEN_GROUPS"
  */
 const val EXTRA_OPEN_GROUP_UUID = "app.lidory.duckcount.extra.OPEN_GROUP_UUID"
 
+/**
+ * Set to the UUID of the expense the notification is about, so the app lands on that expense, over
+ * its group when [EXTRA_OPEN_GROUP_UUID] names one and over the one-time expenses otherwise.
+ */
+const val EXTRA_OPEN_EXPENSE_UUID = "app.lidory.duckcount.extra.OPEN_EXPENSE_UUID"
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // Must run before super.onCreate. Backports the Android 12 splash to API 24+.
@@ -63,15 +69,17 @@ class MainActivity : ComponentActivity() {
             intent.getBooleanExtra(EXTRA_OPEN_CONTACT_REQUESTS, false)
         val openGroups = savedInstanceState == null && intent.getBooleanExtra(EXTRA_OPEN_GROUPS, false)
 
-        // Nor from Recents, which would open the group again long after the notification did.
-        val openGroupUuid = intent.getStringExtra(EXTRA_OPEN_GROUP_UUID)
-            .takeIf { savedInstanceState == null && !isFromRecents }
+        // Nor from Recents, which would open them again long after the notification did.
+        val mayOpenWhatItNames = savedInstanceState == null && !isFromRecents
+        val openGroupUuid = intent.getStringExtra(EXTRA_OPEN_GROUP_UUID).takeIf { mayOpenWhatItNames }
+        val openExpenseUuid = intent.getStringExtra(EXTRA_OPEN_EXPENSE_UUID).takeIf { mayOpenWhatItNames }
 
         setContent {
             App(
                 openContactRequests = openContactRequests,
                 openGroups = openGroups,
                 openGroupUuid = openGroupUuid,
+                openExpenseUuid = openExpenseUuid,
             )
         }
     }

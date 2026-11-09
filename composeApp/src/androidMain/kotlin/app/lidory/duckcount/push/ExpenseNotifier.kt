@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import app.lidory.duckcount.EXTRA_OPEN_EXPENSE_UUID
 import app.lidory.duckcount.EXTRA_OPEN_GROUPS
 import app.lidory.duckcount.EXTRA_OPEN_GROUP_UUID
 import app.lidory.duckcount.MainActivity
@@ -224,6 +225,7 @@ class ExpenseNotifier(
                 notification = notificationFor(
                     creditorFullName = expenses.first().creditorFullName,
                     count = expenses.size,
+                    expenseUuid = expenses.singleOrNull()?.expenseUuid,
                     // It rang as the stand-in moments ago; ringing again would be ringing
                     // twice for one expense.
                     replacesStandIn = takesOverStandIn,
@@ -331,7 +333,7 @@ class ExpenseNotifier(
      * [MANY_GROUP_EXPENSE_UPDATES], as one catching up after a time offline does: those are told in
      * one notification for that group, saying how many and naming it, which takes the place of what
      * was said of each of them one by one before, which may no longer be so, see
-     * [groupExpenseTakedownOf]. Tapped, it opens the groups, whose expenses say what each was better
+     * [groupExpenseTakedownOf]. Tapped, it opens the group, whose expenses say what each was better
      * than a shadeful of near-identical rows would.
      *
      * These go up whatever is on screen, too: [newestShown] is about the one-time expenses alone.
@@ -631,9 +633,11 @@ class ExpenseNotifier(
             .forEach { manager.cancel(EXPENSE_TAG, it) }
     }
 
+    /** The notification for [count] expenses of one person, [expenseUuid] being the one when alone. */
     private fun notificationFor(
         creditorFullName: String?,
         count: Int,
+        expenseUuid: String?,
         replacesStandIn: Boolean,
     ): Notification {
         val text = when {
@@ -655,7 +659,9 @@ class ExpenseNotifier(
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.push_expense_title))
             .setContentText(text)
-            .setContentIntent(contentIntent(requestUuid = creditorFullName.hashCode()))
+            .setContentIntent(
+                contentIntent(requestUuid = (expenseUuid ?: creditorFullName).hashCode(), expenseUuid = expenseUuid),
+            )
             .setCategory(NotificationCompat.CATEGORY_SOCIAL)
             .setGroup(EXPENSE_GROUP)
             // Who shared what is the user's business and nobody else's, so a lockscreen set
@@ -686,7 +692,7 @@ class ExpenseNotifier(
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.push_expense_changed_title))
             .setContentText(text)
-            .setContentIntent(contentIntent(requestUuid = change.expenseUuid.hashCode()))
+            .setContentIntent(contentIntent(requestUuid = change.expenseUuid.hashCode(), expenseUuid = change.expenseUuid))
             .setCategory(NotificationCompat.CATEGORY_SOCIAL)
             .setGroup(EXPENSE_CHANGE_GROUP)
             // Who changed what is the user's business and nobody else's, so a lockscreen set
@@ -743,7 +749,13 @@ class ExpenseNotifier(
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(title))
             .setContentText(text)
-            .setContentIntent(groupsIntent(requestCode = update.expenseUuid.hashCode(), groupUuid = update.groupUuid))
+            .setContentIntent(
+                groupsIntent(
+                    requestCode = update.expenseUuid.hashCode(),
+                    groupUuid = update.groupUuid,
+                    expenseUuid = update.expenseUuid,
+                ),
+            )
             .setCategory(NotificationCompat.CATEGORY_SOCIAL)
             // Under its own group's heading, never another's.
             .setGroup(groupExpenseGroupOf(groupUuid = update.groupUuid))
@@ -889,14 +901,17 @@ class ExpenseNotifier(
     )
 
     /**
-     * Opens the app, which lands on the expense list.
+     * Opens the app, which lands on the expense list, and on [expenseUuid] over it, for a
+     * notification about one expense. For several, there is no one expense to open, and they are
+     * in the list the app opens on anyway.
      *
-     * No extra to route on: unlike a contact request, there is nothing here to answer, and
-     * the expense is in the list the app opens on anyway.
+     * [requestUuid] has to differ from one expense to another, for the reason `GroupNotifier` gives.
      */
-    private fun contentIntent(requestUuid: Int): PendingIntent {
+    private fun contentIntent(requestUuid: Int, expenseUuid: String? = null): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
+
+            putExtra(EXTRA_OPEN_EXPENSE_UUID, expenseUuid)
         }
 
         return PendingIntent.getActivity(
@@ -908,16 +923,22 @@ class ExpenseNotifier(
     }
 
     /**
-     * Opens the app on the group list, and on [groupUuid] over it, for a notification naming the
-     * group whose expense it is, as a notification about a group does, see `GroupNotifier`, which
-     * also says why [requestCode] has to differ from one group to another.
+     * Opens the app on the group list, on [groupUuid] over it, for a notification naming the group
+     * whose expense it is, and on [expenseUuid] over that, for one about a single expense of it. As
+     * a notification about a group does, see `GroupNotifier`, which also says why [requestCode] has
+     * to differ from one group or expense to another.
      */
-    private fun groupsIntent(requestCode: Int, groupUuid: String? = null): PendingIntent {
+    private fun groupsIntent(
+        requestCode: Int,
+        groupUuid: String? = null,
+        expenseUuid: String? = null,
+    ): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
 
             putExtra(EXTRA_OPEN_GROUPS, true)
             putExtra(EXTRA_OPEN_GROUP_UUID, groupUuid)
+            putExtra(EXTRA_OPEN_EXPENSE_UUID, expenseUuid)
         }
 
         return PendingIntent.getActivity(
