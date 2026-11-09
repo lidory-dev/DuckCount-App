@@ -92,11 +92,12 @@ fun AmountTextField(
         Spacer(modifier = Modifier.padding(Padding.small))
 
         groupUuid?.let {
+            // A group's expenses are in the group's currency. Disabled rather than read-only: a
+            // field that can take the focus lights up as if the currency could be changed.
             DuckCountTextField(
                 value = currencyValue,
                 onValueChange = { },
-                readOnly = true,
-                enabled = true,
+                enabled = false,
                 modifier = Modifier
                     .fillMaxSize()
                     .height(textFieldHeightDp)
