@@ -22,8 +22,9 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import androidx.navigation3.ui.NavDisplay
 import app.lidory.duckcount.R
+import app.lidory.duckcount.android.ui.animation.directedTransition
 import app.lidory.duckcount.android.ui.animation.popTransition
-import app.lidory.duckcount.android.ui.animation.pushTransition
+import app.lidory.duckcount.android.ui.animation.rememberBackStackDirection
 import app.lidory.duckcount.android.ui.animation.replaceTransition
 import app.lidory.duckcount.android.ui.theme.isAppInDarkTheme
 import app.lidory.duckcount.authentication.KeyPackageSetUp
@@ -73,6 +74,8 @@ fun NavigationRoot(
     val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>()
 
     SharedTransitionLayout {
+        val backStackDirection = rememberBackStackDirection(backStack)
+
         NavDisplay(
             modifier = modifier,
             backStack = backStack,
@@ -81,8 +84,8 @@ fun NavigationRoot(
                 rememberViewModelStoreNavEntryDecorator(),
             ),
             sceneStrategy = listDetailStrategy,
-            transitionSpec = { pushTransition() },
-            popTransitionSpec = { popTransition() },
+            transitionSpec = { directedTransition(backStackDirection) },
+            popTransitionSpec = { directedTransition(backStackDirection) },
             predictivePopTransitionSpec = { popTransition() },
             entryProvider = { key ->
                 when (key) {

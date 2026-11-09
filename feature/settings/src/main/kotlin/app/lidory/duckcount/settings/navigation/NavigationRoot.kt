@@ -13,8 +13,9 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import app.lidory.duckcount.android.ui.animation.directedTransition
 import app.lidory.duckcount.android.ui.animation.popTransition
-import app.lidory.duckcount.android.ui.animation.pushTransition
+import app.lidory.duckcount.android.ui.animation.rememberBackStackDirection
 import app.lidory.duckcount.settings.AboutScreen
 import app.lidory.duckcount.settings.AccountDeletionScreen
 import app.lidory.duckcount.settings.AccountScreen
@@ -52,6 +53,8 @@ fun NavigationRoot(
     // say so: it has no confirmation of its own, the change being the only thing it is for.
     var isPasswordChanged by rememberSaveable { mutableStateOf(false) }
 
+    val backStackDirection = rememberBackStackDirection(backStack)
+
     NavDisplay(
         modifier = modifier,
         backStack = backStack,
@@ -59,8 +62,8 @@ fun NavigationRoot(
             rememberSaveableStateHolderNavEntryDecorator(),
             rememberViewModelStoreNavEntryDecorator(),
         ),
-        transitionSpec = { pushTransition() },
-        popTransitionSpec = { popTransition() },
+        transitionSpec = { directedTransition(backStackDirection) },
+        popTransitionSpec = { directedTransition(backStackDirection) },
         predictivePopTransitionSpec = { popTransition() },
         entryProvider = entryProvider {
             entry<SettingsScreenKey> {
