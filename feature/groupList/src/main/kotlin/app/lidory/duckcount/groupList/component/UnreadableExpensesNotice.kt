@@ -22,12 +22,12 @@ fun UnreadableExpensesNotice(count: Int, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(size = Padding.large),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
     ) {
         Text(
             modifier = Modifier.padding(Padding.large),
             text = pluralStringResource(R.plurals.unreadable_expenses_notice, count, count),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
         )
     }
 }

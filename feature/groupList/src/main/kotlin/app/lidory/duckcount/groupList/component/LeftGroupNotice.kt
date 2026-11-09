@@ -22,12 +22,12 @@ fun LeftGroupNotice(isDeleted: Boolean, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(size = Padding.large),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
     ) {
         Text(
             modifier = Modifier.padding(Padding.large),
             text = stringResource(if (isDeleted) R.string.deleted_group_notice else R.string.left_group_notice),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
         )
     }
 }
