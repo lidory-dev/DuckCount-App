@@ -289,7 +289,7 @@ fun CreateExpenseScreen(
                         },
                         onAmountFinished = viewModel::finishAmount,
                         onCurrencyValueChange = { currency ->
-                            viewModel.updateCurrency(currency)
+                            viewModel.selectCurrency(currency)
                             focusManager.clearFocus()
                         },
                         focusManager = focusManager,

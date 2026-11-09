@@ -449,6 +449,17 @@ class CreateExpenseViewModel(
         state = state.copy(amountText = state.amount)
     }
 
+    /**
+     * The user picked [currency]: the form is written anew for it, see [updateCurrency], and the
+     * shares worked out again from the amount as it now stands, which those rounded one by one need
+     * not add up to: 120.50 split in two is two shares of 60.25, 60 each once rounded, of a total
+     * rounded to 121.
+     */
+    fun selectCurrency(currency: Currency) {
+        updateCurrency(currency)
+        calculateShares()
+    }
+
     fun updateCurrency(currency: Currency) {
         val reformat: (String) -> String = { value ->
             when {

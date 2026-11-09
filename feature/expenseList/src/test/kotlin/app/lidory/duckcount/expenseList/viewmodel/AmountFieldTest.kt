@@ -92,6 +92,39 @@ class AmountFieldTest {
         assertEquals("12.00", viewModel.state.amount)
     }
 
+    /** Rounded one by one, two shares of 60.25 would make 120, short of the 121 the amount rounds to. */
+    @Test
+    fun `picking a currency works the shares out again from the amount it rounds to`() {
+        viewModel.updateAmount("120.5")
+        viewModel.updateBeneficiaries(
+            listOf(
+                Beneficiary(expenseUuid = "", userUuid = ADA, share = "60.25"),
+                Beneficiary(expenseUuid = "", userUuid = BOB, share = "60.25"),
+            ),
+        )
+
+        viewModel.selectCurrency(YEN)
+
+        assertEquals("121", viewModel.state.amount)
+        assertEquals(listOf("61", "60"), viewModel.state.beneficiaries.map { it.share })
+    }
+
+    @Test
+    fun `picking a currency rounds a fixed share and the others share what it leaves`() {
+        viewModel.updateAmount("120.5")
+        viewModel.updateBeneficiaries(
+            listOf(
+                Beneficiary(expenseUuid = "", userUuid = ADA, share = "20.25"),
+                Beneficiary(expenseUuid = "", userUuid = BOB, share = "100.25"),
+            ),
+        )
+        viewModel.setBeneficiaryFixedShare(userUuid = ADA)
+
+        viewModel.selectCurrency(YEN)
+
+        assertEquals(listOf("20", "101"), viewModel.state.beneficiaries.map { it.share })
+    }
+
     @Test
     fun `a separator is refused in a currency without subunits`() {
         viewModel.updateCurrency(YEN)
@@ -140,7 +173,8 @@ class AmountFieldTest {
 
     /**
      * Answers what typing amounts asks: the shares, every fixed one as given and the rest of the
-     * amount split evenly, every expense passing the rules.
+     * amount split evenly in what the currency has for subunits, the first of them taking what
+     * that leaves over, every expense passing the rules.
      */
     private class SplittingCallBacks : CreateExpenseCallBacks {
         override val maxTitleLength = 50
@@ -160,14 +194,22 @@ class AmountFieldTest {
         ): List<Beneficiary> {
             val fixed = fixedUuid.values.fold(BigDecimal.ZERO) { sum, share -> sum + BigDecimal(share) }
             val others = beneficiaryUserUuids.filterNot { it in fixedUuid }
+            val left = BigDecimal(amount) - fixed
             val each = if (others.isEmpty()) {
                 BigDecimal.ZERO
             } else {
-                (BigDecimal(amount) - fixed).divide(BigDecimal(others.size), 2, RoundingMode.DOWN)
+                left.divide(BigDecimal(others.size), if (currency.hasSubunits) 2 else 0, RoundingMode.DOWN)
             }
+            val leftOver = left - each * BigDecimal(others.size)
 
             return beneficiaryUserUuids.map { userUuid ->
-                Beneficiary(expenseUuid = expenseUuid, userUuid = userUuid, share = fixedUuid[userUuid] ?: each.toPlainString())
+                val share = when (userUuid) {
+                    in fixedUuid -> fixedUuid.getValue(userUuid)
+                    others.first() -> (each + leftOver).toPlainString()
+                    else -> each.toPlainString()
+                }
+
+                Beneficiary(expenseUuid = expenseUuid, userUuid = userUuid, share = share)
             }
         }
 
