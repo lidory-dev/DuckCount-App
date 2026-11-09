@@ -2,7 +2,6 @@ package app.lidory.duckcount.groupList
 
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -73,11 +72,8 @@ fun GroupListScreen(
                             description = group.description,
                             isLeft = group.isLeft,
                             isDeleted = group.isDeleted,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(
-                                    onClick = { onGroupClicked(group.uuid) },
-                                ),
+                            onClick = { onGroupClicked(group.uuid) },
+                            modifier = Modifier.fillMaxWidth(),
                             groupUuid = group.uuid,
                             animatedVisibilityScope = animatedVisibilityScope,
                             sharedTransitionScope = sharedTransitionScope,

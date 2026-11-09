@@ -1,6 +1,5 @@
 package app.lidory.duckcount.expenseList
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.clipScrollableContainer
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.layout.Box
@@ -212,11 +211,8 @@ private fun ExpenseListItem(
 
     // We navigate when clicking on an expense, so we need to safeguard the onClick with dropUnlessResumed.
     ExpenseCard(
-        modifier = Modifier
-            .clickable(
-                onClick = dropUnlessResumed { onExpenseClicked(expense.uuid, expense.groupUuid) },
-            )
-            .padding(horizontal = Padding.medium, vertical = Padding.small),
+        onClick = dropUnlessResumed { onExpenseClicked(expense.uuid, expense.groupUuid) },
+        modifier = Modifier.padding(horizontal = Padding.medium, vertical = Padding.small),
         title = expense.title,
         // A one-time expense can name somebody this device holds no profile for: the server
         // asks for no relationship between a creditor and the people they name, and a

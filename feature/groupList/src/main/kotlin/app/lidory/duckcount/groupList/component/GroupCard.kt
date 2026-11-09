@@ -39,6 +39,7 @@ fun GroupCard(
     description: String,
     isLeft: Boolean,
     isDeleted: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
     groupUuid: String,
     sharedTransitionScope: SharedTransitionScope,
@@ -47,11 +48,14 @@ fun GroupCard(
     val leftMarker = stringResource(if (isDeleted) R.string.deleted_group_marker else R.string.left_group_marker)
     val textDecoration = if (isLeft) TextDecoration.LineThrough else null
 
+    // Clicked through the card rather than a modifier around it, which would take the rectangle
+    // the card sits in, corners included, for its touch area and its ripple.
     ElevatedCard(
+        onClick = onClick,
         modifier = if (isLeft) modifier.semantics { stateDescription = leftMarker } else modifier,
         colors = if (isLeft) leftGroupCardColors() else CardDefaults.elevatedCardColors(),
         elevation = if (isLeft) {
-            CardDefaults.elevatedCardElevation(defaultElevation = 0.dp)
+            CardDefaults.elevatedCardElevation(defaultElevation = 0.dp, pressedElevation = 0.dp)
         } else {
             CardDefaults.elevatedCardElevation()
         },

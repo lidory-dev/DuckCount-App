@@ -30,6 +30,7 @@ import app.lidory.duckcount.expenseList.model.ExpenseStatus
 
 @Composable
 fun ExpenseCard(
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
     title: String,
     creditorName: String,
@@ -42,7 +43,10 @@ fun ExpenseCard(
     isSettlement: Boolean,
     isSettled: Boolean = false,
 ) {
+    // Clicked through the card rather than a modifier around it, which would take the rectangle
+    // the card sits in, corners included, for its touch area and its ripple.
     ElevatedCard(
+        onClick = onClick,
         modifier = modifier
             .alpha(if (isActive) 1f else 0.75f)
             .fillMaxWidth(),
@@ -51,6 +55,7 @@ fun ExpenseCard(
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = Elevation.small,
+            pressedElevation = Elevation.small,
         ),
     ) {
         Row(
