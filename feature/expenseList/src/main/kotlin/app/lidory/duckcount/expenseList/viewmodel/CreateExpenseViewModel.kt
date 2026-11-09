@@ -115,6 +115,7 @@ class CreateExpenseViewModel(
     var state by mutableStateOf(
         CreateExpenseState(
             currency = createExpenseCallBacks.getDefaultCurrency(),
+            isBeingRead = expenseUuid != null,
             validateExpenseCallBack = { amount, currency, beneficiaries ->
                 createExpenseCallBacks.validateExpense(
                     amount = amount,
@@ -269,6 +270,7 @@ class CreateExpenseViewModel(
             updateBeneficiaryShare(it.userUuid, it.share)
         }
 
+        state = state.copy(isBeingRead = false)
         loadedState.value = state
     }
 
@@ -725,6 +727,12 @@ data class CreateExpenseState(
      * the one an edit is written after.
      */
     val revision: Long? = null,
+
+    /**
+     * Whether the expense being edited has yet to be read into the form: its title and amount are
+     * then not missing, only not here yet, so the fields say nothing about them.
+     */
+    val isBeingRead: Boolean = false,
     private val validateExpenseCallBack: (String, Currency, List<Beneficiary>) -> Int?,
 ) {
     /**

@@ -58,6 +58,31 @@ class ChangedMeanwhileFormTest {
         Dispatchers.resetMain()
     }
 
+    /** Its title and amount are not missing until then, only not here yet. */
+    @Test
+    fun `an expense being edited counts as being read until it is in the form`() = runTest(mainDispatcher) {
+        val viewModel = CreateExpenseViewModel(groupUuid = GROUP, expenseUuid = EXPENSE, createExpenseCallBacks = EditCallBacks())
+
+        assertTrue(viewModel.state.isBeingRead)
+        assertEquals("", viewModel.state.title)
+
+        runCurrent()
+
+        assertFalse(viewModel.state.isBeingRead)
+        assertEquals("Dinner", viewModel.state.title)
+    }
+
+    @Test
+    fun `a new expense is never being read`() = runTest(mainDispatcher) {
+        val viewModel = CreateExpenseViewModel(groupUuid = GROUP, createExpenseCallBacks = EditCallBacks())
+
+        assertFalse(viewModel.state.isBeingRead)
+
+        runCurrent()
+
+        assertFalse(viewModel.state.isBeingRead)
+    }
+
     @Test
     fun `an edit refused for another member's version reads the form again from it`() = runTest(mainDispatcher) {
         val callBacks = EditCallBacks()

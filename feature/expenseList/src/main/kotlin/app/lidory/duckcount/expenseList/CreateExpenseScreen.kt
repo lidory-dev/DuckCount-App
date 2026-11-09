@@ -256,7 +256,8 @@ fun CreateExpenseScreen(
                                     viewModel.state.trimmedTitle.length,
                                     viewModel.maxTitleLength,
                                 ),
-                        isInError = viewModel.state.trimmedTitle.length !in (1..viewModel.maxTitleLength),
+                        isInError = !viewModel.state.isBeingRead &&
+                            viewModel.state.trimmedTitle.length !in (1..viewModel.maxTitleLength),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -278,7 +279,7 @@ fun CreateExpenseScreen(
                     AmountTextField(
                         amountValue = viewModel.state.amountText,
                         acceptsAmount = viewModel::acceptsAmount,
-                        isAmountMissing = viewModel.state.amount.isBlank(),
+                        isAmountMissing = !viewModel.state.isBeingRead && viewModel.state.amount.isBlank(),
                         currencyValue = viewModel.state.currency.symbol,
                         currencies = viewModel.currencies,
                         currencyDisplayName = viewModel::currencyDisplayName,
