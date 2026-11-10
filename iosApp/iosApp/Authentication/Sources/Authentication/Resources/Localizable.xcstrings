@@ -1,0 +1,446 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "A username is required" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un identifiant est requis"
+          }
+        }
+      }
+    },
+    "By registering, you accept the %@ and the %@." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En créant un compte, vous acceptez les %1$@ et la %2$@."
+          }
+        }
+      }
+    },
+    "Couldn’t reach the server. Please try again later." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de joindre le serveur. Réessayez plus tard."
+          }
+        }
+      }
+    },
+    "Device not eligible" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appareil non éligible"
+          }
+        }
+      }
+    },
+    "Done" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminer"
+          }
+        }
+      }
+    },
+    "For security and abuse protection reasons, DuckCount accounts can only be created on a genuine iPhone or iPad. If yours is one, restart it and try again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pour des raisons de sécurité et de protection contre les abus, un compte DuckCount ne peut être créé que sur un véritable iPhone ou iPad. Si votre appareil en est un, redémarrez-le et réessayez."
+          }
+        }
+      }
+    },
+    "Full Name" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom complet"
+          }
+        }
+      }
+    },
+    "If you used this password on any other service, you MUST update it immediately." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si vous avez utilisé ce mot de passe sur un autre service, vous DEVEZ le changer immédiatement."
+          }
+        }
+      }
+    },
+    "Incorrect username or password." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Identifiant ou mot de passe incorrect."
+          }
+        }
+      }
+    },
+    "Letters and digits only" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lettres et chiffres uniquement"
+          }
+        }
+      }
+    },
+    "Log In" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se connecter"
+          }
+        }
+      }
+    },
+    "Must start with a letter" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doit commencer par une lettre"
+          }
+        }
+      }
+    },
+    "No internet connection. Please check your network and try again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune connexion Internet. Vérifiez votre connexion et réessayez."
+          }
+        }
+      }
+    },
+    "Noted" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compris"
+          }
+        }
+      }
+    },
+    "Password" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mot de passe"
+          }
+        }
+      }
+    },
+    "Password Confirmation" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmation du mot de passe"
+          }
+        }
+      }
+    },
+    "Please consider generating a brand new random password using a password manager." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nous vous conseillons de générer un nouveau mot de passe aléatoire avec un gestionnaire de mots de passe."
+          }
+        }
+      }
+    },
+    "privacy policy" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "politique de confidentialité"
+          }
+        }
+      }
+    },
+    "Register" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Créer un compte"
+          }
+        }
+      }
+    },
+    "Set up your profile" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configurez votre profil"
+          }
+        }
+      }
+    },
+    "Share your expenses, not your data." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partagez vos dépenses, pas vos données."
+          }
+        }
+      }
+    },
+    "Something went wrong on our end. Please try again later." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une erreur est survenue de notre côté. Réessayez plus tard."
+          }
+        }
+      }
+    },
+    "Something went wrong. Please try again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une erreur est survenue. Réessayez."
+          }
+        }
+      }
+    },
+    "Split bills with your group in seconds. The amounts and what they’re for stay encrypted — we can’t read them." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partagez la note avec votre groupe en quelques secondes. Les montants et leur nature restent chiffrés, nous ne pouvons pas les lire."
+          }
+        }
+      }
+    },
+    "terms of use" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "conditions d’utilisation"
+          }
+        }
+      }
+    },
+    "The password you are using has been leaked on the web %lld times and hackers can already use it to get into your accounts." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The password you are using has been leaked on the web once and hackers can already use it to get into your accounts."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The password you are using has been leaked on the web %lld times and hackers can already use it to get into your accounts."
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Le mot de passe que vous utilisez a été retrouvé une fois dans des fuites de données. Des pirates peuvent déjà s’en servir pour accéder à vos comptes."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Le mot de passe que vous utilisez a été retrouvé %lld fois dans des fuites de données. Des pirates peuvent déjà s’en servir pour accéder à vos comptes."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "The passwords do not match" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les mots de passe ne correspondent pas"
+          }
+        }
+      }
+    },
+    "The request timed out. Please try again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La requête a expiré. Réessayez."
+          }
+        }
+      }
+    },
+    "This device couldn’t be verified. Please try again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cet appareil n’a pas pu être vérifié. Réessayez."
+          }
+        }
+      }
+    },
+    "This username is already taken." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cet identifiant est déjà pris."
+          }
+        }
+      }
+    },
+    "Too many attempts. Please try again in a few minutes." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trop de tentatives. Réessayez dans quelques minutes."
+          }
+        }
+      }
+    },
+    "Username" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Identifiant"
+          }
+        }
+      }
+    },
+    "Username too long (%lld/%lld)" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Identifiant trop long (%1$lld/%2$lld)"
+          }
+        }
+      }
+    },
+    "Visible to your contacts and group members. Everything is end-to-end encrypted, which means we can’t see your profile — only the people you choose to share it with." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visible par vos contacts et les membres de vos groupes. Tout est chiffré de bout en bout : nous ne pouvons pas voir votre profil, seules les personnes avec qui vous choisissez de le partager y ont accès."
+          }
+        }
+      }
+    },
+    "Watch out!" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attention !"
+          }
+        }
+      }
+    },
+    "We couldn’t complete the secure handshake. Please try again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La connexion sécurisée n’a pas pu être établie. Réessayez."
+          }
+        }
+      }
+    },
+    "Welcome back!" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bon retour !"
+          }
+        }
+      }
+    },
+    "Welcome!" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bienvenue !"
+          }
+        }
+      }
+    },
+    "Your full name is too long." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre nom complet est trop long."
+          }
+        }
+      }
+    },
+    "Your password can’t be only spaces" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le mot de passe ne peut pas être composé uniquement d’espaces"
+          }
+        }
+      }
+    },
+    "Your password must have at least %lld characters" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le mot de passe doit contenir au moins %lld caractères"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

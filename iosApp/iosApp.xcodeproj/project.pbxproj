@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A11C710B2ED5EF2400CC845E /* ExpenseList in Frameworks */ = {isa = PBXBuildFile; productRef = A11C710A2ED5EF2400CC845E /* ExpenseList */; };
 		CA17C0A12ED5EF2400CC845E /* ContactList in Frameworks */ = {isa = PBXBuildFile; productRef = CA17C0A22ED5EF2400CC845E /* ContactList */; };
+		A0711E0B2ED5EF2400CC845E /* Authentication in Frameworks */ = {isa = PBXBuildFile; productRef = A0711E0A2ED5EF2400CC845E /* Authentication */; };
 		416EC95582E244E030191CBF /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 32AAC9ED64381F7DBF4B5996 /* SQLCipher */; };
 /* End PBXBuildFile section */
 
@@ -20,6 +21,7 @@
 		79EE22C28C748E450BCF7B31 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Authentication,
 				ContactList,
 				ExpenseList,
 				Info.plist,
@@ -51,6 +53,7 @@
 			files = (
 				A11C710B2ED5EF2400CC845E /* ExpenseList in Frameworks */,
 				CA17C0A12ED5EF2400CC845E /* ContactList in Frameworks */,
+				A0711E0B2ED5EF2400CC845E /* Authentication in Frameworks */,
 				416EC95582E244E030191CBF /* SQLCipher in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -130,6 +133,7 @@
 			packageProductDependencies = (
 				A11C710A2ED5EF2400CC845E /* ExpenseList */,
 				CA17C0A22ED5EF2400CC845E /* ContactList */,
+				A0711E0A2ED5EF2400CC845E /* Authentication */,
 				32AAC9ED64381F7DBF4B5996 /* SQLCipher */,
 			);
 			productName = iosApp;
@@ -442,6 +446,10 @@
 		CA17C0A22ED5EF2400CC845E /* ContactList */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ContactList;
+		};
+		A0711E0A2ED5EF2400CC845E /* Authentication */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Authentication;
 		};
 		32AAC9ED64381F7DBF4B5996 /* SQLCipher */ = {
 			isa = XCSwiftPackageProductDependency;

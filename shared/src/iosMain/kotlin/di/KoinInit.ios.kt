@@ -1,6 +1,9 @@
 package di
 
 import account.di.accountModule
+import authentication.AccountAuthentication
+import authentication.AppAttester
+import authentication.NetworkConnectivity
 import database.data.repository.BeneficiaryRepository
 import database.data.repository.ExpenseRepository
 import database.data.repository.UserRepository
@@ -48,10 +51,26 @@ fun initKoin() {
     }
 }
 
-/** What the shared layer only knows as an interface, as iOS implements it so far. */
+/**
+ * What the shared layer only knows as an interface, as iOS implements it so far, and what only iOS
+ * runs from it, the Android app holding its own counterparts.
+ */
 private val iosPlatformModule = module {
     single<ResendScheduler> { NoResendScheduler }
     single<GroupSyncAnnouncer> { NoGroupSyncAnnouncer }
+    single { NetworkConnectivity() }
+    single { AppAttester() }
+    single {
+        AccountAuthentication(
+            duckCountClient = get(),
+            haveIBeenPwnedClient = get(),
+            profileRepository = get(),
+            discoveryUsernameRepository = get(),
+            keyPackageRepository = get(),
+            networkConnectivity = get(),
+            appAttester = get(),
+        )
+    }
 }
 
 class KoinHelper : KoinComponent {
@@ -59,4 +78,5 @@ class KoinHelper : KoinComponent {
     fun getBeneficiaryRepository(): BeneficiaryRepository = get()
     fun getUserRepository(): UserRepository = get()
     fun getUpdateRequirement(): UpdateRequirement = get()
+    fun getAccountAuthentication(): AccountAuthentication = get()
 }
