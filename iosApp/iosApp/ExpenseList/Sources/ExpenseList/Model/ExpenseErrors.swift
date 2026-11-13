@@ -42,8 +42,8 @@ public enum ExpenseValidationError: Hashable, Sendable {
     }
 }
 
-/// Why a write, a deletion or a mark of an expense failed, as Android's `ExpenseWriteError` tells
-/// that of a one-time expense.
+/// Why a write, a deletion, a restoration or a mark of an expense failed, as Android's
+/// `ExpenseWriteError` tells it.
 public enum ExpenseWriteError: Error, Hashable, Sendable {
     case noInternet
     case timeout
@@ -61,6 +61,21 @@ public enum ExpenseWriteError: Error, Hashable, Sendable {
     /// This device does not hold the expense's key yet: re-sealing it under a new one would leave
     /// everyone it is shared with unable to open it, so it waits for the key to arrive.
     case keyMissing
+
+    /// Another member changed the group expense in the meantime: the form shows its latest version.
+    case changedMeanwhile
+
+    /// The user is no longer a member of the expense's group.
+    case groupLeft
+
+    /// The expense's group is still being created on the server.
+    case creationPending
+
+    /// The expense's group waits for its owner to come online.
+    case awaitingOwner
+
+    /// The server took too many changes from the user.
+    case rateLimited
 
     case unknown
 
@@ -80,6 +95,16 @@ public enum ExpenseWriteError: Error, Hashable, Sendable {
             String(localized: "Your session expired, please log in again.", bundle: .module)
         case .keyMissing:
             String(localized: "This expense cannot be edited on this device yet: its key has not arrived.", bundle: .module)
+        case .changedMeanwhile:
+            String(localized: "Another member changed this expense in the meantime: check its latest version, then try again.", bundle: .module)
+        case .groupLeft:
+            String(localized: "You’re no longer a member of this group.", bundle: .module)
+        case .creationPending:
+            String(localized: "The group is still being created, please try again in a moment.", bundle: .module)
+        case .awaitingOwner:
+            String(localized: "The group is waiting for its owner to come online, please try again later.", bundle: .module)
+        case .rateLimited:
+            String(localized: "Too many changes, please try again later.", bundle: .module)
         case .unknown:
             String(localized: "Something went wrong, please try again.", bundle: .module)
         }
@@ -107,10 +132,22 @@ public enum ExpenseSaveError: Error, Hashable, Sendable {
     /// takes them out of its selection for the user to save again.
     case beneficiariesDeleted([DeletedBeneficiary])
 
+    /// The user is no longer a member of the group expense's group.
+    case groupLeft
+
+    /// Another member deleted the group expense being edited in the meantime: nothing was sent.
+    case deletedMeanwhile
+
     public var message: String {
         switch self {
         case .write(let error):
             return error.message
+
+        case .groupLeft:
+            return ExpenseWriteError.groupLeft.message
+
+        case .deletedMeanwhile:
+            return String(localized: "Another member deleted this expense in the meantime.", bundle: .module)
 
         case .beneficiariesDeleted(let beneficiaries):
             let names = beneficiaries.compactMap(\.fullName)

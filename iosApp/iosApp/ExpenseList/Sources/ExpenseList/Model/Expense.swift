@@ -79,7 +79,7 @@ public struct Beneficiary: Hashable, Sendable {
     }
 }
 
-/// A one-time expense, as Android's `ExpenseWithBeneficiaries` holds one.
+/// An expense, one-time or in a group, as Android's `ExpenseWithBeneficiaries` holds one.
 public struct Expense: Identifiable, Hashable, Sendable {
     public let id: String
 
@@ -105,6 +105,25 @@ public struct Expense: Identifiable, Hashable, Sendable {
     /// The revision of the version shown.
     public let revision: Int64?
 
+    /// The group it belongs to, or nil for a one-time expense.
+    public let groupId: String?
+
+    /// Whether it records a repayment between two members of its group, rather than spending: its
+    /// creditor is who paid, its single beneficiary who was paid back. Never edited nor restored.
+    public let isSettlement: Bool
+
+    /// Whether a member of its group deleted it, which any member can undo, but for a settlement.
+    /// Still listed, out of the balances.
+    public let isDeleted: Bool
+
+    /// Who deleted it, while it is deleted.
+    public let deletedByUuid: String?
+
+    /// Whether it belongs to a group.
+    public var isGroupExpense: Bool {
+        groupId != nil
+    }
+
     public init(
         id: String,
         timestamp: String,
@@ -116,7 +135,11 @@ public struct Expense: Identifiable, Hashable, Sendable {
         beneficiaries: [Beneficiary],
         isSettled: Bool = false,
         settledAt: String? = nil,
-        revision: Int64? = nil
+        revision: Int64? = nil,
+        groupId: String? = nil,
+        isSettlement: Bool = false,
+        isDeleted: Bool = false,
+        deletedByUuid: String? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -129,6 +152,10 @@ public struct Expense: Identifiable, Hashable, Sendable {
         self.isSettled = isSettled
         self.settledAt = settledAt
         self.revision = revision
+        self.groupId = groupId
+        self.isSettlement = isSettlement
+        self.isDeleted = isDeleted
+        self.deletedByUuid = deletedByUuid
     }
 }
 

@@ -1,13 +1,14 @@
 package expense
 
+import group.GroupExpenseHistoryError
+import group.GroupExpenseWriteError
 import mls.MlsIdentityError
 import util.NetworkError
 import vault.VaultError
 
 /**
- * Why writing, deleting or marking a one-time expense failed, at the granularity the iOS screens
- * tell apart: the one-time part of Android's `ExpenseWriteError`, which lives in an Android-only
- * module, the rest being a group's.
+ * Why writing, deleting, restoring or marking an expense failed, at the granularity the iOS screens
+ * tell apart, as Android's `ExpenseWriteError`, which lives in an Android-only module.
  */
 enum class ExpenseWriteFailure {
     /** No connectivity. */
@@ -35,15 +36,33 @@ enum class ExpenseWriteFailure {
      */
     KEY_MISSING,
 
+    /** Another member changed the group expense in the meantime: the device shows their version. */
+    CHANGED_MEANWHILE,
+
+    /** The user is no longer a member of the expense's group. */
+    GROUP_LEFT,
+
+    /** The expense's group is still being created on the server. */
+    CREATION_PENDING,
+
+    /** The expense's group waits for its owner to come online. */
+    AWAITING_OWNER,
+
+    /** The server took too many changes from the user. */
+    RATE_LIMITED,
+
     /** Anything else. */
     UNKNOWN,
 }
 
-/** Why saving the expense form failed, as Android's `ExpenseSaveError` tells it of a one-time expense. */
+/** Why saving the expense form failed, as Android's `ExpenseSaveError` tells it. */
 sealed interface ExpenseSaveFailure {
 
     /** For a reason told in a sentence of its own. */
     data class Write(val failure: ExpenseWriteFailure) : ExpenseSaveFailure
+
+    /** The user is no longer a member of the group expense's group. */
+    data object GroupLeft : ExpenseSaveFailure
 
     /**
      * The server refused the expense for naming people who deleted their account, [beneficiaries],
@@ -56,7 +75,7 @@ sealed interface ExpenseSaveFailure {
 /** Somebody who deleted their account, by the name this device shows for them, [fullName], if any. */
 data class DeletedBeneficiary(val userUuid: String, val fullName: String?)
 
-/** Why the history of a one-time expense could not be read, as Android's `ExpenseHistoryError` tells it. */
+/** Why the history of an expense could not be read, as Android's `ExpenseHistoryError` tells it. */
 enum class ExpenseHistoryFailure {
     NO_INTERNET,
     TIMEOUT,
@@ -179,4 +198,74 @@ internal fun OneTimeExpenseHistoryError.toHistoryFailure(isOnline: Boolean): Exp
         }
 
         OneTimeExpenseHistoryError.Unreadable -> ExpenseHistoryFailure.UNKNOWN
+    }
+
+/**
+ * Why a group expense write failed, as Android's `GroupExpenseWriteError.toExpenseWriteError` tells
+ * it: the identity, where being offline shows first, as for a one-time expense; another member's
+ * edit made first, a group the user is no longer in, a creation the group waits on, the server's
+ * limit and a group waiting for its owner each with their own wording; an expense that had every
+ * edit it takes as a one-time expense's; and what the screens never offer as unknown.
+ */
+internal fun GroupExpenseWriteError.toWriteFailure(isOnline: Boolean): ExpenseWriteFailure =
+    when (this) {
+        is GroupExpenseWriteError.Network -> error.toWriteFailure(isOnline = isOnline)
+
+        is GroupExpenseWriteError.Identity -> OneTimeExpenseWriteError.Identity(error).toWriteFailure(isOnline = isOnline)
+
+        GroupExpenseWriteError.NoSession -> ExpenseWriteFailure.UNAUTHORIZED
+
+        GroupExpenseWriteError.NotMember -> ExpenseWriteFailure.GROUP_LEFT
+
+        GroupExpenseWriteError.Conflict -> ExpenseWriteFailure.CHANGED_MEANWHILE
+
+        GroupExpenseWriteError.EditLimitReached -> ExpenseWriteFailure.CONFLICT
+
+        GroupExpenseWriteError.CreationPending -> ExpenseWriteFailure.CREATION_PENDING
+
+        GroupExpenseWriteError.AwaitingOwner -> ExpenseWriteFailure.AWAITING_OWNER
+
+        is GroupExpenseWriteError.RateLimited -> ExpenseWriteFailure.RATE_LIMITED
+
+        GroupExpenseWriteError.SettlementLocked,
+        GroupExpenseWriteError.NotShown,
+        GroupExpenseWriteError.Crypto,
+        GroupExpenseWriteError.KeyNotCurrent,
+            -> ExpenseWriteFailure.UNKNOWN
+    }
+
+/** Why saving the form of a group expense failed, as Android's `toExpenseSaveError` tells it. */
+internal fun GroupExpenseWriteError.toSaveFailure(isOnline: Boolean): ExpenseSaveFailure =
+    when (this) {
+        GroupExpenseWriteError.NotMember -> ExpenseSaveFailure.GroupLeft
+        else -> ExpenseSaveFailure.Write(failure = toWriteFailure(isOnline = isOnline))
+    }
+
+/**
+ * Why the history of a group expense could not be read, as Android's
+ * `GroupExpenseHistoryError.toExpenseHistoryError` tells it: the identity, which reads the vault
+ * from the server until it first opens in the process, failing on the network is told as the
+ * network failing.
+ */
+internal fun GroupExpenseHistoryError.toHistoryFailure(isOnline: Boolean): ExpenseHistoryFailure =
+    when (this) {
+        is GroupExpenseHistoryError.Network -> OneTimeExpenseHistoryError.Network(error).toHistoryFailure(isOnline = isOnline)
+
+        is GroupExpenseHistoryError.Identity -> when (val identityError = error) {
+            is MlsIdentityError.Vault -> when (val vaultError = identityError.error) {
+                is VaultError.Network -> OneTimeExpenseHistoryError.Network(vaultError.error).toHistoryFailure(isOnline = isOnline)
+
+                else -> ExpenseHistoryFailure.UNKNOWN
+            }
+
+            MlsIdentityError.MissingSession,
+            MlsIdentityError.Crypto,
+                -> ExpenseHistoryFailure.UNKNOWN
+        }
+
+        GroupExpenseHistoryError.NoSession,
+        GroupExpenseHistoryError.NotShown,
+        GroupExpenseHistoryError.NotMember,
+        GroupExpenseHistoryError.Storage,
+            -> ExpenseHistoryFailure.UNKNOWN
     }

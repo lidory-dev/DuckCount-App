@@ -2,17 +2,17 @@ import SwiftUI
 
 /// The contact requests waiting for the user, each to accept, decline, or decline and block its
 /// sender, as Android's `ContactRequestListScreen`.
-struct ContactRequestListView: View {
+public struct ContactRequestListView: View {
     @StateObject private var viewModel: ContactRequestListViewModel
 
     /// Whether the user pulled the list to refresh it, which shows its own spinner.
     @State private var isPulling = false
 
-    init(callBacks: any ContactCallBacks) {
+    public init(callBacks: any ContactCallBacks) {
         _viewModel = StateObject(wrappedValue: ContactRequestListViewModel(callBacks: callBacks))
     }
 
-    var body: some View {
+    public var body: some View {
         Group {
             if let requests = viewModel.requests {
                 // A list even with no request in it, the only thing that can be pulled to refresh.

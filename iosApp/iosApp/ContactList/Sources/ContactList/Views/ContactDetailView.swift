@@ -2,7 +2,7 @@ import SwiftUI
 
 /// A contact: their name, the safety number to check them by, and blocking or deleting them, as
 /// Android's `ContactDetailScreen`.
-struct ContactDetailView: View {
+public struct ContactDetailView: View {
     private let callBacks: any ContactCallBacks
     private let onClose: () -> Void
 
@@ -11,13 +11,13 @@ struct ContactDetailView: View {
     @State private var isConfirmingBlock = false
     @State private var isConfirmingDeletion = false
 
-    init(contactId: String, callBacks: any ContactCallBacks, onClose: @escaping () -> Void) {
+    public init(contactId: String, callBacks: any ContactCallBacks, onClose: @escaping () -> Void) {
         self.callBacks = callBacks
         self.onClose = onClose
         _viewModel = StateObject(wrappedValue: ContactDetailViewModel(contactId: contactId, callBacks: callBacks))
     }
 
-    var body: some View {
+    public var body: some View {
         let name = viewModel.contact?.displayName ?? unresolvedUserName
 
         List {

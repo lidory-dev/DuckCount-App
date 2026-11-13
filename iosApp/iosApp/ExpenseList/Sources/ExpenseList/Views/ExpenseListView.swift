@@ -113,23 +113,35 @@ public struct ExpenseListView: View {
 }
 
 /// An expense in the list: what it was for and who paid, what it came to, and what the user is owed
-/// of it or owes, or that it was paid back.
+/// of it or owes, or that it was paid back. A settlement says who paid whom back instead, and a
+/// deleted expense of a group is still listed, struck through and dimmed, as Android's `ExpenseCard`.
 struct ExpenseRow: View {
     let expense: Expense
     let creditorName: String
+
+    /// Who a settlement paid back, see `Expense.settlementRecipientUuid`: unused for any other
+    /// expense.
+    var recipientName = ""
+
     let selfUuid: String?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(expense.title)
+                title
                     .font(.headline)
                     .lineLimit(1)
 
-                Text("Paid by \(creditorName)", bundle: .module)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                Group {
+                    if expense.isSettlement {
+                        Text("\(creditorName) paid \(recipientName)", bundle: .module)
+                    } else {
+                        Text("Paid by \(creditorName)", bundle: .module)
+                    }
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             }
 
             Spacer(minLength: 8)
@@ -146,7 +158,7 @@ struct ExpenseRow: View {
                         .font(.subheadline)
                         .labelStyle(.titleAndIcon)
                         .lineLimit(1)
-                } else if let balance = expense.personalBalance(selfUuid: selfUuid) {
+                } else if let balance = expense.shownBalance(selfUuid: selfUuid) {
                     Text(balance.formatted(in: expense.currency, withSign: true))
                         .font(.subheadline)
                         .monospacedDigit()
@@ -156,7 +168,26 @@ struct ExpenseRow: View {
             }
             .layoutPriority(1)
         }
+        // Every text of a deleted one, which counts in no balance any more.
+        .strikethrough(expense.isDeleted)
+        .opacity(expense.isDeleted ? 0.6 : 1)
+        // Which VoiceOver says, as it says neither of those.
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(expense.isDeleted ? Text("Deleted", bundle: .module) : Text(verbatim: ""))
         .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var title: some View {
+        if expense.isSettlement {
+            Label {
+                Text("Settlement", bundle: .module)
+            } icon: {
+                Image(systemName: "arrow.left.arrow.right")
+            }
+        } else {
+            Text(expense.title)
+        }
     }
 }
 

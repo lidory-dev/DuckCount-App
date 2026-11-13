@@ -52,6 +52,17 @@ extension Expense {
             return nil
         }
     }
+
+    /// What its row shows the user is owed of it or owes, see `personalBalance(selfUuid:)`: nothing
+    /// for a settlement, which is no spending, its amount being all there is to tell of it.
+    func shownBalance(selfUuid: String?) -> Decimal? {
+        isSettlement ? nil : personalBalance(selfUuid: selfUuid)
+    }
+
+    /// Who a settlement paid back, its one beneficiary, or nil for any other expense.
+    var settlementRecipientUuid: String? {
+        isSettlement ? beneficiaries.first?.userUuid : nil
+    }
 }
 
 extension String {

@@ -367,6 +367,14 @@ interface ExpenseDao {
     @Query("SELECT * FROM ExpenseEntity WHERE groupUuid = :groupUuid AND isDeleted = false")
     fun getAllFromGroupWithoutDeletedOnesAsFlow(groupUuid: String): Flow<List<ExpenseWithBeneficiariesEntity>>
 
+    /**
+     * A group's expenses, deleted ones included, as [groupPagingSource] lists them, for a screen that
+     * cannot page them: iOS's, Swift reading no `PagingData`.
+     */
+    @Transaction
+    @Query("SELECT * FROM ExpenseEntity WHERE groupUuid = :groupUuid ORDER BY timestamp DESC, uuid")
+    fun getAllFromGroupAsFlow(groupUuid: String): Flow<List<ExpenseWithBeneficiariesEntity>>
+
     @Transaction
     @Query("SELECT * FROM ExpenseEntity WHERE groupUuid IS NULL")
     fun getAllWithoutGroupAsFlow(): Flow<List<ExpenseWithBeneficiariesEntity>>

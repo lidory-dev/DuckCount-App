@@ -6,6 +6,7 @@ final class PreviewExpenseCallBacks: ExpenseCallBacks {
     let maxTitleLength = 50
     let maxDescriptionLength = 500
     let maxBeneficiaries = 100
+    let maxGroupExpenseEdits = 10
 
     let currencies = [
         Currency(id: "eur", code: "EUR", symbol: "€", hasSubunits: true),
@@ -57,6 +58,58 @@ final class PreviewExpenseCallBacks: ExpenseCallBacks {
         ]
     }
 
+    /// A group's expenses: one at its last revision, one deleted, and a settlement.
+    private var sampleGroupExpenses: [Expense] {
+        [
+            Expense(
+                id: "g1",
+                timestamp: "2026-11-10T19:00:00",
+                title: "Groceries",
+                description: "",
+                amount: "45.00",
+                creditorUuid: "alice",
+                currency: defaultCurrency,
+                beneficiaries: [
+                    Beneficiary(userUuid: "me", share: "15.00"),
+                    Beneficiary(userUuid: "alice", share: "15.00"),
+                    Beneficiary(userUuid: "bob", share: "15.00"),
+                ],
+                revision: 11,
+                groupId: "trip"
+            ),
+            Expense(
+                id: "g2",
+                timestamp: "2026-11-10T09:30:00",
+                title: "Train tickets",
+                description: "Paris to Lyon",
+                amount: "80.00",
+                creditorUuid: "me",
+                currency: defaultCurrency,
+                beneficiaries: [
+                    Beneficiary(userUuid: "me", share: "40.00"),
+                    Beneficiary(userUuid: "bob", share: "40.00"),
+                ],
+                revision: 2,
+                groupId: "trip",
+                isDeleted: true,
+                deletedByUuid: "bob"
+            ),
+            Expense(
+                id: "g3",
+                timestamp: "2026-11-09T18:00:00",
+                title: "",
+                description: "",
+                amount: "15.00",
+                creditorUuid: "bob",
+                currency: defaultCurrency,
+                beneficiaries: [Beneficiary(userUuid: "me", share: "15.00", isShareFixed: true)],
+                revision: 1,
+                groupId: "trip",
+                isSettlement: true
+            ),
+        ]
+    }
+
     func currencyDisplayName(code: String) -> String {
         Locale.current.localizedString(forCurrencyCode: code) ?? code
     }
@@ -65,12 +118,16 @@ final class PreviewExpenseCallBacks: ExpenseCallBacks {
         "me"
     }
 
+    func currentTimestamp() -> String {
+        "2026-11-10T12:00:00"
+    }
+
     func expenses() -> AsyncStream<[Expense]> {
         AsyncStream { $0.yield(sampleExpenses) }
     }
 
     func expense(id: String) -> AsyncStream<Expense?> {
-        let expense = sampleExpenses.first { $0.id == id } ?? sampleExpenses[0]
+        let expense = (sampleExpenses + sampleGroupExpenses).first { $0.id == id } ?? sampleExpenses[0]
 
         return AsyncStream { $0.yield(expense) }
     }
@@ -128,5 +185,27 @@ final class PreviewExpenseCallBacks: ExpenseCallBacks {
 
     func history(expenseId: String) async -> ExpenseHistory {
         .versions(sampleExpenses.enumerated().map { index, expense in ExpenseVersion(revision: Int64(index + 1), expense: expense, authorUuid: expense.creditorUuid, isCreation: index == 0, madeAt: expense.timestamp) })
+    }
+
+    func groupExpenses(groupId: String) -> AsyncStream<[Expense]> {
+        AsyncStream { $0.yield(sampleGroupExpenses) }
+    }
+
+    func refreshGroup(groupId: String) async {}
+
+    func groupCurrency(groupId: String) -> AsyncStream<Currency?> {
+        AsyncStream { $0.yield(defaultCurrency) }
+    }
+
+    func isGroupLeft(groupId: String) -> AsyncStream<Bool> {
+        AsyncStream { $0.yield(false) }
+    }
+
+    func users(matching filter: String, inGroup groupId: String) -> AsyncStream<[User]> {
+        users(matching: filter)
+    }
+
+    func restore(expenseId: String) async -> ExpenseWriteError? {
+        nil
     }
 }

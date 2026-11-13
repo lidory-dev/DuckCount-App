@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A11C710B2ED5EF2400CC845E /* ExpenseList in Frameworks */ = {isa = PBXBuildFile; productRef = A11C710A2ED5EF2400CC845E /* ExpenseList */; };
 		CA17C0A12ED5EF2400CC845E /* ContactList in Frameworks */ = {isa = PBXBuildFile; productRef = CA17C0A22ED5EF2400CC845E /* ContactList */; };
+		6C4A1F0A2ED5EF2400CC845E /* GroupList in Frameworks */ = {isa = PBXBuildFile; productRef = 6C4A1F0B2ED5EF2400CC845E /* GroupList */; };
 		A0711E0B2ED5EF2400CC845E /* Authentication in Frameworks */ = {isa = PBXBuildFile; productRef = A0711E0A2ED5EF2400CC845E /* Authentication */; };
 		416EC95582E244E030191CBF /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 32AAC9ED64381F7DBF4B5996 /* SQLCipher */; };
 /* End PBXBuildFile section */
@@ -24,6 +25,7 @@
 				Authentication,
 				ContactList,
 				ExpenseList,
+				GroupList,
 				Info.plist,
 			);
 			target = 117E386D6C33F4E966B83386 /* iosApp */;
@@ -53,6 +55,7 @@
 			files = (
 				A11C710B2ED5EF2400CC845E /* ExpenseList in Frameworks */,
 				CA17C0A12ED5EF2400CC845E /* ContactList in Frameworks */,
+				6C4A1F0A2ED5EF2400CC845E /* GroupList in Frameworks */,
 				A0711E0B2ED5EF2400CC845E /* Authentication in Frameworks */,
 				416EC95582E244E030191CBF /* SQLCipher in Frameworks */,
 			);
@@ -133,6 +136,7 @@
 			packageProductDependencies = (
 				A11C710A2ED5EF2400CC845E /* ExpenseList */,
 				CA17C0A22ED5EF2400CC845E /* ContactList */,
+				6C4A1F0B2ED5EF2400CC845E /* GroupList */,
 				A0711E0A2ED5EF2400CC845E /* Authentication */,
 				32AAC9ED64381F7DBF4B5996 /* SQLCipher */,
 			);
@@ -447,6 +451,10 @@
 		CA17C0A22ED5EF2400CC845E /* ContactList */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ContactList;
+		};
+		6C4A1F0B2ED5EF2400CC845E /* GroupList */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = GroupList;
 		};
 		A0711E0A2ED5EF2400CC845E /* Authentication */ = {
 			isa = XCSwiftPackageProductDependency;

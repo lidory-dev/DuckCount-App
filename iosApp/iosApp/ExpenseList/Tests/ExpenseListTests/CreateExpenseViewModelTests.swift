@@ -312,7 +312,8 @@ struct CreateExpenseViewModelTests {
         #expect(callBacks.created.first?.amount == "10.00")
         #expect(callBacks.created.first?.creditorUuid == me)
         #expect(callBacks.created.first?.beneficiaries.map(\.share) == ["5.00", "5.00"])
-        #expect(LocalDateTime.date(from: callBacks.created.first?.timestamp ?? "") != nil)
+        // Dated by the shared module, which alone writes it as every device reads it back.
+        #expect(callBacks.created.first?.timestamp == callBacks.now)
     }
 
     @Test func aFailedSaveIsToldAndKeepsTheForm() async {

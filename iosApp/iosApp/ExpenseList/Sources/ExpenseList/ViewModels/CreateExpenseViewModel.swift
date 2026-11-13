@@ -30,8 +30,15 @@ struct ExpenseForm: Equatable {
     /// is in `beneficiaries`.
     var shareTexts: [String: String] = [:]
 
-    /// The revision of the version the form was read from.
+    /// The revision of the version the form was read from: the one an edit of a group expense is
+    /// written after.
     var revision: Int64?
+
+    /// Whether the group expense being edited is deleted, as the device showed it once the form was
+    /// read, or as it was about to be saved, see `ExpenseSaveError.deletedMeanwhile`: the form then
+    /// saves nothing. Deleting is no edit, so the server would take an edit written after it, which
+    /// would then count in no balance.
+    var isDeleted = false
 
     var trimmedTitle: String {
         title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -88,7 +95,8 @@ private struct SavedShare: Hashable {
 }
 
 /// The expense form's state, a new expense's or one being edited, as Android's
-/// `CreateExpenseViewModel` holds it for a one-time expense, whose creditor is always the user.
+/// `CreateExpenseViewModel` holds it: a one-time expense's, whose creditor is always the user, or one
+/// of a group's, in the group's currency, paid by any of its members and shared among them.
 @MainActor
 public final class CreateExpenseViewModel: ObservableObject {
     @Published private(set) var form: ExpenseForm {
@@ -116,7 +124,8 @@ public final class CreateExpenseViewModel: ObservableObject {
     /// The names of the creditor and the beneficiaries, as they are read.
     @Published private(set) var names = NameBook()
 
-    /// Who the beneficiary picker lists.
+    /// Who the payer and beneficiary pickers list: the user's contacts and themself, or the members
+    /// of the group.
     @Published private(set) var users: [User] = []
 
     /// The picker's search field's text.
@@ -134,6 +143,9 @@ public final class CreateExpenseViewModel: ObservableObject {
     /// The expense being edited, nil when creating one.
     let expenseId: String?
 
+    /// The group the expense is in, nil for a one-time expense.
+    let groupId: String?
+
     /// The form as it stood once the expense being edited was read into it: what an edit has to
     /// differ from for there to be anything to save.
     private var loadedForm: ExpenseForm?
@@ -142,8 +154,9 @@ public final class CreateExpenseViewModel: ObservableObject {
     private let usersTask = TaskHandle()
     private var nameFollower: NameFollower?
 
-    public init(callBacks: any ExpenseCallBacks, expenseId: String? = nil) {
+    public init(callBacks: any ExpenseCallBacks, groupId: String? = nil, expenseId: String? = nil) {
         self.callBacks = callBacks
+        self.groupId = groupId
         self.expenseId = expenseId
         self.maxTitleLength = callBacks.maxTitleLength
         self.maxDescriptionLength = callBacks.maxDescriptionLength
@@ -153,8 +166,10 @@ public final class CreateExpenseViewModel: ObservableObject {
         let selfUuid = callBacks.authenticatedUserUuid()
 
         self.selfUuid = selfUuid
-        self.isBeingRead = expenseId != nil
+        // A group expense waits for its group's currency too, which decides how its amount is typed.
+        self.isBeingRead = expenseId != nil || groupId != nil
         // A one-time expense is always the user's to have paid: the server takes no other creditor.
+        // A group expense is too until another member is picked.
         self.form = ExpenseForm(creditorUuid: selfUuid ?? "", currency: callBacks.defaultCurrency)
 
         error = validationError()
@@ -166,15 +181,20 @@ public final class CreateExpenseViewModel: ObservableObject {
         followNames()
         searchUsers()
 
-        if let expenseId {
+        if isBeingRead {
             Task {
-                await read(expenseId: expenseId)
+                await readForm()
             }
         }
     }
 
     var isNewExpense: Bool {
         expenseId == nil
+    }
+
+    /// Whether the expense is a group's.
+    var isGroupExpense: Bool {
+        groupId != nil
     }
 
     /// Whether the expense being edited has changed since it was read: saved unchanged, it would
@@ -209,9 +229,10 @@ public final class CreateExpenseViewModel: ObservableObject {
     }
 
     /// Whether the form can be saved: a title and a description the limits take, an amount the
-    /// library takes shared as the form says, and for an expense being edited, a change.
+    /// library takes shared as the form says, and for an expense being edited, a change, and no
+    /// deletion of it, see `ExpenseForm.isDeleted`.
     var canSave: Bool {
-        !isSaving && !isSaved && !isBeingRead
+        !isSaving && !isSaved && !isBeingRead && !form.isDeleted
             && (isNewExpense || hasChanges)
             && error == nil
             && !form.amount.isBlank
@@ -330,6 +351,24 @@ public final class CreateExpenseViewModel: ObservableObject {
         calculateShares()
     }
 
+    // MARK: - Payer picker
+
+    /// Opens the payer picker, with nothing searched.
+    func beginPickingCreditor() {
+        search("")
+    }
+
+    /// Makes `userUuid` the group expense's payer, whose name follows. A one-time expense is always
+    /// the user's to have paid, so its payer is never picked.
+    func selectCreditor(_ userUuid: String) {
+        guard isGroupExpense else {
+            return
+        }
+
+        form.creditorUuid = userUuid
+        followNames()
+    }
+
     // MARK: - Beneficiary picker
 
     /// Opens the picker on the beneficiaries as they are, with nothing searched.
@@ -345,6 +384,41 @@ public final class CreateExpenseViewModel: ObservableObject {
             selectedUuids.remove(at: index)
         } else if selectedUuids.count < maxBeneficiaries {
             selectedUuids.append(userUuid)
+        }
+    }
+
+    /// How much of the listed people the beneficiary picker has selected, which its "Select All"
+    /// shows: all of them, some of the selection, or nobody.
+    var selectAllState: SelectAllState {
+        if !users.isEmpty, users.allSatisfy({ selectedUuids.contains($0.id) }) {
+            return .all
+        }
+
+        return selectedUuids.isEmpty ? .none : .some
+    }
+
+    /// Whether the beneficiary picker offers "Select All": for a group alone, whose members are to
+    /// number no more than an expense names, and over all of them, so not while searching. A search
+    /// of nothing but whitespace lists them all, the search being for the text without it.
+    var isSelectAllShown: Bool {
+        isGroupExpense && searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !users.isEmpty
+    }
+
+    /// Selects every listed member of the group, or nobody once they all are. Those selected are
+    /// added after the selection as it stands, in the order the picker lists them, which keeps the
+    /// order the others were picked in. Not counted against `maxBeneficiaries`: a group holds no
+    /// more members than an expense names.
+    func toggleSelectAll() {
+        guard isGroupExpense else {
+            return
+        }
+
+        if selectAllState == .all {
+            selectedUuids = []
+        } else {
+            let selected = Set(selectedUuids)
+
+            selectedUuids += users.map(\.id).filter { !selected.contains($0) }
         }
     }
 
@@ -407,35 +481,67 @@ public final class CreateExpenseViewModel: ObservableObject {
             let failure: ExpenseSaveError?
 
             if let expenseId {
+                // Deleting a group expense is no edit of it, so the server takes an edit written
+                // after a deletion: the form saves nothing over one the device shows by now. Not for
+                // a one-time expense, never shown deleted, and gone once it is.
+                if isGroupExpense, await firstShown(expenseId: expenseId)?.isDeleted == true {
+                    form.isDeleted = true
+                    isSaving = false
+                    saveError = .deletedMeanwhile
+                    return
+                }
+
+                // The date it was created with: an edit changes what the expense says, not when it
+                // happened, and its history tells when each version was made.
                 failure = await callBacks.update(expense(from: saved, id: expenseId, timestamp: saved.timestamp))
             } else {
                 // Until it is written: it is then given a UUID derived from the user's.
                 failure = await callBacks.create(
-                    expense(from: saved, id: UUID().uuidString.lowercased(), timestamp: LocalDateTime.string(from: .now))
+                    expense(from: saved, id: UUID().uuidString.lowercased(), timestamp: callBacks.currentTimestamp())
                 )
             }
 
-            isSaving = false
-
             if let failure {
-                report(failure)
+                let told = await handled(failure)
+
+                isSaving = false
+                saveError = told
             } else {
+                isSaving = false
                 isSaved = true
             }
         }
     }
 
-    /// Tells why the save failed. When it was for naming people who deleted their account, they are
-    /// taken out of the selection first and the shares worked out again without them, for the user
-    /// to save again: the people they are picked from no longer list them.
-    private func report(_ failure: ExpenseSaveError) {
-        if case .beneficiariesDeleted(let deleted) = failure {
+    /// Does what the failure calls for on the form, and returns what to tell of it.
+    ///
+    /// When it was for naming people who deleted their account, they are taken out of the selection
+    /// and the shares worked out again without them, for the user to save again: the people they are
+    /// picked from no longer list them.
+    ///
+    /// When another member changed the group expense first, the form is read again from the version
+    /// the device shows now, over what the user typed: they see what they would write over, and save
+    /// from it, every save built on the version read before being refused the same way. Unless it
+    /// now shows the expense deleted, which the form saves nothing over.
+    private func handled(_ failure: ExpenseSaveError) async -> ExpenseSaveError {
+        switch failure {
+        case .beneficiariesDeleted(let deleted):
             let deletedUuids = Set(deleted.map(\.userUuid))
 
             selectBeneficiaries(form.beneficiaries.map(\.userUuid).filter { !deletedUuids.contains($0) })
-        }
 
-        saveError = failure
+            return failure
+
+        case .write(.changedMeanwhile):
+            if let expenseId {
+                await read(expenseId: expenseId)
+            }
+
+            return form.isDeleted ? .deletedMeanwhile : failure
+
+        default:
+            return failure
+        }
     }
 
     private func expense(from form: ExpenseForm, id: String, timestamp: String) -> Expense {
@@ -448,11 +554,47 @@ public final class CreateExpenseViewModel: ObservableObject {
             creditorUuid: form.creditorUuid,
             currency: form.currency,
             beneficiaries: form.beneficiaries,
-            revision: form.revision
+            revision: form.revision,
+            groupId: groupId
         )
     }
 
     // MARK: - Reading
+
+    /// Reads what the form starts from: the group's currency, which every expense of it is in, then
+    /// the expense being edited.
+    private func readForm() async {
+        if let groupId {
+            await readCurrency(groupId: groupId)
+        }
+
+        if let expenseId {
+            await read(expenseId: expenseId)
+        } else {
+            isBeingRead = false
+        }
+    }
+
+    /// Writes the form in the currency of the group `groupId`, unless there is no such group on the
+    /// device any more, which the save then says.
+    private func readCurrency(groupId: String) async {
+        for await currency in callBacks.groupCurrency(groupId: groupId) {
+            if let currency {
+                updateCurrency(currency)
+            }
+
+            break
+        }
+    }
+
+    /// The expense `expenseId` as the device shows it now, or nil when it shows none.
+    private func firstShown(expenseId: String) async -> Expense? {
+        for await expense in callBacks.expense(id: expenseId) {
+            return expense
+        }
+
+        return nil
+    }
 
     /// Reads the expense `expenseId` into the form, as the device shows it, and takes the form as it
     /// then stands for what an edit has to differ from.
@@ -474,10 +616,13 @@ public final class CreateExpenseViewModel: ObservableObject {
         updateCurrency(expense.currency)
         form.title = expense.title
         form.creditorUuid = expense.creditorUuid
+        // Typed anew, rather than as an edit of what the field held, read before.
+        form.amountText = ""
         typeAmount(expense.amount)
         form.description = expense.description
         form.timestamp = expense.timestamp
         form.revision = expense.revision
+        form.isDeleted = expense.isDeleted
         updateBeneficiaries(expense.beneficiaries)
 
         for beneficiary in expense.beneficiaries {
@@ -616,7 +761,7 @@ public final class CreateExpenseViewModel: ObservableObject {
     }
 
     private func searchUsers() {
-        let users = callBacks.users(matching: searchQuery)
+        let users = groupId.map { callBacks.users(matching: searchQuery, inGroup: $0) } ?? callBacks.users(matching: searchQuery)
 
         usersTask.replace(
             with: Task { [weak self] in
@@ -630,6 +775,16 @@ public final class CreateExpenseViewModel: ObservableObject {
             }
         )
     }
+}
+
+/// How much of the people a picker lists are selected, as a "Select All" shows it.
+enum SelectAllState: Equatable {
+    case none
+
+    /// Some of the selection, without everybody listed.
+    case some
+
+    case all
 }
 
 extension [Beneficiary] {

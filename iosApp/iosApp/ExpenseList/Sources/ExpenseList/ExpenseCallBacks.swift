@@ -32,6 +32,11 @@ public protocol ExpenseCallBacks: AnyObject {
     /// The user's own UUID, whom every list of people names first.
     func authenticatedUserUuid() -> String?
 
+    /// Now, as a new expense is dated, written exactly as every device expects to read it back:
+    /// an ISO 8601 date and time with no time zone and no trailing zeros in its fraction of a
+    /// second, which an expense dated any other way is refused for.
+    func currentTimestamp() -> String
+
     /// The one-time expenses, newest first.
     func expenses() -> AsyncStream<[Expense]>
 
@@ -79,5 +84,35 @@ public protocol ExpenseCallBacks: AnyObject {
     func setSettled(expenseId: String, isSettled: Bool) async -> ExpenseWriteError?
 
     /// The versions of the expense `id`, or why they could not be read: they come from the server.
+    /// A group expense's are each by whichever member made them.
     func history(expenseId: String) async -> ExpenseHistory
+
+    // A group's expenses. `create`, `update`, `delete` and `history` take them too, routed by
+    // `Expense.groupId`, or by the stored expense's group.
+
+    /// The most edits a group expense takes after its creation: it can be edited no more once its
+    /// revision reaches 1 + this.
+    var maxGroupExpenseEdits: Int { get }
+
+    /// The expenses of the group `groupId`, deleted ones included, newest first.
+    func groupExpenses(groupId: String) -> AsyncStream<[Expense]>
+
+    /// Brings the group `groupId` and its expenses up to date with the server.
+    func refreshGroup(groupId: String) async
+
+    /// The currency of the group `groupId`, which every expense of it is in, or nil once there is no
+    /// such group on the device.
+    func groupCurrency(groupId: String) -> AsyncStream<Currency?>
+
+    /// Whether the user is no longer a member of the group `groupId`, which leaves its expenses
+    /// read-only. It can change with a screen open.
+    func isGroupLeft(groupId: String) -> AsyncStream<Bool>
+
+    /// The members of the group `groupId` whose name contains `filter`, whom an expense of it can be
+    /// paid by and name: only those the device holds a name for.
+    func users(matching filter: String, inGroup groupId: String) -> AsyncStream<[User]>
+
+    /// Restores the deleted group expense `expenseId`, which is no edit. Returns nil once the
+    /// server took it.
+    func restore(expenseId: String) async -> ExpenseWriteError?
 }

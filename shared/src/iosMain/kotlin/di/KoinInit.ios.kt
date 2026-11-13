@@ -12,12 +12,12 @@ import database.di.dbPlatformModule
 import discoveryUsername.di.discoveryModule
 import channel.di.channelModule
 import contact.ContactManagement
+import group.GroupManagement
 import group.GroupSyncAnnouncer
 import group.NoGroupSyncAnnouncer
-import message.NoResendScheduler
 import message.ResendScheduler
 import message.di.messageModule
-import expense.OneTimeExpenses
+import expense.ExpenseManagement
 import expense.di.expenseModule
 import group.di.groupModule
 import mls.di.mlsModule
@@ -28,6 +28,8 @@ import org.koin.core.component.get
 import org.koin.core.context.startKoin
 import org.koin.dsl.module
 import profile.di.profileModule
+import sync.ForegroundResendScheduler
+import sync.ForegroundSync
 import push.di.pushModule
 import vault.di.vaultModule
 
@@ -58,7 +60,8 @@ fun initKoin() {
  * runs from it, the Android app holding its own counterparts.
  */
 private val iosPlatformModule = module {
-    single<ResendScheduler> { NoResendScheduler }
+    // Lazily, the sync it runs being built from what books it.
+    single<ResendScheduler> { ForegroundResendScheduler(foregroundSync = lazy { get<ForegroundSync>() }, updateRequirement = get()) }
     single<GroupSyncAnnouncer> { NoGroupSyncAnnouncer }
     single { NetworkConnectivity() }
     single { AppAttester() }
@@ -80,17 +83,42 @@ private val iosPlatformModule = module {
             contactRepository = get(),
             blockedUserRepository = get(),
             contactSync = get(),
+            foregroundSync = get(),
             safetyNumbers = get(),
             discoveryUsernameRepository = get(),
             networkConnectivity = get(),
         )
     }
     single {
-        OneTimeExpenses(
+        ForegroundSync(
+            contactSync = get(),
+            groupSync = get(),
+            oneTimeExpenseSync = get(),
+            groupExpenseSync = get(),
+        )
+    }
+    single {
+        ExpenseManagement(
             expenseRepository = get(),
             userRepository = get(),
-            oneTimeExpenseSync = get(),
-            contactSync = get(),
+            groupRepository = get(),
+            foregroundSync = get(),
+            networkConnectivity = get(),
+        )
+    }
+    single {
+        GroupManagement(
+            groupRepository = get(),
+            userRepository = get(),
+            expenseRepository = get(),
+            contactRequestRepository = get(),
+            groupCreator = get(),
+            groupEditor = get(),
+            groupHistory = get(),
+            groupMembershipChanger = get(),
+            groupLeaver = get(),
+            groupDeleter = get(),
+            foregroundSync = get(),
             networkConnectivity = get(),
         )
     }
@@ -102,6 +130,7 @@ class KoinHelper : KoinComponent {
     fun getUserRepository(): UserRepository = get()
     fun getUpdateRequirement(): UpdateRequirement = get()
     fun getAccountAuthentication(): AccountAuthentication = get()
-    fun getOneTimeExpenses(): OneTimeExpenses = get()
+    fun getExpenseManagement(): ExpenseManagement = get()
+    fun getGroupManagement(): GroupManagement = get()
     fun getContactManagement(): ContactManagement = get()
 }

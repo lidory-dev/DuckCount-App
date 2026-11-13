@@ -3,24 +3,190 @@ import Testing
 
 @testable import ExpenseList
 
-/// What a one-time expense lets the user do, as Android's `ExpenseActionsTest` says it of one.
+/// What the user may do with an expense on its screen, as Android's `ExpenseActionsTest` says it:
+/// nothing in a group they were removed from, no edit of an expense of a group that had every edit
+/// it takes, and with a settlement, only delete it, as the one it was paid to.
 struct ExpenseActionsTests {
-    @Test func aOneTimeExpenseIsEditedDeletedAndMarkedAsPaidBackByItsCreditor() {
-        let actions = ExpenseActions(expense: expense(creditorUuid: me), selfUuid: me)
+    /// The edits an expense of a group takes, which its server holds it to as well.
+    private let maxEdits = 10
 
-        #expect(actions.canEdit)
-        #expect(actions.canDelete)
-        #expect(actions.canSettle)
-        #expect(actions.canShowHistory)
+    private func actions(of expense: Expense, selfUuid: String = me, isGroupLeft: Bool = false) -> ExpenseActions {
+        ExpenseActions(expense: expense, selfUuid: selfUuid, isGroupLeft: isGroupLeft, maxGroupExpenseEdits: maxEdits)
+    }
+
+    /// Nor its history read, which the server serves to current members alone.
+    @Test func aGroupExpenseInAGroupTheUserWasRemovedFromCanBeNeitherEditedNorDeletedNorRestored() {
+        #expect(
+            actions(of: expense(creditorUuid: bob, groupId: trip), isGroupLeft: true)
+                == ExpenseActions(
+                    canEdit: false,
+                    isEditLimitReached: false,
+                    canDelete: false,
+                    canRestore: false,
+                    canSettle: false,
+                    canShowHistory: false
+                )
+        )
+    }
+
+    @Test func aGroupExpenseInAGroupTheUserIsStillInCanBeEditedAndDeletedAndRestored() {
+        #expect(
+            actions(of: expense(creditorUuid: bob, groupId: trip))
+                == ExpenseActions(
+                    canEdit: true,
+                    isEditLimitReached: false,
+                    canDelete: true,
+                    canRestore: true,
+                    canSettle: false,
+                    canShowHistory: true
+                )
+        )
+    }
+
+    /// Created at revision 1, edited ten times since: deleting and restoring it are no edit.
+    @Test func aGroupExpenseAtItsLastRevisionIsNoLongerEditedButStillDeletedAndRestored() {
+        #expect(
+            actions(of: expense(creditorUuid: bob, revision: 1 + Int64(maxEdits), groupId: trip))
+                == ExpenseActions(
+                    canEdit: false,
+                    isEditLimitReached: true,
+                    canDelete: true,
+                    canRestore: true,
+                    canSettle: false,
+                    canShowHistory: true
+                )
+        )
+    }
+
+    @Test func aGroupExpenseWithOneEditLeftIsStillEdited() {
+        #expect(
+            actions(of: expense(creditorUuid: bob, revision: Int64(maxEdits), groupId: trip))
+                == ExpenseActions(
+                    canEdit: true,
+                    isEditLimitReached: false,
+                    canDelete: true,
+                    canRestore: true,
+                    canSettle: false,
+                    canShowHistory: true
+                )
+        )
+    }
+
+    /// Nothing is edited there anyway: the screen tells of no edit limit.
+    @Test func aGroupExpenseAtItsLastRevisionInAGroupTheUserLeftTellsNoEditLimit() {
+        #expect(
+            actions(of: expense(creditorUuid: bob, revision: 1 + Int64(maxEdits), groupId: trip), isGroupLeft: true)
+                == ExpenseActions(
+                    canEdit: false,
+                    isEditLimitReached: false,
+                    canDelete: false,
+                    canRestore: false,
+                    canSettle: false,
+                    canShowHistory: false
+                )
+        )
+    }
+
+    @Test func aOneTimeExpenseIsEditedDeletedAndMarkedAsPaidBackByItsCreditor() {
+        #expect(
+            actions(of: expense(creditorUuid: me))
+                == ExpenseActions(
+                    canEdit: true,
+                    isEditLimitReached: false,
+                    canDelete: true,
+                    canRestore: true,
+                    canSettle: true,
+                    canShowHistory: true
+                )
+        )
+    }
+
+    /// A one-time expense's revision is reserved for every edit tried, those the server refused or
+    /// never answered included: it can stand past the last revision of a group's expense with edits
+    /// left, which its server counts by those it took.
+    @Test func aOneTimeExpensePastTheGroupEditCountIsStillEditedByItsCreditorAndTellsNoEditLimit() {
+        #expect(
+            actions(of: expense(creditorUuid: me, revision: 1 + Int64(maxEdits)))
+                == ExpenseActions(
+                    canEdit: true,
+                    isEditLimitReached: false,
+                    canDelete: true,
+                    canRestore: true,
+                    canSettle: true,
+                    canShowHistory: true
+                )
+        )
     }
 
     @Test func aOneTimeExpenseIsNeitherEditedNorDeletedNorMarkedByOneOfItsBeneficiaries() {
-        let actions = ExpenseActions(expense: expense(creditorUuid: ada), selfUuid: me)
+        #expect(
+            actions(of: expense(creditorUuid: ada))
+                == ExpenseActions(
+                    canEdit: false,
+                    isEditLimitReached: false,
+                    canDelete: false,
+                    canRestore: true,
+                    canSettle: false,
+                    canShowHistory: true
+                )
+        )
+    }
 
-        #expect(!actions.canEdit)
-        #expect(!actions.canDelete)
-        #expect(!actions.canSettle)
-        #expect(actions.canShowHistory)
+    /// Bob paid the user back, which they recorded, its one beneficiary.
+    @Test func aSettlementIsDeletedByItsRecipientAndNeitherEditedNorRestored() {
+        #expect(
+            actions(of: settlement(), selfUuid: me)
+                == ExpenseActions(
+                    canEdit: false,
+                    isEditLimitReached: false,
+                    canDelete: true,
+                    canRestore: false,
+                    canSettle: false,
+                    canShowHistory: false
+                )
+        )
+    }
+
+    @Test func aSettlementIsNotDeletedByTheMemberWhoPaidIt() {
+        #expect(
+            actions(of: settlement(), selfUuid: bob)
+                == ExpenseActions(
+                    canEdit: false,
+                    isEditLimitReached: false,
+                    canDelete: false,
+                    canRestore: false,
+                    canSettle: false,
+                    canShowHistory: false
+                )
+        )
+    }
+
+    @Test func aSettlementIsNotDeletedByAnotherMemberOfTheGroup() {
+        #expect(
+            actions(of: settlement(), selfUuid: ada)
+                == ExpenseActions(
+                    canEdit: false,
+                    isEditLimitReached: false,
+                    canDelete: false,
+                    canRestore: false,
+                    canSettle: false,
+                    canShowHistory: false
+                )
+        )
+    }
+
+    @Test func aSettlementInAGroupItsRecipientWasRemovedFromIsNotDeleted() {
+        #expect(
+            actions(of: settlement(), selfUuid: me, isGroupLeft: true)
+                == ExpenseActions(
+                    canEdit: false,
+                    isEditLimitReached: false,
+                    canDelete: false,
+                    canRestore: false,
+                    canSettle: false,
+                    canShowHistory: false
+                )
+        )
     }
 }
 

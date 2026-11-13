@@ -35,22 +35,6 @@ enum LocalDateTime {
     static func day(of string: String) -> String {
         String(string.prefix(10))
     }
-
-    /// `date` written as `Expense.timestamp` is, with milliseconds.
-    static func string(from date: Date) -> String {
-        formatter.string(from: date)
-    }
-
-    private static let formatter: DateFormatter = {
-        let formatter = DateFormatter()
-
-        formatter.locale = .posix
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS"
-
-        return formatter
-    }()
 }
 
 extension Date {

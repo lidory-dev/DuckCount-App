@@ -62,8 +62,7 @@ struct ContentView: View {
             }
 
             Tab("Groups", systemImage: "person.2.crop.square.stack.fill", value: .groupList) {
-                // TODO:
-                Color.red.ignoresSafeArea()
+                GroupListScreen()
             }
 
             Tab("Contacts", systemImage: "person.3.fill", value: .contactList) {

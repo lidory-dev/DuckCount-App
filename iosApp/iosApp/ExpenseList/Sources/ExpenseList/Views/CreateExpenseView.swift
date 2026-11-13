@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// The form a new one-time expense is made with, or one is edited with, as Android's
-/// `CreateExpenseScreen`: what it was for, its amount and who shares it, each share worked out by
-/// the library from what the others are fixed at. Shown in a sheet of its own.
+/// The form a new expense is made with, or one is edited with, as Android's `CreateExpenseScreen`:
+/// what it was for, its amount and who shares it, each share worked out by the library from what the
+/// others are fixed at. A group's expense is in the group's currency, and paid by any of its
+/// members. Shown in a sheet of its own.
 struct CreateExpenseView: View {
     @StateObject private var viewModel: CreateExpenseViewModel
 
@@ -20,8 +21,10 @@ struct CreateExpenseView: View {
         case share(userUuid: String)
     }
 
-    init(callBacks: any ExpenseCallBacks, expenseId: String? = nil) {
-        _viewModel = StateObject(wrappedValue: CreateExpenseViewModel(callBacks: callBacks, expenseId: expenseId))
+    init(callBacks: any ExpenseCallBacks, groupId: String? = nil, expenseId: String? = nil) {
+        _viewModel = StateObject(
+            wrappedValue: CreateExpenseViewModel(callBacks: callBacks, groupId: groupId, expenseId: expenseId)
+        )
     }
 
     var body: some View {
@@ -46,20 +49,6 @@ struct CreateExpenseView: View {
         }
         // Leaving would cancel the write, possibly after the server took it, or lose what was typed.
         .interactiveDismissDisabled(viewModel.isSaving || viewModel.hasEdits)
-        .confirmationDialog(
-            Text("Discard Changes", bundle: .module),
-            isPresented: $isConfirmingDiscard
-        ) {
-            Button(role: .destructive) {
-                dismiss()
-            } label: {
-                Text("Discard Changes", bundle: .module)
-            }
-
-            Button(role: .cancel) {} label: {
-                Text("Keep Editing", bundle: .module)
-            }
-        }
         .alert(
             viewModel.saveError?.message ?? "",
             isPresented: Binding(get: { viewModel.saveError != nil }, set: { if !$0 { viewModel.saveError = nil } })
@@ -85,7 +74,13 @@ struct CreateExpenseView: View {
             }
         }
         .onAppear {
-            if viewModel.isNewExpense {
+            if viewModel.isNewExpense, !viewModel.isBeingRead {
+                focusedField = .title
+            }
+        }
+        // A new group expense is read for its group's currency first, the form disabled meanwhile.
+        .onChange(of: viewModel.isBeingRead) { _, isBeingRead in
+            if viewModel.isNewExpense, !isBeingRead {
                 focusedField = .title
             }
         }
@@ -104,6 +99,22 @@ struct CreateExpenseView: View {
                 Text("Cancel", bundle: .module)
             }
             .disabled(viewModel.isSaving)
+            // On the button, for the dialog to point at it where it shows as a popover: attached to
+            // the sheet, it would float over the middle of the form.
+            .confirmationDialog(
+                Text("Discard Changes", bundle: .module),
+                isPresented: $isConfirmingDiscard
+            ) {
+                Button(role: .destructive) {
+                    dismiss()
+                } label: {
+                    Text("Discard Changes", bundle: .module)
+                }
+
+                Button(role: .cancel) {} label: {
+                    Text("Keep Editing", bundle: .module)
+                }
+            }
         }
 
         ToolbarItem(placement: .confirmationAction) {
@@ -150,11 +161,24 @@ struct CreateExpenseView: View {
 
     private var paidBySection: some View {
         Section {
-            LabeledContent {
-                Text(viewModel.names.displayName(of: viewModel.form.creditorUuid))
-            } label: {
-                Text("Paid by", bundle: .module)
+            if viewModel.isGroupExpense {
+                // Any member of the group, picked from them as the beneficiaries are.
+                NavigationLink {
+                    CreditorPickerView(viewModel: viewModel)
+                } label: {
+                    paidByContent
+                }
+            } else {
+                paidByContent
             }
+        }
+    }
+
+    private var paidByContent: some View {
+        LabeledContent {
+            Text(viewModel.names.displayName(of: viewModel.form.creditorUuid))
+        } label: {
+            Text("Paid by", bundle: .module)
         }
     }
 
@@ -168,7 +192,16 @@ struct CreateExpenseView: View {
                 )
                 .focused($focusedField, equals: .amount)
 
-                currencyMenu
+                if viewModel.isGroupExpense {
+                    // The group's, which every expense of it is in.
+                    Text(viewModel.form.currency.symbol)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel(Text("Currency", bundle: .module))
+                        .accessibilityValue(viewModel.currencyDisplayName(viewModel.form.currency))
+                } else {
+                    currencyMenu
+                }
             }
         }
     }
@@ -352,9 +385,9 @@ private struct LengthCounter: View {
     }
 }
 
-/// Who shares the expense, picked from the user's contacts and themself, as Android's
-/// `BeneficiariesDialog`, up to the most an expense may list: the selection is the expense's once
-/// done, and dropped when going back.
+/// Who shares the expense, picked from the user's contacts and themself, or from the members of the
+/// group, as Android's `BeneficiariesDialog`, up to the most an expense may list: the selection is the
+/// expense's once done, and dropped when going back. A group's members can all be selected at once.
 struct BeneficiaryPickerView: View {
     @ObservedObject var viewModel: CreateExpenseViewModel
 
@@ -362,6 +395,12 @@ struct BeneficiaryPickerView: View {
 
     var body: some View {
         List {
+            if viewModel.isSelectAllShown {
+                Section {
+                    selectAllRow
+                }
+            }
+
             Section {
                 ForEach(viewModel.users) { user in
                     row(user)
@@ -393,6 +432,25 @@ struct BeneficiaryPickerView: View {
         }
     }
 
+    /// Selects everybody listed, or nobody once they all are, its mark telling which of the two, or
+    /// that only some are.
+    private var selectAllRow: some View {
+        let state = viewModel.selectAllState
+
+        return Button(action: viewModel.toggleSelectAll) {
+            HStack(spacing: 12) {
+                Image(systemName: state.symbolName)
+                    .font(.title3)
+                    .foregroundStyle(state == .none ? AnyShapeStyle(Color.secondary) : AnyShapeStyle(.tint))
+
+                Text("Select All", bundle: .module)
+                    .foregroundStyle(Color.primary)
+            }
+        }
+        .accessibilityAddTraits(state == .all ? .isSelected : [])
+        .accessibilityValue(state == .some ? Text("Partially selected", bundle: .module) : Text(verbatim: ""))
+    }
+
     private func row(_ user: User) -> some View {
         let isSelected = viewModel.selectedUuids.contains(user.id)
         // A selected row stays enabled so that it can still be unselected once the selection is full.
@@ -420,6 +478,70 @@ struct BeneficiaryPickerView: View {
     }
 }
 
+/// Who paid the group expense, picked from the members of the group, as Android's `CreditorDialog`:
+/// picking one makes them the payer and goes back to the form.
+struct CreditorPickerView: View {
+    @ObservedObject var viewModel: CreateExpenseViewModel
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        List(viewModel.users) { user in
+            let isPayer = user.id == viewModel.form.creditorUuid
+
+            Button {
+                viewModel.selectCreditor(user.id)
+                dismiss()
+            } label: {
+                // Colors rather than the hierarchical styles, which a button's label takes from its tint.
+                HStack(spacing: 12) {
+                    PersonAvatar(userUuid: user.id, name: user.fullName)
+
+                    Text(user.fullName)
+                        .foregroundStyle(Color.primary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 8)
+
+                    if isPayer {
+                        Image(systemName: "checkmark")
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.tint)
+                    }
+                }
+            }
+            .accessibilityAddTraits(isPayer ? .isSelected : [])
+        }
+        .navigationTitle(Text("Paid by", bundle: .module))
+        .navigationBarTitleDisplayMode(.inline)
+        .searchable(
+            text: Binding(get: { viewModel.searchQuery }, set: viewModel.search),
+            placement: .navigationBarDrawer(displayMode: .always)
+        )
+        .overlay {
+            if viewModel.users.isEmpty, !viewModel.searchQuery.isEmpty {
+                ContentUnavailableView.search(text: viewModel.searchQuery)
+            }
+        }
+        .onAppear(perform: viewModel.beginPickingCreditor)
+    }
+}
+
+extension SelectAllState {
+    /// The mark a "Select All" shows for it, as each person's row marks them.
+    fileprivate var symbolName: String {
+        switch self {
+        case .none: "circle"
+        case .some: "minus.circle.fill"
+        case .all: "checkmark.circle.fill"
+        }
+    }
+}
+
 #Preview {
     CreateExpenseView(callBacks: PreviewExpenseCallBacks())
+}
+
+#Preview("Group expense") {
+    CreateExpenseView(callBacks: PreviewExpenseCallBacks(), groupId: "trip")
 }

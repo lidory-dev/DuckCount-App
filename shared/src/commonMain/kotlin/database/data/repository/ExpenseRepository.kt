@@ -555,6 +555,13 @@ class ExpenseRepository(
         }
     }
 
+    /** The group [groupUuid]'s expenses, deleted ones included, newest first, see [ExpenseDao.getAllFromGroupAsFlow]. */
+    fun getAllFromGroup(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> {
+        return expenseDao.getAllFromGroupAsFlow(groupUuid = groupUuid).map { expenses ->
+            expenses.map { it.toExpenseWithBeneficiaries() }
+        }
+    }
+
     fun getAllWithoutGroup(): Flow<List<ExpenseWithBeneficiaries>> {
         return expenseDao.getAllWithoutGroupAsFlow().map { expenseWithBeneficiariesEntities ->
             expenseWithBeneficiariesEntities.map { it.toExpenseWithBeneficiaries() }

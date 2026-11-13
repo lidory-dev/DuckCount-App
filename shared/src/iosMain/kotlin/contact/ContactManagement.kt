@@ -14,6 +14,7 @@ import database.domain.User
 import discoveryUsername.DiscoveryUsernameRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import sync.ForegroundSync
 import util.Result
 import util.onError
 
@@ -33,6 +34,7 @@ class ContactManagement(
     private val contactRepository: ContactRepository,
     private val blockedUserRepository: BlockedUserRepository,
     private val contactSync: ContactSync,
+    private val foregroundSync: ForegroundSync,
     private val safetyNumbers: SafetyNumbers,
     private val discoveryUsernameRepository: DiscoveryUsernameRepository,
     private val networkConnectivity: NetworkConnectivity,
@@ -69,12 +71,12 @@ class ContactManagement(
         safetyNumbers.observe(userUuid = userUuid).map { it.toStatus(isOnline = networkConnectivity.isOnline()) }
 
     /**
-     * Brings the contacts and the contact requests up to date, see [ContactSync.sync]. A failure is
-     * not reported: the user keeps seeing what they already had, and the next refresh picks up
-     * whatever did not get done.
+     * Brings the contacts and the contact requests up to date, with everything else the device
+     * shows, see [ForegroundSync]. A failure is not reported: the user keeps seeing what they already
+     * had, and the next refresh picks up whatever did not get done.
      */
     suspend fun refresh() {
-        contactSync.sync().failure?.let { error -> warn("refresh: could not sync the contacts: $error") }
+        foregroundSync.sync()
     }
 
     /** Removes the contact [userUuid], once they are told, see [ContactRepository.remove]. Null once removed. */

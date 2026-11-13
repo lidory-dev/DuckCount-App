@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// An expense: what it was for, who paid it and who shares it, and what its creditor can do with it,
-/// as Android's `ExpenseDetailScreen`.
+/// An expense: what it was for, who paid it and who shares it, and what the user can do with it, as
+/// Android's `ExpenseDetailScreen`. A deleted expense of a group offers its restoration and its
+/// history alone, and says who deleted it.
 struct ExpenseDetailView: View {
     private let callBacks: any ExpenseCallBacks
     private let onClose: () -> Void
@@ -30,7 +31,8 @@ struct ExpenseDetailView: View {
         // Leaving would cancel the write, possibly after the server took it.
         .navigationBarBackButtonHidden(viewModel.isBusy)
         .toolbar {
-            if viewModel.actions?.canEdit == true {
+            // A deleted expense is restored rather than edited.
+            if viewModel.actions?.canEdit == true, viewModel.expense?.isDeleted == false {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         isEditing = true
@@ -42,18 +44,7 @@ struct ExpenseDetailView: View {
             }
         }
         .sheet(isPresented: $isEditing) {
-            CreateExpenseView(callBacks: callBacks, expenseId: viewModel.expenseId)
-        }
-        .confirmationDialog(
-            Text("Are you sure you want to delete this expense?", bundle: .module),
-            isPresented: $isConfirmingDeletion,
-            titleVisibility: .visible
-        ) {
-            Button(role: .destructive, action: viewModel.delete) {
-                Text("Delete Expense", bundle: .module)
-            }
-        } message: {
-            Text("Unlike an expense in a group, it cannot be restored.", bundle: .module)
+            CreateExpenseView(callBacks: callBacks, groupId: viewModel.expense?.groupId, expenseId: viewModel.expenseId)
         }
         .alert(
             viewModel.error?.message ?? "",
@@ -70,25 +61,22 @@ struct ExpenseDetailView: View {
         }
     }
 
+    private var deletionConfirmationTitle: Text {
+        viewModel.expense?.isSettlement == true
+            ? Text("Are you sure you want to delete this settlement?", bundle: .module)
+            : Text("Are you sure you want to delete this expense?", bundle: .module)
+    }
+
+    private var deleteLabelText: Text {
+        viewModel.expense?.isSettlement == true
+            ? Text("Delete Settlement", bundle: .module)
+            : Text("Delete Expense", bundle: .module)
+    }
+
     private func content(expense: Expense, actions: ExpenseActions) -> some View {
         List {
             Section {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(expense.title)
-                        .font(.title2.bold())
-
-                    if !expense.description.isBlank {
-                        Text(expense.description)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if expense.isSettled {
-                        SettledLabel(settledAt: expense.settledAt)
-                            .font(.subheadline)
-                            .padding(.top, 4)
-                    }
-                }
-                .padding(.vertical, 4)
+                header(expense: expense, actions: actions)
             }
 
             Section {
@@ -116,34 +104,15 @@ struct ExpenseDetailView: View {
             }
 
             if actions.canSettle {
-                Section {
-                    Button(action: viewModel.toggleSettled) {
-                        HStack {
-                            if expense.isSettled {
-                                Label {
-                                    Text("Mark as Not Settled", bundle: .module)
-                                } icon: {
-                                    Image(systemName: "arrow.uturn.backward.circle")
-                                }
-                            } else {
-                                Label {
-                                    Text("Mark as Settled", bundle: .module)
-                                } icon: {
-                                    Image(systemName: "checkmark.circle")
-                                }
-                            }
-
-                            Spacer()
-
-                            if viewModel.isSettling {
-                                ProgressView()
-                            }
-                        }
-                    }
-                    .disabled(viewModel.isBusy)
-                }
+                settleSection(expense: expense)
             }
 
+            if expense.isDeleted, actions.canRestore {
+                restoreSection
+            }
+
+            // A deleted expense's edits are still read: deleting it made none of them, its screen
+            // naming who did.
             if actions.canShowHistory {
                 Section {
                     NavigationLink {
@@ -159,28 +128,155 @@ struct ExpenseDetailView: View {
                 }
             }
 
-            if actions.canDelete {
-                Section {
-                    Button(role: .destructive) {
-                        isConfirmingDeletion = true
-                    } label: {
-                        HStack {
-                            Label {
-                                Text("Delete Expense", bundle: .module)
-                            } icon: {
-                                Image(systemName: "trash")
-                            }
-                            // Its icon too, which the list would tint otherwise.
-                            .foregroundStyle(.red)
+            if !expense.isDeleted, actions.canDelete {
+                deleteSection(expense: expense)
+            }
+        }
+    }
 
-                            Spacer()
+    /// What it was for, or that it is a settlement, which has no title, and what became of it.
+    private func header(expense: Expense, actions: ExpenseActions) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Group {
+                if expense.isSettlement {
+                    Label {
+                        Text("Settlement", bundle: .module)
+                    } icon: {
+                        Image(systemName: "arrow.left.arrow.right")
+                    }
+                } else {
+                    Text(expense.title)
+                }
+            }
+            .font(.title2.bold())
+            .strikethrough(expense.isDeleted)
 
-                            if viewModel.isDeleting {
-                                ProgressView()
-                            }
+            if !expense.description.isBlank {
+                Text(expense.description)
+                    .foregroundStyle(.secondary)
+                    .strikethrough(expense.isDeleted)
+            }
+
+            if expense.isSettled {
+                SettledLabel(settledAt: expense.settledAt)
+                    .font(.subheadline)
+                    .padding(.top, 4)
+            }
+
+            // Deleting it made no version of it, so its history does not say who did.
+            if let deletedByUuid = expense.deletedByUuid {
+                Text("Deleted by \(viewModel.names.displayName(of: deletedByUuid))", bundle: .module)
+                    .font(.subheadline)
+                    .italic()
+                    .padding(.top, 4)
+            }
+
+            // Why it offers no edit, which it would otherwise.
+            if actions.isEditLimitReached {
+                Text(
+                    "This expense can’t be edited anymore: it has reached its \(viewModel.maxGroupExpenseEdits) edits",
+                    bundle: .module
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.top, 4)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func settleSection(expense: Expense) -> some View {
+        Section {
+            Button(action: viewModel.toggleSettled) {
+                HStack {
+                    if expense.isSettled {
+                        Label {
+                            Text("Mark as Not Settled", bundle: .module)
+                        } icon: {
+                            Image(systemName: "arrow.uturn.backward.circle")
+                        }
+                    } else {
+                        Label {
+                            Text("Mark as Settled", bundle: .module)
+                        } icon: {
+                            Image(systemName: "checkmark.circle")
                         }
                     }
-                    .disabled(viewModel.isBusy)
+
+                    Spacer()
+
+                    if viewModel.isSettling {
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(viewModel.isBusy)
+        }
+    }
+
+    private var restoreSection: some View {
+        Section {
+            Button(action: viewModel.restore) {
+                HStack {
+                    Label {
+                        Text("Restore Expense", bundle: .module)
+                    } icon: {
+                        Image(systemName: "arrow.uturn.backward")
+                    }
+
+                    Spacer()
+
+                    if viewModel.isRestoring {
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(viewModel.isBusy)
+        }
+    }
+
+    private func deleteSection(expense: Expense) -> some View {
+        Section {
+            Button(role: .destructive) {
+                // A plain group expense is deleted at once, any member being able to restore it.
+                // A one-time expense or a settlement is not, and is asked about first.
+                if expense.isSettlement || !expense.isGroupExpense {
+                    isConfirmingDeletion = true
+                } else {
+                    viewModel.delete()
+                }
+            } label: {
+                HStack {
+                    Label {
+                        deleteLabelText
+                    } icon: {
+                        Image(systemName: "trash")
+                    }
+                    // Its icon too, which the list would tint otherwise.
+                    .foregroundStyle(.red)
+
+                    Spacer()
+
+                    if viewModel.isDeleting {
+                        ProgressView()
+                    }
+                }
+            }
+            .disabled(viewModel.isBusy)
+            // On the button, for the dialog to point at it where it shows as a popover.
+            .confirmationDialog(
+                deletionConfirmationTitle,
+                isPresented: $isConfirmingDeletion,
+                titleVisibility: .visible
+            ) {
+                Button(role: .destructive, action: viewModel.delete) {
+                    deleteLabelText
+                }
+            } message: {
+                if expense.isSettlement {
+                    Text("Unlike an expense, it cannot be restored, but it will still appear in the list of expenses.", bundle: .module)
+                } else {
+                    Text("Unlike an expense in a group, it cannot be restored.", bundle: .module)
                 }
             }
         }
@@ -190,5 +286,11 @@ struct ExpenseDetailView: View {
 #Preview {
     NavigationStack {
         ExpenseDetailView(expenseId: "1", callBacks: PreviewExpenseCallBacks(), onClose: {})
+    }
+}
+
+#Preview("Deleted group expense") {
+    NavigationStack {
+        ExpenseDetailView(expenseId: "g2", callBacks: PreviewExpenseCallBacks(), onClose: {})
     }
 }

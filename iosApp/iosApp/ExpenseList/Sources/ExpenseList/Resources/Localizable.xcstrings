@@ -21,6 +21,16 @@
         }
       }
     },
+    "%@ paid %@" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ a remboursé %2$@"
+          }
+        }
+      }
+    },
     "%lld beneficiaries deleted their accounts." : {
       "localizations" : {
         "fr" : {
@@ -121,12 +131,42 @@
         }
       }
     },
+    "Another member changed this expense in the meantime: check its latest version, then try again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un autre membre a modifié cette dépense entre-temps : vérifiez sa dernière version, puis réessayez."
+          }
+        }
+      }
+    },
+    "Another member deleted this expense in the meantime." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un autre membre a supprimé cette dépense entre-temps."
+          }
+        }
+      }
+    },
     "Are you sure you want to delete this expense?" : {
       "localizations" : {
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Voulez-vous vraiment supprimer cette dépense ?"
+          }
+        }
+      }
+    },
+    "Are you sure you want to delete this settlement?" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voulez-vous vraiment supprimer ce remboursement ?"
           }
         }
       }
@@ -187,6 +227,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Supprimer la dépense"
+          }
+        }
+      }
+    },
+    "Delete Settlement" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer le remboursement"
+          }
+        }
+      }
+    },
+    "Deleted" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimé"
+          }
+        }
+      }
+    },
+    "Deleted by %@" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimé par %@"
           }
         }
       }
@@ -381,6 +451,16 @@
         }
       }
     },
+    "Partially selected" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Partiellement sélectionné"
+          }
+        }
+      }
+    },
     "Remove fixed share" : {
       "localizations" : {
         "fr" : {
@@ -391,12 +471,32 @@
         }
       }
     },
+    "Restore Expense" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaurer la dépense"
+          }
+        }
+      }
+    },
     "Save" : {
       "localizations" : {
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Enregistrer"
+          }
+        }
+      }
+    },
+    "Select All" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tout sélectionner"
           }
         }
       }
@@ -441,6 +541,16 @@
         }
       }
     },
+    "Settlement" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remboursement"
+          }
+        }
+      }
+    },
     "Someone else" : {
       "localizations" : {
         "fr" : {
@@ -457,6 +567,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Une erreur est survenue, réessayez."
+          }
+        }
+      }
+    },
+    "The group is still being created, please try again in a moment." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le groupe est encore en cours de création, réessayez dans un instant."
+          }
+        }
+      }
+    },
+    "The group is waiting for its owner to come online, please try again later." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le groupe attend que son propriétaire soit en ligne, réessayez plus tard."
           }
         }
       }
@@ -511,6 +641,16 @@
         }
       }
     },
+    "This expense can’t be edited anymore: it has reached its %lld edits" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette dépense ne peut plus être modifiée : elle a atteint ses %lld modifications"
+          }
+        }
+      }
+    },
     "This expense is invalid." : {
       "localizations" : {
         "fr" : {
@@ -531,12 +671,32 @@
         }
       }
     },
+    "Too many changes, please try again later." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trop de modifications, réessayez plus tard."
+          }
+        }
+      }
+    },
     "Unlike an expense in a group, it cannot be restored." : {
       "localizations" : {
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Contrairement à une dépense dans un groupe, elle ne pourra pas être restaurée."
+          }
+        }
+      }
+    },
+    "Unlike an expense, it cannot be restored, but it will still appear in the list of expenses." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contrairement à une dépense, il ne pourra pas être restauré, mais il continuera d’apparaître dans la liste des dépenses."
           }
         }
       }
@@ -557,6 +717,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Votre session a expiré, reconnectez-vous."
+          }
+        }
+      }
+    },
+    "You’re no longer a member of this group." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous ne faites plus partie de ce groupe."
           }
         }
       }

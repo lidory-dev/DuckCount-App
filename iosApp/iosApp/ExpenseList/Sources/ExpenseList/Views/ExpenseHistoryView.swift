@@ -108,7 +108,8 @@ struct ExpenseVersionView: View {
     }
 }
 
-/// Who made a version: "Created by" its creditor, or "Modified by" them.
+/// Who made a version: "Created by" its author, or "Modified by" them, the creditor of a one-time
+/// expense, or whichever member of its group made a group expense's.
 private struct AuthorLabel: View {
     let version: ExpenseVersion
     let name: String
