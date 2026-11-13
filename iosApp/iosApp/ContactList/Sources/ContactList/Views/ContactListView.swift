@@ -1,183 +1,248 @@
 import SwiftUI
 
-/// Searchable, alphabetically grouped list of contacts.
-public struct ContactListView<ViewModel: ContactListState>: View {
-    @ObservedObject private var viewModel: ViewModel
-    private let onAddContact: (() -> Void)?
+/// Where the contacts tab leads.
+enum ContactRoute: Hashable {
+    case contact(String)
+    case requests
+    case blockedUsers
+}
 
-    @State private var selectedContact: Contact?
-    @State private var navigationPath = NavigationPath()
+/// The user's contacts by letter, the requests waiting for them, the people they blocked, and the
+/// way to add somebody, once they reserved a username: the Contacts tab, as Android's
+/// `ContactListScreen`.
+public struct ContactListView: View {
+    private let callBacks: any ContactCallBacks
 
-    public init(viewModel: ViewModel, onAddContact: (() -> Void)? = nil) {
-        self.viewModel = viewModel
-        self.onAddContact = onAddContact
-    }
+    @StateObject private var viewModel: ContactListViewModel
 
-    private var isBigScreen: Bool {
-        UIDevice.current.userInterfaceIdiom != .phone
-    }
+    @State private var selection: ContactRoute?
+    @State private var isAddingContact = false
+    @State private var isReservingUsername = false
 
-    private var isSearching: Bool {
-        !viewModel.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    @Environment(\.scenePhase) private var scenePhase
+
+    public init(callBacks: any ContactCallBacks) {
+        self.callBacks = callBacks
+        _viewModel = StateObject(wrappedValue: ContactListViewModel(callBacks: callBacks))
     }
 
     public var body: some View {
-        if isBigScreen {
-            NavigationSplitView {
-                listContent
-                    .navigationTitle("Contacts")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar { addContactToolbarItem }
-                    .searchable(text: $viewModel.searchQuery, prompt: "Search contacts")
-            } detail: {
-                if let selectedContact {
-                    ContactDetailView(contact: selectedContact)
-                } else {
-                    Text("Choose a contact to display more information about it.")
-                        .foregroundStyle(.secondary)
+        NavigationSplitView {
+            sidebar
+                .navigationTitle(Text("Contacts", bundle: .module))
+                .toolbar { toolbar }
+        } detail: {
+            NavigationStack {
+                detail
+            }
+        }
+        .sheet(isPresented: $isAddingContact) {
+            NewContactView(callBacks: callBacks)
+        }
+        .sheet(isPresented: $isReservingUsername) {
+            ReserveUsernameView(callBacks: callBacks)
+        }
+        .task {
+            await viewModel.refresh()
+        }
+        // No push reaches iOS yet, so coming back to the app is when what changed meanwhile is read.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task {
+                    await viewModel.refresh()
                 }
             }
-        } else {
-            NavigationStack(path: $navigationPath) {
-                listContent
-                    .navigationTitle("Contacts")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar { addContactToolbarItem }
-                    .searchable(text: $viewModel.searchQuery, prompt: "Search contacts")
-                    .navigationDestination(for: Contact.self) { contact in
-                        ContactDetailView(contact: contact)
-                    }
+        }
+    }
+
+    @ViewBuilder
+    private var sidebar: some View {
+        switch viewModel.state {
+        case .loading:
+            ProgressView()
+
+        case .usernameReservationRequired:
+            ContentUnavailableView {
+                Label {
+                    Text("Reserve a username", bundle: .module)
+                } icon: {
+                    Image(systemName: "at")
+                }
+            } description: {
+                Text(
+                    "Your contacts need a username to add you, and you need one to add them.\n\nReserve yours to start building your contact list.",
+                    bundle: .module
+                )
+            } actions: {
+                Button {
+                    isReservingUsername = true
+                } label: {
+                    Text("Reserve a username", bundle: .module)
+                }
+                .buttonStyle(.borderedProminent)
             }
+
+        case .content(let content):
+            list(content)
         }
     }
 
     @ToolbarContentBuilder
-    private var addContactToolbarItem: some ToolbarContent {
-        if let onAddContact {
+    private var toolbar: some ToolbarContent {
+        // Nobody can be added before a username is reserved.
+        if case .content = viewModel.state {
             ToolbarItem(placement: .primaryAction) {
-                Button(action: onAddContact) {
-                    Image(systemName: "plus")
+                Button {
+                    isAddingContact = true
+                } label: {
+                    Label {
+                        Text("Add a new contact", bundle: .module)
+                    } icon: {
+                        Image(systemName: "person.badge.plus")
+                    }
                 }
-                .accessibilityLabel("Add Contact")
+            }
+
+            // Where Android's settings offer it, which iOS has none of yet.
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    isReservingUsername = true
+                } label: {
+                    Label {
+                        Text("Username", bundle: .module)
+                    } icon: {
+                        Image(systemName: "at")
+                    }
+                }
             }
         }
     }
 
-    @ViewBuilder
-    private var listContent: some View {
-        if viewModel.isLoading {
-            ProgressView()
-        } else {
-            let sections = groupedSections(viewModel.contacts)
+    private func list(_ content: ContactListViewModel.Content) -> some View {
+        let isSearching = !viewModel.searchQuery.isBlank
+        // The requests and blocked users rows, which an empty state laid over the list would cover.
+        let hasOtherRows = !isSearching && (content.contactRequestCount > 0 || content.blockedUserCount > 0)
 
-            List {
-                if isSearching {
-                    // Matches Android: letter headers are hidden while searching.
-                    ForEach(sections.flatMap { $0.contacts }) { contact in
-                        contactRow(contact)
-                    }
-                } else {
-                    ForEach(sections) { section in
-                        Section {
-                            ForEach(section.contacts) { contact in
-                                contactRow(contact)
-                            }
-                        } header: {
-                            Text(section.letter)
+        return List(selection: $selection) {
+            if !isSearching, content.contactRequestCount > 0 {
+                Section {
+                    NavigationLink(value: ContactRoute.requests) {
+                        Label {
+                            Text("Contact requests", bundle: .module)
+                        } icon: {
+                            Image(systemName: "envelope.badge")
                         }
                     }
+                    .badge(content.contactRequestCount)
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .overlay {
-                if viewModel.contacts.isEmpty {
-                    ContentUnavailableView(
-                        "No contacts",
-                        systemImage: "person.crop.circle.badge.questionmark"
-                    )
+
+            ForEach(content.sections) { section in
+                Section {
+                    ForEach(section.contacts) { contact in
+                        NavigationLink(value: ContactRoute.contact(contact.id)) {
+                            HStack(spacing: 12) {
+                                ContactAvatar(userUuid: contact.id, name: contact.displayName)
+
+                                Text(contact.displayName)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                } header: {
+                    // Letters while browsing, none while searching.
+                    if !isSearching {
+                        Text(verbatim: section.id)
+                    }
                 }
+            }
+
+            // Between the other rows, as Android lays it out, rather than over them.
+            if content.sections.isEmpty, hasOtherRows {
+                Section {
+                    noContacts
+                        .listRowBackground(Color.clear)
+                }
+            }
+
+            // At the end, out of the way: blocking is rare, and nothing about it is urgent. Not while
+            // searching, which finds contacts alone.
+            if !isSearching, content.blockedUserCount > 0 {
+                Section {
+                    NavigationLink(value: ContactRoute.blockedUsers) {
+                        Label {
+                            Text("Blocked users", bundle: .module)
+                        } icon: {
+                            Image(systemName: "nosign")
+                        }
+                    }
+                    .badge(content.blockedUserCount)
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .searchable(
+            text: Binding(get: { viewModel.searchQuery }, set: viewModel.search),
+            prompt: Text("Search", bundle: .module)
+        )
+        .refreshable {
+            await viewModel.refresh()
+        }
+        .overlay {
+            if content.sections.isEmpty, !hasOtherRows {
+                // Nobody whose name holds what is searched, or nobody at all to find.
+                if content.hasContacts {
+                    ContentUnavailableView.search(text: viewModel.searchQuery)
+                } else {
+                    noContacts
+                }
+            }
+        }
+    }
+
+    private var noContacts: some View {
+        ContentUnavailableView {
+            Label {
+                Text("You don’t have any contacts yet", bundle: .module)
+            } icon: {
+                Image(systemName: "person.2")
+            }
+        } actions: {
+            Button {
+                isAddingContact = true
+            } label: {
+                Text("Add a new contact", bundle: .module)
             }
         }
     }
 
     @ViewBuilder
-    private func contactRow(_ contact: Contact) -> some View {
-        ContactRowView(contact: contact)
-            .listRowSeparator(.hidden)
-            .onTapGesture {
-                if isBigScreen {
-                    selectedContact = contact
-                } else {
-                    navigationPath.append(contact)
+    private var detail: some View {
+        switch selection {
+        case .contact(let id):
+            ContactDetailView(contactId: id, callBacks: callBacks) {
+                selection = nil
+            }
+            .id(id)
+
+        case .requests:
+            ContactRequestListView(callBacks: callBacks)
+
+        case .blockedUsers:
+            BlockedUserListView(callBacks: callBacks)
+
+        case nil:
+            ContentUnavailableView {
+                Label {
+                    Text("No Contact Selected", bundle: .module)
+                } icon: {
+                    Image(systemName: "person.crop.circle")
                 }
             }
-    }
-
-    // MARK: - Grouping (port of ContactListScreen.kt sortedWith/groupBy)
-
-    private struct ContactSection: Identifiable {
-        let id: String
-        let letter: String
-        let contacts: [Contact]
-    }
-
-    private func groupedSections(_ contacts: [Contact]) -> [ContactSection] {
-        Dictionary(grouping: contacts) { sectionKey(for: $0.fullName) }
-            .map { key, value in
-                ContactSection(
-                    id: key,
-                    letter: key,
-                    contacts: value.sorted {
-                        $0.fullName.localizedCaseInsensitiveCompare($1.fullName) == .orderedAscending
-                    }
-                )
-            }
-            .sorted { lhs, rhs in
-                // Non-letter group ("#") always sorts first.
-                if lhs.letter == rhs.letter { return false }
-                if lhs.letter == "#" { return true }
-                if rhs.letter == "#" { return false }
-                return lhs.letter < rhs.letter
-            }
-    }
-
-    /// Uppercased, diacritic-folded first letter; non-letters bucket into "#".
-    private func sectionKey(for fullName: String) -> String {
-        guard let first = fullName.first else {
-            return "#"
         }
-
-        let folded = String(first).folding(options: .diacriticInsensitive, locale: .current)
-        guard let foldedFirst = folded.first, foldedFirst.isLetter else {
-            return "#"
-        }
-
-        return String(foldedFirst).uppercased()
-    }
-}
-
-private final class PreviewContactListState: ContactListState {
-    @Published var contacts: [Contact]
-    @Published var isLoading: Bool = false
-    @Published var searchQuery: String = ""
-
-    init(contacts: [Contact]) {
-        self.contacts = contacts
     }
 }
 
 #Preview {
-    ContactListView(
-        viewModel: PreviewContactListState(
-            contacts: [
-                Contact(id: "1", username: "alice", fullName: "Alice Martin"),
-                Contact(id: "2", username: "bob", fullName: "Bob Johnson"),
-                Contact(id: "3", username: "alex", fullName: "Álex Núñez"),
-                Contact(id: "4", username: "charlie", fullName: "Charlie Davis"),
-                Contact(id: "5", username: "_42", fullName: "42 Robot"),
-            ]
-        ),
-        onAddContact: {}
-    )
+    ContactListView(callBacks: PreviewContactCallBacks())
 }

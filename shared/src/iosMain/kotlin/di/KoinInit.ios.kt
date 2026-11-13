@@ -11,6 +11,7 @@ import database.di.dbModule
 import database.di.dbPlatformModule
 import discoveryUsername.di.discoveryModule
 import channel.di.channelModule
+import contact.ContactManagement
 import group.GroupSyncAnnouncer
 import group.NoGroupSyncAnnouncer
 import message.NoResendScheduler
@@ -73,6 +74,18 @@ private val iosPlatformModule = module {
         )
     }
     single {
+        ContactManagement(
+            userRepository = get(),
+            contactRequestRepository = get(),
+            contactRepository = get(),
+            blockedUserRepository = get(),
+            contactSync = get(),
+            safetyNumbers = get(),
+            discoveryUsernameRepository = get(),
+            networkConnectivity = get(),
+        )
+    }
+    single {
         OneTimeExpenses(
             expenseRepository = get(),
             userRepository = get(),
@@ -90,4 +103,5 @@ class KoinHelper : KoinComponent {
     fun getUpdateRequirement(): UpdateRequirement = get()
     fun getAccountAuthentication(): AccountAuthentication = get()
     fun getOneTimeExpenses(): OneTimeExpenses = get()
+    fun getContactManagement(): ContactManagement = get()
 }

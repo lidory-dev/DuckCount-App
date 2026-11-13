@@ -1,18 +1,11 @@
 import ContactList
 import SwiftUI
 
+/// The Contacts tab, run by the shared module.
 struct ContactListScreen: View {
-    @StateObject private var viewModel = ContactListViewModel()
-
-    @State private var isAddingContact = false
+    @State private var callBacks = ContactCallBacksImpl()
 
     var body: some View {
-        ContactListView(
-            viewModel: viewModel,
-            onAddContact: { isAddingContact = true }
-        )
-        .sheet(isPresented: $isAddingContact) {
-            NewContactView(onCancel: { isAddingContact = false })
-        }
+        ContactListView(callBacks: callBacks)
     }
 }

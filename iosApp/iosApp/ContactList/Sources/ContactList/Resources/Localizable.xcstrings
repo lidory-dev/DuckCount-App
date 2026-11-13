@@ -1,0 +1,726 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "A contact who reinstalls DuckCount or changes phones keeps the same safety number, so someone may be trying to intercept what you share with this contact. As a precaution, DuckCount no longer sends them anything or accepts anything from them." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un contact qui réinstalle DuckCount ou change de téléphone garde le même numéro de sécurité : quelqu’un tente donc peut-être d’intercepter ce que vous partagez avec ce contact. Par précaution, DuckCount ne lui envoie plus rien et n’accepte plus rien de sa part."
+          }
+        }
+      }
+    },
+    "Accept" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accepter"
+          }
+        }
+      }
+    },
+    "Add a new contact" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter un contact"
+          }
+        }
+      }
+    },
+    "Are you sure you want to delete this contact?" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voulez-vous vraiment supprimer ce contact ?"
+          }
+        }
+      }
+    },
+    "Block" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bloquer"
+          }
+        }
+      }
+    },
+    "Block this contact?" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bloquer ce contact ?"
+          }
+        }
+      }
+    },
+    "Block this user?" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bloquer cet utilisateur ?"
+          }
+        }
+      }
+    },
+    "Blocked users" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisateurs bloqués"
+          }
+        }
+      }
+    },
+    "Blocked users can’t send you contact requests or expenses. Unblocking someone doesn’t add them back to your contacts." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les utilisateurs bloqués ne peuvent plus vous envoyer ni demande de contact ni dépense. Débloquer quelqu’un ne l’ajoute pas à vos contacts."
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuler"
+          }
+        }
+      }
+    },
+    "Choose the new username your contacts will use to add you.\n\nThe one you hold now is released as soon as the new one is reserved, so anybody still looking for the old one will no longer find you." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez le nouveau nom d’utilisateur que vos contacts utiliseront pour vous ajouter.\n\nCelui que vous détenez actuellement est libéré dès que le nouveau est réservé. Les personnes qui chercheraient encore l’ancien ne vous trouveront plus."
+          }
+        }
+      }
+    },
+    "Clear verification" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuler la vérification"
+          }
+        }
+      }
+    },
+    "Contact request sent to %@" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demande de contact envoyée à %@"
+          }
+        }
+      }
+    },
+    "Contact requests" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demandes de contact"
+          }
+        }
+      }
+    },
+    "Contacts" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Contacts"
+          }
+        }
+      }
+    },
+    "Decline" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refuser"
+          }
+        }
+      }
+    },
+    "Delete" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer"
+          }
+        }
+      }
+    },
+    "Delete contact" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer le contact"
+          }
+        }
+      }
+    },
+    "Enter the username of the person you want to add. They will receive a contact request, and once they accept it, you will be in each other’s contacts.\n\nOnly a fingerprint of the username reaches our servers, never the username itself." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez le nom d’utilisateur de la personne à ajouter. Elle recevra une demande de contact et, dès qu’elle l’aura acceptée, vous figurerez chacun dans les contacts de l’autre.\n\nSeule une empreinte du nom d’utilisateur parvient à nos serveurs, jamais le nom d’utilisateur lui-même."
+          }
+        }
+      }
+    },
+    "Letters and digits only" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lettres et chiffres uniquement"
+          }
+        }
+      }
+    },
+    "Mark as verified" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marquer comme vérifié"
+          }
+        }
+      }
+    },
+    "Must start with a letter" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doit commencer par une lettre"
+          }
+        }
+      }
+    },
+    "No blocked users" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun utilisateur bloqué"
+          }
+        }
+      }
+    },
+    "No contact requests" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune demande de contact"
+          }
+        }
+      }
+    },
+    "No Contact Selected" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun contact sélectionné"
+          }
+        }
+      }
+    },
+    "No internet connection." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune connexion Internet."
+          }
+        }
+      }
+    },
+    "No user found with this username." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun utilisateur trouvé avec ce nom d’utilisateur."
+          }
+        }
+      }
+    },
+    "OK" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
+    "Please log in again to reserve a username." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnectez-vous pour réserver un nom d’utilisateur."
+          }
+        }
+      }
+    },
+    "Reserve" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réserver"
+          }
+        }
+      }
+    },
+    "Reserve a username" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réserver un nom d’utilisateur"
+          }
+        }
+      }
+    },
+    "Reserve the username your contacts will use to add you.\n\nOnly a fingerprint of it reaches our servers, so we never learn the username itself — only somebody who already knows it can find you." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réservez le nom d’utilisateur que vos contacts utiliseront pour vous ajouter.\n\nSeule une empreinte de celui-ci parvient à nos serveurs. Nous ne connaissons donc jamais le nom d’utilisateur lui-même, seule une personne qui le connaît déjà peut vous trouver."
+          }
+        }
+      }
+    },
+    "Safety number" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Numéro de sécurité"
+          }
+        }
+      }
+    },
+    "Safety number: %@" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Numéro de sécurité : %@"
+          }
+        }
+      }
+    },
+    "Search" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher"
+          }
+        }
+      }
+    },
+    "Send request" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoyer la demande"
+          }
+        }
+      }
+    },
+    "The contact could not be deleted, please try again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le contact n’a pas pu être supprimé, réessayez."
+          }
+        }
+      }
+    },
+    "The contact request could not be answered, please try again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de répondre à la demande de contact, réessayez."
+          }
+        }
+      }
+    },
+    "The contact request could not be sent." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La demande de contact n’a pas pu être envoyée."
+          }
+        }
+      }
+    },
+    "The safety number could not be shown." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le numéro de sécurité n’a pas pu être affiché."
+          }
+        }
+      }
+    },
+    "The server is unreachable, please try again later." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le serveur est injoignable, réessayez plus tard."
+          }
+        }
+      }
+    },
+    "The server took too long to answer, please try again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le serveur a mis trop de temps à répondre, réessayez."
+          }
+        }
+      }
+    },
+    "The username could not be reserved." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le nom d’utilisateur n’a pas pu être réservé."
+          }
+        }
+      }
+    },
+    "Their request will be declined and they won’t be able to send you contact requests any more. They won’t be told." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sa demande sera refusée et cette personne ne pourra plus vous envoyer de demande de contact. Elle n’en sera pas informée."
+          }
+        }
+      }
+    },
+    "They will be able to send you contact requests again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette personne pourra de nouveau vous envoyer des demandes de contact."
+          }
+        }
+      }
+    },
+    "They will be removed from your contacts and won’t be able to send you contact requests or expenses any more. Groups you share stay as they are. They won’t be told you blocked them." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette personne sera retirée de vos contacts et ne pourra plus vous envoyer ni demande de contact ni dépense. Les groupes que vous partagez restent inchangés. Elle ne sera pas informée du blocage."
+          }
+        }
+      }
+    },
+    "This contact could not be blocked, please try again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le contact n’a pas pu être bloqué, réessayez."
+          }
+        }
+      }
+    },
+    "This contact request no longer exists." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette demande de contact n’existe plus."
+          }
+        }
+      }
+    },
+    "This person is no longer one of your contacts" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette personne ne fait plus partie de vos contacts"
+          }
+        }
+      }
+    },
+    "This user is already one of your contacts." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cet utilisateur fait déjà partie de vos contacts."
+          }
+        }
+      }
+    },
+    "This username cannot be used." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce nom d’utilisateur ne peut pas être utilisé."
+          }
+        }
+      }
+    },
+    "This username is already taken." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce nom d’utilisateur est déjà pris."
+          }
+        }
+      }
+    },
+    "This username is not valid." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce nom d’utilisateur n’est pas valide."
+          }
+        }
+      }
+    },
+    "To verify the end-to-end encryption between you and this contact, compare the numbers above with the ones on their phone, in person or on a call you trust." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pour vérifier le chiffrement de bout en bout entre vous et ce contact, comparez les chiffres ci-dessus avec ceux affichés sur son téléphone, en personne ou lors d’un appel de confiance."
+          }
+        }
+      }
+    },
+    "Too many attempts, please try again later." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trop de tentatives, réessayez plus tard."
+          }
+        }
+      }
+    },
+    "Unblock" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Débloquer"
+          }
+        }
+      }
+    },
+    "Unblock this user?" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Débloquer cet utilisateur ?"
+          }
+        }
+      }
+    },
+    "Unresolved user" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisateur inconnu"
+          }
+        }
+      }
+    },
+    "Username" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom d’utilisateur"
+          }
+        }
+      }
+    },
+    "Username too long (%lld/%lld)" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom d’utilisateur trop long (%lld/%lld)"
+          }
+        }
+      }
+    },
+    "Verified" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérifié"
+          }
+        }
+      }
+    },
+    "Verify safety number" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérifier le numéro de sécurité"
+          }
+        }
+      }
+    },
+    "You already sent this user a contact request." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une demande de contact est déjà en attente pour cet utilisateur."
+          }
+        }
+      }
+    },
+    "You blocked this user. Unblock them to send a request." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous avez bloqué cet utilisateur. Débloquez-le pour lui envoyer une demande."
+          }
+        }
+      }
+    },
+    "You can’t add yourself as a contact." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de s’ajouter soi-même comme contact."
+          }
+        }
+      }
+    },
+    "You don’t have any contacts yet" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun contact pour le moment"
+          }
+        }
+      }
+    },
+    "You had already accepted this request, so this person was added to your contacts." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette demande avait déjà été acceptée, cette personne a donc été ajoutée à vos contacts."
+          }
+        }
+      }
+    },
+    "Your account changed on another device, please try again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre compte a changé sur un autre appareil, réessayez."
+          }
+        }
+      }
+    },
+    "Your contacts need a username to add you, and you need one to add them.\n\nReserve yours to start building your contact list." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos contacts ont besoin de votre nom d’utilisateur pour vous ajouter, et vous avez besoin du leur pour les ajouter.\n\nRéservez le vôtre pour commencer à constituer votre liste de contacts."
+          }
+        }
+      }
+    },
+    "Your safety number with this contact has changed" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre numéro de sécurité avec ce contact a changé"
+          }
+        }
+      }
+    },
+    "Your safety number with this user has changed, so the request was not accepted." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre numéro de sécurité avec cet utilisateur a changé, la demande n’a pas été acceptée."
+          }
+        }
+      }
+    },
+    "Your safety number with this user has changed, so the request was not sent." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre numéro de sécurité avec cet utilisateur a changé, la demande n’a pas été envoyée."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
