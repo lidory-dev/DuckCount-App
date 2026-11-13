@@ -1,26 +1,11 @@
 import ExpenseList
 import SwiftUI
 
+/// The Expenses tab, run by the shared module.
 struct ExpenseListScreen: View {
-    @StateObject private var viewModel = ExpenseListViewModel()
-
-    @State private var isCreatingExpense = false
+    @State private var callBacks = ExpenseCallBacksImpl()
 
     var body: some View {
-        ExpenseListView(
-            sections: viewModel.groupedExpenses.map { group in
-                ExpenseSection(
-                    id: group.id,
-                    displayDate: group.displayDate,
-                    expenses: group.expenses
-                )
-            },
-            isLoading: viewModel.isLoading,
-            onCreateRandomExpenses: viewModel.createRandomExpenses,
-            onCreateExpense: { isCreatingExpense = true }
-        )
-        .sheet(isPresented: $isCreatingExpense) {
-            CreateExpenseScreen()
-        }
+        ExpenseListView(callBacks: callBacks)
     }
 }

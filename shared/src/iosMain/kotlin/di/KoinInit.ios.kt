@@ -16,6 +16,7 @@ import group.NoGroupSyncAnnouncer
 import message.NoResendScheduler
 import message.ResendScheduler
 import message.di.messageModule
+import expense.OneTimeExpenses
 import expense.di.expenseModule
 import group.di.groupModule
 import mls.di.mlsModule
@@ -71,6 +72,15 @@ private val iosPlatformModule = module {
             appAttester = get(),
         )
     }
+    single {
+        OneTimeExpenses(
+            expenseRepository = get(),
+            userRepository = get(),
+            oneTimeExpenseSync = get(),
+            contactSync = get(),
+            networkConnectivity = get(),
+        )
+    }
 }
 
 class KoinHelper : KoinComponent {
@@ -79,4 +89,5 @@ class KoinHelper : KoinComponent {
     fun getUserRepository(): UserRepository = get()
     fun getUpdateRequirement(): UpdateRequirement = get()
     fun getAccountAuthentication(): AccountAuthentication = get()
+    fun getOneTimeExpenses(): OneTimeExpenses = get()
 }
