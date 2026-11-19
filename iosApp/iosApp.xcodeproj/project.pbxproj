@@ -11,6 +11,7 @@
 		CA17C0A12ED5EF2400CC845E /* ContactList in Frameworks */ = {isa = PBXBuildFile; productRef = CA17C0A22ED5EF2400CC845E /* ContactList */; };
 		6C4A1F0A2ED5EF2400CC845E /* GroupList in Frameworks */ = {isa = PBXBuildFile; productRef = 6C4A1F0B2ED5EF2400CC845E /* GroupList */; };
 		A0711E0B2ED5EF2400CC845E /* Authentication in Frameworks */ = {isa = PBXBuildFile; productRef = A0711E0A2ED5EF2400CC845E /* Authentication */; };
+		5E7715A02ED5EF2400CC845E /* AppSettings in Frameworks */ = {isa = PBXBuildFile; productRef = 5E7715A12ED5EF2400CC845E /* AppSettings */; };
 		416EC95582E244E030191CBF /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 32AAC9ED64381F7DBF4B5996 /* SQLCipher */; };
 /* End PBXBuildFile section */
 
@@ -22,6 +23,7 @@
 		79EE22C28C748E450BCF7B31 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				AppSettings,
 				Authentication,
 				ContactList,
 				ExpenseList,
@@ -57,6 +59,7 @@
 				CA17C0A12ED5EF2400CC845E /* ContactList in Frameworks */,
 				6C4A1F0A2ED5EF2400CC845E /* GroupList in Frameworks */,
 				A0711E0B2ED5EF2400CC845E /* Authentication in Frameworks */,
+				5E7715A02ED5EF2400CC845E /* AppSettings in Frameworks */,
 				416EC95582E244E030191CBF /* SQLCipher in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -138,6 +141,7 @@
 				CA17C0A22ED5EF2400CC845E /* ContactList */,
 				6C4A1F0B2ED5EF2400CC845E /* GroupList */,
 				A0711E0A2ED5EF2400CC845E /* Authentication */,
+				5E7715A12ED5EF2400CC845E /* AppSettings */,
 				32AAC9ED64381F7DBF4B5996 /* SQLCipher */,
 			);
 			productName = iosApp;
@@ -211,7 +215,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode\n";
+			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode :ios-licences:exportLibraryDefinitions\n# The licences screen lists what the app ships, which the export just read from Gradle.\nmkdir -p \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\ncp ios-licences/build/generated/aboutLibraries/aboutlibraries.json \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/licences.json\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -459,6 +463,10 @@
 		A0711E0A2ED5EF2400CC845E /* Authentication */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Authentication;
+		};
+		5E7715A12ED5EF2400CC845E /* AppSettings */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AppSettings;
 		};
 		32AAC9ED64381F7DBF4B5996 /* SQLCipher */ = {
 			isa = XCSwiftPackageProductDependency;

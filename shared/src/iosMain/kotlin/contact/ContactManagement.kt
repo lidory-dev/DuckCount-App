@@ -11,7 +11,6 @@ import database.data.repository.UserRepository
 import database.domain.BlockedUser
 import database.domain.ContactRequest
 import database.domain.User
-import discoveryUsername.DiscoveryUsernameRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import sync.ForegroundSync
@@ -22,9 +21,9 @@ private const val TAG = "ContactManagement"
 
 /**
  * What the iOS contact screens run, with the same repositories and in the same order as Android's
- * `ContactCallBacksImp`, and the discovery username's reservation as Android's
- * `SettingsCallBacksImpl` runs it, both of which live in the Android app, their failures told as
- * those tell them, see [AddContactFailure].
+ * `ContactCallBacksImp`, which lives in the Android app, their failures told as it tells them, see
+ * [AddContactFailure]. The discovery username is reserved from the settings, see
+ * [settings.SettingsManagement], as on Android: the contact screens only read it.
  *
  * Unlike Android's, nothing here takes a notification down: iOS receives no push, so none is up.
  */
@@ -36,7 +35,6 @@ class ContactManagement(
     private val contactSync: ContactSync,
     private val foregroundSync: ForegroundSync,
     private val safetyNumbers: SafetyNumbers,
-    private val discoveryUsernameRepository: DiscoveryUsernameRepository,
     private val networkConnectivity: NetworkConnectivity,
 ) {
 
@@ -179,12 +177,9 @@ class ContactManagement(
             }
         }
 
-    /** Why [username] cannot be looked up or reserved as typed, or null when it is valid, or empty. */
+    /** Why [username] cannot be looked up as typed, or null when it is valid, or empty. */
     fun validateUsername(username: String): UsernameInputFailure? =
         app.lidory.duckcount.validateUsername(username = username)?.toInputFailure()
-
-    /** [username] as the server knows it by, which a reserved one is compared by. */
-    fun normalizeUsername(username: String): String = app.lidory.duckcount.normalizeUsername(username = username)
 
     /** Sends a contact request to whoever reserved the discovery [username]. Null once it is sent. */
     suspend fun sendRequest(username: String): AddContactFailure? =
@@ -196,26 +191,6 @@ class ContactManagement(
                 request.error.toAddContactFailure(isOnline = networkConnectivity.isOnline())
             }
         }
-
-    /**
-     * Brings this device's copy of the reserved username in line with the vault, which says which
-     * one the account holds. A failure is not reported: the user keeps seeing the local copy.
-     */
-    suspend fun refreshReservedUsername() {
-        discoveryUsernameRepository.syncDiscoveryUsername().onError { error ->
-            warn("refreshReservedUsername: could not refresh the username: $error")
-        }
-    }
-
-    /** Reserves [username], replacing whatever the user reserved before. Null once reserved. */
-    suspend fun reserveUsername(username: String): ReserveUsernameFailure? {
-        val userUuid = getAuthenticatedUserUuid() ?: return ReserveUsernameFailure.UNAUTHORIZED
-
-        return when (val reservation = discoveryUsernameRepository.reserve(userUuid = userUuid, username = username)) {
-            is Result.Success -> null
-            is Result.Error -> reservation.error.toReserveFailure(isOnline = networkConnectivity.isOnline())
-        }
-    }
 
     /** Backs up the contacts the vault does not hold yet, and reads the missing names. */
     private suspend fun backUp(caller: String) {

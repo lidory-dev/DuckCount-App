@@ -8,6 +8,7 @@ struct ContentView: View {
         case expenseList
         case groupList
         case contactList
+        case settings
     }
 
     @AppStorage("selectedTab") var selectedTab: Tabs = .expenseList
@@ -47,6 +48,9 @@ struct ContentView: View {
             callBacks: startupViewModel.authenticationCallBacks,
             resume: resume,
             onAuthenticated: {
+                // A new session starts on the first tab, whichever one the last session left open.
+                selectedTab = .expenseList
+
                 withAnimation {
                     startupViewModel.authenticated()
                 }
@@ -67,6 +71,10 @@ struct ContentView: View {
 
             Tab("Contacts", systemImage: "person.3.fill", value: .contactList) {
                 ContactListScreen()
+            }
+
+            Tab("Settings", systemImage: "gearshape.fill", value: .settings) {
+                SettingsScreen()
             }
         }
         .transition(.opacity)

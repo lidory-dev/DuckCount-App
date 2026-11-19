@@ -1,0 +1,22 @@
+{
+  "uniqueId": "net.zetetic:SQLCipher.swift",
+  "artifactVersion": "4.19.0",
+  "name": "SQLCipher",
+  "description": "SQLCipher is a standalone fork of SQLite that adds 256 bit AES encryption of database files.",
+  "website": "https://www.zetetic.net/sqlcipher/",
+  "developers": [
+    {
+      "name": "Zetetic LLC"
+    }
+  ],
+  "organization": {
+    "name": "Zetetic LLC",
+    "url": "https://www.zetetic.net"
+  },
+  "scm": {
+    "url": "https://github.com/sqlcipher/SQLCipher.swift"
+  },
+  "licenses": [
+    "sqlcipher-community"
+  ]
+}

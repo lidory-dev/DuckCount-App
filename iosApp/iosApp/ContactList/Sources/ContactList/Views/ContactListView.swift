@@ -13,6 +13,10 @@ enum ContactRoute: Hashable {
 public struct ContactListView: View {
     private let callBacks: any ContactCallBacks
 
+    /// The form a username is reserved with, which the settings provide, shown in a sheet that closes
+    /// itself once the username is reserved, as Android's contact list opens its settings on it.
+    private let usernameReservation: @MainActor () -> AnyView
+
     @StateObject private var viewModel: ContactListViewModel
 
     @State private var selection: ContactRoute?
@@ -21,8 +25,9 @@ public struct ContactListView: View {
 
     @Environment(\.scenePhase) private var scenePhase
 
-    public init(callBacks: any ContactCallBacks) {
+    public init(callBacks: any ContactCallBacks, usernameReservation: @escaping @MainActor () -> AnyView) {
         self.callBacks = callBacks
+        self.usernameReservation = usernameReservation
         _viewModel = StateObject(wrappedValue: ContactListViewModel(callBacks: callBacks))
     }
 
@@ -40,7 +45,7 @@ public struct ContactListView: View {
             NewContactView(callBacks: callBacks)
         }
         .sheet(isPresented: $isReservingUsername) {
-            ReserveUsernameView(callBacks: callBacks)
+            usernameReservation()
         }
         .task {
             await viewModel.refresh()
@@ -99,19 +104,6 @@ public struct ContactListView: View {
                         Text("Add a new contact", bundle: .module)
                     } icon: {
                         Image(systemName: "person.badge.plus")
-                    }
-                }
-            }
-
-            // Where Android's settings offer it, which iOS has none of yet.
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    isReservingUsername = true
-                } label: {
-                    Label {
-                        Text("Username", bundle: .module)
-                    } icon: {
-                        Image(systemName: "at")
                     }
                 }
             }
@@ -244,5 +236,5 @@ public struct ContactListView: View {
 }
 
 #Preview {
-    ContactListView(callBacks: PreviewContactCallBacks())
+    ContactListView(callBacks: PreviewContactCallBacks(), usernameReservation: { AnyView(Text(verbatim: "Username")) })
 }

@@ -1,16 +1,14 @@
 package contact
 
 import app.lidory.duckcount.UsernameError
-import discoveryUsername.DiscoveryUsernameError
 import mls.MlsIdentityError
 import util.NetworkError
 import vault.VaultError
 
-// What the iOS contact screens tell apart, as Android's `model` enums of `:feature:contactList` and
-// `ReserveDiscoveryUsernameError` of `:feature:settings` do, which live in Android-only modules,
-// and the mappings to them, as `ContactMappers.kt` and `SettingsMappers.kt` have them. What went
-// wrong with the user's own key material, in the vault or in the MLS client, is folded into
-// `UNKNOWN`: nothing the user can act on. Network failures along the way are told as such,
+// What the iOS contact screens tell apart, as Android's `model` enums of `:feature:contactList` do,
+// which live in an Android-only module, and the mappings to them, as `ContactMappers.kt` has them.
+// What went wrong with the user's own key material, in the vault or in the MLS client, is folded
+// into `UNKNOWN`: nothing the user can act on. Network failures along the way are told as such,
 // whichever call they came from, and a connection that failed is told apart from airplane mode
 // with `isOnline`: Ktor's Darwin engine reports both as a connection that failed.
 
@@ -81,32 +79,6 @@ enum class RemoveContactFailure {
 
 /** Why the safety number of a contact could not be computed. */
 enum class ContactVerificationFailure {
-    NO_INTERNET,
-    TIMEOUT,
-    SERVER_UNREACHABLE,
-    UNKNOWN,
-}
-
-/** Why the discovery username could not be reserved, as Android's `ReserveDiscoveryUsernameError` tells it. */
-enum class ReserveUsernameFailure {
-    /** Somebody else already holds that username. */
-    ALREADY_TAKEN,
-
-    /** The server rejected the username itself. */
-    INVALID,
-
-    /** The session is no longer valid. */
-    UNAUTHORIZED,
-
-    /**
-     * Another device changed the account's key material while this reservation was being written,
-     * so the handle was not recorded: the same one can simply be reserved again.
-     */
-    CONFLICT,
-
-    /** Too many reservations in too short a time. */
-    RATE_LIMITED,
-
     NO_INTERNET,
     TIMEOUT,
     SERVER_UNREACHABLE,
@@ -391,58 +363,4 @@ private fun NetworkError.toVerificationFailure(isOnline: Boolean): ContactVerifi
     NetworkError.FORBIDDEN,
     NetworkError.UNKNOWN,
         -> ContactVerificationFailure.UNKNOWN
-}
-
-/**
- * Why reserving the discovery username failed. The vault half is folded in: to the user, "the
- * handle could not be recorded" and "the handle could not be reserved" are the same failed
- * reservation, and retrying is the answer to both.
- */
-internal fun DiscoveryUsernameError.toReserveFailure(isOnline: Boolean): ReserveUsernameFailure = when (this) {
-    is DiscoveryUsernameError.Reservation -> error.toReserveFailure(isOnline = isOnline)
-
-    is DiscoveryUsernameError.Vault -> when (val vaultError = error) {
-        // Only ever unsealed during a registration or a login, so logging in again is the only way back.
-        VaultError.MissingRootKey -> ReserveUsernameFailure.UNAUTHORIZED
-
-        VaultError.Contended -> ReserveUsernameFailure.CONFLICT
-
-        is VaultError.Network -> when (vaultError.error) {
-            // Not the reservation route's 409, which means the handle is somebody else's: a vault
-            // write only ever conflicts on the key ring.
-            NetworkError.CONFLICT -> ReserveUsernameFailure.CONFLICT
-
-            else -> vaultError.error.toReserveFailure(isOnline = isOnline)
-        }
-
-        VaultError.Crypto,
-        VaultError.MalformedKeyRing,
-        VaultError.MalformedContactBook,
-        VaultError.MalformedMemberProfileBook,
-        VaultError.MalformedBlockList,
-        VaultError.OrphanedEntry,
-            -> ReserveUsernameFailure.UNKNOWN
-    }
-}
-
-private fun NetworkError.toReserveFailure(isOnline: Boolean): ReserveUsernameFailure = when (this) {
-    NetworkError.NO_INTERNET -> ReserveUsernameFailure.NO_INTERNET
-    NetworkError.REQUEST_TIMEOUT -> ReserveUsernameFailure.TIMEOUT
-    NetworkError.UNREACHABLE -> if (isOnline) ReserveUsernameFailure.SERVER_UNREACHABLE else ReserveUsernameFailure.NO_INTERNET
-    NetworkError.CONFLICT -> ReserveUsernameFailure.ALREADY_TAKEN
-
-    NetworkError.BAD_REQUEST,
-    NetworkError.UNPROCESSABLE_ENTITY,
-        -> ReserveUsernameFailure.INVALID
-
-    NetworkError.UNAUTHORIZED -> ReserveUsernameFailure.UNAUTHORIZED
-    NetworkError.TOO_MANY_REQUESTS -> ReserveUsernameFailure.RATE_LIMITED
-
-    NetworkError.NOT_FOUND,
-    NetworkError.PAYLOAD_TOO_LARGE,
-    NetworkError.SERVER_ERROR,
-    NetworkError.SERIALIZATION,
-    NetworkError.FORBIDDEN,
-    NetworkError.UNKNOWN,
-        -> ReserveUsernameFailure.UNKNOWN
 }

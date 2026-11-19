@@ -24,7 +24,6 @@ final class FakeContactCallBacks: ContactCallBacks {
     var blockFailure: RemoveContactError?
     var answerFailure: AnswerContactRequestError?
     var addFailure: AddContactError?
-    var reserveFailure: ReserveUsernameError?
 
     /// Holds every write back until opened, for a test to look at what is shown meanwhile.
     var gate: Gate?
@@ -38,9 +37,7 @@ final class FakeContactCallBacks: ContactCallBacks {
     private(set) var refused: [String] = []
     private(set) var blockedSenders: [String] = []
     private(set) var sentTo: [String] = []
-    private(set) var reservations: [String] = []
     private(set) var refreshCount = 0
-    private(set) var reservedRefreshCount = 0
 
     func authenticatedUserUuid() -> String? {
         me
@@ -167,26 +164,11 @@ final class FakeContactCallBacks: ContactCallBacks {
         return username.first!.isLetter ? nil : .mustStartWithLetter
     }
 
-    func normalizeUsername(_ username: String) -> String {
-        username.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    }
-
     func sendRequest(username: String) async -> AddContactError? {
         sentTo.append(username)
         await gate?.wait()
 
         return addFailure
-    }
-
-    func refreshReservedUsername() async {
-        reservedRefreshCount += 1
-    }
-
-    func reserveUsername(_ username: String) async -> ReserveUsernameError? {
-        reservations.append(username)
-        await gate?.wait()
-
-        return reserveFailure
     }
 }
 

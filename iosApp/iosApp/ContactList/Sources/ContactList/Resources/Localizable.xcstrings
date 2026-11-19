@@ -101,16 +101,6 @@
         }
       }
     },
-    "Choose the new username your contacts will use to add you.\n\nThe one you hold now is released as soon as the new one is reserved, so anybody still looking for the old one will no longer find you." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choisissez le nouveau nom d’utilisateur que vos contacts utiliseront pour vous ajouter.\n\nCelui que vous détenez actuellement est libéré dès que le nouveau est réservé. Les personnes qui chercheraient encore l’ancien ne vous trouveront plus."
-          }
-        }
-      }
-    },
     "Clear verification" : {
       "localizations" : {
         "fr" : {
@@ -281,42 +271,12 @@
         }
       }
     },
-    "Please log in again to reserve a username." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reconnectez-vous pour réserver un nom d’utilisateur."
-          }
-        }
-      }
-    },
-    "Reserve" : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Réserver"
-          }
-        }
-      }
-    },
     "Reserve a username" : {
       "localizations" : {
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Réserver un nom d’utilisateur"
-          }
-        }
-      }
-    },
-    "Reserve the username your contacts will use to add you.\n\nOnly a fingerprint of it reaches our servers, so we never learn the username itself — only somebody who already knows it can find you." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Réservez le nom d’utilisateur que vos contacts utiliseront pour vous ajouter.\n\nSeule une empreinte de celui-ci parvient à nos serveurs. Nous ne connaissons donc jamais le nom d’utilisateur lui-même, seule une personne qui le connaît déjà peut vous trouver."
           }
         }
       }
@@ -421,16 +381,6 @@
         }
       }
     },
-    "The username could not be reserved." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le nom d’utilisateur n’a pas pu être réservé."
-          }
-        }
-      }
-    },
     "Their request will be declined and they won’t be able to send you contact requests any more. They won’t be told." : {
       "localizations" : {
         "fr" : {
@@ -497,26 +447,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cet utilisateur fait déjà partie de vos contacts."
-          }
-        }
-      }
-    },
-    "This username cannot be used." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ce nom d’utilisateur ne peut pas être utilisé."
-          }
-        }
-      }
-    },
-    "This username is already taken." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ce nom d’utilisateur est déjà pris."
           }
         }
       }
@@ -667,16 +597,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cette demande avait déjà été acceptée, cette personne a donc été ajoutée à vos contacts."
-          }
-        }
-      }
-    },
-    "Your account changed on another device, please try again." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Votre compte a changé sur un autre appareil, réessayez."
           }
         }
       }

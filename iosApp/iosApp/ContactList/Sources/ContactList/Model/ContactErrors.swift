@@ -1,6 +1,6 @@
 import Foundation
 
-/// Why a username cannot be looked up or reserved as typed, as Android's `UsernameInputError`.
+/// Why a username cannot be looked up as typed, as Android's `UsernameInputError`.
 public enum UsernameInputError: Hashable, Sendable {
     case mustStartWithLetter
     case invalidCharacter
@@ -162,51 +162,6 @@ public enum ContactVerificationError: Error, Hashable, Sendable {
         case .timeout: Messages.timeout
         case .serverUnreachable: Messages.serverUnreachable
         case .unknown: String(localized: "The safety number could not be shown.", bundle: .module)
-        }
-    }
-}
-
-/// Why the discovery username could not be reserved, as Android's `ReserveDiscoveryUsernameError`.
-public enum ReserveUsernameError: Error, Hashable, Sendable {
-    /// Somebody else already holds it.
-    case alreadyTaken
-
-    /// The server rejected the username itself.
-    case invalid
-
-    /// The session is no longer valid.
-    case unauthorized
-
-    /// Another device changed the account's key material meanwhile: the same one can simply be
-    /// reserved again.
-    case conflict
-
-    case rateLimited
-    case noInternet
-    case timeout
-    case serverUnreachable
-    case unknown
-
-    var message: String {
-        switch self {
-        case .alreadyTaken:
-            String(localized: "This username is already taken.", bundle: .module)
-        case .invalid:
-            String(localized: "This username cannot be used.", bundle: .module)
-        case .unauthorized:
-            String(localized: "Please log in again to reserve a username.", bundle: .module)
-        case .conflict:
-            String(localized: "Your account changed on another device, please try again.", bundle: .module)
-        case .rateLimited:
-            Messages.rateLimited
-        case .noInternet:
-            Messages.noInternet
-        case .timeout:
-            Messages.timeout
-        case .serverUnreachable:
-            Messages.serverUnreachable
-        case .unknown:
-            String(localized: "The username could not be reserved.", bundle: .module)
         }
     }
 }

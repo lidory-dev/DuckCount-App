@@ -164,7 +164,8 @@ private const val DATABASE_KEY_VAULT_ENTRY = "ksafe_secret_$DATABASE_KEY_SECRET"
  * out, the database being created under it right after: a key that never reached the disk would
  * have the next launch discard everything written under it.
  *
- * Read once per process on both platforms.
+ * Read once per process on Android, and once per database on iOS, which opens a new one as a
+ * session ends instead of starting a new process, see `di.restartSession`.
  *
  * No key means the last one was dropped at log-out ([clearDatabaseKey]), which leaves a file
  * on disk sealed under a key that no longer exists anywhere: the rows the log-out deleted are gone,
@@ -177,9 +178,9 @@ private const val DATABASE_KEY_VAULT_ENTRY = "ksafe_secret_$DATABASE_KEY_SECRET"
  * never be opened again, so refusing would only stop the app from starting. A read that fails for
  * now, on a locked device, throws instead and discards nothing.
  *
- * Being read once per process is also why a log-out restarts the process: the one that dropped
- * the key would otherwise keep writing under it, and this would discard all of it at the next
- * launch.
+ * Being read once per process is also why a log-out restarts the process, or on iOS opens a new
+ * database: the one that dropped the key would otherwise keep writing under it, and this would
+ * discard all of it at the next launch.
  */
 suspend fun getDatabaseKey(vault: KSafe): String {
     if (vault.getKeyInfo(DATABASE_KEY_VAULT_ENTRY) == null) {

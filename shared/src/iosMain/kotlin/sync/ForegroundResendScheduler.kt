@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -76,6 +77,15 @@ class ForegroundResendScheduler(
                 retries = 0
             }
         }
+    }
+
+    /**
+     * Drops whatever is booked, and waits for a pass it is running to stop, for the session's end:
+     * nothing is to be sent for a session that is over, see `di.restartSession`. Nothing can be
+     * booked once this returns.
+     */
+    suspend fun close() {
+        scope.coroutineContext[Job]?.cancelAndJoin()
     }
 
     private companion object {

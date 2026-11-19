@@ -3,8 +3,7 @@ import Foundation
 import Shared
 
 /// The contact screens' callbacks, run by the shared module's `ContactManagement`, as Android's
-/// `ContactCallBacksImp`, and the reservation part of its `SettingsCallBacksImpl`, run them in its
-/// app module.
+/// `ContactCallBacksImp` runs them in its app module.
 @MainActor
 final class ContactCallBacksImpl: ContactCallBacks {
     private let contacts: ContactManagement
@@ -158,25 +157,9 @@ final class ContactCallBacksImpl: ContactCallBacks {
         }
     }
 
-    func normalizeUsername(_ username: String) -> String {
-        contacts.normalizeUsername(username: username)
-    }
-
     func sendRequest(username: String) async -> ContactList.AddContactError? {
         do {
             return try await contacts.sendRequest(username: username)?.addError
-        } catch {
-            return .unknown
-        }
-    }
-
-    func refreshReservedUsername() async {
-        try? await contacts.refreshReservedUsername()
-    }
-
-    func reserveUsername(_ username: String) async -> ContactList.ReserveUsernameError? {
-        do {
-            return try await contacts.reserveUsername(username: username)?.reserveError
         } catch {
             return .unknown
         }
@@ -240,22 +223,6 @@ extension RemoveContactFailure {
 extension ContactVerificationFailure {
     fileprivate var verificationError: ContactList.ContactVerificationError {
         switch self {
-        case .noInternet: .noInternet
-        case .timeout: .timeout
-        case .serverUnreachable: .serverUnreachable
-        default: .unknown
-        }
-    }
-}
-
-extension ReserveUsernameFailure {
-    fileprivate var reserveError: ContactList.ReserveUsernameError {
-        switch self {
-        case .alreadyTaken: .alreadyTaken
-        case .invalid: .invalid
-        case .unauthorized: .unauthorized
-        case .conflict: .conflict
-        case .rateLimited: .rateLimited
         case .noInternet: .noInternet
         case .timeout: .timeout
         case .serverUnreachable: .serverUnreachable

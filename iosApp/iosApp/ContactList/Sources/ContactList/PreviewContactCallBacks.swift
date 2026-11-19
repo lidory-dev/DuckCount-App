@@ -72,13 +72,5 @@ final class PreviewContactCallBacks: ContactCallBacks {
         username.isEmpty || username.allSatisfy({ $0.isLetter || $0.isNumber }) ? nil : .invalidCharacter
     }
 
-    func normalizeUsername(_ username: String) -> String {
-        username.trimmedUsername
-    }
-
     func sendRequest(username: String) async -> AddContactError? { nil }
-
-    func refreshReservedUsername() async {}
-
-    func reserveUsername(_ username: String) async -> ReserveUsernameError? { nil }
 }

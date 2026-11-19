@@ -1,6 +1,7 @@
 package di
 
 import account.di.accountModule
+import authenticationUtils.SessionExpiry
 import authentication.AccountAuthentication
 import authentication.AppAttester
 import authentication.NetworkConnectivity
@@ -26,8 +27,11 @@ import networking.di.networkingModule
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
 import org.koin.core.context.startKoin
+import org.koin.core.module.Module
+import org.koin.dsl.bind
 import org.koin.dsl.module
 import profile.di.profileModule
+import settings.SettingsManagement
 import sync.ForegroundResendScheduler
 import sync.ForegroundSync
 import push.di.pushModule
@@ -35,24 +39,35 @@ import vault.di.vaultModule
 
 fun initKoin() {
     startKoin {
-        modules(
-            sharedModule,
-            dbModule,
-            dbPlatformModule(),
-            networkingModule,
-            vaultModule,
-            profileModule,
-            discoveryModule,
-            mlsModule,
-            expenseModule,
-            messageModule,
-            channelModule,
-            groupModule,
-            pushModule,
-            accountModule,
-            iosPlatformModule,
-        )
+        modules(listOf(sharedModule) + sessionModules)
     }
+}
+
+/**
+ * Every module but [sharedModule], which holds the two KSafe stores: what a session's end reloads,
+ * see [restartSession]. The stores stay, as they would not in a process of their own: two of them on
+ * one file would each keep its own copy of what it holds in memory.
+ *
+ * Built once, unloading the very modules that were loaded, and on first use: [iosPlatformModule] is
+ * declared further down, and would be null yet.
+ */
+internal val sessionModules: List<Module> by lazy {
+    listOf(
+        dbModule,
+        dbPlatformModule(),
+        networkingModule,
+        vaultModule,
+        profileModule,
+        discoveryModule,
+        mlsModule,
+        expenseModule,
+        messageModule,
+        channelModule,
+        groupModule,
+        pushModule,
+        accountModule,
+        iosPlatformModule,
+    )
 }
 
 /**
@@ -61,7 +76,8 @@ fun initKoin() {
  */
 private val iosPlatformModule = module {
     // Lazily, the sync it runs being built from what books it.
-    single<ResendScheduler> { ForegroundResendScheduler(foregroundSync = lazy { get<ForegroundSync>() }, updateRequirement = get()) }
+    single { ForegroundResendScheduler(foregroundSync = lazy { get<ForegroundSync>() }, updateRequirement = get()) }
+        .bind<ResendScheduler>()
     single<GroupSyncAnnouncer> { NoGroupSyncAnnouncer }
     single { NetworkConnectivity() }
     single { AppAttester() }
@@ -85,7 +101,17 @@ private val iosPlatformModule = module {
             contactSync = get(),
             foregroundSync = get(),
             safetyNumbers = get(),
+            networkConnectivity = get(),
+        )
+    }
+    single {
+        SettingsManagement(
+            duckCountClient = get(),
+            userRepository = get(),
+            profileRepository = get(),
             discoveryUsernameRepository = get(),
+            accountDeletion = get(),
+            passwordChange = get(),
             networkConnectivity = get(),
         )
     }
@@ -133,4 +159,6 @@ class KoinHelper : KoinComponent {
     fun getExpenseManagement(): ExpenseManagement = get()
     fun getGroupManagement(): GroupManagement = get()
     fun getContactManagement(): ContactManagement = get()
+    fun getSettingsManagement(): SettingsManagement = get()
+    fun getSessionExpiry(): SessionExpiry = get()
 }

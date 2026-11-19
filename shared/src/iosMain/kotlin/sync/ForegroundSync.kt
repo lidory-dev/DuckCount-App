@@ -8,8 +8,10 @@ import group.GroupSyncError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -97,6 +99,16 @@ class ForegroundSync(
                 warn("syncGroup: could not sync the group's expenses: $it")
             }
         }
+    }
+
+    /**
+     * Stops the pass under way, and waits for it to, for the session's end: what it would write
+     * belongs to a session that is over, and the database it writes to is about to close, see
+     * `di.restartSession`. Whoever waits for it gets the cancellation, and nothing runs once this
+     * returns: a sync asked for afterwards is cancelled at once.
+     */
+    suspend fun close() {
+        scope.coroutineContext[Job]?.cancelAndJoin()
     }
 
     private suspend fun pass(): ForegroundSyncPass = unlessLocked("pass") {

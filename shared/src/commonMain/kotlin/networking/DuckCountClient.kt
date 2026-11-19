@@ -518,9 +518,10 @@ class DuckCountClient(
      * starts a database of its own.
      *
      * That next launch has to come before the next session, so the caller restarts the process
-     * once this returns (`restartApp` on Android). This process opened the database with the key
-     * just dropped and would go on writing under it, and a launch finding no key discards all of
-     * that too, including MLS secrets nothing can bring back. A future iOS log-out needs the same.
+     * once this returns (`restartApp` on Android), or, on iOS, which cannot, closes the database and
+     * drops everything built for the session (`di.restartSession`). This process opened the
+     * database with the key just dropped and would go on writing under it, and a launch finding no
+     * key discards all of that too, including MLS secrets nothing can bring back.
      *
      * Not cancellable once started. A forced log-out runs inside whichever request got the `401`,
      * whose caller can go away at any point, and stopping after the credentials but before the

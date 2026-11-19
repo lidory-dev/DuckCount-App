@@ -1,0 +1,696 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "About" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "À propos"
+          }
+        }
+      }
+    },
+    "Account" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compte"
+          }
+        }
+      }
+    },
+    "An error occurred" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une erreur est survenue"
+          }
+        }
+      }
+    },
+    "App version" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version de l’application"
+          }
+        }
+      }
+    },
+    "Are you sure you want to log out? You’ll need to log back in to access your groups and expenses." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voulez-vous vraiment vous déconnecter ? Vous devrez vous reconnecter pour accéder à vos groupes et à vos dépenses."
+          }
+        }
+      }
+    },
+    "Author" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auteur"
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuler"
+          }
+        }
+      }
+    },
+    "Change password" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier le mot de passe"
+          }
+        }
+      }
+    },
+    "Choose the new username your contacts will use to add you.\n\nThe one you hold now is released as soon as the new one is reserved, so anybody still looking for the old one will no longer find you." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez le nouveau nom d’utilisateur que vos contacts utiliseront pour vous ajouter.\n\nCelui que vous détenez actuellement est libéré dès que le nouveau est réservé. Les personnes qui chercheraient encore l’ancien ne vous trouveront plus."
+          }
+        }
+      }
+    },
+    "Confirm" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmer"
+          }
+        }
+      }
+    },
+    "Connected as **%@**" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecté en tant que **%@**"
+          }
+        }
+      }
+    },
+    "Current password" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mot de passe actuel"
+          }
+        }
+      }
+    },
+    "Delete account" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimer le compte"
+          }
+        }
+      }
+    },
+    "Deleting your account is permanent and your data cannot be recovered.\n\nGroups you created will be deleted for all their members, who keep a read-only copy.\n\nOther expenses you’ve created or participated in will not be deleted. They’ll remain visible to anyone else involved.\n\nTo continue, you’ll need to re-enter your password to confirm." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La suppression de votre compte est définitive et vos données ne pourront pas être récupérées.\n\nLes groupes que vous avez créés seront supprimés pour tous leurs membres, qui en garderont une copie en lecture seule.\n\nLes autres dépenses que vous avez créées ou auxquelles vous avez participé ne seront pas supprimées. Elles resteront visibles par les autres personnes concernées.\n\nPour continuer, vous devrez saisir à nouveau votre mot de passe."
+          }
+        }
+      }
+    },
+    "DuckCount and the library on which it depends (lib-duckcount) are licensed under the European Union Public Licence, version 1.2 (EUPL-1.2)." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DuckCount et la bibliothèque lib-duckcount, dont l’application dépend, sont distribuées sous licence publique de l’Union européenne, version 1.2 (EUPL-1.2)."
+          }
+        }
+      }
+    },
+    "DuckCount is built by the engineers at Lidory" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DuckCount est développé par les ingénieurs de Lidory"
+          }
+        }
+      }
+    },
+    "Full Name" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom complet"
+          }
+        }
+      }
+    },
+    "Incorrect password." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mot de passe incorrect."
+          }
+        }
+      }
+    },
+    "Learn more" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En savoir plus"
+          }
+        }
+      }
+    },
+    "Letters and digits only" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lettres et chiffres uniquement"
+          }
+        }
+      }
+    },
+    "Licences" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Licences"
+          }
+        }
+      }
+    },
+    "Lidory is a company specializing in software development and cybersecurity. It develops both consumer applications and business software.\n\nPrivacy and cybersecurity are top priorities for us." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lidory est une entreprise spécialisée dans le développement logiciel et la cybersécurité. Elle conçoit aussi bien des applications grand public que des logiciels professionnels.\n\nLa protection de la vie privée et la cybersécurité sont nos priorités absolues."
+          }
+        }
+      }
+    },
+    "Log out" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se déconnecter"
+          }
+        }
+      }
+    },
+    "Must differ from your current password." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doit être différent du mot de passe actuel."
+          }
+        }
+      }
+    },
+    "Must start with a letter" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doit commencer par une lettre"
+          }
+        }
+      }
+    },
+    "New password" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouveau mot de passe"
+          }
+        }
+      }
+    },
+    "New password confirmation" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmation du nouveau mot de passe"
+          }
+        }
+      }
+    },
+    "No internet connection." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune connexion Internet."
+          }
+        }
+      }
+    },
+    "No licences" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune licence"
+          }
+        }
+      }
+    },
+    "Password" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mot de passe"
+          }
+        }
+      }
+    },
+    "Please log in again to change your profile." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnectez-vous pour modifier votre profil."
+          }
+        }
+      }
+    },
+    "Please log in again to reserve a username." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnectez-vous pour réserver un nom d’utilisateur."
+          }
+        }
+      }
+    },
+    "Privacy policy" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Politique de confidentialité"
+          }
+        }
+      }
+    },
+    "Profile" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profil"
+          }
+        }
+      }
+    },
+    "Read the licence" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lire la licence"
+          }
+        }
+      }
+    },
+    "Required" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obligatoire"
+          }
+        }
+      }
+    },
+    "Reserve" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réserver"
+          }
+        }
+      }
+    },
+    "Reserve the username your contacts will use to add you.\n\nOnly a fingerprint of it reaches our servers, so we never learn the username itself — only somebody who already knows it can find you." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réservez le nom d’utilisateur que vos contacts utiliseront pour vous ajouter.\n\nSeule une empreinte de celui-ci parvient à nos serveurs. Nous ne connaissons donc jamais le nom d’utilisateur lui-même, seule une personne qui le connaît déjà peut vous trouver."
+          }
+        }
+      }
+    },
+    "Save" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer"
+          }
+        }
+      }
+    },
+    "Search" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher"
+          }
+        }
+      }
+    },
+    "Settings" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réglages"
+          }
+        }
+      }
+    },
+    "Source code" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code source"
+          }
+        }
+      }
+    },
+    "Terms of use" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conditions d’utilisation"
+          }
+        }
+      }
+    },
+    "The passwords do not match." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les mots de passe ne correspondent pas."
+          }
+        }
+      }
+    },
+    "The server is unreachable, please try again later." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le serveur est injoignable, réessayez plus tard."
+          }
+        }
+      }
+    },
+    "The server took too long to answer, please try again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le serveur a mis trop de temps à répondre, réessayez."
+          }
+        }
+      }
+    },
+    "The server’s answer never arrived, so your account may already be deleted. Check your connection, then try again to find out." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La réponse du serveur n’est pas arrivée, votre compte est donc peut-être déjà supprimé. Vérifiez votre connexion, puis réessayez pour le savoir."
+          }
+        }
+      }
+    },
+    "The server’s answer never arrived, so your password may already have been changed. If your current password is refused when you try again, or you’re asked to log in again, use your new password." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La réponse du serveur n’est pas arrivée, votre mot de passe a donc peut-être déjà été modifié. Si votre mot de passe actuel est refusé lorsque vous réessayez, ou s’il vous est demandé de vous reconnecter, utilisez votre nouveau mot de passe."
+          }
+        }
+      }
+    },
+    "The username could not be reserved." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le nom d’utilisateur n’a pas pu être réservé."
+          }
+        }
+      }
+    },
+    "This password has been leaked, please choose another one." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce mot de passe est compromis, choisissez-en un autre."
+          }
+        }
+      }
+    },
+    "This username cannot be used." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce nom d’utilisateur ne peut pas être utilisé."
+          }
+        }
+      }
+    },
+    "This username is already taken." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce nom d’utilisateur est déjà pris."
+          }
+        }
+      }
+    },
+    "Too many attempts, please try again later." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trop de tentatives, réessayez plus tard."
+          }
+        }
+      }
+    },
+    "Username" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom d’utilisateur"
+          }
+        }
+      }
+    },
+    "Username too long (%lld/%lld)" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom d’utilisateur trop long (%lld/%lld)"
+          }
+        }
+      }
+    },
+    "Version" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version"
+          }
+        }
+      }
+    },
+    "Visible only to your contacts and group members.\n\nEverything is end-to-end encrypted, which means we can’t see your profile — only the people you choose to share it with." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visible uniquement par vos contacts et les membres de vos groupes.\n\nTout est chiffré de bout en bout, nous ne pouvons pas voir votre profil. Seules les personnes avec qui vous choisissez de le partager y ont accès."
+          }
+        }
+      }
+    },
+    "Website" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Site web"
+          }
+        }
+      }
+    },
+    "Your account changed on another device, please try again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre compte a changé sur un autre appareil, réessayez."
+          }
+        }
+      }
+    },
+    "Your account could not be deleted." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre compte n’a pas pu être supprimé."
+          }
+        }
+      }
+    },
+    "Your full name is too long." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre nom complet est trop long."
+          }
+        }
+      }
+    },
+    "Your password can’t be only spaces." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le mot de passe ne peut pas être composé uniquement d’espaces."
+          }
+        }
+      }
+    },
+    "Your password could not be changed." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre mot de passe n’a pas pu être modifié."
+          }
+        }
+      }
+    },
+    "Your password has been changed." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre mot de passe a été modifié."
+          }
+        }
+      }
+    },
+    "Your password must have at least %lld characters." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le mot de passe doit contenir au moins %lld caractères."
+          }
+        }
+      }
+    },
+    "Your profile changed on another device, please try again." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre profil a changé sur un autre appareil, réessayez."
+          }
+        }
+      }
+    },
+    "Your profile could not be saved." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre profil n’a pas pu être enregistré."
+          }
+        }
+      }
+    },
+    "© 2026 Lidory SAS. All rights reserved.\nDuckCount® and Lidory® are trademarks of Lidory SAS." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "© 2026 Lidory SAS. Tous droits réservés.\nDuckCount® et Lidory® sont des marques déposées de Lidory SAS."
+          }
+        }
+      }
+    },
+    "🐤 Quack!" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "🐤 Coin-coin !"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

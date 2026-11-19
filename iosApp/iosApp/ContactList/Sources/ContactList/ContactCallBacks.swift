@@ -1,9 +1,9 @@
 import Foundation
 
 /// What the contact screens need from the rest of the app, which implements it on the shared
-/// module, as Android's `ContactCallBacks`, and the part of its `SettingsCallBacks` that reserves
-/// the discovery username, are implemented in its app module: the screens hold no business rule of
-/// their own, and this package knows nothing of `Shared`.
+/// module, as Android's `ContactCallBacks` is implemented in its app module: the screens hold no
+/// business rule of their own, and this package knows nothing of `Shared`. The discovery username is
+/// reserved by the settings' screens, which the app hands the contact list, see `ContactListView`.
 ///
 /// Each stream emits what the device shows as it changes, and stops being followed once the screen
 /// reading it is gone.
@@ -66,20 +66,10 @@ public protocol ContactCallBacks: AnyObject {
     /// Blocks the sender of the contact request `id` without accepting it, refusing it first.
     func blockRequestSender(id: String) async -> AnswerContactRequestError?
 
-    /// Why `username` cannot be looked up or reserved as typed, or nil when it is valid, or empty:
-    /// nothing typed yet is no mistake to point out.
+    /// Why `username` cannot be looked up as typed, or nil when it is valid, or empty: nothing typed
+    /// yet is no mistake to point out.
     func validateUsername(_ username: String) -> UsernameInputError?
-
-    /// `username` as a reserved one is compared by.
-    func normalizeUsername(_ username: String) -> String
 
     /// Sends a contact request to whoever reserved the discovery `username`. Returns nil once sent.
     func sendRequest(username: String) async -> AddContactError?
-
-    /// Brings the device's copy of the reserved username in line with the vault, which says which
-    /// one the account holds.
-    func refreshReservedUsername() async
-
-    /// Reserves `username`, replacing whatever the user reserved before. Returns nil once reserved.
-    func reserveUsername(_ username: String) async -> ReserveUsernameError?
 }
