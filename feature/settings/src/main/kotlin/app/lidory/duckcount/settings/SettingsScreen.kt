@@ -12,12 +12,16 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.settings.component.ButtonLine
+import app.lidory.duckcount.settings.component.ProfileCard
 import app.lidory.duckcount.settings.viewmodel.SettingsViewModel
 import org.koin.androidx.compose.koinViewModel
 import app.lidory.duckcount.android.ui.R as androidUiR
@@ -35,6 +39,7 @@ fun SettingsScreen(
 ) {
     val viewModel: SettingsViewModel = koinViewModel()
     val uriHandler = LocalUriHandler.current
+    val displayName by viewModel.displayName.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier,
@@ -60,19 +65,29 @@ fun SettingsScreen(
                 .padding(innerPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // Who the user is comes first, as the system's settings name the account they are
+            // signed in with, and leads to their profile.
+            viewModel.authenticatedUserUuid?.let { userUuid ->
+                item {
+                    ProfileCard(
+                        modifier = Modifier.padding(
+                            start = Padding.large,
+                            end = Padding.large,
+                            top = Padding.medium,
+                            bottom = Padding.large,
+                        ),
+                        userUuid = userUuid,
+                        name = displayName.orEmpty(),
+                        onClick = navigateToUserProfileScreen,
+                    )
+                }
+            }
+
             item {
                 ButtonLine(
                     text = R.string.discovery_username,
                     icon = androidUiR.drawable.ic_username,
                     onClick = navigateToReserveDiscoveryUsernameScreen,
-                )
-            }
-
-            item {
-                ButtonLine(
-                    text = R.string.profile,
-                    icon = R.drawable.ic_profile,
-                    onClick = navigateToUserProfileScreen,
                 )
             }
 
