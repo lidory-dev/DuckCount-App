@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// Where the settings list leads.
@@ -134,6 +135,7 @@ public struct SettingsView: View {
                 } icon: {
                     Image(systemName: "gearshape")
                 }
+                .font(.app(.title2))
             }
         }
     }
@@ -151,12 +153,11 @@ private struct ProfileHeader: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: name)
-                    .font(.title3)
-                    .fontWeight(.semibold)
+                    .font(.app(.title3))
                     .lineLimit(2)
 
                 Text("Profile", bundle: .module)
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
                     .foregroundStyle(.secondary)
             }
         }

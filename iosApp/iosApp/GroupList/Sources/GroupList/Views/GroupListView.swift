@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// Every group on the device, which opens on its own screen, and the way to create one: the Groups
@@ -77,6 +78,7 @@ public struct GroupListView: View {
                         } icon: {
                             Image(systemName: "person.3")
                         }
+                        .font(.app(.title2))
                     }
                 }
             }
@@ -138,6 +140,7 @@ public struct GroupListView: View {
                         } icon: {
                             Image(systemName: "person.3")
                         }
+                        .font(.app(.title2))
                     } actions: {
                         Button {
                             isCreating = true
@@ -178,13 +181,13 @@ struct GroupRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(group.title)
-                .font(.headline)
+                .font(.app(.headline))
                 .strikethrough(group.isLeft)
                 .lineLimit(1)
 
             if !group.description.isBlank {
                 Text(group.description)
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
                     .foregroundStyle(.secondary)
                     .strikethrough(group.isLeft)
                     .lineLimit(1)

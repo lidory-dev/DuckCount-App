@@ -15,9 +15,15 @@ let package = Package(
             targets: ["Authentication"]
         ),
     ],
+    dependencies: [
+        .package(path: "../AppFonts")
+    ],
     targets: [
         .target(
             name: "Authentication",
+            dependencies: [
+                .product(name: "AppFonts", package: "AppFonts")
+            ],
             resources: [
                 .process("Resources")
             ]

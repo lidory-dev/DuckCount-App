@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// The versions of an expense, the one shown first, each with when it was made and by whom, as
@@ -22,6 +23,7 @@ struct ExpenseHistoryView: View {
                     } icon: {
                         Image(systemName: "exclamationmark.triangle")
                     }
+                    .font(.app(.title2))
                 }
 
             case .loaded(let versions):
@@ -32,11 +34,11 @@ struct ExpenseHistoryView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             if let date = version.madeAt.flatMap(LocalDateTime.date(from:)) {
                                 Text(date.dayAndTimeTitle)
-                                    .font(.headline)
+                                    .font(.app(.headline))
                             }
 
                             AuthorLabel(version: version, name: viewModel.names.displayName(of: version.authorUuid))
-                                .font(.subheadline)
+                                .font(.app(.subheadline))
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 2)
@@ -65,11 +67,11 @@ struct ExpenseVersionView: View {
             Section {
                 VStack(alignment: .leading, spacing: 6) {
                     AuthorLabel(version: version, name: viewModel.names.displayName(of: version.authorUuid))
-                        .font(.subheadline)
+                        .font(.app(.subheadline))
                         .foregroundStyle(.secondary)
 
                     Text(expense.title)
-                        .font(.title2.bold())
+                        .font(.app(.title2))
 
                     if !expense.description.isBlank {
                         Text(expense.description)

@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 extension String {
@@ -78,7 +79,6 @@ struct ConfirmButton: View {
     var body: some View {
         Button(role: role, action: action) {
             title
-                .fontWeight(.semibold)
                 // Kept in place while hidden, for the button to keep its size.
                 .opacity(isLoading ? 0 : 1)
                 .overlay {
@@ -208,7 +208,7 @@ struct InitialAvatar: View {
             .frame(width: size, height: size)
             .overlay {
                 Text(name.prefix(1).uppercased())
-                    .font(.system(size: size * 0.5, weight: .medium))
+                    .font(.app(size: size * 0.5))
                     .foregroundStyle(colors.content)
             }
             .accessibilityHidden(true)

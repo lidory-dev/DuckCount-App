@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// Warns that the password typed for a new account turns up in known breaches, and asks for
@@ -16,8 +17,7 @@ struct PasswordLeakView: View {
                     .accessibilityHidden(true)
 
                 Text("Watch out!", bundle: .module)
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .font(.app(.title2))
 
                 Text(
                     "The password you are using has been leaked on the web \(leakCount) times and hackers can already use it to get into your accounts.",
@@ -27,7 +27,6 @@ struct PasswordLeakView: View {
                 Text("Please consider generating a brand new random password using a password manager.", bundle: .module)
 
                 Text("If you used this password on any other service, you MUST update it immediately.", bundle: .module)
-                    .fontWeight(.semibold)
             }
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)

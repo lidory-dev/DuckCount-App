@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// Where a registration ends once the server has refused the device's attestation. Nothing on the
@@ -15,8 +16,7 @@ struct DeviceNotAllowedView: View {
                     .accessibilityHidden(true)
 
                 Text("Device not eligible", bundle: .module)
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(.app(.title2))
 
                 Text(AuthError.deviceNotAllowed.message)
                     .foregroundStyle(.secondary)

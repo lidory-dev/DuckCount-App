@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// The first screen of a device with no account on it: what DuckCount is, and the way to create an
@@ -10,12 +11,10 @@ struct OnBoardingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text(verbatim: "DuckCount")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+                    .font(.app(.largeTitle))
 
                 Text("Share your expenses, not your data.", bundle: .module)
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(.app(.title2))
 
                 Text(
                     "Split bills with your group in seconds. The amounts and what they’re for stay encrypted — we can’t read them.",
@@ -35,7 +34,6 @@ struct OnBoardingView: View {
 
             Button(action: onLogIn) {
                 Text("Log In", bundle: .module)
-                    .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)

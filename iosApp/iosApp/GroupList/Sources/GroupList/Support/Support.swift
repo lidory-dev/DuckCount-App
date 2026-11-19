@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 extension Array {
@@ -171,7 +172,7 @@ struct MemberAvatar: View {
             .frame(width: size, height: size)
             .overlay {
                 Text(name.prefix(1).uppercased())
-                    .font(.system(size: size * 0.5, weight: .medium))
+                    .font(.app(size: size * 0.5))
                     .foregroundStyle(colors.content)
             }
             .accessibilityHidden(true)
@@ -232,7 +233,6 @@ struct ConfirmButton: View {
     var body: some View {
         Button(action: action) {
             title
-                .fontWeight(.semibold)
                 // Kept in place while hidden, for the button to keep its size.
                 .opacity(isLoading ? 0 : 1)
                 .overlay {
@@ -284,7 +284,7 @@ struct NoticeCard: View {
         } icon: {
             Image(systemName: "info.circle.fill")
         }
-        .font(.subheadline)
+        .font(.app(.subheadline))
         .foregroundStyle(Color(rgb: 0xFFF5F1))
         .padding(12)
         .background(Color(rgb: 0xAE5B20), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -297,7 +297,7 @@ struct OwnerLabel: View {
     var body: some View {
         // The system's grey rather than `.secondary`, which a row that is a button tints.
         Text("Owner", bundle: .module)
-            .font(.caption.weight(.medium))
+            .font(.app(.caption))
             .foregroundStyle(Color(uiColor: .secondaryLabel))
             .padding(.horizontal, 8)
             .padding(.vertical, 3)

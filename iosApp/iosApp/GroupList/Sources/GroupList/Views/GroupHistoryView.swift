@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// The versions of a group's title and description, newest first, each with when it was made, the
@@ -23,6 +24,7 @@ struct GroupHistoryView: View {
                     } icon: {
                         Image(systemName: "exclamationmark.triangle")
                     }
+                    .font(.app(.title2))
                 } actions: {
                     Button(action: viewModel.retry) {
                         Text("Try again", bundle: .module)
@@ -51,12 +53,12 @@ struct GroupVersionRow: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(version.title)
-                    .font(.headline)
+                    .font(.app(.headline))
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if version.isCurrent {
                     Text("Current version", bundle: .module)
-                        .font(.caption.weight(.medium))
+                        .font(.app(.caption))
                         .foregroundStyle(.tint)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -66,11 +68,11 @@ struct GroupVersionRow: View {
 
             if !version.description.isBlank {
                 Text(version.description)
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
             }
 
             madeOn
-                .font(.footnote)
+                .font(.app(.footnote))
                 .italic()
                 .foregroundStyle(.secondary)
         }

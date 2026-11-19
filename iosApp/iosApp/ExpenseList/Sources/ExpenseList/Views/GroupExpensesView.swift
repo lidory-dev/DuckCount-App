@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// A group's expenses, newest first under the day each happened on, deleted ones struck through,
@@ -63,6 +64,7 @@ public struct GroupExpensesView: View {
                     } icon: {
                         Image(systemName: "receipt")
                     }
+                    .font(.app(.title2))
                 } actions: {
                     if viewModel.canAddExpense {
                         Button {

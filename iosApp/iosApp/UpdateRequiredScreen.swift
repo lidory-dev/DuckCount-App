@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// Tells the user this build is no longer supported, in place of the whole app: there is no way
@@ -13,8 +14,7 @@ struct UpdateRequiredScreen: View {
                     .frame(width: 160, height: 160)
 
                 Text("Update required")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(.app(.title2))
 
                 Text(
                     "For security and compatibility reasons, this version of DuckCount is no longer supported. Update the app from the App Store to keep using it."

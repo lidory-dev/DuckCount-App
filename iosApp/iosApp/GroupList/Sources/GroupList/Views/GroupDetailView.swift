@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// The tabs of a group's screen, which a segmented control switches between where Android swipes
@@ -95,13 +96,13 @@ struct GroupDetailView: View {
             } label: {
                 VStack(spacing: 0) {
                     Text(viewModel.group?.title ?? "")
-                        .font(.headline)
+                        .font(.app(.headline))
                         .foregroundStyle(Color.primary)
                         .lineLimit(1)
 
                     if let description = viewModel.group?.description, !description.isBlank {
                         Text(description)
-                            .font(.caption)
+                            .font(.app(.caption))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }

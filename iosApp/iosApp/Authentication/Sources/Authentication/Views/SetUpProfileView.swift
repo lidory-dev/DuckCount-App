@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// The step that finishes a registration: the full name the user's contacts and group members see.
@@ -28,7 +29,7 @@ struct SetUpProfileView: View {
                         "Visible to your contacts and group members. Everything is end-to-end encrypted, which means we can’t see your profile — only the people you choose to share it with.",
                         bundle: .module
                     )
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                 }

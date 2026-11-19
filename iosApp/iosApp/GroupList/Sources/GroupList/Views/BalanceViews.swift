@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// What everybody comes to in a group, each on a bar of their own, green to the right for who is
@@ -31,6 +32,7 @@ struct BalanceTabView: View {
                         } icon: {
                             Image(systemName: "scalemass")
                         }
+                        .font(.app(.title2))
                     }
                 }
             }
@@ -140,6 +142,7 @@ struct SettleUpTabView: View {
                         } icon: {
                             Image(systemName: "checkmark.seal")
                         }
+                        .font(.app(.title2))
                     }
                 }
             }
@@ -199,6 +202,7 @@ private struct BalancesUnavailableView: View {
             } icon: {
                 Image(systemName: "exclamationmark.triangle")
             }
+            .font(.app(.title2))
         }
     }
 }

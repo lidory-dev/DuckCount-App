@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// Where the contacts tab leads.
@@ -97,11 +98,13 @@ public struct ContactListView: View {
                 } icon: {
                     Image(systemName: "at")
                 }
+                .font(.app(.title2))
             } description: {
                 Text(
                     "Your contacts need a username to add you, and you need one to add them.\n\nReserve yours to start building your contact list.",
                     bundle: .module
                 )
+                .font(.app(.body))
             } actions: {
                 Button {
                     isReservingUsername = true
@@ -223,6 +226,7 @@ public struct ContactListView: View {
             } icon: {
                 Image(systemName: "person.2")
             }
+            .font(.app(.title2))
         } actions: {
             Button {
                 isAddingContact = true
@@ -254,6 +258,7 @@ public struct ContactListView: View {
                 } icon: {
                     Image(systemName: "person.crop.circle")
                 }
+                .font(.app(.title2))
             }
         }
     }

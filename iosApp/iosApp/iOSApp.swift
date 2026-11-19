@@ -1,3 +1,4 @@
+import AppFonts
 import Shared
 import SwiftUI
 
@@ -8,6 +9,9 @@ struct iOSApp: App {
     @ObservedObject private var session = AppSession.shared
 
     init() {
+        // Before anything is drawn, the navigation bar's titles included, see AppFonts.
+        AppFonts.styleSystemControls()
+
         KoinInit_iosKt.doInitKoin(
             sharedWakeList: AppWakeList(),
             syncAnnouncer: Notifier.shared,
@@ -30,6 +34,8 @@ struct iOSApp: App {
                         .id(session.generation)
                 }
             }
+            // ABeeZee for whatever text sets no font of its own, as Android's body text is.
+            .font(.app(.body))
             .alert(
                 session.notice?.message ?? Text(verbatim: ""),
                 isPresented: Binding(

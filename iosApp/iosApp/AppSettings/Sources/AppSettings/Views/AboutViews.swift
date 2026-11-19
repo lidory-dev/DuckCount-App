@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// Who makes DuckCount, which version this is, and under what terms, as Android's `AboutScreen`,
@@ -24,8 +25,7 @@ struct AboutView: View {
             Section {
                 VStack(spacing: 12) {
                     Text("DuckCount is built by the engineers at Lidory", bundle: .module)
-                        .font(.title3)
-                        .fontWeight(.semibold)
+                        .font(.app(.title3))
 
                     Text(
                         "Lidory is a company specializing in software development and cybersecurity. It develops both consumer applications and business software.\n\nPrivacy and cybersecurity are top priorities for us.",
@@ -35,7 +35,6 @@ struct AboutView: View {
 
                     Link(destination: learnMoreLink) {
                         Text("Learn more", bundle: .module)
-                            .fontWeight(.semibold)
                     }
                     .buttonStyle(.borderedProminent)
                     .padding(.top, 4)
@@ -139,6 +138,7 @@ struct LicencesView: View {
                     } icon: {
                         Image(systemName: "doc.text")
                     }
+                    .font(.app(.title2))
                 }
             } else if found.isEmpty {
                 ContentUnavailableView.search(text: query)
@@ -164,7 +164,7 @@ private struct LibraryRow: View {
 
                 if let version = library.version {
                     Text(verbatim: version)
-                        .font(.subheadline)
+                        .font(.app(.subheadline))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
@@ -172,14 +172,14 @@ private struct LibraryRow: View {
 
             if let author = library.author {
                 Text(verbatim: author)
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
             if !library.licences.isEmpty {
                 Text(verbatim: library.licences.map(\.name).joined(separator: ", "))
-                    .font(.caption)
+                    .font(.app(.caption))
                     .foregroundStyle(.tint)
             }
         }
@@ -231,7 +231,7 @@ private struct LibraryView: View {
                 Section {
                     if let text = licence.text {
                         Text(verbatim: text)
-                            .font(.footnote)
+                            .font(.app(.footnote))
                             .textSelection(.enabled)
                     } else if let url = licence.url {
                         Link(destination: url) {

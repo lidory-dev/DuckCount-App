@@ -15,9 +15,15 @@ let package = Package(
             targets: ["GroupList"]
         ),
     ],
+    dependencies: [
+        .package(path: "../AppFonts")
+    ],
     targets: [
         .target(
             name: "GroupList",
+            dependencies: [
+                .product(name: "AppFonts", package: "AppFonts")
+            ],
             resources: [
                 .process("Resources")
             ]

@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// An expense: what it was for, who paid it and who shares it, and what the user can do with it, as
@@ -148,7 +149,7 @@ struct ExpenseDetailView: View {
                     Text(expense.title)
                 }
             }
-            .font(.title2.bold())
+            .font(.app(.title2))
             .strikethrough(expense.isDeleted)
 
             if !expense.description.isBlank {
@@ -159,14 +160,14 @@ struct ExpenseDetailView: View {
 
             if expense.isSettled {
                 SettledLabel(settledAt: expense.settledAt)
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
                     .padding(.top, 4)
             }
 
             // Deleting it made no version of it, so its history does not say who did.
             if let deletedByUuid = expense.deletedByUuid {
                 Text("Deleted by \(viewModel.names.displayName(of: deletedByUuid))", bundle: .module)
-                    .font(.subheadline)
+                    .font(.app(.subheadline))
                     .italic()
                     .padding(.top, 4)
             }
@@ -177,7 +178,7 @@ struct ExpenseDetailView: View {
                     "This expense can’t be edited anymore: it has reached its \(viewModel.maxGroupExpenseEdits) edits",
                     bundle: .module
                 )
-                .font(.subheadline)
+                .font(.app(.subheadline))
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)
             }

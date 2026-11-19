@@ -16,7 +16,6 @@ struct ConfirmButton: View {
     var body: some View {
         Button(action: action) {
             Text(title, bundle: .module)
-                .fontWeight(.semibold)
                 // Kept in place while hidden, for the button to keep its size.
                 .opacity(isLoading ? 0 : 1)
                 .overlay {

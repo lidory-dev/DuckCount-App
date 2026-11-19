@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// The contacts members are picked from, for a group to create or to add to one, searched by name,
@@ -42,6 +43,7 @@ struct MemberPickerView: View {
                             } icon: {
                                 Image(systemName: "person.2.slash")
                             }
+                            .font(.app(.title2))
                         }
                     } else if picker.found != nil, !picker.searchQuery.isBlank {
                         ContentUnavailableView.search(text: picker.searchQuery)
@@ -62,7 +64,7 @@ struct MemberPickerView: View {
                 // searching: the rows not picked are disabled once the limit is reached, and this
                 // is what says why.
                 Text("\(picker.memberCount)/\(picker.maxMembers) members", bundle: .module)
-                    .font(.footnote)
+                    .font(.app(.footnote))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
 

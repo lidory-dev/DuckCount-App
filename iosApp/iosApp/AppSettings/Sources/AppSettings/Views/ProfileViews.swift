@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// The user's full name, which only their contacts and the members of their groups see, as
@@ -20,6 +21,7 @@ struct ProfileView: View {
                     } icon: {
                         Image(systemName: "exclamationmark.triangle")
                     }
+                    .font(.app(.title2))
                 }
             } else if viewModel.hasReadProfile {
                 form

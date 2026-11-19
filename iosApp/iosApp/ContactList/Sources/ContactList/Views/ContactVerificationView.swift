@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// Where the user compares the safety number they share with a contact, read out in person or on a
@@ -38,6 +39,7 @@ struct ContactVerificationView: View {
                 } icon: {
                     Image(systemName: "person.2.slash")
                 }
+                .font(.app(.title2))
             }
 
         case .unavailable(let error):
@@ -47,6 +49,7 @@ struct ContactVerificationView: View {
                 } icon: {
                     Image(systemName: "exclamationmark.triangle")
                 }
+                .font(.app(.title2))
             }
 
         case .identityChanged:
@@ -59,7 +62,7 @@ struct ContactVerificationView: View {
                         .foregroundStyle(.red)
 
                     Text("Your safety number with this contact has changed", bundle: .module)
-                        .font(.headline)
+                        .font(.app(.headline))
 
                     Text(
                         "A contact who reinstalls DuckCount or changes phones keeps the same safety number, so someone may be trying to intercept what you share with this contact. As a precaution, DuckCount no longer sends them anything or accepts anything from them.",
@@ -95,7 +98,7 @@ struct ContactVerificationView: View {
 
     private var name: some View {
         Text(viewModel.fullName ?? unresolvedUserName)
-            .font(.title2.bold())
+            .font(.app(.title2))
             .multilineTextAlignment(.center)
     }
 }

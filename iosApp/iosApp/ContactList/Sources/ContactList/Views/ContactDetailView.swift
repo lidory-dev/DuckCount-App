@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// A contact: their name, the safety number to check them by, and blocking or deleting them, as
@@ -26,7 +27,7 @@ public struct ContactDetailView: View {
                     ContactAvatar(userUuid: viewModel.contactId, name: name, size: 96)
 
                     Text(name)
-                        .font(.title2.bold())
+                        .font(.app(.title2))
                         .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity)

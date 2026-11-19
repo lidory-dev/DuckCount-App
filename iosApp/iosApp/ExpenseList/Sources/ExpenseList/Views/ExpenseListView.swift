@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// The user's one-time expenses, newest first under the day each happened on, which open on their
@@ -53,6 +54,7 @@ public struct ExpenseListView: View {
                         } icon: {
                             Image(systemName: "receipt")
                         }
+                        .font(.app(.title2))
                     }
                 }
             }
@@ -111,6 +113,7 @@ public struct ExpenseListView: View {
                     } icon: {
                         Image(systemName: "receipt")
                     }
+                    .font(.app(.title2))
                 } actions: {
                     Button {
                         isCreating = true
@@ -140,7 +143,7 @@ struct ExpenseRow: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 title
-                    .font(.headline)
+                    .font(.app(.headline))
                     .lineLimit(1)
 
                 Group {
@@ -150,7 +153,7 @@ struct ExpenseRow: View {
                         Text("Paid by \(creditorName)", bundle: .module)
                     }
                 }
-                .font(.subheadline)
+                .font(.app(.subheadline))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             }
@@ -159,19 +162,19 @@ struct ExpenseRow: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text(expense.amount.formattedAmount(in: expense.currency))
-                    .font(.headline)
+                    .font(.app(.headline))
                     .monospacedDigit()
                     .lineLimit(1)
 
                 // Nobody owes anything of it any more.
                 if expense.isSettled {
                     SettledLabel()
-                        .font(.subheadline)
+                        .font(.app(.subheadline))
                         .labelStyle(.titleAndIcon)
                         .lineLimit(1)
                 } else if let balance = expense.shownBalance(selfUuid: selfUuid) {
                     Text(balance.formatted(in: expense.currency, withSign: true))
-                        .font(.subheadline)
+                        .font(.app(.subheadline))
                         .monospacedDigit()
                         .foregroundStyle(expense.role(selfUuid: selfUuid).color)
                         .lineLimit(1)

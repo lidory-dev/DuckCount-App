@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// Everybody the user blocked, each with a way to unblock them, which leaves them no contact: a new
@@ -20,6 +21,7 @@ struct BlockedUserListView: View {
                         } icon: {
                             Image(systemName: "nosign")
                         }
+                        .font(.app(.title2))
                     }
                 } else {
                     List {

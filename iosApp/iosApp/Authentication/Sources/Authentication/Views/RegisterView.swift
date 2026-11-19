@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// Creates an account: a username and a password typed twice, which iOS offers to fill in with a
@@ -128,7 +129,7 @@ struct RegistrationConsent: View {
         let privacyPolicy = link(String(localized: "privacy policy", bundle: .module), to: privacyPolicyLink)
 
         Text(AttributedString(localized: "By registering, you accept the \(termsOfUse) and the \(privacyPolicy).", bundle: .module))
-            .font(.footnote)
+            .font(.app(.footnote))
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)

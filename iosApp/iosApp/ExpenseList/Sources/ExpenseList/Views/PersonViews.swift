@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// A circle with a person's initial over a color of their own, the same on every device, as
@@ -15,7 +16,7 @@ struct PersonAvatar: View {
             .frame(width: size, height: size)
             .overlay {
                 Text(name.prefix(1).uppercased())
-                    .font(.system(size: size * 0.5, weight: .medium))
+                    .font(.app(size: size * 0.5))
                     .foregroundStyle(colors.content)
             }
             .accessibilityHidden(true)

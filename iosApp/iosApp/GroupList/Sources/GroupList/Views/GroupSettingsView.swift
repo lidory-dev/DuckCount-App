@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// Where the sheet of a member leads, once it is gone: a screen cannot be pushed from under a sheet
@@ -182,7 +183,7 @@ struct GroupSettingsView: View {
         Section {
             VStack(spacing: 8) {
                 Text(group.title)
-                    .font(.title.bold())
+                    .font(.app(.title))
 
                 if !group.description.isBlank {
                     Text(group.description)
@@ -384,7 +385,7 @@ private struct MemberSheetView: View {
                 MemberAvatar(userUuid: userUuid, name: name, size: 96)
 
                 Text(name)
-                    .font(.title2.bold())
+                    .font(.app(.title2))
                     .multilineTextAlignment(.center)
 
                 if let actions = viewModel.memberSheetActions {
@@ -395,7 +396,7 @@ private struct MemberSheetView: View {
                             // Under the button it is about.
                             if action != .remove, let error = viewModel.requestError {
                                 Text(error.message)
-                                    .font(.subheadline)
+                                    .font(.app(.subheadline))
                                     .foregroundStyle(.red)
                                     .multilineTextAlignment(.center)
                             }
@@ -447,7 +448,6 @@ private struct MemberSheetView: View {
                 onOutcome(.removal(userUuid: userUuid))
             } label: {
                 Text("Remove from the group", bundle: .module)
-                    .fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)

@@ -195,7 +195,6 @@ struct CreateExpenseView: View {
                 if viewModel.isGroupExpense {
                     // The group's, which every expense of it is in.
                     Text(viewModel.form.currency.symbol)
-                        .fontWeight(.semibold)
                         .foregroundStyle(.secondary)
                         .accessibilityLabel(Text("Currency", bundle: .module))
                         .accessibilityValue(viewModel.currencyDisplayName(viewModel.form.currency))
@@ -228,7 +227,6 @@ struct CreateExpenseView: View {
         } label: {
             HStack(spacing: 4) {
                 Text(viewModel.form.currency.symbol)
-                    .fontWeight(.semibold)
 
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.caption2)

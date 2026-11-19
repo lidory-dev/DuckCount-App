@@ -1,3 +1,4 @@
+import AppFonts
 import SwiftUI
 
 /// The contact requests waiting for the user, each to accept, decline, or decline and block its
@@ -37,6 +38,7 @@ public struct ContactRequestListView: View {
                                 } icon: {
                                     Image(systemName: "envelope.open")
                                 }
+                                .font(.app(.title2))
                             }
                             // For the pull to reach the list under it.
                             .allowsHitTesting(false)
