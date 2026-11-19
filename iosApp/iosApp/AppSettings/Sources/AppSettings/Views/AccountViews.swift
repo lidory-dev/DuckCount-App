@@ -189,9 +189,7 @@ struct PasswordChangeView: View {
                 .onSubmit(confirm)
             } footer: {
                 FormMessages(
-                    viewModel.error == .leaked
-                        ? PasswordChangeError.leaked.message
-                        : viewModel.newPasswordInputError?.message(minimumLength: viewModel.minimumLength),
+                    viewModel.newPasswordInputError?.message(minimumLength: viewModel.minimumLength),
                     viewModel.isConfirmationMismatched
                         ? String(localized: "The passwords do not match.", bundle: .module)
                         : nil,
@@ -208,6 +206,22 @@ struct PasswordChangeView: View {
         .bottomBar {
             ConfirmButton(Text("Confirm", bundle: .module), isLoading: viewModel.isChanging, action: confirm)
                 .disabled(!viewModel.canConfirm)
+        }
+        .sheet(
+            item: Binding(
+                get: { viewModel.leak },
+                set: { leak in
+                    if leak == nil {
+                        viewModel.dismissLeak()
+                    }
+                }
+            ),
+            onDismiss: {
+                // Back to the new password, which the screen asked to choose again.
+                focusedField = .newPassword
+            }
+        ) { leak in
+            PasswordLeakView(leakCount: leak.count)
         }
         .onAppear {
             focusedField = .currentPassword

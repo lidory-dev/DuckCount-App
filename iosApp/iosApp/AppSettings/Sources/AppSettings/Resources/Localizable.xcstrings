@@ -171,6 +171,16 @@
         }
       }
     },
+    "If you used this password on any other service, you MUST update it immediately." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si vous avez utilisé ce mot de passe sur un autre service, vous DEVEZ le changer immédiatement."
+          }
+        }
+      }
+    },
     "Incorrect password." : {
       "localizations" : {
         "fr" : {
@@ -291,12 +301,32 @@
         }
       }
     },
+    "Noted" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compris"
+          }
+        }
+      }
+    },
     "Password" : {
       "localizations" : {
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mot de passe"
+          }
+        }
+      }
+    },
+    "Please consider generating a brand new random password using a password manager." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nous vous conseillons de générer un nouveau mot de passe aléatoire avec un gestionnaire de mots de passe."
           }
         }
       }
@@ -431,6 +461,46 @@
         }
       }
     },
+    "The password you are using has been leaked on the web %lld times and hackers can already use it to get into your accounts." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The password you are using has been leaked on the web once and hackers can already use it to get into your accounts."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The password you are using has been leaked on the web %lld times and hackers can already use it to get into your accounts."
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Le mot de passe que vous utilisez a été retrouvé une fois dans des fuites de données. Des pirates peuvent déjà s’en servir pour accéder à vos comptes."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Le mot de passe que vous utilisez a été retrouvé %lld fois dans des fuites de données. Des pirates peuvent déjà s’en servir pour accéder à vos comptes."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "The passwords do not match." : {
       "localizations" : {
         "fr" : {
@@ -487,16 +557,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le nom d’utilisateur n’a pas pu être réservé."
-          }
-        }
-      }
-    },
-    "This password has been leaked, please choose another one." : {
-      "localizations" : {
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ce mot de passe est compromis, choisissez-en un autre."
           }
         }
       }
@@ -567,6 +627,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Visible uniquement par vos contacts et les membres de vos groupes.\n\nTout est chiffré de bout en bout, nous ne pouvons pas voir votre profil. Seules les personnes avec qui vous choisissez de le partager y ont accès."
+          }
+        }
+      }
+    },
+    "Watch out!" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attention !"
           }
         }
       }

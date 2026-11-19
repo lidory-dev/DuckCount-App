@@ -101,9 +101,9 @@ class SettingsManagement(
      * sees it through once it may be sent. Null once changed: the user's keys, their data and the
      * session on this device stay as they are.
      */
-    suspend fun changePassword(currentPassword: String, newPassword: String): PasswordChangeFailure? {
-        val userUuid = getAuthenticatedUserUuid() ?: return PasswordChangeFailure.UNKNOWN
-        val username = getAuthenticatedUserUsername() ?: return PasswordChangeFailure.UNKNOWN
+    suspend fun changePassword(currentPassword: String, newPassword: String): PasswordChangeRefusal? {
+        val userUuid = getAuthenticatedUserUuid() ?: return PasswordChangeRefusal(PasswordChangeFailure.UNKNOWN, leakCount = 0)
+        val username = getAuthenticatedUserUsername() ?: return PasswordChangeRefusal(PasswordChangeFailure.UNKNOWN, leakCount = 0)
 
         val change = passwordChange.change(
             userUuid = userUuid,
@@ -117,7 +117,7 @@ class SettingsManagement(
 
             is Result.Error -> {
                 warn("changePassword: could not change the password: ${change.error}")
-                change.error.toFailure(isOnline = networkConnectivity.isOnline())
+                change.error.toRefusal(isOnline = networkConnectivity.isOnline())
             }
         }
     }

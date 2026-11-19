@@ -136,7 +136,7 @@ class PasswordChange internal constructor(
         val rootKey = rootKey() ?: return Result.Error(PasswordChangeError.MissingRootKey)
 
         val isChecked = when (val leaks = leakCount(newPassword)) {
-            is Result.Success -> if (leaks.data > 0) return Result.Error(PasswordChangeError.Leaked) else true
+            is Result.Success -> if (leaks.data > 0) return Result.Error(PasswordChangeError.Leaked(count = leaks.data)) else true
 
             // Advisory, as at registration: a check that could not be run lets the change through.
             is Result.Error -> false

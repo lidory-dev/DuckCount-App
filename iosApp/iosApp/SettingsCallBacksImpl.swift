@@ -200,11 +200,11 @@ extension ReserveUsernameFailure {
     }
 }
 
-extension PasswordChangeFailure {
+extension PasswordChangeRefusal {
     fileprivate var changeError: AppSettings.PasswordChangeError {
-        switch self {
+        switch failure {
         case .wrongPassword: .wrongPassword
-        case .leaked: .leaked
+        case .leaked: .leaked(count: Int(leakCount))
         case .noInternet: .noInternet
         case .timeout: .timeout
         case .serverUnreachable: .serverUnreachable

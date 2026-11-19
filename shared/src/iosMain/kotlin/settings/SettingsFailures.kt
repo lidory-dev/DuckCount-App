@@ -42,7 +42,7 @@ enum class PasswordChangeFailure {
     /** The current password typed is not the account's. */
     WRONG_PASSWORD,
 
-    /** The new password turns up in a known data breach, so nothing was sent. */
+    /** The new password turns up in known data breaches, so nothing was sent, see [PasswordChangeRefusal.leakCount]. */
     LEAKED,
 
     NO_INTERNET,
@@ -54,6 +54,12 @@ enum class PasswordChangeFailure {
 
     UNKNOWN,
 }
+
+/**
+ * Why changing the password failed, [failure], with how many times the new password turns up in
+ * known breaches when that is why, for the screen saying so, as registration's does; 0 otherwise.
+ */
+class PasswordChangeRefusal(val failure: PasswordChangeFailure, val leakCount: Int)
 
 /**
  * Why saving the profile failed. There is no "saved locally instead": the profile lives on the
@@ -133,14 +139,17 @@ internal fun AccountDeletionError.toFailure(isOnline: Boolean): AccountDeletionF
 }
 
 /**
- * Only the two mistakes the form shows on a field, the network's failures and a change whose answer
- * never came back are told apart. Not a `401`, as for [toFailure] of a deletion, nor a missing root
- * key, which every login and registration stores.
+ * Only a wrong current password, a leaked new one, the network's failures and a change whose answer
+ * never came back are told apart. Not a `401`, as for a deletion's failure, nor a missing root key,
+ * which every login and registration stores.
  */
-internal fun PasswordChangeError.toFailure(isOnline: Boolean): PasswordChangeFailure = when (this) {
+internal fun PasswordChangeError.toRefusal(isOnline: Boolean): PasswordChangeRefusal =
+    PasswordChangeRefusal(failure = toFailure(isOnline = isOnline), leakCount = (this as? PasswordChangeError.Leaked)?.count ?: 0)
+
+private fun PasswordChangeError.toFailure(isOnline: Boolean): PasswordChangeFailure = when (this) {
     PasswordChangeError.WrongPassword -> PasswordChangeFailure.WRONG_PASSWORD
 
-    PasswordChangeError.Leaked -> PasswordChangeFailure.LEAKED
+    is PasswordChangeError.Leaked -> PasswordChangeFailure.LEAKED
 
     is PasswordChangeError.Network -> when (error) {
         NetworkError.NO_INTERNET -> PasswordChangeFailure.NO_INTERNET

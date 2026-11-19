@@ -25,7 +25,6 @@ struct PasswordLeakView: View {
                 )
 
                 Text("Please consider generating a brand new random password using a password manager.", bundle: .module)
-                    .foregroundStyle(.secondary)
 
                 Text("If you used this password on any other service, you MUST update it immediately.", bundle: .module)
                     .fontWeight(.semibold)

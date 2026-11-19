@@ -41,8 +41,13 @@ final class PasswordChangeViewModel: ObservableObject {
     @Published private(set) var newPasswordConfirmation = ""
     @Published private(set) var isChanging = false
 
-    /// Why the last change failed, until an edit answers it.
+    /// Why the last change failed, until an edit answers it. Never a leaked new password, which
+    /// `leak` tells instead.
     @Published private(set) var error: PasswordChangeError?
+
+    /// The new password typed turning up in known breaches, for the screen saying so, as at
+    /// registration; nil while it says nothing.
+    @Published private(set) var leak: PasswordLeak?
 
     /// True once the password is changed, the only thing the screen is for, which closes it.
     @Published private(set) var isChanged = false
@@ -95,7 +100,7 @@ final class PasswordChangeViewModel: ObservableObject {
 
     func updateCurrentPassword(_ password: String) {
         currentPassword = password
-        error = error == .leaked ? error : nil
+        error = nil
     }
 
     func updateNewPassword(_ password: String) {
@@ -124,16 +129,36 @@ final class PasswordChangeViewModel: ObservableObject {
         Task {
             let failure = await callBacks.changePassword(currentPassword: currentPassword, newPassword: newPassword)
 
+            isChanging = false
+
+            switch failure {
             // The change is the only thing this screen is for, so a successful one hands the user
             // back to the account screen.
-            if failure == nil {
+            case nil:
                 isChanged = true
-            }
 
-            isChanging = false
-            error = failure
+            case .leaked(let count):
+                leak = PasswordLeak(count: count)
+
+            case let failure?:
+                error = failure
+            }
         }
     }
+
+    /// Forgets the screen saying the new password leaked, and the new password with it, typed twice,
+    /// as registration forgets both of its own: the user is to choose another one.
+    func dismissLeak() {
+        leak = nil
+        newPassword = ""
+        newPasswordConfirmation = ""
+    }
+}
+
+/// A new password found in known breaches, `count` times, for the screen saying so.
+struct PasswordLeak: Identifiable {
+    let id = UUID()
+    let count: Int
 }
 
 /// The account deletion screen's state, as Android's `AccountDeletionViewModel` holds it. The

@@ -158,7 +158,7 @@ class PasswordChangeTest {
 
         val outcome = change()
 
-        assertEquals(PasswordChangeError.Leaked, assertIs<Result.Error<PasswordChangeError>>(outcome).error)
+        assertEquals(PasswordChangeError.Leaked(count = 3), assertIs<Result.Error<PasswordChangeError>>(outcome).error)
         assertEquals(listOf("breach check"), events)
     }
 

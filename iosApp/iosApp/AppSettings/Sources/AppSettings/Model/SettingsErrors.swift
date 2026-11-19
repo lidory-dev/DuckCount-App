@@ -134,8 +134,9 @@ public enum PasswordChangeError: Error, Hashable, Sendable {
     /// The current password typed is not the account's. Shown under its field.
     case wrongPassword
 
-    /// The new password turns up in a known data breach, so nothing was sent. Shown under its field.
-    case leaked
+    /// The new password turns up in known data breaches, `count` times, so nothing was sent. Shown
+    /// on a screen of its own, as at registration, see `PasswordLeakView`.
+    case leaked(count: Int)
 
     case noInternet
     case timeout
@@ -150,15 +151,18 @@ public enum PasswordChangeError: Error, Hashable, Sendable {
 
     /// Whether this is shown under a field of the form, rather than under the whole form.
     var isFieldError: Bool {
-        self == .wrongPassword || self == .leaked
+        self == .wrongPassword
     }
 
     var message: String {
         switch self {
         case .wrongPassword:
             String(localized: "Incorrect password.", bundle: .module)
-        case .leaked:
-            String(localized: "This password has been leaked, please choose another one.", bundle: .module)
+        case .leaked(let count):
+            String(
+                localized: "The password you are using has been leaked on the web \(count) times and hackers can already use it to get into your accounts.",
+                bundle: .module
+            )
         case .noInternet:
             Messages.noInternet
         case .timeout:

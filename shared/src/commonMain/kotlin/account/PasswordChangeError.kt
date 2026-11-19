@@ -18,10 +18,11 @@ sealed interface PasswordChangeError : Error {
     data object WrongPassword : PasswordChangeError
 
     /**
-     * The new password turns up in a known breach, see
-     * `networking.HaveIBeenPwnedClient.passwordLeakCount`. Our server is told nothing.
+     * The new password turns up in known breaches, [count] times, see
+     * `networking.HaveIBeenPwnedClient.passwordLeakCount`, which the screen saying so tells as
+     * registration's does. Our server is told nothing.
      */
-    data object Leaked : PasswordChangeError
+    data class Leaked(val count: Int) : PasswordChangeError
 
     /**
      * This device holds no root key to seal under the new password, see

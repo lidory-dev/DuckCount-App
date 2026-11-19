@@ -218,7 +218,7 @@ fun SharedAccountDeletionError.toAccountDeletionError(isOnline: Boolean): Accoun
 fun SharedPasswordChangeError.toPasswordChangeError(isOnline: Boolean): PasswordChangeError = when (this) {
     SharedPasswordChangeError.WrongPassword -> PasswordChangeError.WRONG_PASSWORD
 
-    SharedPasswordChangeError.Leaked -> PasswordChangeError.LEAKED
+    is SharedPasswordChangeError.Leaked -> PasswordChangeError.LEAKED
 
     is SharedPasswordChangeError.Network -> when (error) {
         NetworkError.NO_INTERNET -> PasswordChangeError.NO_INTERNET

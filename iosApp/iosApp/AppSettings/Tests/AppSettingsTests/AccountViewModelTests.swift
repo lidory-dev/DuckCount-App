@@ -153,30 +153,40 @@ struct PasswordChangeViewModelTests {
         #expect(viewModel.error == nil)
     }
 
-    @Test func editingTheNewPasswordClearsItsFailureAndNotTheCurrentOnes() async {
+    /// On a screen of its own, as at registration, rather than under the field, and nothing to send
+    /// again until another password is typed, the two new ones being forgotten with the screen.
+    @Test func aLeakedNewPasswordIsShownOnAScreenOfItsOwn() async {
         let callBacks = FakeSettingsCallBacks()
-        callBacks.changeFailure = .leaked
+        callBacks.changeFailure = .leaked(count: 3)
         let viewModel = filledIn(callBacks)
+
         viewModel.confirm()
-        await settle { viewModel.error != nil }
+        await settle { viewModel.leak != nil }
 
-        viewModel.updateCurrentPassword(current + "4")
-        #expect(viewModel.error == .leaked)
-
-        viewModel.updateNewPassword(new + "3")
+        #expect(viewModel.leak?.count == 3)
         #expect(viewModel.error == nil)
+        #expect(!viewModel.isChanged)
+        #expect(!viewModel.isChanging)
+
+        viewModel.dismissLeak()
+
+        #expect(viewModel.leak == nil)
+        #expect(viewModel.newPassword.isEmpty)
+        #expect(viewModel.newPasswordConfirmation.isEmpty)
+        #expect(viewModel.currentPassword == current)
+        #expect(!viewModel.canConfirm)
     }
 
-    @Test func editingTheConfirmationKeepsTheFailuresShownUnderTheOtherFields() async {
+    @Test func editingTheConfirmationKeepsTheFailureShownUnderTheCurrentPassword() async {
         let callBacks = FakeSettingsCallBacks()
-        callBacks.changeFailure = .leaked
+        callBacks.changeFailure = .wrongPassword
         let viewModel = filledIn(callBacks)
         viewModel.confirm()
         await settle { viewModel.error != nil }
 
         viewModel.updateNewPasswordConfirmation(new + "3")
 
-        #expect(viewModel.error == .leaked)
+        #expect(viewModel.error == .wrongPassword)
     }
 
     @Test func anyEditClearsAFailureShownUnderTheForm() async {
