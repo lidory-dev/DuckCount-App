@@ -97,8 +97,9 @@ class ForegroundSync(
     /**
      * Has the next pass tell the user what it read, whoever asks for it, for a push that woke the app
      * on a locked device, which can read nothing: as Android's push worker waits for the unlock to
-     * sync and tell, the next pass after it does, which is mostly the one the app runs as the user
-     * opens it. Lost with the process, iOS giving the app no unlock to wait for.
+     * sync and tell, the next pass after it does, the one the app runs as the user opens it, or the
+     * catch-up the app asks iOS for meanwhile, see [CatchUpScheduler], which tells anyway. Lost with
+     * the process, iOS giving the app no unlock to wait for.
      */
     suspend fun announceNextPass() = withContext(Dispatchers.Main) {
         isNextAnnounced = true

@@ -40,16 +40,22 @@ import push.SharedWakeListStore
 import push.WakeListStore
 import push.di.pushModule
 import sync.AnnouncingGroupSyncAnnouncer
+import sync.CatchUpScheduler
 import sync.SyncAnnouncer
 import vault.di.vaultModule
 
 /**
  * Starts the shared module, with what the app implements of it: [sharedWakeList], the wake list it
- * keeps for its notification service extension, and [syncAnnouncer], which posts what a sync read.
- * Both outlive every session, as the app's own objects do, see [restartSession].
+ * keeps for its notification service extension, [syncAnnouncer], which posts what a sync read, and
+ * [catchUpScheduler], which has iOS run a sync in the background. All outlive every session, as the
+ * app's own objects do, see [restartSession].
  */
-fun initKoin(sharedWakeList: SharedWakeList, syncAnnouncer: SyncAnnouncer) {
-    platform = Platform(sharedWakeList = sharedWakeList, syncAnnouncer = syncAnnouncer)
+fun initKoin(sharedWakeList: SharedWakeList, syncAnnouncer: SyncAnnouncer, catchUpScheduler: CatchUpScheduler) {
+    platform = Platform(
+        sharedWakeList = sharedWakeList,
+        syncAnnouncer = syncAnnouncer,
+        catchUpScheduler = catchUpScheduler,
+    )
 
     startKoin {
         modules(listOf(sharedModule) + sessionModules)
@@ -57,7 +63,11 @@ fun initKoin(sharedWakeList: SharedWakeList, syncAnnouncer: SyncAnnouncer) {
 }
 
 /** What the app handed [initKoin]. */
-private class Platform(val sharedWakeList: SharedWakeList, val syncAnnouncer: SyncAnnouncer)
+private class Platform(
+    val sharedWakeList: SharedWakeList,
+    val syncAnnouncer: SyncAnnouncer,
+    val catchUpScheduler: CatchUpScheduler,
+)
 
 private lateinit var platform: Platform
 
@@ -94,7 +104,13 @@ internal val sessionModules: List<Module> by lazy {
  */
 private val iosPlatformModule = module {
     // Lazily, the sync it runs being built from what books it.
-    single { ForegroundResendScheduler(foregroundSync = lazy { get<ForegroundSync>() }, updateRequirement = get()) }
+    single {
+        ForegroundResendScheduler(
+            foregroundSync = lazy { get<ForegroundSync>() },
+            updateRequirement = get(),
+            catchUp = platform.catchUpScheduler,
+        )
+    }
         .bind<ResendScheduler>()
     single<WakeListStore> { SharedWakeListStore(shared = platform.sharedWakeList) }
     single<SyncAnnouncer> { platform.syncAnnouncer }

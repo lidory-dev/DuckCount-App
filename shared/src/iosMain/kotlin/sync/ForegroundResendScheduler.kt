@@ -21,8 +21,9 @@ import kotlin.time.TimeSource
  *
  * Kept for the soonest moment asked for, while the app runs: iOS suspends it soon after it leaves
  * the foreground, and the timer goes on from where it was once it comes back, by when the screens
- * run a sync of their own anyway. Nothing is lost if the app is killed meanwhile: whatever waited
- * is saved, and the next sync sends it.
+ * run a sync of their own anyway. So each booking also asks iOS for a catch-up at that moment, see
+ * [CatchUpScheduler], which runs the pass with the app in the background, when iOS lets it. Nothing
+ * is lost if neither runs: whatever waited is saved, and the next sync sends it.
  *
  * A pass this runs that fails is run again, 30 seconds later and twice as late each time, three
  * times at most, as Android's push worker retries the sync a resend runs: what a failure left unsent
@@ -35,6 +36,7 @@ import kotlin.time.TimeSource
 class ForegroundResendScheduler(
     private val foregroundSync: Lazy<ForegroundSync>,
     private val updateRequirement: UpdateRequirement,
+    private val catchUp: CatchUpScheduler,
 ) : ResendScheduler {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -61,6 +63,10 @@ class ForegroundResendScheduler(
 
         booked?.cancel()
         dueAt = due
+
+        // For the app suspended by then, which this timer would wait out.
+        catchUp.catchUpAfter(seconds = delay.inWholeSeconds)
+
         booked = scope.launch {
             delay(delay)
 

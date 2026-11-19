@@ -9,8 +9,13 @@
 		<string>en</string>
 		<string>fr</string>
 	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>app.lidory.duckcount.catch-up</string>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
+		<string>fetch</string>
 		<string>remote-notification</string>
 	</array>
 </dict>

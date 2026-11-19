@@ -49,13 +49,16 @@ enum PushSetUp {
     /// to forget it on a log-out, see `SettingsManagement.logOut`.
     ///
     /// The token goes, so that a server that still holds it, after an expiry, finds it gone and stops
-    /// pushing; the keys go, so that nothing pushed meanwhile can be read; and what was said about the
-    /// session that ended goes too, for the next one not to take it for its own.
+    /// pushing; the keys go, so that nothing pushed meanwhile can be read; what was said about the
+    /// session that ended goes too, for the next one not to take it for its own; and so does the
+    /// catch-up asked for, there being nothing left to catch up on.
     static func tearDown() {
         UIApplication.shared.unregisterForRemoteNotifications()
 
         PushKeyStore().delete()
 
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+
+        BackgroundCatchUp.shared.cancel()
     }
 }

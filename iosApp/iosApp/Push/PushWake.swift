@@ -31,15 +31,22 @@ enum PushWake {
 
         // Nothing this device stores can be read while it is locked but the wake list and the keys.
         // The nameless text the extension showed, if any, is all that can be said until it unlocks,
-        // and the next pass, whichever asks for it, tells the rest.
+        // and the next pass tells the rest: the one the app runs as the user opens it, or the
+        // catch-up iOS runs in the background meanwhile, whichever comes first.
         guard await isUnlocked() else {
             try? await foregroundSync.announceNextPass()
+            BackgroundCatchUp.shared.schedule(after: BackgroundCatchUp.afterLockedPush)
 
             return .noData
         }
 
         let isSynced = await withBackgroundTime {
             (try? await foregroundSync.syncForPush())?.boolValue ?? false
+        }
+
+        // Tried again later, as Android's push worker retries it: what failed is still on the server.
+        if !isSynced {
+            BackgroundCatchUp.shared.schedule(after: BackgroundCatchUp.afterFailedSync)
         }
 
         return isSynced ? .newData : .failed

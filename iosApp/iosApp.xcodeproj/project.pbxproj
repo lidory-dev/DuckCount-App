@@ -7,15 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A11C710B2ED5EF2400CC845E /* ExpenseList in Frameworks */ = {isa = PBXBuildFile; productRef = A11C710A2ED5EF2400CC845E /* ExpenseList */; };
-		CA17C0A12ED5EF2400CC845E /* ContactList in Frameworks */ = {isa = PBXBuildFile; productRef = CA17C0A22ED5EF2400CC845E /* ContactList */; };
+		416EC95582E244E030191CBF /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 32AAC9ED64381F7DBF4B5996 /* SQLCipher */; };
+		4E5A0C01000000000000000C /* PushSignals in Frameworks */ = {isa = PBXBuildFile; productRef = 4E5A0C01000000000000000B /* PushSignals */; };
+		4E5A0C01000000000000000E /* PushSignals in Frameworks */ = {isa = PBXBuildFile; productRef = 4E5A0C01000000000000000D /* PushSignals */; };
+		4E5A0C010000000000000010 /* NotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4E5A0C010000000000000002 /* NotificationService.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		5E7715A02ED5EF2400CC845E /* AppSettings in Frameworks */ = {isa = PBXBuildFile; productRef = 5E7715A12ED5EF2400CC845E /* AppSettings */; };
 		6C4A1F0A2ED5EF2400CC845E /* GroupList in Frameworks */ = {isa = PBXBuildFile; productRef = 6C4A1F0B2ED5EF2400CC845E /* GroupList */; };
 		A0711E0B2ED5EF2400CC845E /* Authentication in Frameworks */ = {isa = PBXBuildFile; productRef = A0711E0A2ED5EF2400CC845E /* Authentication */; };
-		5E7715A02ED5EF2400CC845E /* AppSettings in Frameworks */ = {isa = PBXBuildFile; productRef = 5E7715A12ED5EF2400CC845E /* AppSettings */; };
-		416EC95582E244E030191CBF /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = 32AAC9ED64381F7DBF4B5996 /* SQLCipher */; };
-		4E5A0C01000000000000000E /* PushSignals in Frameworks */ = {isa = PBXBuildFile; productRef = 4E5A0C01000000000000000D /* PushSignals */; };
-		4E5A0C01000000000000000C /* PushSignals in Frameworks */ = {isa = PBXBuildFile; productRef = 4E5A0C01000000000000000B /* PushSignals */; };
-		4E5A0C010000000000000010 /* NotificationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4E5A0C010000000000000002 /* NotificationService.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A11C710B2ED5EF2400CC845E /* ExpenseList in Frameworks */ = {isa = PBXBuildFile; productRef = A11C710A2ED5EF2400CC845E /* ExpenseList */; };
+		CA17C0A12ED5EF2400CC845E /* ContactList in Frameworks */ = {isa = PBXBuildFile; productRef = CA17C0A22ED5EF2400CC845E /* ContactList */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -48,7 +48,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		79EE22C28C748E450BCF7B31 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		4E5A0C010000000000000004 /* Exceptions for "NotificationService" folder in "NotificationService" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 4E5A0C010000000000000001 /* NotificationService */;
+		};
+		79EE22C28C748E450BCF7B31 /* Exceptions for "iosApp" folder in "iosApp" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppSettings,
@@ -58,21 +65,20 @@
 				GroupList,
 				Info.plist,
 				PushSignals,
-				iosApp.entitlements,
 			);
 			target = 117E386D6C33F4E966B83386 /* iosApp */;
-		};
-		4E5A0C010000000000000004 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-				NotificationService.entitlements,
-			);
-			target = 4E5A0C010000000000000001 /* NotificationService */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		4E5A0C010000000000000003 /* NotificationService */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				4E5A0C010000000000000004 /* Exceptions for "NotificationService" folder in "NotificationService" target */,
+			);
+			path = NotificationService;
+			sourceTree = "<group>";
+		};
 		840E697393EAA0C16D24A0EA /* Configuration */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Configuration;
@@ -81,22 +87,22 @@
 		C2A31CBB66277FE33F990221 /* iosApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				79EE22C28C748E450BCF7B31 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+				79EE22C28C748E450BCF7B31 /* Exceptions for "iosApp" folder in "iosApp" target */,
 			);
 			path = iosApp;
-			sourceTree = "<group>";
-		};
-		4E5A0C010000000000000003 /* NotificationService */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				4E5A0C010000000000000004 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
-			);
-			path = NotificationService;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		4E5A0C010000000000000006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4E5A0C01000000000000000C /* PushSignals in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D0F4D0E700F733B4BBEAEE1C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -108,14 +114,6 @@
 				5E7715A02ED5EF2400CC845E /* AppSettings in Frameworks */,
 				416EC95582E244E030191CBF /* SQLCipher in Frameworks */,
 				4E5A0C01000000000000000E /* PushSignals in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		4E5A0C010000000000000006 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				4E5A0C01000000000000000C /* PushSignals in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -261,7 +259,7 @@
 			mainGroup = 5E44587733091BFCBB2FA8B9;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				55FFDC114F4F8015FA670756 /* XCRemoteSwiftPackageReference "SQLCipher.swift" */,
+				55FFDC114F4F8015FA670756 /* XCRemoteSwiftPackageReference "SQLCipher" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3A1538368316C6171B5C8701 /* Products */;
@@ -314,14 +312,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		EFA6ED547AE8F05EED650148 /* Sources */ = {
+		4E5A0C010000000000000005 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		4E5A0C010000000000000005 /* Sources */ = {
+		EFA6ED547AE8F05EED650148 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -404,14 +402,64 @@
 			};
 			name = Debug;
 		};
+		4E5A0C010000000000000009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = NotificationService/NotificationService.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "${TEAM_ID}";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NotificationService/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = DuckCount;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(inherited).NotificationService";
+				PRODUCT_NAME = NotificationService;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4E5A0C01000000000000000A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = NotificationService/NotificationService.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "${TEAM_ID}";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NotificationService/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = DuckCount;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(inherited).NotificationService";
+				PRODUCT_NAME = NotificationService;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		76BFC0F9629DF018D2679DFD /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_ENTITLEMENTS = iosApp/iosApp.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"iosApp/Preview Content\"";
 				DEVELOPMENT_TEAM = "${TEAM_ID}";
@@ -441,8 +489,8 @@
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_ENTITLEMENTS = iosApp/iosApp.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"iosApp/Preview Content\"";
 				DEVELOPMENT_TEAM = "${TEAM_ID}";
@@ -524,56 +572,6 @@
 			};
 			name = Release;
 		};
-		4E5A0C010000000000000009 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = arm64;
-				CODE_SIGN_ENTITLEMENTS = NotificationService/NotificationService.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "${TEAM_ID}";
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = NotificationService/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = DuckCount;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = "$(inherited).NotificationService";
-				PRODUCT_NAME = NotificationService;
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		4E5A0C01000000000000000A /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = arm64;
-				CODE_SIGN_ENTITLEMENTS = NotificationService/NotificationService.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "${TEAM_ID}";
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = NotificationService/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = DuckCount;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = "$(inherited).NotificationService";
-				PRODUCT_NAME = NotificationService;
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -582,15 +580,6 @@
 			buildConfigurations = (
 				76BFC0F9629DF018D2679DFD /* Debug */,
 				AAADFE6E88B6F76E98A76418 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		D885DF0B188B5D8FAB137582 /* Build configuration list for PBXProject "iosApp" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				2DB58F724C0C1A285E962489 /* Debug */,
-				E3B5397FB49F39D8870108FB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -604,10 +593,19 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		D885DF0B188B5D8FAB137582 /* Build configuration list for PBXProject "iosApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2DB58F724C0C1A285E962489 /* Debug */,
+				E3B5397FB49F39D8870108FB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		55FFDC114F4F8015FA670756 /* XCRemoteSwiftPackageReference "SQLCipher.swift" */ = {
+		55FFDC114F4F8015FA670756 /* XCRemoteSwiftPackageReference "SQLCipher" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sqlcipher/SQLCipher.swift";
 			requirement = {
@@ -618,13 +616,22 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		A11C710A2ED5EF2400CC845E /* ExpenseList */ = {
+		32AAC9ED64381F7DBF4B5996 /* SQLCipher */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = ExpenseList;
+			package = 55FFDC114F4F8015FA670756 /* XCRemoteSwiftPackageReference "SQLCipher" */;
+			productName = SQLCipher;
 		};
-		CA17C0A22ED5EF2400CC845E /* ContactList */ = {
+		4E5A0C01000000000000000B /* PushSignals */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = ContactList;
+			productName = PushSignals;
+		};
+		4E5A0C01000000000000000D /* PushSignals */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PushSignals;
+		};
+		5E7715A12ED5EF2400CC845E /* AppSettings */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AppSettings;
 		};
 		6C4A1F0B2ED5EF2400CC845E /* GroupList */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -634,22 +641,13 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = Authentication;
 		};
-		5E7715A12ED5EF2400CC845E /* AppSettings */ = {
+		A11C710A2ED5EF2400CC845E /* ExpenseList */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = AppSettings;
+			productName = ExpenseList;
 		};
-		32AAC9ED64381F7DBF4B5996 /* SQLCipher */ = {
+		CA17C0A22ED5EF2400CC845E /* ContactList */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 55FFDC114F4F8015FA670756 /* XCRemoteSwiftPackageReference "SQLCipher.swift" */;
-			productName = SQLCipher;
-		};
-		4E5A0C01000000000000000D /* PushSignals */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = PushSignals;
-		};
-		4E5A0C01000000000000000B /* PushSignals */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = PushSignals;
+			productName = ContactList;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

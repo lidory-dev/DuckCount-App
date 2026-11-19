@@ -8,7 +8,11 @@ struct iOSApp: App {
     @ObservedObject private var session = AppSession.shared
 
     init() {
-        KoinInit_iosKt.doInitKoin(sharedWakeList: AppWakeList(), syncAnnouncer: Notifier.shared)
+        KoinInit_iosKt.doInitKoin(
+            sharedWakeList: AppWakeList(),
+            syncAnnouncer: Notifier.shared,
+            catchUpScheduler: BackgroundCatchUp.shared
+        )
 
         AppSession.shared.followSessionEnd()
     }
@@ -43,6 +47,10 @@ struct iOSApp: App {
                     Text("OK")
                 }
             }
+        }
+        // What a push or a send held back left for later, see BackgroundCatchUp.
+        .backgroundTask(.appRefresh(BackgroundCatchUp.identifier)) {
+            await BackgroundCatchUp.shared.run()
         }
     }
 }
