@@ -1,3 +1,5 @@
+package app.lidory.duckcount.android.ui.composable
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -13,11 +15,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.lidory.duckcount.android.ui.R
 import app.lidory.duckcount.android.ui.composable.button.DuckCountButton
 import app.lidory.duckcount.android.ui.constant.FontSize
 import app.lidory.duckcount.android.ui.constant.Padding
-import app.lidory.duckcount.authentication.R
 
+/**
+ * Warns that the password just typed turns up in known breaches, [leakAmount] times, and asks for
+ * another, wherever one is chosen: at registration and in the settings' password change, which both
+ * stop there, before our server has heard of it.
+ */
 @Composable
 fun PasswordLeakScreen(
     leakAmount: Int,

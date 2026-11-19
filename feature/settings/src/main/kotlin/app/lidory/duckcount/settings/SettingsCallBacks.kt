@@ -2,6 +2,7 @@ package app.lidory.duckcount.settings
 
 import app.lidory.duckcount.settings.model.AccountDeletionError
 import app.lidory.duckcount.settings.model.PasswordChangeError
+import app.lidory.duckcount.settings.model.PasswordChangeFailure
 import app.lidory.duckcount.settings.model.ProfileSaveError
 import app.lidory.duckcount.settings.model.ReserveDiscoveryUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
@@ -59,9 +60,10 @@ interface SettingsCallBacks {
      * Seen through once the change may be sent, whatever becomes of the screen that asked. The
      * session is still there after a failure, unless the server turned it down meanwhile, which
      * ends it and restarts the app as any expiry does, and so is the password, but for
-     * [PasswordChangeError.UNCONFIRMED].
+     * [PasswordChangeError.UNCONFIRMED]. A leaked [newPassword] is
+     * [PasswordChangeFailure.Leaked], with how many times it turns up, nothing being sent then.
      */
-    suspend fun changePassword(currentPassword: String, newPassword: String): PasswordChangeError?
+    suspend fun changePassword(currentPassword: String, newPassword: String): PasswordChangeFailure?
 
     fun getAuthenticatedUserUuid(): String?
 

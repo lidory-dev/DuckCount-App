@@ -3,7 +3,7 @@ package app.lidory.duckcount.settings.viewmodel
 import androidx.compose.runtime.snapshots.Snapshot
 import app.lidory.duckcount.settings.SettingsCallBacks
 import app.lidory.duckcount.settings.model.AccountDeletionError
-import app.lidory.duckcount.settings.model.PasswordChangeError
+import app.lidory.duckcount.settings.model.PasswordChangeFailure
 import app.lidory.duckcount.settings.model.ProfileSaveError
 import app.lidory.duckcount.settings.model.ReserveDiscoveryUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
@@ -122,7 +122,7 @@ private class NothingReservedCallBacks : SettingsCallBacks {
 
     override suspend fun logOut(): Unit = TODO()
     override suspend fun deleteAccount(password: String): AccountDeletionError = TODO()
-    override suspend fun changePassword(currentPassword: String, newPassword: String): PasswordChangeError? = TODO()
+    override suspend fun changePassword(currentPassword: String, newPassword: String): PasswordChangeFailure? = TODO()
     override fun getAuthenticatedUserUuid(): String? = TODO()
     override fun getUserUsername(): String? = TODO()
     override fun getUserFullName(uuid: String): Flow<String?> = TODO()

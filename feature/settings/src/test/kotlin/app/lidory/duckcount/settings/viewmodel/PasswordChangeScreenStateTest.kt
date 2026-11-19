@@ -94,7 +94,6 @@ class PasswordChangeScreenStateTest {
     @Test
     fun `a failure shown on a field keeps the form from being confirmed`() {
         assertFalse(filled.copy(error = PasswordChangeError.WRONG_PASSWORD).canConfirm)
-        assertFalse(filled.copy(error = PasswordChangeError.LEAKED).canConfirm)
     }
 
     @Test
@@ -103,17 +102,12 @@ class PasswordChangeScreenStateTest {
     }
 
     @Test
-    fun `editing the current password clears its failure and not the new one's`() {
+    fun `editing the current password clears its failure`() {
         assertNull(filled.copy(error = PasswordChangeError.WRONG_PASSWORD).withCurrentPassword("$CURRENT.").error)
-        assertEquals(
-            PasswordChangeError.LEAKED,
-            filled.copy(error = PasswordChangeError.LEAKED).withCurrentPassword("$CURRENT.").error,
-        )
     }
 
     @Test
-    fun `editing the new password clears its failure and not the current one's`() {
-        assertNull(filled.copy(error = PasswordChangeError.LEAKED).withNewPassword("$NEW.").error)
+    fun `editing the new password keeps the failure shown on the current one`() {
         assertEquals(
             PasswordChangeError.WRONG_PASSWORD,
             filled.copy(error = PasswordChangeError.WRONG_PASSWORD).withNewPassword("$NEW.").error,

@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.settings.SettingsCallBacks
 import app.lidory.duckcount.settings.model.NewPasswordInputError
 import app.lidory.duckcount.settings.model.PasswordChangeError
+import app.lidory.duckcount.settings.model.PasswordChangeFailure
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,6 +47,14 @@ class PasswordChangeViewModel(
         state = state.withNewPasswordConfirmation(password = password)
     }
 
+    /**
+     * Forgets the leak once its screen is open, with the new password, typed twice, as registration
+     * forgets its own: the user comes back to choose another one.
+     */
+    fun onLeakShown() {
+        state = state.copy(leakAmount = null, newPassword = "", newPasswordConfirmation = "")
+    }
+
     /** Drops [error] once the snackbar has shown it, unless something replaced it meanwhile. */
     fun onErrorShown(error: PasswordChangeError) {
         if (state.error == error) state = state.copy(error = null)
@@ -66,16 +75,23 @@ class PasswordChangeViewModel(
         state = form.copy(isChanging = true, error = null)
 
         viewModelScope.launch {
-            val changeError = settingsCallBacks.changePassword(
+            val failure = settingsCallBacks.changePassword(
                 currentPassword = form.currentPassword,
                 newPassword = form.newPassword,
             )
 
-            // The change is the only thing this screen is for, so a successful one hands the
-            // user back to the account screen.
-            if (changeError == null) _isChanged.value = true
+            state = when (failure) {
+                // The change is the only thing this screen is for, so a successful one hands the
+                // user back to the account screen.
+                null -> {
+                    _isChanged.value = true
+                    state.copy(isChanging = false)
+                }
 
-            state = state.copy(isChanging = false, error = changeError)
+                is PasswordChangeFailure.Leaked -> state.copy(isChanging = false, leakAmount = failure.count)
+
+                is PasswordChangeFailure.Form -> state.copy(isChanging = false, error = failure.error)
+            }
         }
     }
 }
@@ -92,6 +108,11 @@ data class PasswordChangeScreenState(
     val isChanging: Boolean = false,
     /** Why the last change failed, until an edit answers it or the snackbar has shown it. */
     val error: PasswordChangeError? = null,
+    /**
+     * How many times the new password turns up in known breaches, which a screen of its own says, as
+     * at registration, until it opens, see [PasswordChangeViewModel.onLeakShown].
+     */
+    val leakAmount: Int? = null,
 ) {
     /** Why [newPassword] cannot be set, taken as typed, never trimmed, see [NewPasswordInputError]. */
     val newPasswordInputError: NewPasswordInputError? = when {
@@ -123,7 +144,7 @@ data class PasswordChangeScreenState(
     // which still holds what failed.
 
     fun withCurrentPassword(password: String): PasswordChangeScreenState =
-        copy(currentPassword = password, error = error?.takeIf { it == PasswordChangeError.LEAKED })
+        copy(currentPassword = password, error = null)
 
     fun withNewPassword(password: String): PasswordChangeScreenState =
         copy(newPassword = password, error = error?.takeIf { it == PasswordChangeError.WRONG_PASSWORD })

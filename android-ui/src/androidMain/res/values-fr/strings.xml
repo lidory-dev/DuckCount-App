@@ -26,4 +26,11 @@
     <string name="names_list_separator">", "</string>
     <string name="names_list_last">%1$s et %2$s</string>
     <string name="character_count">%1$d/%2$d</string>
+
+    <!-- The screen saying a password typed leaked, PasswordLeakScreen -->
+    <string name="noted">Compris</string>
+    <string name="watch_out">Attention !</string>
+    <string name="password_leak_times">Le mot de passe que vous utilisez a été retrouvé %1$d fois dans des fuites de données. Des pirates peuvent déjà s’en servir pour accéder à vos comptes.</string>
+    <string name="choose_new_password">Nous vous conseillons de générer un nouveau mot de passe aléatoire avec un gestionnaire de mots de passe.</string>
+    <string name="change_password_everywhere">Si vous avez utilisé ce mot de passe sur un autre service, vous DEVEZ le changer immédiatement.</string>
 </resources>

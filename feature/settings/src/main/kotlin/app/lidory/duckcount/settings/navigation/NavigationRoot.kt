@@ -16,6 +16,7 @@ import androidx.navigation3.ui.NavDisplay
 import app.lidory.duckcount.android.ui.animation.directedTransition
 import app.lidory.duckcount.android.ui.animation.popTransition
 import app.lidory.duckcount.android.ui.animation.rememberBackStackDirection
+import app.lidory.duckcount.android.ui.composable.PasswordLeakScreen
 import app.lidory.duckcount.settings.AboutScreen
 import app.lidory.duckcount.settings.AccountDeletionScreen
 import app.lidory.duckcount.settings.AccountScreen
@@ -29,6 +30,7 @@ import app.lidory.duckcount.settings.navigation.key.AccountDeletionScreenKey
 import app.lidory.duckcount.settings.navigation.key.AccountScreenKey
 import app.lidory.duckcount.settings.navigation.key.LicencesScreenKey
 import app.lidory.duckcount.settings.navigation.key.PasswordChangeScreenKey
+import app.lidory.duckcount.settings.navigation.key.PasswordLeakScreenKey
 import app.lidory.duckcount.settings.navigation.key.ReserveDiscoveryUsernameScreenKey
 import app.lidory.duckcount.settings.navigation.key.SettingsScreenKey
 import app.lidory.duckcount.settings.navigation.key.UserProfileScreenKey
@@ -127,6 +129,18 @@ fun NavigationRoot(
                     onPasswordChanged = dropUnlessResumed {
                         isPasswordChanged = true
                         backStack.removeIf { it is PasswordChangeScreenKey }
+                    },
+                    navigateToPasswordLeakScreen = { leakAmount ->
+                        backStack.add(PasswordLeakScreenKey(leakAmount = leakAmount))
+                    },
+                )
+            }
+
+            entry<PasswordLeakScreenKey> { key ->
+                PasswordLeakScreen(
+                    leakAmount = key.leakAmount,
+                    navigateBack = dropUnlessResumed {
+                        backStack.removeIf { it is PasswordLeakScreenKey }
                     },
                 )
             }

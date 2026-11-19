@@ -3,7 +3,7 @@ package navigation
 import DeviceNotAllowedScreen
 import LoginScreen
 import OnBoardingScreen
-import PasswordLeakScreen
+import app.lidory.duckcount.android.ui.composable.PasswordLeakScreen
 import PendingProfile
 import RegisterScreen
 import SetUpProfileScreen

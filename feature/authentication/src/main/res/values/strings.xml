@@ -14,11 +14,6 @@
     <string name="error_password_blank">Your password can’t be only spaces</string>
     <string name="error_password_short">Your password must have at least %1$s characters</string>
     <string name="error_password_leaked">Your password has been leaked</string>
-    <string name="noted">Noted</string>
-    <string name="watch_out">Watch out!</string>
-    <string name="password_leak_times">The password you are using has been leaked on the web %1$d times and hackers can already use it to get into your accounts.</string>
-    <string name="choose_new_password">Please consider generating a brand new random password using a password manager.</string>
-    <string name="change_password_everywhere">If you used this password on any other service, you MUST update it immediately.</string>
     <string name="error_password_confirmation">The passwords do not match</string>
     <string name="password_confirmation">Password Confirmation</string>
     <string name="set_up_your_profile_title">Set up your profile</string>

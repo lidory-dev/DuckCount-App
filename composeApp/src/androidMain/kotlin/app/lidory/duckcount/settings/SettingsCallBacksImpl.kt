@@ -16,6 +16,7 @@ import app.lidory.duckcount.RestartNotice
 import app.lidory.duckcount.networking.NetworkConnectivity
 import app.lidory.duckcount.settings.model.AccountDeletionError
 import app.lidory.duckcount.settings.model.PasswordChangeError
+import app.lidory.duckcount.settings.model.PasswordChangeFailure
 import app.lidory.duckcount.settings.model.ProfileSaveError
 import app.lidory.duckcount.settings.model.ReserveDiscoveryUsernameError
 import app.lidory.duckcount.settings.model.UsernameInputError
@@ -119,9 +120,9 @@ class SettingsCallBacksImpl(
      * once it may be sent, and nothing follows it here that has to happen, the session staying as
      * it is.
      */
-    override suspend fun changePassword(currentPassword: String, newPassword: String): PasswordChangeError? {
-        val userUuid = getAuthenticatedUserUuid() ?: return PasswordChangeError.UNKNOWN
-        val username = getAuthenticatedUserUsername() ?: return PasswordChangeError.UNKNOWN
+    override suspend fun changePassword(currentPassword: String, newPassword: String): PasswordChangeFailure? {
+        val userUuid = getAuthenticatedUserUuid() ?: return PasswordChangeFailure.Form(PasswordChangeError.UNKNOWN)
+        val username = getAuthenticatedUserUsername() ?: return PasswordChangeFailure.Form(PasswordChangeError.UNKNOWN)
 
         val change = passwordChange.change(
             userUuid = userUuid,
@@ -136,7 +137,7 @@ class SettingsCallBacksImpl(
             is Result.Error -> {
                 Log.w(TAG, "changePassword: could not change the password: ${change.error}")
 
-                change.error.toPasswordChangeError(isOnline = networkConnectivity.isOnline())
+                change.error.toPasswordChangeFailure(isOnline = networkConnectivity.isOnline())
             }
         }
     }

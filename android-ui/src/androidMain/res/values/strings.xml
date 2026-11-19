@@ -26,4 +26,11 @@
     <string name="names_list_separator">", "</string>
     <string name="names_list_last">%1$s and %2$s</string>
     <string name="character_count">%1$d/%2$d</string>
+
+    <!-- The screen saying a password typed leaked, PasswordLeakScreen -->
+    <string name="noted">Noted</string>
+    <string name="watch_out">Watch out!</string>
+    <string name="password_leak_times">The password you are using has been leaked on the web %1$d times and hackers can already use it to get into your accounts.</string>
+    <string name="choose_new_password">Please consider generating a brand new random password using a password manager.</string>
+    <string name="change_password_everywhere">If you used this password on any other service, you MUST update it immediately.</string>
 </resources>

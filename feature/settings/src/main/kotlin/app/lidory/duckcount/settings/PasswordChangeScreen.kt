@@ -64,6 +64,7 @@ import app.lidory.duckcount.android.ui.R as androidUiR
 fun PasswordChangeScreen(
     onBack: () -> Unit,
     onPasswordChanged: () -> Unit,
+    navigateToPasswordLeakScreen: (leakAmount: Int) -> Unit,
 ) {
     val viewModel: PasswordChangeViewModel = koinViewModel()
     val state = viewModel.state
@@ -75,7 +76,6 @@ fun PasswordChangeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     val currentPasswordInView = remember { BringIntoViewRequester() }
-    val newPasswordInView = remember { BringIntoViewRequester() }
 
     var isCurrentPasswordVisible by remember { mutableStateOf(false) }
     var isNewPasswordVisible by remember { mutableStateOf(false) }
@@ -89,17 +89,25 @@ fun PasswordChangeScreen(
         onPauseOrDispose {}
     }
 
+    // A leaked new password is told on a screen of its own, as at registration, which opens once
+    // the screen is resumed, as the change closing it does, and comes back to a form asking for
+    // another one.
+    LifecycleResumeEffect(state.leakAmount) {
+        state.leakAmount?.let { leakAmount ->
+            navigateToPasswordLeakScreen(leakAmount)
+            viewModel.onLeakShown()
+        }
+
+        onPauseOrDispose {}
+    }
+
     val error = state.error
 
-    // A failure on a field is brought into view as it appears, as DuckCountErrorText brings one:
+    // The failure on a field is brought into view as it appears, as DuckCountErrorText brings one:
     // the field is not focused then, which is when it would bring itself into view, and in
     // landscape or with a large font it can be out of view.
     LaunchedEffect(error) {
-        when (error) {
-            PasswordChangeError.WRONG_PASSWORD -> currentPasswordInView.bringIntoView()
-            PasswordChangeError.LEAKED -> newPasswordInView.bringIntoView()
-            else -> Unit
-        }
+        if (error == PasswordChangeError.WRONG_PASSWORD) currentPasswordInView.bringIntoView()
     }
 
     // Every other failure has no field to be shown on, and shows below the form, never over its
@@ -209,7 +217,6 @@ fun PasswordChangeScreen(
 
                     DuckCountTextField(
                         modifier = Modifier
-                            .bringIntoViewRequester(newPasswordInView)
                             .semantics {
                                 contentType = ContentType.NewPassword
                             }
@@ -225,12 +232,8 @@ fun PasswordChangeScreen(
                         enabled = !state.isChanging,
                         singleLine = true,
                         labelName = stringResource(R.string.new_password),
-                        isInError = error == PasswordChangeError.LEAKED || state.newPasswordInputError != null,
-                        error = if (error == PasswordChangeError.LEAKED) {
-                            stringResource(error.messageRes())
-                        } else {
-                            state.newPasswordInputError?.let { stringResource(it.messageRes(), state.minimumLength) }
-                        },
+                        isInError = state.newPasswordInputError != null,
+                        error = state.newPasswordInputError?.let { stringResource(it.messageRes(), state.minimumLength) },
                         trailingIcon = {
                             PasswordVisibilityButton(
                                 onClick = { isNewPasswordVisible = !isNewPasswordVisible },

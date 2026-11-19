@@ -65,7 +65,6 @@
     <string name="account_deletion_error_unconfirmed">La réponse du serveur n’est pas arrivée, votre compte est donc peut-être déjà supprimé. Vérifiez votre connexion, puis réessayez pour le savoir</string>
     <string name="password_changed">Votre mot de passe a été modifié</string>
     <string name="password_change_error_wrong_password">Mot de passe incorrect</string>
-    <string name="password_change_error_leaked">Ce mot de passe est compromis, choisissez-en un autre</string>
     <string name="password_change_error_same_password">Doit être différent du mot de passe actuel</string>
     <string name="password_change_error_no_internet">Aucune connexion Internet</string>
     <string name="password_change_error_timeout">Le serveur a mis trop de temps à répondre, réessayez</string>

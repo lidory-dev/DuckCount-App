@@ -14,11 +14,6 @@
     <string name="error_password_blank">Le mot de passe ne peut pas être composé uniquement d’espaces</string>
     <string name="error_password_short">Le mot de passe doit contenir au moins %1$s caractères</string>
     <string name="error_password_leaked">Ce mot de passe est compromis</string>
-    <string name="noted">Compris</string>
-    <string name="watch_out">Attention !</string>
-    <string name="password_leak_times">Le mot de passe que vous utilisez a été retrouvé %1$d fois dans des fuites de données. Des pirates peuvent déjà s’en servir pour accéder à vos comptes.</string>
-    <string name="choose_new_password">Nous vous conseillons de générer un nouveau mot de passe aléatoire avec un gestionnaire de mots de passe.</string>
-    <string name="change_password_everywhere">Si vous avez utilisé ce mot de passe sur un autre service, vous DEVEZ le changer immédiatement.</string>
     <string name="error_password_confirmation">Les mots de passe ne correspondent pas</string>
     <string name="password_confirmation">Confirmation du mot de passe</string>
     <string name="set_up_your_profile_title">Configurez votre profil</string>
