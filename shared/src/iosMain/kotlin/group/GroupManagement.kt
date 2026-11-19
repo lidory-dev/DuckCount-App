@@ -58,8 +58,9 @@ class GroupDebt(val debtorUuid: String, val creditorUuid: String, val amount: St
  * and tells them as unknown. Android's screens have the same preconditions, which its view models
  * meet, and a locked phone shows none of them.
  *
- * Unlike Android, every refresh syncs the groups themselves, see [ForegroundSync]: no push keeps
- * them current, and a group's expenses cannot be read past an epoch whose Commit was not.
+ * Unlike Android, every refresh syncs the groups themselves, see [ForegroundSync]: a push wakes iOS
+ * only when iOS lets it, so none can be counted on to keep them current, and a group's expenses
+ * cannot be read past an epoch whose Commit was not.
  */
 class GroupManagement(
     private val groupRepository: GroupRepository,

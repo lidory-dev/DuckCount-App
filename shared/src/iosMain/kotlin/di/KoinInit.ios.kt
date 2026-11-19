@@ -15,7 +15,6 @@ import channel.di.channelModule
 import contact.ContactManagement
 import group.GroupManagement
 import group.GroupSyncAnnouncer
-import group.NoGroupSyncAnnouncer
 import message.ResendScheduler
 import message.di.messageModule
 import expense.ExpenseManagement
@@ -34,14 +33,33 @@ import profile.di.profileModule
 import settings.SettingsManagement
 import sync.ForegroundResendScheduler
 import sync.ForegroundSync
+import push.ApnsPushRegistrar
+import push.PushRegistrar
+import push.SharedWakeList
+import push.SharedWakeListStore
+import push.WakeListStore
 import push.di.pushModule
+import sync.AnnouncingGroupSyncAnnouncer
+import sync.SyncAnnouncer
 import vault.di.vaultModule
 
-fun initKoin() {
+/**
+ * Starts the shared module, with what the app implements of it: [sharedWakeList], the wake list it
+ * keeps for its notification service extension, and [syncAnnouncer], which posts what a sync read.
+ * Both outlive every session, as the app's own objects do, see [restartSession].
+ */
+fun initKoin(sharedWakeList: SharedWakeList, syncAnnouncer: SyncAnnouncer) {
+    platform = Platform(sharedWakeList = sharedWakeList, syncAnnouncer = syncAnnouncer)
+
     startKoin {
         modules(listOf(sharedModule) + sessionModules)
     }
 }
+
+/** What the app handed [initKoin]. */
+private class Platform(val sharedWakeList: SharedWakeList, val syncAnnouncer: SyncAnnouncer)
+
+private lateinit var platform: Platform
 
 /**
  * Every module but [sharedModule], which holds the two KSafe stores: what a session's end reloads,
@@ -78,7 +96,10 @@ private val iosPlatformModule = module {
     // Lazily, the sync it runs being built from what books it.
     single { ForegroundResendScheduler(foregroundSync = lazy { get<ForegroundSync>() }, updateRequirement = get()) }
         .bind<ResendScheduler>()
-    single<GroupSyncAnnouncer> { NoGroupSyncAnnouncer }
+    single<WakeListStore> { SharedWakeListStore(shared = platform.sharedWakeList) }
+    single<SyncAnnouncer> { platform.syncAnnouncer }
+    single<GroupSyncAnnouncer> { AnnouncingGroupSyncAnnouncer(announcer = get()) }
+    single { ApnsPushRegistrar(pushRepository = get()) }.bind<PushRegistrar>()
     single { NetworkConnectivity() }
     single { AppAttester() }
     single {
@@ -112,6 +133,7 @@ private val iosPlatformModule = module {
             discoveryUsernameRepository = get(),
             accountDeletion = get(),
             passwordChange = get(),
+            pushRegistrar = get(),
             networkConnectivity = get(),
         )
     }
@@ -121,6 +143,11 @@ private val iosPlatformModule = module {
             groupSync = get(),
             oneTimeExpenseSync = get(),
             groupExpenseSync = get(),
+            contactArrivals = get(),
+            expenseArrivals = get(),
+            expenseChanges = get(),
+            groupExpenseUpdates = get(),
+            announcer = get(),
         )
     }
     single {
@@ -161,4 +188,6 @@ class KoinHelper : KoinComponent {
     fun getContactManagement(): ContactManagement = get()
     fun getSettingsManagement(): SettingsManagement = get()
     fun getSessionExpiry(): SessionExpiry = get()
+    fun getPushRegistrar(): ApnsPushRegistrar = get()
+    fun getForegroundSync(): ForegroundSync = get()
 }

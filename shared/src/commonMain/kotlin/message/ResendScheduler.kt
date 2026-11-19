@@ -23,8 +23,8 @@ package message
  * `group.DEPARTED_GRACE`: the sync this runs is the one that removes them.
  *
  * Bound on Android, which runs the sync a push starts, see `PushWork.enqueueResend` in
- * `:composeApp`; on iOS, which has no push yet, to a timer running the foreground sync while the app
- * runs, see `sync.ForegroundResendScheduler` in its `iosMain`.
+ * `:composeApp`; on iOS, where a push wakes the app only when iOS lets it, to a timer running the
+ * foreground sync while the app runs, see `sync.ForegroundResendScheduler` in its `iosMain`.
  */
 interface ResendScheduler {
 

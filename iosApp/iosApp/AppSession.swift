@@ -84,6 +84,9 @@ final class AppSession: ObservableObject {
 
         await BackgroundTime.untilIdle()
 
+        PushSetUp.tearDown()
+        NotificationRoute.shared.clear()
+
         // Only Kotlin's cancellation crosses over, and nothing cancels this.
         try? await SessionRestartKt.restartSession()
 

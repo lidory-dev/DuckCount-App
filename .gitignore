@@ -27,6 +27,7 @@ node_modules/
 iosApp/iosApp/ContactList/.build
 iosApp/iosApp/GroupList/.build
 iosApp/iosApp/AppSettings/.build
+iosApp/iosApp/PushSignals/.build
 
 # Output of fdroid/build-release.sh
 fdroid/out/

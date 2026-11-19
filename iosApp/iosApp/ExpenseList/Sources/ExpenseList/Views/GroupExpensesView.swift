@@ -12,11 +12,19 @@ public struct GroupExpensesView: View {
 
     @StateObject private var viewModel: GroupExpenseListViewModel
 
+    /// The expense of the group the app asks to open, a notification about it having been tapped:
+    /// pushed once, then cleared.
+    @Binding private var opening: String?
+
+    /// The expense pushed on the app's asking, see `opening`.
+    @State private var opened: String?
+
     @State private var isCreating = false
 
-    public init(groupId: String, callBacks: any ExpenseCallBacks) {
+    public init(groupId: String, callBacks: any ExpenseCallBacks, opening: Binding<String?> = .constant(nil)) {
         self.groupId = groupId
         self.callBacks = callBacks
+        _opening = opening
         _viewModel = StateObject(wrappedValue: GroupExpenseListViewModel(groupId: groupId, callBacks: callBacks))
     }
 
@@ -84,6 +92,15 @@ public struct GroupExpensesView: View {
         }
         .sheet(isPresented: $isCreating) {
             CreateExpenseView(callBacks: callBacks, groupId: groupId)
+        }
+        .navigationDestination(item: $opened) { expenseId in
+            PushedExpenseDetailView(expenseId: expenseId, callBacks: callBacks)
+        }
+        .onChange(of: opening, initial: true) { _, expenseId in
+            if let expenseId {
+                opened = expenseId
+                opening = nil
+            }
         }
     }
 }

@@ -5,7 +5,8 @@ package push
  *
  * Somewhere a locked device can read, unlike the database and the rest of the vault, which is
  * the whole point: a push mostly arrives with the phone in a pocket, and who sent it has to be
- * checked then, see [PushSignal.mayWake]. Bound on Android only, iOS having no push yet.
+ * checked then, see [PushSignal.mayWake]. On iOS, where the app's notification service extension
+ * reads it too, it is the keychain group the two share, see `push.SharedWakeList`.
  */
 interface WakeListStore {
 

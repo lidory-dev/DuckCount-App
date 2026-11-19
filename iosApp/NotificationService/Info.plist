@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.usernotifications.service</string>
+		<key>NSExtensionPrincipalClass</key>
+		<string>$(PRODUCT_MODULE_NAME).NotificationService</string>
+	</dict>
+	<!-- Set to true together with com.apple.developer.usernotifications.filtering in
+	     NotificationService.entitlements, once Apple grants it: without the entitlement, the empty
+	     content a refused push is handed would not hide it. -->
+	<key>DuckCountHidesRefusedPushes</key>
+	<false/>
+</dict>
+</plist>

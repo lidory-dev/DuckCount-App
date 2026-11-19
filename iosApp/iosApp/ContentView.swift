@@ -17,6 +17,8 @@ struct ContentView: View {
 
     @StateObject private var startupViewModel = StartupViewModel()
 
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some View {
         if updateRequirement.isRequired {
             UpdateRequiredScreen()
@@ -32,6 +34,14 @@ struct ContentView: View {
                 case .loggedIn:
                     tabs
                         .task { await startupViewModel.publishKeyPackagesIfDue() }
+                        .task { await PushSetUp.run() }
+                        // What a notification said about the tab the user looks at, they are reading.
+                        .onChange(of: selectedTab, initial: true) { Notifier.shared.tabShown(selectedTab) }
+                        .onChange(of: scenePhase) {
+                            if scenePhase == .active {
+                                Notifier.shared.tabShown(selectedTab)
+                            }
+                        }
 
                 case .notLoggedIn:
                     authenticationFlow(resume: nil)

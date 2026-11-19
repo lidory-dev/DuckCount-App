@@ -20,7 +20,7 @@ final class PreviewGroupCallBacks: GroupCallBacks {
     /// Screens of other features, which previews stand in for.
     static var destinations: GroupDestinations {
         GroupDestinations(
-            expenses: { _ in AnyView(Text(verbatim: "Expenses")) },
+            expenses: { _, _ in AnyView(Text(verbatim: "Expenses")) },
             contactDetail: { userUuid in AnyView(Text(verbatim: userUuid)) },
             contactRequests: { AnyView(Text(verbatim: "Contact requests")) }
         )

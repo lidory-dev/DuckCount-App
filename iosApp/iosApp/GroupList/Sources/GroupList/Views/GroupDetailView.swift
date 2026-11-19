@@ -27,16 +27,27 @@ struct GroupDetailView: View {
     private let destinations: GroupDestinations
     private let onClose: () -> Void
 
+    /// The expense of the group the app asks to open, which its Expenses tab opens, see
+    /// `GroupOpening`.
+    @Binding private var openingExpense: String?
+
     @StateObject private var viewModel: GroupDetailViewModel
     @StateObject private var balances: GroupBalancesViewModel
 
     @State private var tab = GroupTab.expenses
     @State private var isShowingSettings = false
 
-    init(groupId: String, callBacks: any GroupCallBacks, destinations: GroupDestinations, onClose: @escaping () -> Void) {
+    init(
+        groupId: String,
+        callBacks: any GroupCallBacks,
+        destinations: GroupDestinations,
+        openingExpense: Binding<String?> = .constant(nil),
+        onClose: @escaping () -> Void
+    ) {
         self.callBacks = callBacks
         self.destinations = destinations
         self.onClose = onClose
+        _openingExpense = openingExpense
         _viewModel = StateObject(wrappedValue: GroupDetailViewModel(groupId: groupId, callBacks: callBacks))
         _balances = StateObject(wrappedValue: GroupBalancesViewModel(groupId: groupId, callBacks: callBacks))
     }
@@ -61,6 +72,12 @@ struct GroupDetailView: View {
         // Again each time the group shows, the device holding what it has of it meanwhile.
         .task {
             await viewModel.refresh()
+        }
+        // An expense to open is on the Expenses tab, whichever one shows.
+        .onChange(of: openingExpense, initial: true) { _, expenseId in
+            if expenseId != nil {
+                tab = .expenses
+            }
         }
         .onChange(of: viewModel.isGone, initial: true) { _, isGone in
             if isGone {
@@ -140,7 +157,7 @@ struct GroupDetailView: View {
     private var content: some View {
         switch tab {
         case .expenses:
-            destinations.expenses(viewModel.groupId)
+            destinations.expenses(viewModel.groupId, $openingExpense)
 
         case .balance:
             BalanceTabView(viewModel: balances)

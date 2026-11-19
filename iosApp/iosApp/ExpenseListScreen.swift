@@ -5,7 +5,10 @@ import SwiftUI
 struct ExpenseListScreen: View {
     @State private var callBacks = ExpenseCallBacksImpl()
 
+    /// What a tapped notification asks the tab to open.
+    @ObservedObject private var route = NotificationRoute.shared
+
     var body: some View {
-        ExpenseListView(callBacks: callBacks)
+        ExpenseListView(callBacks: callBacks, opening: $route.expense)
     }
 }

@@ -1,10 +1,15 @@
 package sync
 
+import contact.ContactArrivals
 import contact.ContactSync
+import expense.ExpenseArrivals
+import expense.ExpenseChanges
+import expense.GroupExpenseUpdates
 import expense.OneTimeExpenseSync
 import group.GroupExpenseSync
 import group.GroupSync
 import group.GroupSyncError
+import kotlin.time.Clock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,9 +38,15 @@ class ForegroundSyncPass(
 /**
  * Brings everything this device shows up to date with the server, in the order Android's
  * `PushSyncWorker` does as a push wakes it: the contacts, the groups, the one-time expenses, and the
- * groups' expenses. iOS receives no push yet, so this is what every screen runs as it opens, is
- * pulled, or comes back to the foreground, and what a resend booked for later runs, see
- * [ForegroundResendScheduler].
+ * groups' expenses. What every screen runs as it opens, is pulled, or comes back to the foreground,
+ * what a resend booked for later runs, see [ForegroundResendScheduler], and what a push runs once it
+ * wakes the app, see [syncForPush].
+ *
+ * A pass a push asked for tells the user what it read, see [SyncAnnouncer], as the push worker does:
+ * it reads what the device knew before, and compares, then says when it started and whether it read
+ * everything, for the nameless notifications a push put up before it to come down, see
+ * [SyncAnnouncer.passEnded]. One a screen asked for does neither, the user being in the app to see
+ * what it reads, and the first after a log-in bringing back what nobody is to be told about.
  *
  * The order is what keeps it right. The contacts come first: the group sync declines for good a
  * Welcome from somebody who is no contact of the user, so it waits for whoever became one to be
@@ -53,6 +64,11 @@ class ForegroundSync(
     private val groupSync: GroupSync,
     private val oneTimeExpenseSync: OneTimeExpenseSync,
     private val groupExpenseSync: GroupExpenseSync,
+    private val contactArrivals: ContactArrivals,
+    private val expenseArrivals: ExpenseArrivals,
+    private val expenseChanges: ExpenseChanges,
+    private val groupExpenseUpdates: GroupExpenseUpdates,
+    private val announcer: SyncAnnouncer,
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -65,9 +81,34 @@ class ForegroundSync(
     private var finished = 0L
     private var last: ForegroundSyncPass? = null
 
+    /** Whether the next pass to start tells the user what it read, a push having asked for it. */
+    private var isNextAnnounced = false
+
     /** Runs a pass that starts no earlier than this call, or waits for the one that does. */
-    suspend fun sync(): ForegroundSyncPass = withContext(Dispatchers.Main) {
+    suspend fun sync(): ForegroundSyncPass = sync(isAnnounced = false)
+
+    /**
+     * Runs a pass that starts no earlier than this call and tells the user what it read, or waits for
+     * the one that does, for a push that woke the app, see [SyncAnnouncer]. Whether it read
+     * everything: one that did not leaves what it missed on the server, for the next pass.
+     */
+    suspend fun syncForPush(): Boolean = !sync(isAnnounced = true).hasFailed
+
+    /**
+     * Has the next pass tell the user what it read, whoever asks for it, for a push that woke the app
+     * on a locked device, which can read nothing: as Android's push worker waits for the unlock to
+     * sync and tell, the next pass after it does, which is mostly the one the app runs as the user
+     * opens it. Lost with the process, iOS giving the app no unlock to wait for.
+     */
+    suspend fun announceNextPass() = withContext(Dispatchers.Main) {
+        isNextAnnounced = true
+    }
+
+    private suspend fun sync(isAnnounced: Boolean): ForegroundSyncPass = withContext(Dispatchers.Main) {
         val asked = started
+
+        // The pass that starts next is the one this waits for, whoever else it is run for.
+        if (isAnnounced) isNextAnnounced = true
 
         scope.async {
             passes.withLock {
@@ -75,8 +116,11 @@ class ForegroundSync(
 
                 started += 1
                 val number = started
+                val announces = isNextAnnounced
+                isNextAnnounced = false
+
                 // Off the main thread: opening and checking expenses is work the screens should not wait on.
-                val pass = withContext(Dispatchers.Default) { pass() }
+                val pass = withContext(Dispatchers.Default) { pass(announces = announces) }
 
                 finished = number
                 last = pass
@@ -111,7 +155,29 @@ class ForegroundSync(
         scope.coroutineContext[Job]?.cancelAndJoin()
     }
 
-    private suspend fun pass(): ForegroundSyncPass = unlessLocked("pass") {
+    private suspend fun pass(announces: Boolean): ForegroundSyncPass {
+        val startedAt = Clock.System.now().toEpochMilliseconds()
+
+        val pass = unlessLocked("pass") { steps(announces = announces) }
+            ?: ForegroundSyncPass(isOneTimeListingRead = false, hasFailed = true)
+
+        if (announces) announcer.passEnded(startedAtEpochMillis = startedAt, hasFailed = pass.hasFailed)
+
+        return pass
+    }
+
+    private suspend fun steps(announces: Boolean): ForegroundSyncPass {
+        // Before anything is read, for what turns up to be told apart from what was there.
+        val before = if (announces) {
+            Snapshots(
+                contacts = contactArrivals.snapshot(),
+                expenses = expenseArrivals.snapshot(),
+                shown = expenseChanges.snapshot(),
+            )
+        } else {
+            null
+        }
+
         var hasFailed = false
 
         val contacts = contactSync.sync()
@@ -128,9 +194,10 @@ class ForegroundSync(
             hasFailed = true
         }
 
-        // The device locked as the groups were synced: nothing after them could read anything.
+        // The device locked as the groups were synced: nothing after them could read anything, nor
+        // could telling what the groups read, which waits for a pass with the device unlocked.
         if (groups.failure == GroupSyncError.DeviceLocked) {
-            return@unlessLocked ForegroundSyncPass(isOneTimeListingRead = false, hasFailed = true)
+            return ForegroundSyncPass(isOneTimeListingRead = false, hasFailed = true)
         }
 
         val isOneTimeListingRead = when (val listing = oneTimeExpenseSync.refresh()) {
@@ -156,13 +223,39 @@ class ForegroundSync(
             hasFailed = true
         }
 
-        groupExpenseSync.sync().failure?.let {
+        val groupExpenses = groupExpenseSync.sync()
+
+        groupExpenses.failure?.let {
             warn("pass: could not sync the groups' expenses: $it")
             hasFailed = true
         }
 
-        ForegroundSyncPass(isOneTimeListingRead = isOneTimeListingRead, hasFailed = hasFailed)
-    } ?: ForegroundSyncPass(isOneTimeListingRead = false, hasFailed = true)
+        // Whatever did arrive, or change, is worth telling even when a step failed, as the push
+        // worker tells it.
+        if (before != null) {
+            announcer.announce(
+                announcements = SyncAnnouncements(
+                    contactArrivals = contactArrivals.since(snapshot = before.contacts),
+                    contactDepartures = contactArrivals.departures(snapshot = before.contacts),
+                    groupArrivals = groups.joined,
+                    groupRemovals = groups.removed,
+                    groupDeletions = groups.deleted,
+                    expenseArrivals = expenseArrivals.since(snapshot = before.expenses),
+                    expenseChanges = expenseChanges.since(snapshot = before.shown),
+                    groupExpenseUpdates = groupExpenseUpdates.of(changes = groupExpenses.changes),
+                ),
+            )
+        }
+
+        return ForegroundSyncPass(isOneTimeListingRead = isOneTimeListingRead, hasFailed = hasFailed)
+    }
+
+    /** What the device knew as a pass a push asked for began. */
+    private class Snapshots(
+        val contacts: contact.ContactSnapshot,
+        val expenses: expense.ExpenseSnapshot,
+        val shown: expense.ShownExpenseSnapshot,
+    )
 
     /**
      * Runs [sync], or null if the device locked as it ran: the keychain throws then, and on iOS a

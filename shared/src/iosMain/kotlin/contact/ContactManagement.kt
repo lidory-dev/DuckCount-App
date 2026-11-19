@@ -25,7 +25,8 @@ private const val TAG = "ContactManagement"
  * [AddContactFailure]. The discovery username is reserved from the settings, see
  * [settings.SettingsManagement], as on Android: the contact screens only read it.
  *
- * Unlike Android's, nothing here takes a notification down: iOS receives no push, so none is up.
+ * Unlike Android's, nothing here takes a notification down: the app takes down what the Contacts tab
+ * shows as the tab comes up, see its `Notifier`.
  */
 class ContactManagement(
     private val userRepository: UserRepository,

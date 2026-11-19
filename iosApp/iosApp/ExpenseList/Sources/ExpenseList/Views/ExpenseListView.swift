@@ -7,13 +7,18 @@ public struct ExpenseListView: View {
 
     @StateObject private var viewModel: ExpenseListViewModel
 
+    /// The expense the app asks to open, a notification about it having been tapped: opened once,
+    /// then cleared, as Android opens the one an intent names.
+    @Binding private var opening: String?
+
     @State private var selection: String?
     @State private var isCreating = false
 
     @Environment(\.scenePhase) private var scenePhase
 
-    public init(callBacks: any ExpenseCallBacks) {
+    public init(callBacks: any ExpenseCallBacks, opening: Binding<String?> = .constant(nil)) {
         self.callBacks = callBacks
+        _opening = opening
         _viewModel = StateObject(wrappedValue: ExpenseListViewModel(callBacks: callBacks))
     }
 
@@ -54,6 +59,12 @@ public struct ExpenseListView: View {
         }
         .sheet(isPresented: $isCreating) {
             CreateExpenseView(callBacks: callBacks)
+        }
+        .onChange(of: opening, initial: true) { _, expenseId in
+            if let expenseId {
+                selection = expenseId
+                opening = nil
+            }
         }
         .task {
             await viewModel.refreshOnce()

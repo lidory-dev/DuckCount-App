@@ -10,12 +10,15 @@ struct GroupListScreen: View {
     @State private var expenseCallBacks = ExpenseCallBacksImpl()
     @State private var contactCallBacks = ContactCallBacksImpl()
 
+    /// What a tapped notification asks the tab to open.
+    @ObservedObject private var route = NotificationRoute.shared
+
     var body: some View {
         GroupListView(
             callBacks: callBacks,
             destinations: GroupDestinations(
-                expenses: { [expenseCallBacks] groupId in
-                    AnyView(GroupExpensesView(groupId: groupId, callBacks: expenseCallBacks))
+                expenses: { [expenseCallBacks] groupId, opening in
+                    AnyView(GroupExpensesView(groupId: groupId, callBacks: expenseCallBacks, opening: opening))
                 },
                 contactDetail: { [contactCallBacks] userUuid in
                     AnyView(PushedContactDetail(userUuid: userUuid, callBacks: contactCallBacks))
@@ -23,7 +26,8 @@ struct GroupListScreen: View {
                 contactRequests: { [contactCallBacks] in
                     AnyView(ContactRequestListView(callBacks: contactCallBacks))
                 }
-            )
+            ),
+            opening: $route.group
         )
     }
 }

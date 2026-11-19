@@ -105,8 +105,9 @@ public protocol GroupCallBacks: AnyObject {
 /// depending on no other.
 public struct GroupDestinations {
     /// The group's expenses, shown on its Expenses tab, inside the group's navigation stack: it adds
-    /// its own button to add an expense, and leads to their details.
-    public var expenses: @MainActor (_ groupId: String) -> AnyView
+    /// its own button to add an expense, and leads to their details, the one `opening` names
+    /// included, which it opens once and clears, see `GroupOpening`.
+    public var expenses: @MainActor (_ groupId: String, _ opening: Binding<String?>) -> AnyView
 
     /// The contact `userUuid`'s screen, pushed from a member's sheet.
     public var contactDetail: @MainActor (_ userUuid: String) -> AnyView
@@ -115,12 +116,24 @@ public struct GroupDestinations {
     public var contactRequests: @MainActor () -> AnyView
 
     public init(
-        expenses: @escaping @MainActor (_ groupId: String) -> AnyView,
+        expenses: @escaping @MainActor (_ groupId: String, _ opening: Binding<String?>) -> AnyView,
         contactDetail: @escaping @MainActor (_ userUuid: String) -> AnyView,
         contactRequests: @escaping @MainActor () -> AnyView
     ) {
         self.expenses = expenses
         self.contactDetail = contactDetail
         self.contactRequests = contactRequests
+    }
+}
+
+/// A group the app asks the group list to open, and one of its expenses over it, a notification
+/// about either having been tapped, as Android's intent names them.
+public struct GroupOpening: Equatable, Sendable {
+    public let groupId: String
+    public let expenseId: String?
+
+    public init(groupId: String, expenseId: String? = nil) {
+        self.groupId = groupId
+        self.expenseId = expenseId
     }
 }

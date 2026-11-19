@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import networking.DuckCountClient
 import profile.ProfileRepository
+import push.PushRegistrar
 import util.Result
 import util.onError
 
@@ -31,7 +32,7 @@ private const val TAG = "SettingsManagement"
  *
  * Unlike Android's, ending the session restarts nothing here: iOS cannot start the app over in a
  * process of its own, so the app does it within this one once [logOut] or [deleteAccount] returns,
- * see `di.restartSession`. Nor is there a push subscription to tear down: iOS receives no push yet.
+ * see `di.restartSession`, which is also where the app drops its own side of push.
  */
 class SettingsManagement(
     private val duckCountClient: DuckCountClient,
@@ -40,6 +41,7 @@ class SettingsManagement(
     private val discoveryUsernameRepository: DiscoveryUsernameRepository,
     private val accountDeletion: AccountDeletion,
     private val passwordChange: PasswordChange,
+    private val pushRegistrar: PushRegistrar,
     private val networkConnectivity: NetworkConnectivity,
 ) {
 
@@ -69,6 +71,11 @@ class SettingsManagement(
      */
     suspend fun logOut() {
         withContext(NonCancellable) {
+            // First, and not inside `endSession`: telling the server to stop pushing to this device
+            // is a call that needs the tokens `endSession` is about to drop. Not on a deletion, the
+            // server dropping the subscription along with the account.
+            pushRegistrar.tearDown()
+
             duckCountClient.endSession()
         }
     }

@@ -7,6 +7,13 @@ enum ContactRoute: Hashable {
     case blockedUsers
 }
 
+/// What the app asks the contacts tab to open, a notification about it having been tapped: the
+/// requests waiting for the user, as Android's intent opens them, or a contact who just accepted one.
+public enum ContactListOpening: Equatable, Sendable {
+    case requests
+    case contact(String)
+}
+
 /// The user's contacts by letter, the requests waiting for them, the people they blocked, and the
 /// way to add somebody, once they reserved a username: the Contacts tab, as Android's
 /// `ContactListScreen`.
@@ -19,15 +26,23 @@ public struct ContactListView: View {
 
     @StateObject private var viewModel: ContactListViewModel
 
+    /// What the app asks to open, see `ContactListOpening`: opened once, then cleared.
+    @Binding private var opening: ContactListOpening?
+
     @State private var selection: ContactRoute?
     @State private var isAddingContact = false
     @State private var isReservingUsername = false
 
     @Environment(\.scenePhase) private var scenePhase
 
-    public init(callBacks: any ContactCallBacks, usernameReservation: @escaping @MainActor () -> AnyView) {
+    public init(
+        callBacks: any ContactCallBacks,
+        usernameReservation: @escaping @MainActor () -> AnyView,
+        opening: Binding<ContactListOpening?> = .constant(nil)
+    ) {
         self.callBacks = callBacks
         self.usernameReservation = usernameReservation
+        _opening = opening
         _viewModel = StateObject(wrappedValue: ContactListViewModel(callBacks: callBacks))
     }
 
@@ -46,6 +61,15 @@ public struct ContactListView: View {
         }
         .sheet(isPresented: $isReservingUsername) {
             usernameReservation()
+        }
+        .onChange(of: opening, initial: true) { _, request in
+            switch request {
+            case .requests: selection = .requests
+            case .contact(let userUuid): selection = .contact(userUuid)
+            case nil: return
+            }
+
+            opening = nil
         }
         .task {
             await viewModel.refresh()

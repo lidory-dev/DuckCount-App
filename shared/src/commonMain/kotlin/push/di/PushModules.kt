@@ -12,6 +12,6 @@ val pushModule = module {
     singleOf(::PushApi)
     singleOf(::PushRepository)
 
-    // The store is bound on Android only, the one platform with push so far.
+    // The store is each platform's own, see [push.WakeListStore].
     single { WakeList(get(), get(), get(), get(), getOrNull()) }.bind<SessionLeftovers>()
 }

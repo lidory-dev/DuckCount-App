@@ -8,6 +8,12 @@ public struct GroupListView: View {
 
     @StateObject private var viewModel: GroupListViewModel
 
+    /// The group, and the expense of it, the app asks to open: opened once, then cleared.
+    @Binding private var opening: GroupOpening?
+
+    /// The expense of the group opened the group's expenses are to open, see `opening`.
+    @State private var openingExpense: String?
+
     @State private var selection: String?
     @State private var isCreating = false
 
@@ -20,9 +26,14 @@ public struct GroupListView: View {
 
     @Environment(\.scenePhase) private var scenePhase
 
-    public init(callBacks: any GroupCallBacks, destinations: GroupDestinations) {
+    public init(
+        callBacks: any GroupCallBacks,
+        destinations: GroupDestinations,
+        opening: Binding<GroupOpening?> = .constant(nil)
+    ) {
         self.callBacks = callBacks
         self.destinations = destinations
+        _opening = opening
         _viewModel = StateObject(wrappedValue: GroupListViewModel(callBacks: callBacks))
     }
 
@@ -48,7 +59,12 @@ public struct GroupListView: View {
         } detail: {
             NavigationStack {
                 if let selection {
-                    GroupDetailView(groupId: selection, callBacks: callBacks, destinations: destinations) {
+                    GroupDetailView(
+                        groupId: selection,
+                        callBacks: callBacks,
+                        destinations: destinations,
+                        openingExpense: $openingExpense
+                    ) {
                         // Gone from the device: nothing left to show.
                         if self.selection == selection {
                             self.selection = nil
@@ -72,6 +88,21 @@ public struct GroupListView: View {
             GroupFormView(callBacks: callBacks, mode: .create) { groupId in
                 createdGroupId = groupId
             }
+        }
+        .onChange(of: opening, initial: true) { _, request in
+            guard let request else {
+                return
+            }
+
+            opening = nil
+
+            // A change of the group shown keeps it shown until answered, see `isGroupChangeUnderWay`.
+            guard !isChangeUnderWay else {
+                return
+            }
+
+            selection = request.groupId
+            openingExpense = request.expenseId
         }
         .task {
             await viewModel.refresh()

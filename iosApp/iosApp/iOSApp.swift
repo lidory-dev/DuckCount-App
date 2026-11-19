@@ -3,10 +3,12 @@ import SwiftUI
 
 @main
 struct iOSApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     @ObservedObject private var session = AppSession.shared
 
     init() {
-        KoinInit_iosKt.doInitKoin()
+        KoinInit_iosKt.doInitKoin(sharedWakeList: AppWakeList(), syncAnnouncer: Notifier.shared)
 
         AppSession.shared.followSessionEnd()
     }
