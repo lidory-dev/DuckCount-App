@@ -21,6 +21,10 @@ final class DayPinning {
     /// Nil at the top of the list, where the first day's date shows in its place.
     private(set) var pinned: Pinned?
 
+    /// Whether the list is scrolled past its top, its first date having gone above it: never while a
+    /// large title shows above the list, which shrinks into the bar before any row goes under it.
+    private(set) var isScrolledPastTop = false
+
     private struct Row {
         let dayId: String
         let isDate: Bool
@@ -31,6 +35,7 @@ final class DayPinning {
     @ObservationIgnored private var titles: [String: String] = [:]
     @ObservationIgnored private var rows: [String: Row] = [:]
     @ObservationIgnored private var dateHeight: CGFloat = 0
+    @ObservationIgnored private var isTopCheckDue = false
 
     /// Where the list's top is on the screen, which the rows are measured from: a coordinate space
     /// named on a list reaches none of its rows.
@@ -74,6 +79,43 @@ final class DayPinning {
         if pinned != self.pinned {
             self.pinned = pinned
         }
+
+        checkTopOnceAllPlaced()
+    }
+
+    /// Works out `isScrolledPastTop` once every row has said where it is: the list's top and the
+    /// rows tell one by one, the top first as a large title grows, which for a moment would have the
+    /// first date above it, and the title hidden.
+    private func checkTopOnceAllPlaced() {
+        guard !isTopCheckDue else {
+            return
+        }
+
+        isTopCheckDue = true
+
+        Task { @MainActor in
+            isTopCheckDue = false
+
+            let isScrolledPastTop = isPastTopNow()
+
+            if isScrolledPastTop != self.isScrolledPastTop {
+                self.isScrolledPastTop = isScrolledPastTop
+            }
+        }
+    }
+
+    private func isPastTopNow() -> Bool {
+        guard let firstDay = dayIds.first else {
+            return false
+        }
+
+        // Gone out of the list once scrolled far enough past the top, unless nothing is laid out yet.
+        guard let date = rows["date:" + firstDay] else {
+            return !rows.isEmpty
+        }
+
+        // A point of leeway, positions coming in fractions of one.
+        return date.frame.minY < listTop - 1
     }
 
     private func pinnedNow() -> Pinned? {
@@ -146,7 +188,8 @@ extension View {
     }
 
     /// The date `pinning` says is at the top of this list, laid over it, the list telling `pinning`
-    /// where its top is.
+    /// where its top is, and nothing of the list above its top once it is scrolled past it, see
+    /// `ListTopMask`.
     func pinnedDayOverlay(_ pinning: DayPinning) -> some View {
         onGeometryChange(for: CGFloat.self) { proxy in
             proxy.frame(in: .global).minY
@@ -156,8 +199,24 @@ extension View {
             .overlay(alignment: .top) {
                 PinnedDay(pinning: pinning)
             }
-            // A date pushed up goes out of sight at the top of the list, not over what is above it.
-            .clipped()
+            .mask {
+                ListTopMask(pinning: pinning)
+            }
+    }
+}
+
+/// What of a list shows. Once it is scrolled past its top, nothing above it, as Android's list ends
+/// at its top bar: neither a date pushed up, which would go over what is above the list, nor an
+/// expense scrolled past the pinned day, which iOS would let run under the bar, blurred and showing.
+/// At its top, all of it: a list touching the top of the safe area runs under the bar, its large
+/// title being part of what it scrolls on iOS 26, and its top follows the bar down as the title
+/// grows. Under the tab bar, all of it, as any list.
+private struct ListTopMask: View {
+    let pinning: DayPinning
+
+    var body: some View {
+        Rectangle()
+            .ignoresSafeArea(edges: pinning.isScrolledPastTop ? .bottom : .all)
     }
 }
 

@@ -29,20 +29,12 @@ public struct ExpenseListView: View {
 
     public var body: some View {
         NavigationSplitView {
-            // The list ends where the bar does, as Android's ends at its top bar: an expense scrolled
-            // past the pinned day goes out of sight, where iOS would let it run under the bar,
-            // blurred and showing. A list reaches under the bar only when it touches the top of
-            // the safe area, which this point keeps it from. With its title inline, as Android's
-            // top bar has it: a large title would no longer shrink into the bar as the list scrolls.
-            VStack(spacing: 0) {
-                Color.clear.frame(height: 1)
-
-                list
-                    .withoutTopScrollEdgeEffect()
-            }
+            // Touching the top of the safe area, for its large title to shrink into the bar as it
+            // scrolls, as the other tabs' do, `pinnedDayOverlay` hiding what goes under the bar.
+            list
+                .withoutTopScrollEdgeEffect()
                 .appBackground()
                 .navigationTitle(Text("Expenses", bundle: .module))
-                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
@@ -263,9 +255,10 @@ struct ExpenseDayHeader: View {
 }
 
 private extension View {
-    /// No edge effect at the top of a list that stops where the bar does, which leaves it nothing to
-    /// blur, and whose iOS 26 one would still turn the bar's title and the status bar white, as over
-    /// dark content, when a green card comes up under it, unreadable on the light background.
+    /// No edge effect at the top of a list whose rows go out of sight under the bar, which leaves it
+    /// nothing to blur, and whose iOS 26 one would still turn the bar's title and the status bar
+    /// white, as over dark content, when a green card comes up under it, unreadable on the light
+    /// background.
     @ViewBuilder
     func withoutTopScrollEdgeEffect() -> some View {
         if #available(iOS 26.0, *) {
