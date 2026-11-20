@@ -23,8 +23,8 @@ public struct GroupExpensesView: View {
 
     @State private var isCreating = false
 
-    /// The app's, which a pinned day keeps, see `ExpenseDayHeader`.
-    @Environment(\.colorScheme) private var colorScheme
+    /// The date pinned at the top of the list, see `DayPinning`.
+    @State private var pinning = DayPinning()
 
     public init(groupId: String, callBacks: any ExpenseCallBacks, opening: Binding<String?> = .constant(nil)) {
         self.groupId = groupId
@@ -37,6 +37,10 @@ public struct GroupExpensesView: View {
         List {
             ForEach(viewModel.days) { day in
                 Section {
+                    // A row, which `pinnedDayOverlay` pins in its place, see `DayPinning`.
+                    ExpenseDayHeader(title: day.title)
+                        .dateRow(of: day, in: pinning)
+
                     ForEach(day.expenses) { expense in
                         ExpenseRow(
                             expense: expense,
@@ -53,16 +57,20 @@ public struct GroupExpensesView: View {
                             }
                             .opacity(0)
                         }
+                        // Inside the card's row settings, which a list's row takes no notice of otherwise.
+                        .placed(in: pinning, rowId: expense.id, dayId: day.id, isDate: false)
                         .expenseCard(isDeleted: expense.isDeleted)
                         .onAppear { viewModel.rowAppeared(expense.id) }
                     }
-                } header: {
-                    ExpenseDayHeader(title: day.date?.dayTitle ?? day.id, colorScheme: colorScheme)
                 }
             }
         }
         .appListBackground()
         .listStyle(.plain)
+        .pinnedDayOverlay(pinning)
+        .onChange(of: viewModel.days, initial: true) { _, days in
+            pinning.setDays(days.map { ($0.id, $0.title) })
+        }
         .refreshable {
             await viewModel.refresh()
         }

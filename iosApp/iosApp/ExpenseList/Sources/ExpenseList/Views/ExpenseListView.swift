@@ -16,10 +16,10 @@ public struct ExpenseListView: View {
     @State private var selection: String?
     @State private var isCreating = false
 
-    @Environment(\.scenePhase) private var scenePhase
+    /// The date pinned at the top of the list, see `DayPinning`.
+    @State private var pinning = DayPinning()
 
-    /// The app's, which a pinned day keeps, see `ExpenseDayHeader`.
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
 
     public init(callBacks: any ExpenseCallBacks, opening: Binding<String?> = .constant(nil)) {
         self.callBacks = callBacks
@@ -102,6 +102,10 @@ public struct ExpenseListView: View {
         List(selection: $selection) {
             ForEach(viewModel.days) { day in
                 Section {
+                    // A row, which `pinnedDayOverlay` pins in its place, see `DayPinning`.
+                    ExpenseDayHeader(title: day.title)
+                        .dateRow(of: day, in: pinning)
+
                     ForEach(day.expenses) { expense in
                         ExpenseRow(
                             expense: expense,
@@ -115,16 +119,20 @@ public struct ExpenseListView: View {
                             }
                             .opacity(0)
                         }
+                        // Inside the card's row settings, which a list's row takes no notice of otherwise.
+                        .placed(in: pinning, rowId: expense.id, dayId: day.id, isDate: false)
                         .expenseCard(isDeleted: expense.isDeleted)
                         .onAppear { viewModel.rowAppeared(expense.id) }
                     }
-                } header: {
-                    ExpenseDayHeader(title: day.date?.dayTitle ?? day.id, colorScheme: colorScheme)
                 }
             }
         }
         .appListBackground()
         .listStyle(.plain)
+        .pinnedDayOverlay(pinning)
+        .onChange(of: viewModel.days, initial: true) { _, days in
+            pinning.setDays(days.map { ($0.id, $0.title) })
+        }
         .refreshable {
             await viewModel.refresh()
         }
@@ -234,16 +242,12 @@ struct ExpenseRow: View {
     }
 }
 
-/// The day a list's expenses happened on, above them and pinned to the top while they scroll, as
-/// Android's `StickyHeaderElevated`: on a raised card of the background's colour, the background
-/// itself fading out below it, so that the cards going under it never show through the date.
-///
-/// In the app's `colorScheme`, which the list reads outside the header: iOS 26 turns what is pinned
-/// at the top of a list dark when dark content scrolls under it, as the green cards do, which turned
-/// the background's colour near black, and the card with it.
+/// The day a list's expenses happened on, above them and pinned to the top while they scroll, see
+/// `DayPinning`, as Android's `StickyHeaderElevated`: on a raised card of the background's colour,
+/// 4 pt in from the list's sides and top, the space below it the row's, see `dateRow(of:in:)`, so
+/// that the date pinned ends where its card does and an expense goes under the card itself.
 struct ExpenseDayHeader: View {
     let title: String
-    let colorScheme: ColorScheme
 
     var body: some View {
         Text(title)
@@ -254,21 +258,7 @@ struct ExpenseDayHeader: View {
             .background(AppColors.background, in: RoundedRectangle(cornerRadius: ExpenseCard.cornerRadius, style: .continuous))
             // Android's card is raised by 4 dp, as an expense's is.
             .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
-            .padding(4)
-            .padding(.bottom, 8)
-            .background(
-                LinearGradient(
-                    stops: [
-                        .init(color: AppColors.background, location: 0.5),
-                        .init(color: AppColors.background.opacity(0), location: 1),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .environment(\.colorScheme, colorScheme)
-            // Across the whole list, as Android's, rather than within a header's insets.
-            .listRowInsets(EdgeInsets())
+            .padding([.top, .horizontal], 4)
     }
 }
 
