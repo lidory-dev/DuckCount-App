@@ -22,7 +22,7 @@ final class GroupExpenseListViewModel: ObservableObject {
     let selfUuid: String?
 
     private let callBacks: any ExpenseCallBacks
-    private let expensesTask = TaskHandle()
+    private var pager: ExpensePager?
     private let groupLeftTask = TaskHandle()
     private var nameFollower: NameFollower?
 
@@ -35,24 +35,19 @@ final class GroupExpenseListViewModel: ObservableObject {
             self?.names = names
         }
 
-        let expenses = callBacks.groupExpenses(groupId: groupId)
-
-        expensesTask.replace(
-            with: Task { [weak self] in
-                for await expenses in expenses {
-                    guard let self else {
-                        return
-                    }
-
-                    self.days = ExpenseDay.grouping(expenses)
-                    self.hasReadExpenses = true
-                    self.nameFollower?.follow(
-                        Set(expenses.flatMap { [$0.creditorUuid, $0.settlementRecipientUuid].compactMap { $0 } }),
-                        callBacks: self.callBacks
-                    )
-                }
+        // A page at a time, as Android's list reads them.
+        pager = ExpensePager(read: { callBacks.groupExpenses(groupId: groupId, limit: $0) }) { [weak self] expenses in
+            guard let self else {
+                return
             }
-        )
+
+            self.days = ExpenseDay.grouping(expenses)
+            self.hasReadExpenses = true
+            self.nameFollower?.follow(
+                Set(expenses.flatMap { [$0.creditorUuid, $0.settlementRecipientUuid].compactMap { $0 } }),
+                callBacks: self.callBacks
+            )
+        }
 
         let isLeft = callBacks.isGroupLeft(groupId: groupId)
 
@@ -72,6 +67,11 @@ final class GroupExpenseListViewModel: ObservableObject {
     /// Whether the list is still being read, rather than empty.
     var isLoading: Bool {
         days.isEmpty && !hasReadExpenses
+    }
+
+    /// Reads the next page once the row of `expenseId` nears the end of the list, see `ExpensePager`.
+    func rowAppeared(_ expenseId: String) {
+        pager?.rowAppeared(expenseId)
     }
 
     /// Whether an expense can be added: not to a group the user is no longer in, nor before that is

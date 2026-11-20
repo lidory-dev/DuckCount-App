@@ -555,9 +555,19 @@ class ExpenseRepository(
         }
     }
 
-    /** The group [groupUuid]'s expenses, deleted ones included, newest first, see [ExpenseDao.getAllFromGroupAsFlow]. */
-    fun getAllFromGroup(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> {
-        return expenseDao.getAllFromGroupAsFlow(groupUuid = groupUuid).map { expenses ->
+    /** The newest [limit] one-time expenses, see [ExpenseDao.getNewestWithoutGroupAsFlow]. */
+    fun getNewestWithoutGroup(limit: Int): Flow<List<ExpenseWithBeneficiaries>> {
+        return expenseDao.getNewestWithoutGroupAsFlow(limit = limit).map { expenses ->
+            expenses.map { it.toExpenseWithBeneficiaries() }
+        }
+    }
+
+    /**
+     * The newest [limit] expenses of the group [groupUuid], deleted ones included, see
+     * [ExpenseDao.getNewestFromGroupAsFlow].
+     */
+    fun getNewestFromGroup(groupUuid: String, limit: Int): Flow<List<ExpenseWithBeneficiaries>> {
+        return expenseDao.getNewestFromGroupAsFlow(groupUuid = groupUuid, limit = limit).map { expenses ->
             expenses.map { it.toExpenseWithBeneficiaries() }
         }
     }

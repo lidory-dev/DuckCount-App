@@ -60,7 +60,7 @@ public final class ExpenseListViewModel: ObservableObject {
     let selfUuid: String?
 
     private let callBacks: any ExpenseCallBacks
-    private let expensesTask = TaskHandle()
+    private var pager: ExpensePager?
     private var nameFollower: NameFollower?
     private var hasRefreshed = false
 
@@ -72,21 +72,21 @@ public final class ExpenseListViewModel: ObservableObject {
             self?.names = names
         }
 
-        let expenses = callBacks.expenses()
-
-        expensesTask.replace(
-            with: Task { [weak self] in
-                for await expenses in expenses {
-                    guard let self else {
-                        return
-                    }
-
-                    self.days = ExpenseDay.grouping(expenses)
-                    self.hasReadExpenses = true
-                    self.nameFollower?.follow(Set(expenses.map(\.creditorUuid)), callBacks: self.callBacks)
-                }
+        // A page at a time, as Android's list reads them.
+        pager = ExpensePager(read: { callBacks.expenses(limit: $0) }) { [weak self] expenses in
+            guard let self else {
+                return
             }
-        )
+
+            self.days = ExpenseDay.grouping(expenses)
+            self.hasReadExpenses = true
+            self.nameFollower?.follow(Set(expenses.map(\.creditorUuid)), callBacks: self.callBacks)
+        }
+    }
+
+    /// Reads the next page once the row of `expenseId` nears the end of the list, see `ExpensePager`.
+    func rowAppeared(_ expenseId: String) {
+        pager?.rowAppeared(expenseId)
     }
 
     /// Whether the list is still being read, rather than empty.

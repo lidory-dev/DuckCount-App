@@ -122,8 +122,8 @@ final class PreviewExpenseCallBacks: ExpenseCallBacks {
         "2026-11-10T12:00:00"
     }
 
-    func expenses() -> AsyncStream<[Expense]> {
-        AsyncStream { $0.yield(sampleExpenses) }
+    func expenses(limit: Int) -> AsyncStream<[Expense]> {
+        AsyncStream { $0.yield(Array(sampleExpenses.prefix(limit))) }
     }
 
     func expense(id: String) -> AsyncStream<Expense?> {
@@ -187,8 +187,8 @@ final class PreviewExpenseCallBacks: ExpenseCallBacks {
         .versions(sampleExpenses.enumerated().map { index, expense in ExpenseVersion(revision: Int64(index + 1), expense: expense, authorUuid: expense.creditorUuid, isCreation: index == 0, madeAt: expense.timestamp) })
     }
 
-    func groupExpenses(groupId: String) -> AsyncStream<[Expense]> {
-        AsyncStream { $0.yield(sampleGroupExpenses) }
+    func groupExpenses(groupId: String, limit: Int) -> AsyncStream<[Expense]> {
+        AsyncStream { $0.yield(Array(sampleGroupExpenses.prefix(limit))) }
     }
 
     func refreshGroup(groupId: String) async {}

@@ -37,8 +37,9 @@ public protocol ExpenseCallBacks: AnyObject {
     /// second, which an expense dated any other way is refused for.
     func currentTimestamp() -> String
 
-    /// The one-time expenses, newest first.
-    func expenses() -> AsyncStream<[Expense]>
+    /// The newest `limit` one-time expenses, newest first, as they change: a list asks for more as it
+    /// scrolls, see `ExpensePager`.
+    func expenses(limit: Int) -> AsyncStream<[Expense]>
 
     /// The expense `id`, or nil once it is gone.
     func expense(id: String) -> AsyncStream<Expense?>
@@ -94,8 +95,9 @@ public protocol ExpenseCallBacks: AnyObject {
     /// revision reaches 1 + this.
     var maxGroupExpenseEdits: Int { get }
 
-    /// The expenses of the group `groupId`, deleted ones included, newest first.
-    func groupExpenses(groupId: String) -> AsyncStream<[Expense]>
+    /// The newest `limit` expenses of the group `groupId`, deleted ones included, newest first, as
+    /// they change, see `expenses(limit:)`.
+    func groupExpenses(groupId: String, limit: Int) -> AsyncStream<[Expense]>
 
     /// Brings the group `groupId` and its expenses up to date with the server.
     func refreshGroup(groupId: String) async

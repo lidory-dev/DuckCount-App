@@ -68,13 +68,12 @@ class ExpenseManagement(
     fun currencyDisplayName(code: String): String = database.domain.currencyDisplayName(code)
 
     /**
-     * The one-time expenses this device shows, as it changes, newest first, and two made at the
-     * same time by UUID, as Android's paged list orders them, see `ExpenseDao.pagingSource`.
+     * The newest [limit] one-time expenses this device shows, as they change, newest first, and two
+     * made at the same time by UUID, as Android's paged list orders them, see `ExpenseDao.pagingSource`:
+     * the list asks for a larger [limit] as it scrolls, as Android's reads its next page.
      */
-    fun expenses(): Flow<List<ExpenseWithBeneficiaries>> =
-        expenseRepository.getAllWithoutGroup().map { expenses ->
-            expenses.sortedWith(compareByDescending<ExpenseWithBeneficiaries> { it.timestamp }.thenBy { it.uuid })
-        }
+    fun expenses(limit: Int): Flow<List<ExpenseWithBeneficiaries>> =
+        expenseRepository.getNewestWithoutGroup(limit = limit)
 
     /** The expense [uuid] as this device shows it, as it changes, or null once it is gone. */
     fun expense(uuid: String): Flow<ExpenseWithBeneficiaries?> = expenseRepository.getWithBeneficiaries(uuid = uuid)
@@ -86,9 +85,12 @@ class ExpenseManagement(
      */
     suspend fun refresh(): Boolean = foregroundSync.sync().isOneTimeListingRead
 
-    /** The group [groupUuid]'s expenses, deleted ones included, newest first, see [ExpenseRepository.getAllFromGroup]. */
-    fun groupExpenses(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> =
-        expenseRepository.getAllFromGroup(groupUuid = groupUuid)
+    /**
+     * The newest [limit] expenses of the group [groupUuid], deleted ones included, newest first, see
+     * [ExpenseRepository.getNewestFromGroup], paged as [expenses] are.
+     */
+    fun groupExpenses(groupUuid: String, limit: Int): Flow<List<ExpenseWithBeneficiaries>> =
+        expenseRepository.getNewestFromGroup(groupUuid = groupUuid, limit = limit)
 
     /** Brings the group [groupUuid] and its expenses up to date, see [ForegroundSync.syncGroup]. */
     suspend fun refreshGroup(groupUuid: String) {

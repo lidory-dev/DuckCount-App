@@ -250,7 +250,7 @@ struct ExpenseListViewModelTests {
 
         #expect(viewModel.isLoading)
 
-        callBacks.expenseList.continuation.yield([])
+        callBacks.expenseList.send([])
 
         await settle { viewModel.hasReadExpenses }
 
@@ -266,12 +266,83 @@ struct ExpenseListViewModelTests {
         let callBacks = FakeExpenseCallBacks()
         let viewModel = ExpenseListViewModel(callBacks: callBacks)
 
-        callBacks.expenseList.continuation.yield([expense(creditorUuid: ada), expense(id: "other", creditorUuid: "stranger")])
+        callBacks.expenseList.send([expense(creditorUuid: ada), expense(id: "other", creditorUuid: "stranger")])
 
         await settle { viewModel.names.name(of: ada) != nil }
 
         #expect(viewModel.names.displayName(of: ada) == "Ada")
         #expect(viewModel.names.displayName(of: "stranger") == NameBook.unknownPerson)
+    }
+
+    /// A page at a time, as Android's list reads them: the next once a row near the end appears.
+    @Test func theExpensesAreReadAPageAtATime() async {
+        let callBacks = FakeExpenseCallBacks()
+        let viewModel = ExpenseListViewModel(callBacks: callBacks)
+        let expenses = numberedExpenses(45)
+
+        callBacks.expenseList.send(expenses)
+
+        await settle { viewModel.shownIds.count == 20 }
+
+        #expect(callBacks.expenseList.limits == [20])
+
+        // Far from the end: nothing more.
+        viewModel.rowAppeared(expenses[3].id)
+        #expect(callBacks.expenseList.limits == [20])
+
+        viewModel.rowAppeared(expenses[17].id)
+        await settle { viewModel.shownIds.count == 40 }
+
+        #expect(callBacks.expenseList.limits == [20, 40])
+
+        viewModel.rowAppeared(expenses[39].id)
+        await settle { viewModel.shownIds.count == 45 }
+
+        #expect(viewModel.shownIds == expenses.map(\.id))
+
+        // Fewer came than were asked for: there are no more.
+        viewModel.rowAppeared(expenses[44].id)
+        #expect(callBacks.expenseList.limits == [20, 40, 60])
+    }
+
+    /// A new one, at the top, while one page is read: the page stays one page, followed.
+    @Test func aNewExpenseShowsInThePagesRead() async {
+        let callBacks = FakeExpenseCallBacks()
+        let viewModel = ExpenseListViewModel(callBacks: callBacks)
+        let expenses = numberedExpenses(25)
+
+        callBacks.expenseList.send(expenses)
+        await settle { viewModel.shownIds.count == 20 }
+
+        let newest = expense(id: "newest", timestamp: "2026-12-01T12:00:00")
+        callBacks.expenseList.send([newest] + expenses)
+        await settle { viewModel.shownIds.first == "newest" }
+
+        #expect(viewModel.shownIds == ["newest"] + expenses.prefix(19).map(\.id))
+    }
+}
+
+/// `count` one-time expenses, newest first, a day apart.
+func numberedExpenses(_ count: Int) -> [Expense] {
+    (0..<count).map { index in
+        let date = Calendar(identifier: .gregorian).date(byAdding: .day, value: -index, to: Date(timeIntervalSince1970: 1_793_000_000))!
+        let day = date.formatted(.iso8601.year().month().day())
+
+        return expense(id: "expense-\(index)", timestamp: day + "T12:00:00")
+    }
+}
+
+extension ExpenseListViewModel {
+    /// The expenses shown, in order.
+    var shownIds: [String] {
+        days.flatMap(\.expenses).map(\.id)
+    }
+}
+
+extension GroupExpenseListViewModel {
+    /// The expenses shown, in order.
+    var shownIds: [String] {
+        days.flatMap(\.expenses).map(\.id)
     }
 }
 

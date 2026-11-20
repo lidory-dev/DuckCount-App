@@ -43,12 +43,14 @@ final class FakeExpenseCallBacks: ExpenseCallBacks {
     var writeFailure: ExpenseWriteError?
     var history: ExpenseHistory = .versions([])
 
-    /// What `expenses()` and `expense(id:)` stream.
-    let expenseList = AsyncStream<[Expense]>.makeStream()
+    /// What `expenses(limit:)` streams.
+    let expenseList = FakeExpenseFeed()
+
+    /// What `expense(id:)` streams.
     var storedExpenses: [String: Expense] = [:]
 
-    /// What `groupExpenses(groupId:)` streams.
-    let groupExpenseList = AsyncStream<[Expense]>.makeStream()
+    /// What `groupExpenses(groupId:limit:)` streams.
+    let groupExpenseList = FakeExpenseFeed()
 
     /// Whether the user is no longer in the group, as `isGroupLeft(groupId:)` streams it, see
     /// `setGroupLeft(_:)`.
@@ -93,8 +95,8 @@ final class FakeExpenseCallBacks: ExpenseCallBacks {
         now
     }
 
-    func expenses() -> AsyncStream<[Expense]> {
-        expenseList.stream
+    func expenses(limit: Int) -> AsyncStream<[Expense]> {
+        expenseList.stream(limit: limit)
     }
 
     func expense(id: String) -> AsyncStream<Expense?> {
@@ -211,10 +213,10 @@ final class FakeExpenseCallBacks: ExpenseCallBacks {
         history
     }
 
-    func groupExpenses(groupId: String) -> AsyncStream<[Expense]> {
+    func groupExpenses(groupId: String, limit: Int) -> AsyncStream<[Expense]> {
         followedGroups.append(groupId)
 
-        return groupExpenseList.stream
+        return groupExpenseList.stream(limit: limit)
     }
 
     func refreshGroup(groupId: String) async {
@@ -261,6 +263,39 @@ final class FakeExpenseCallBacks: ExpenseCallBacks {
         restored.append(expenseId)
 
         return writeFailure
+    }
+}
+
+/// A list of expenses the fake streams, to each follower the newest it asked for, as the shared
+/// module's feeds do, see `ExpenseCallBacks.expenses(limit:)`.
+@MainActor
+final class FakeExpenseFeed {
+    /// How many expenses each follower asked for, in order.
+    private(set) var limits: [Int] = []
+
+    private var expenses: [Expense]?
+    private var followers: [(limit: Int, continuation: AsyncStream<[Expense]>.Continuation)] = []
+
+    func stream(limit: Int) -> AsyncStream<[Expense]> {
+        let (stream, continuation) = AsyncStream<[Expense]>.makeStream()
+
+        limits.append(limit)
+        followers.append((limit, continuation))
+
+        if let expenses {
+            continuation.yield(Array(expenses.prefix(limit)))
+        }
+
+        return stream
+    }
+
+    /// Streams `expenses`, newest first, to every follower.
+    func send(_ expenses: [Expense]) {
+        self.expenses = expenses
+
+        for follower in followers {
+            follower.continuation.yield(Array(expenses.prefix(follower.limit)))
+        }
     }
 }
 

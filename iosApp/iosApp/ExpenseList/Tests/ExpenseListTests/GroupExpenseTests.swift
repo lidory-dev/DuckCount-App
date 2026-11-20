@@ -394,7 +394,7 @@ struct GroupExpenseListViewModelTests {
 
         #expect(viewModel.isLoading)
 
-        callBacks.groupExpenseList.continuation.yield([
+        callBacks.groupExpenseList.send([
             expense(id: "3", timestamp: "2026-11-10T20:00:00", groupId: trip),
             expense(id: "2", timestamp: "2026-11-10T08:00:00", groupId: trip, isDeleted: true, deletedByUuid: bob),
             settlement(id: "1", timestamp: "2026-11-09T18:00:00", isDeleted: true),
@@ -412,7 +412,7 @@ struct GroupExpenseListViewModelTests {
         let callBacks = FakeExpenseCallBacks()
         let viewModel = GroupExpenseListViewModel(groupId: trip, callBacks: callBacks)
 
-        callBacks.groupExpenseList.continuation.yield([])
+        callBacks.groupExpenseList.send([])
 
         await settle { viewModel.hasReadExpenses }
 
@@ -420,12 +420,29 @@ struct GroupExpenseListViewModelTests {
         #expect(viewModel.days.isEmpty)
     }
 
+    /// As the one-time expenses are, see `ExpenseListViewModelTests.theExpensesAreReadAPageAtATime`.
+    @Test func theGroupsExpensesAreReadAPageAtATime() async {
+        let callBacks = FakeExpenseCallBacks()
+        let viewModel = GroupExpenseListViewModel(groupId: trip, callBacks: callBacks)
+        let expenses = numberedExpenses(30)
+
+        callBacks.groupExpenseList.send(expenses)
+        await settle { viewModel.shownIds.count == 20 }
+
+        viewModel.rowAppeared(expenses[19].id)
+        await settle { viewModel.shownIds.count == 30 }
+
+        #expect(callBacks.groupExpenseList.limits == [20, 40])
+        #expect(callBacks.followedGroups == [trip, trip])
+        #expect(viewModel.shownIds == expenses.map(\.id))
+    }
+
     /// "Bob paid Me", and nothing of it is owed by anybody.
     @Test func aSettlementNamesWhoPaidAndWhoWasPaidBackAndShowsNoShare() async {
         let callBacks = FakeExpenseCallBacks()
         let viewModel = GroupExpenseListViewModel(groupId: trip, callBacks: callBacks)
 
-        callBacks.groupExpenseList.continuation.yield([settlement()])
+        callBacks.groupExpenseList.send([settlement()])
 
         await settle { viewModel.names.name(of: bob) != nil && viewModel.names.name(of: me) != nil }
 

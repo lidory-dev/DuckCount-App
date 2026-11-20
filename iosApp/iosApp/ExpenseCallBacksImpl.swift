@@ -45,8 +45,8 @@ final class ExpenseCallBacksImpl: ExpenseCallBacks {
         TimestampsKt.currentTimestamp()
     }
 
-    func expenses() -> AsyncStream<[ExpenseList.Expense]> {
-        stream(management.expenses()) { value in
+    func expenses(limit: Int) -> AsyncStream<[ExpenseList.Expense]> {
+        stream(management.expenses(limit: Int32(limit))) { value in
             (value as? [ExpenseWithBeneficiaries] ?? []).map(\.expenseListExpense)
         }
     }
@@ -188,8 +188,8 @@ final class ExpenseCallBacksImpl: ExpenseCallBacks {
         Int(management.maxGroupExpenseEdits)
     }
 
-    func groupExpenses(groupId: String) -> AsyncStream<[ExpenseList.Expense]> {
-        stream(management.groupExpenses(groupUuid: groupId)) { value in
+    func groupExpenses(groupId: String, limit: Int) -> AsyncStream<[ExpenseList.Expense]> {
+        stream(management.groupExpenses(groupUuid: groupId, limit: Int32(limit))) { value in
             (value as? [ExpenseWithBeneficiaries] ?? []).map(\.expenseListExpense)
         }
     }

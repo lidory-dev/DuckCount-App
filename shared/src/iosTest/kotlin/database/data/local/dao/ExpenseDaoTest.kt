@@ -6,6 +6,7 @@ import database.data.local.entity.ExpenseWithBeneficiariesEntity
 import database.data.local.entity.GroupExpenseDeletionEntity
 import database.domain.CurrencyCatalog
 import database.withInMemoryDatabase
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -188,6 +189,67 @@ class ExpenseDaoTest {
             assertFalse(assertNotNull(database.expenseDao.getGroupExpense(groupUuid = GROUP, uuid = EXPENSE)).expense.isDeleted)
         }
     }
+
+    /** iOS's list, which asks for more as it scrolls, as Android's pages through them. */
+    @Test
+    fun `the newest one-time expenses come first and as many as asked for`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            // Two at the same time, which come by UUID, and a group's, which is not one of them.
+            listOf(
+                expenseAt(uuid = "c", timestamp = "2026-10-28T09:00:00"),
+                expenseAt(uuid = "b", timestamp = "2026-10-30T19:45:00"),
+                expenseAt(uuid = "a", timestamp = "2026-10-30T19:45:00"),
+                expenseAt(uuid = "d", timestamp = "2026-10-29T12:00:00"),
+            ).forEach { database.expenseDao.upsertOneTimeExpense(expense = it, revision = 0) }
+            database.expenseDao.storeGroupExpenses(
+                groupUuid = GROUP,
+                expenses = listOf(expenseAt(uuid = "g", timestamp = "2026-10-31T08:00:00", groupUuid = GROUP, revision = 1)),
+            )
+
+            assertEquals(listOf("a", "b", "d"), database.expenseDao.getNewestWithoutGroupAsFlow(limit = 3).first().map { it.expense.uuid })
+            assertEquals(listOf("a", "b", "d", "c"), database.expenseDao.getNewestWithoutGroupAsFlow(limit = 20).first().map { it.expense.uuid })
+        }
+    }
+
+    @Test
+    fun `a group's newest expenses come first and as many as asked for and its own alone`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.expenseDao.storeGroupExpenses(
+                groupUuid = GROUP,
+                expenses = listOf(
+                    expenseAt(uuid = "a", timestamp = "2026-10-28T09:00:00", groupUuid = GROUP, revision = 1),
+                    expenseAt(uuid = "b", timestamp = "2026-10-30T19:45:00", groupUuid = GROUP, revision = 1),
+                    expenseAt(uuid = "c", timestamp = "2026-10-29T12:00:00", groupUuid = GROUP, revision = 1),
+                ),
+            )
+            database.expenseDao.storeGroupExpenses(
+                groupUuid = OTHER_GROUP,
+                expenses = listOf(expenseAt(uuid = "o", timestamp = "2026-10-31T08:00:00", groupUuid = OTHER_GROUP, revision = 1)),
+            )
+            database.expenseDao.upsertOneTimeExpense(expense = expenseAt(uuid = "t", timestamp = "2026-10-31T09:00:00"), revision = 0)
+
+            assertEquals(listOf("b", "c"), database.expenseDao.getNewestFromGroupAsFlow(groupUuid = GROUP, limit = 2).first().map { it.expense.uuid })
+            assertEquals(listOf("b", "c", "a"), database.expenseDao.getNewestFromGroupAsFlow(groupUuid = GROUP, limit = 20).first().map { it.expense.uuid })
+        }
+    }
+
+    /** An expense [uuid] of Alice's at [timestamp], one-time unless [groupUuid] names its group. */
+    private fun expenseAt(uuid: String, timestamp: String, groupUuid: String? = null, revision: Long? = null) =
+        ExpenseWithBeneficiariesEntity(
+            expense = ExpenseEntity(
+                uuid = uuid,
+                title = "Taxi",
+                timestamp = timestamp,
+                description = "",
+                amount = "30.00",
+                creditorUuid = ALICE,
+                currency = CurrencyCatalog.defaultCurrency,
+                groupUuid = groupUuid,
+                revision = revision,
+                authorUuid = ALICE.takeIf { groupUuid != null },
+            ),
+            beneficiaries = listOf(BeneficiaryEntity(expenseUuid = uuid, userUuid = BOB, share = "30.00", isShareFixed = false)),
+        )
 
     /** Bob's flag on the expense, at [deletionRevision], saying [isDeleted]. */
     private fun deletionOf(deletionRevision: Long, isDeleted: Boolean) =

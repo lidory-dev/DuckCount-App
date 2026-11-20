@@ -51,6 +51,7 @@ public struct GroupExpensesView: View {
                             .opacity(0)
                         }
                         .expenseCard(isDeleted: expense.isDeleted)
+                        .onAppear { viewModel.rowAppeared(expense.id) }
                     }
                 } header: {
                     Text(day.date?.dayTitle ?? day.id)
