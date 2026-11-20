@@ -23,6 +23,9 @@ public struct GroupExpensesView: View {
 
     @State private var isCreating = false
 
+    /// The app's, which a pinned day keeps, see `ExpenseDayHeader`.
+    @Environment(\.colorScheme) private var colorScheme
+
     public init(groupId: String, callBacks: any ExpenseCallBacks, opening: Binding<String?> = .constant(nil)) {
         self.groupId = groupId
         self.callBacks = callBacks
@@ -54,7 +57,7 @@ public struct GroupExpensesView: View {
                         .onAppear { viewModel.rowAppeared(expense.id) }
                     }
                 } header: {
-                    Text(day.date?.dayTitle ?? day.id)
+                    ExpenseDayHeader(title: day.date?.dayTitle ?? day.id, colorScheme: colorScheme)
                 }
             }
         }

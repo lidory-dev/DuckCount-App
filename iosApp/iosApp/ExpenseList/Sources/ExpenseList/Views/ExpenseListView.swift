@@ -18,6 +18,9 @@ public struct ExpenseListView: View {
 
     @Environment(\.scenePhase) private var scenePhase
 
+    /// The app's, which a pinned day keeps, see `ExpenseDayHeader`.
+    @Environment(\.colorScheme) private var colorScheme
+
     public init(callBacks: any ExpenseCallBacks, opening: Binding<String?> = .constant(nil)) {
         self.callBacks = callBacks
         _opening = opening
@@ -105,7 +108,7 @@ public struct ExpenseListView: View {
                         .onAppear { viewModel.rowAppeared(expense.id) }
                     }
                 } header: {
-                    Text(day.date?.dayTitle ?? day.id)
+                    ExpenseDayHeader(title: day.date?.dayTitle ?? day.id, colorScheme: colorScheme)
                 }
             }
         }
@@ -220,6 +223,44 @@ struct ExpenseRow: View {
     }
 }
 
+/// The day a list's expenses happened on, above them and pinned to the top while they scroll, as
+/// Android's `StickyHeaderElevated`: on a raised card of the background's colour, the background
+/// itself fading out below it, so that the cards going under it never show through the date.
+///
+/// In the app's `colorScheme`, which the list reads outside the header: iOS 26 turns what is pinned
+/// at the top of a list dark when dark content scrolls under it, as the green cards do, which turned
+/// the background's colour near black, and the card with it.
+struct ExpenseDayHeader: View {
+    let title: String
+    let colorScheme: ColorScheme
+
+    var body: some View {
+        Text(title)
+            .font(.app(.body))
+            .foregroundStyle(AppColors.onSurface)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+            .background(AppColors.background, in: RoundedRectangle(cornerRadius: ExpenseCard.cornerRadius, style: .continuous))
+            // Android's card is raised by 4 dp, as an expense's is.
+            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+            .padding(4)
+            .padding(.bottom, 8)
+            .background(
+                LinearGradient(
+                    stops: [
+                        .init(color: AppColors.background, location: 0.5),
+                        .init(color: AppColors.background.opacity(0), location: 1),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .environment(\.colorScheme, colorScheme)
+            // Across the whole list, as Android's, rather than within a header's insets.
+            .listRowInsets(EdgeInsets())
+    }
+}
+
 /// A label's icon right by its title, 4 pt apart as Android's card sets them, where a list would set
 /// it in a column of its own, far from its title.
 private struct InlineLabelStyle: LabelStyle {
@@ -238,7 +279,7 @@ enum ExpenseCard {
     /// A deleted expense's, whole card: Android's.
     static let deletedOpacity = 0.75
 
-    fileprivate static let cornerRadius: CGFloat = 12
+    static let cornerRadius: CGFloat = 12
     fileprivate static let margins = EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8)
     fileprivate static let contentInsets = EdgeInsets(top: 20, leading: 24, bottom: 20, trailing: 20)
 }
