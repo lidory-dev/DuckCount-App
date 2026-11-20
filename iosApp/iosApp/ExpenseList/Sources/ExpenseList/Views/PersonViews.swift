@@ -58,7 +58,7 @@ struct SettledLabel: View {
     var body: some View {
         Label {
             if let date = settledAt.flatMap(LocalDateTime.date(from:)) {
-                Text("Settled on \(date.dayTitle)", bundle: .module)
+                Text("Settled on \(date.dayTitle(.middleOfSentence))", bundle: .module)
             } else {
                 Text("Settled", bundle: .module)
             }

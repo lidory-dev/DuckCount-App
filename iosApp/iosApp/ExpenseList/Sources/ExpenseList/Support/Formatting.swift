@@ -39,9 +39,14 @@ enum LocalDateTime {
 
 extension Date {
     /// The day as a list of expenses titles it: "Monday 10 November", and its year when it is not
-    /// this one.
-    var dayTitle: String {
-        formatted(isThisYear ? .dateTime.weekday(.wide).day().month(.wide) : .dateTime.weekday(.wide).day().month(.wide).year())
+    /// this one. `capitalization` says where it is written: `.standalone` for a date on its own, as
+    /// a day's header is, which its language capitalizes if it writes one so, "Vendredi 20 novembre"
+    /// in French where Swedish keeps "fredag 20 november", and `.middleOfSentence` within a
+    /// sentence, "Remboursée le vendredi 20 novembre".
+    func dayTitle(_ capitalization: FormatStyleCapitalizationContext) -> String {
+        let style = Date.FormatStyle(capitalizationContext: capitalization).weekday(.wide).day().month(.wide)
+
+        return formatted(isThisYear ? style : style.year())
     }
 
     /// The day and time as an expense's history lists its versions by, the year too when it is not

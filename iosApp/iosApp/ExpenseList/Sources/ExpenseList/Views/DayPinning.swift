@@ -110,9 +110,9 @@ final class DayPinning {
 }
 
 extension ExpenseDay {
-    /// What its date says, as the lists show it.
+    /// What its date says, as the lists show it on its own.
     var title: String {
-        date?.dayTitle ?? id
+        date?.dayTitle(.standalone) ?? id
     }
 }
 

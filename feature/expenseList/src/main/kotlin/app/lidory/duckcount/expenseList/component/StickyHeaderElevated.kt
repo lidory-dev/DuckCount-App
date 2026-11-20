@@ -47,7 +47,7 @@ fun StickyHeaderElevated(
             ),
         ) {
             Text(
-                text = date.formatDate(),
+                text = date.formatDate(isStandalone = true),
                 modifier = Modifier.padding(all = Padding.medium),
                 fontWeight = FontWeight.Bold,
             )
