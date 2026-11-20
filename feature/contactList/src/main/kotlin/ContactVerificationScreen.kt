@@ -1,5 +1,4 @@
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,7 +8,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,6 +28,7 @@ import app.lidory.contactList.R
 import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
 import app.lidory.duckcount.android.ui.constant.Padding
+import component.ContactVerificationSkeleton
 import component.SafetyNumberCard
 import component.VerifiedLabel
 import model.ContactVerification
@@ -97,14 +96,11 @@ fun ContactVerificationScreen(
     ) { innerPadding ->
         when (val verification = state.verification) {
             null -> {
-                Box(
+                ContactVerificationSkeleton(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator()
-                }
+                )
             }
 
             ContactVerification.NotContact -> {

@@ -16,7 +16,7 @@ struct GroupHistoryView: View {
         Group {
             switch viewModel.state {
             case .loading:
-                ProgressView()
+                GroupHistorySkeleton()
 
             case .failed(let error):
                 ContentUnavailableView {

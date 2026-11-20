@@ -27,7 +27,7 @@ struct ProfileView: View {
             } else if viewModel.hasReadProfile {
                 form
             } else {
-                ProgressView()
+                FormSkeleton()
             }
         }
         .navigationTitle(Text("Profile", bundle: .module))
@@ -163,7 +163,7 @@ private struct ReserveUsernameForm: View {
             if viewModel.hasReadReservedUsername {
                 form
             } else {
-                ProgressView()
+                FormSkeleton()
             }
         }
         .navigationTitle(Text("Username", bundle: .module))

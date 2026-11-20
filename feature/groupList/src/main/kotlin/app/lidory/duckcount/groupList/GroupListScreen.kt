@@ -3,23 +3,21 @@ package app.lidory.duckcount.groupList
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.component.GroupCard
+import app.lidory.duckcount.groupList.component.GroupListSkeleton
 import app.lidory.duckcount.groupList.viewmodel.GroupListState
 import app.lidory.duckcount.groupList.viewmodel.GroupListViewModel
 import org.koin.androidx.compose.koinViewModel
@@ -36,12 +34,7 @@ fun GroupListScreen(
 
     when (val state = state) {
         GroupListState.Loading -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
-            }
+            GroupListSkeleton(modifier = Modifier.fillMaxSize())
         }
 
         is GroupListState.Content -> {

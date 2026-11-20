@@ -22,7 +22,7 @@ struct BalanceTabView: View {
         .overlay {
             switch viewModel.state {
             case .loading:
-                ProgressView()
+                BalanceSkeleton()
 
             case .unavailable:
                 BalancesUnavailableView()
@@ -134,7 +134,7 @@ struct SettleUpTabView: View {
         .overlay {
             switch viewModel.state {
             case .loading:
-                ProgressView()
+                SettleUpSkeleton()
 
             case .unavailable:
                 BalancesUnavailableView()

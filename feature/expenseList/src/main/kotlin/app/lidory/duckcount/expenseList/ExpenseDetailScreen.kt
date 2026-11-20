@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +46,7 @@ import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.component.ExpenseDetailActionButtons
+import app.lidory.duckcount.expenseList.component.ExpenseDetailSkeleton
 import app.lidory.duckcount.expenseList.component.SettledLabel
 import app.lidory.duckcount.expenseList.component.UserAmountCard
 import app.lidory.duckcount.expenseList.extensions.formatDate
@@ -185,14 +185,11 @@ fun ExpenseDetailScreen(
         ) {
             when (val state = state) {
                 ExpenseScreenState.Loading -> {
-                    Box(
+                    ExpenseDetailSkeleton(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
-                    }
+                    )
                 }
 
                 ExpenseScreenState.NotFound -> {

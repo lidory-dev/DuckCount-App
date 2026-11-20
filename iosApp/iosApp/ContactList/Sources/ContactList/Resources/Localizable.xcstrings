@@ -191,6 +191,16 @@
         }
       }
     },
+    "Loading" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chargement"
+          }
+        }
+      }
+    },
     "Mark as verified" : {
       "localizations" : {
         "fr" : {

@@ -156,7 +156,7 @@ public struct GroupListView: View {
                     }
                 }
             } else {
-                ProgressView()
+                GroupListSkeleton()
             }
         }
     }

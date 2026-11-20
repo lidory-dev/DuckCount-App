@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="an_error_occurred">An error occurred</string>
+    <string name="loading">Loading</string>
     <string name="checked">Checked</string>
     <string name="unchecked">Unchecked</string>
     <string name="indeterminate_checked">Indeterminate Checked</string>

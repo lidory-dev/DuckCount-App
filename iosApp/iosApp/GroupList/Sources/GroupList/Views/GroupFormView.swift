@@ -29,22 +29,28 @@ struct GroupFormView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                titleSection
+            Group {
+                if viewModel.isBeingRead {
+                    GroupFormSkeleton()
+                } else {
+                    Form {
+                        titleSection
 
-                if viewModel.isNewGroup {
-                    currencySection
-                }
+                        if viewModel.isNewGroup {
+                            currencySection
+                        }
 
-                descriptionSection
+                        descriptionSection
 
-                // A group's members are changed from its settings, by its creator alone.
-                if viewModel.isNewGroup {
-                    membersSection
+                        // A group's members are changed from its settings, by its creator alone.
+                        if viewModel.isNewGroup {
+                            membersSection
+                        }
+                    }
+                    .appListBackground()
+                    .disabled(viewModel.isSaving)
                 }
             }
-            .appListBackground()
-            .disabled(viewModel.isSaving || viewModel.isBeingRead)
             .navigationTitle(
                 viewModel.isNewGroup ? Text("Create a group", bundle: .module) : Text("Edit group", bundle: .module)
             )
@@ -84,11 +90,6 @@ struct GroupFormView: View {
                     viewModel.save()
                 }
                 .disabled(!viewModel.canSave)
-            }
-            .overlay {
-                if viewModel.isBeingRead {
-                    ProgressView()
-                }
             }
         }
         // Leaving would cancel the write, possibly after the server took it, or lose what was typed.

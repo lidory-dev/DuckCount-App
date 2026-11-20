@@ -15,7 +15,7 @@ struct ExpenseHistoryView: View {
         Group {
             switch viewModel.state {
             case .loading:
-                ProgressView()
+                ExpenseHistorySkeleton()
 
             case .failed(let error):
                 ContentUnavailableView {

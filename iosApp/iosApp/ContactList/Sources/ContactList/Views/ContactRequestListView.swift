@@ -33,7 +33,7 @@ public struct ContactRequestListView: View {
                     if requests.isEmpty {
                         // A pull shows a spinner of its own.
                         if viewModel.isLoading && !isPulling {
-                            ProgressView()
+                            ContactRequestListSkeleton(isLaidOver: true)
                         } else {
                             ContentUnavailableView {
                                 Label {
@@ -54,7 +54,7 @@ public struct ContactRequestListView: View {
                     isPulling = false
                 }
             } else {
-                ProgressView()
+                ContactRequestListSkeleton()
             }
         }
         .navigationTitle(Text("Contact requests", bundle: .module))

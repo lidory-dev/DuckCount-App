@@ -76,7 +76,7 @@ public struct GroupExpensesView: View {
         }
         .overlay {
             if viewModel.isLoading {
-                ProgressView()
+                ExpenseListSkeleton()
             } else if viewModel.days.isEmpty {
                 ContentUnavailableView {
                     Label {

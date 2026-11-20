@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -14,7 +13,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -22,6 +20,7 @@ import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.component.DebtCard
+import app.lidory.duckcount.groupList.component.GroupSettleUpSkeleton
 import app.lidory.duckcount.groupList.component.SettlementCard
 import app.lidory.duckcount.groupList.model.GroupCreationFailure
 import app.lidory.duckcount.groupList.model.messageRes
@@ -66,12 +65,7 @@ fun GroupSettleUpScreen(
 private fun SettleUpContent(state: GroupSettleUpState, viewModel: GroupSettleUpViewModel) {
     when (state) {
         GroupSettleUpState.Loading -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
-            }
+            GroupSettleUpSkeleton(modifier = Modifier.fillMaxSize())
         }
 
         is GroupSettleUpState.Content -> {

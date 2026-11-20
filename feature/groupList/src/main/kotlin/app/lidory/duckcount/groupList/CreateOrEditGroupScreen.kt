@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,6 +47,7 @@ import app.lidory.duckcount.android.ui.composable.button.isButtonPinned
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.groupList.component.CurrencyDropDownMenu
+import app.lidory.duckcount.groupList.component.GroupFormSkeleton
 import app.lidory.duckcount.groupList.component.GroupMemberFullScreenDialog
 import app.lidory.duckcount.groupList.component.groupMemberList.groupMemberList
 import app.lidory.duckcount.groupList.model.GroupCreationError
@@ -234,12 +234,10 @@ fun CreateOrEditGroupScreen(
         ) {
             when (val state = viewModel.state) {
                 CreateGroupState.Loading -> {
-                    Box(
+                    GroupFormSkeleton(
+                        isCreation = viewModel.groupUuid == null,
                         modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
-                    }
+                    )
                 }
 
                 is CreateGroupState.Content -> {

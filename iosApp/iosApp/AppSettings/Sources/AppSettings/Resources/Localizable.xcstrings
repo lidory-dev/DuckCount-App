@@ -231,6 +231,16 @@
         }
       }
     },
+    "Loading" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chargement"
+          }
+        }
+      }
+    },
     "Log out" : {
       "localizations" : {
         "fr" : {

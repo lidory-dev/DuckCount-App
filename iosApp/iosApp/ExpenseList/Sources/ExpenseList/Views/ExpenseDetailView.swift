@@ -25,7 +25,7 @@ struct ExpenseDetailView: View {
             if let expense = viewModel.expense, let actions = viewModel.actions {
                 content(expense: expense, actions: actions)
             } else {
-                ProgressView()
+                ExpenseDetailSkeleton()
             }
         }
         .navigationTitle(viewModel.expense.flatMap { LocalDateTime.date(from: $0.timestamp) }?.shortDayAndTimeTitle ?? "")

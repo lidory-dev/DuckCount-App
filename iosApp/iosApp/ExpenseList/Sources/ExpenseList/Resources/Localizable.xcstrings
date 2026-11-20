@@ -361,6 +361,16 @@
         }
       }
     },
+    "Loading" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chargement"
+          }
+        }
+      }
+    },
     "Mark as Not Settled" : {
       "localizations" : {
         "fr" : {

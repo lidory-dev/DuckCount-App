@@ -4,7 +4,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,7 +18,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
@@ -43,6 +41,7 @@ import app.lidory.duckcount.android.ui.composable.searchbar.DuckCountSearchBar
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.android.ui.text.nameOrder
 import component.BlockedUsersCard
+import component.ContactListSkeleton
 import component.ContactRequestsCard
 import model.User
 import org.koin.androidx.compose.koinViewModel
@@ -67,12 +66,7 @@ fun ContactListScreen(
 
     when (val state = state) {
         is ContactListState.Loading -> {
-            Box(
-                modifier = modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
-            }
+            ContactListSkeleton(modifier = modifier.fillMaxSize())
         }
 
         is ContactListState.UsernameReservationRequired -> {

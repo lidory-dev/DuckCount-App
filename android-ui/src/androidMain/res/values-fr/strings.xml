@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="an_error_occurred">Une erreur est survenue</string>
+    <string name="loading">Chargement</string>
     <string name="checked">Coché</string>
     <string name="unchecked">Non coché</string>
     <string name="indeterminate_checked">Partiellement coché</string>

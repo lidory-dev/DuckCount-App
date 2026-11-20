@@ -3,7 +3,6 @@ package app.lidory.duckcount.settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -18,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,6 +43,7 @@ import app.lidory.duckcount.android.ui.composable.text.DuckCountErrorText
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.android.ui.text.LowercaseVisualTransformation
+import app.lidory.duckcount.settings.component.NoticeFormSkeleton
 import app.lidory.duckcount.settings.model.messageRes
 import app.lidory.duckcount.settings.viewmodel.DiscoveryUsernameScreenState
 import app.lidory.duckcount.settings.viewmodel.ReserveDiscoveryUsernameViewModel
@@ -71,11 +70,16 @@ fun ReserveDiscoveryUsernameScreen(
 
     when (val state = state) {
         DiscoveryUsernameScreenState.Loading -> {
-            Box(
+            // Under the form's own bar, which stays put as the form replaces the skeleton.
+            Scaffold(
                 modifier = modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
+                topBar = { ReserveDiscoveryUsernameTopBar(onBack = onBack, isBackEnabled = true) },
+            ) { innerPadding ->
+                NoticeFormSkeleton(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                )
             }
         }
 
@@ -95,6 +99,25 @@ fun ReserveDiscoveryUsernameScreen(
             )
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReserveDiscoveryUsernameTopBar(onBack: () -> Unit, isBackEnabled: Boolean) {
+    TopAppBar(
+        title = { Text(text = stringResource(R.string.discovery_username)) },
+        navigationIcon = {
+            IconButton(
+                onClick = onBack,
+                enabled = isBackEnabled,
+            ) {
+                Icon(
+                    painter = painterResource(androidUiR.drawable.ic_arrow_back),
+                    contentDescription = stringResource(androidUiR.string.back),
+                )
+            }
+        },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -124,22 +147,7 @@ private fun ReserveDiscoveryUsernameContent(
                 focusManager.clearFocus()
             }
             .fillMaxSize(),
-        topBar = {
-            TopAppBar(
-                title = { Text(text = stringResource(R.string.discovery_username)) },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onBack,
-                        enabled = !state.isReserving,
-                    ) {
-                        Icon(
-                            painter = painterResource(androidUiR.drawable.ic_arrow_back),
-                            contentDescription = stringResource(androidUiR.string.back),
-                        )
-                    }
-                },
-            )
-        },
+        topBar = { ReserveDiscoveryUsernameTopBar(onBack = onBack, isBackEnabled = !state.isReserving) },
     ) { innerPadding ->
         BoxWithConstraints(
             modifier = Modifier

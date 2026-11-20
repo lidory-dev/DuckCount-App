@@ -1,7 +1,6 @@
 package app.lidory.duckcount.groupList
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.button.DuckCountOutlinedButton
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.groupList.component.GroupHistorySkeleton
 import app.lidory.duckcount.groupList.component.GroupVersionCard
 import app.lidory.duckcount.groupList.model.message
 import app.lidory.duckcount.groupList.viewmodel.GroupHistoryState
@@ -72,14 +71,11 @@ fun GroupHistoryScreen(
     ) { innerPadding ->
         when (val state = state) {
             GroupHistoryState.Loading -> {
-                Box(
+                GroupHistorySkeleton(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator()
-                }
+                )
             }
 
             is GroupHistoryState.Failed -> {

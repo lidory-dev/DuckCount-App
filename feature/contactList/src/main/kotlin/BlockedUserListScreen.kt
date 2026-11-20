@@ -1,5 +1,4 @@
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,7 +12,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,6 +36,7 @@ import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.android.ui.text.sortedByName
+import component.BlockedUserListSkeleton
 import model.BlockedUser
 import org.koin.androidx.compose.koinViewModel
 import viewmodel.BlockedUserListState
@@ -100,14 +99,11 @@ fun BlockedUserListScreen(
         ) {
             when (val content = state) {
                 BlockedUserListState.Loading -> {
-                    Box(
+                    BlockedUserListSkeleton(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
-                    }
+                    )
                 }
 
                 is BlockedUserListState.Content -> if (content.users.isEmpty()) {

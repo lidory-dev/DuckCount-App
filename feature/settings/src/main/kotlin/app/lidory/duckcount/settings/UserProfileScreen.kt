@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +46,7 @@ import app.lidory.duckcount.android.ui.composable.button.DuckCountLoadingButton
 import app.lidory.duckcount.android.ui.composable.text.DuckCountErrorText
 import app.lidory.duckcount.android.ui.composable.textfield.DuckCountTextField
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.settings.component.NoticeFormSkeleton
 import app.lidory.duckcount.settings.model.messageRes
 import app.lidory.duckcount.settings.viewmodel.UserProfileScreenState
 import app.lidory.duckcount.settings.viewmodel.UserProfileViewModel
@@ -98,14 +98,11 @@ fun UserProfileScreen(
     ) { innerPadding ->
         when (val state = state) {
             is UserProfileScreenState.Loading -> {
-                Box(
+                NoticeFormSkeleton(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator()
-                }
+                )
             }
 
             is UserProfileScreenState.NotFound -> {

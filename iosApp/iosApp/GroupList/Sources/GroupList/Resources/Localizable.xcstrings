@@ -1011,6 +1011,16 @@
         }
       }
     },
+    "Loading" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chargement"
+          }
+        }
+      }
+    },
     "member_contact_request_error_timeout" : {
       "localizations" : {
         "en" : {

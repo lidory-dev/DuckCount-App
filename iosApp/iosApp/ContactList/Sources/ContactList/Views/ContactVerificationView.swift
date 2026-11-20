@@ -31,7 +31,7 @@ struct ContactVerificationView: View {
     private var content: some View {
         switch viewModel.verification {
         case nil:
-            ProgressView()
+            ContactVerificationSkeleton()
 
         case .notContact:
             ContentUnavailableView {

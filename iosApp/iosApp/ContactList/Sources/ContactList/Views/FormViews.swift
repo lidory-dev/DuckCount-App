@@ -43,7 +43,7 @@ struct BlockedUserListView: View {
                     .appListBackground()
                 }
             } else {
-                ProgressView()
+                BlockedUserListSkeleton()
             }
         }
         .navigationTitle(Text("Blocked users", bundle: .module))

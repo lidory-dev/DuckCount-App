@@ -92,7 +92,7 @@ public struct ContactListView: View {
     private var sidebar: some View {
         switch viewModel.state {
         case .loading:
-            ProgressView()
+            ContactListSkeleton()
 
         case .usernameReservationRequired:
             ContentUnavailableView {

@@ -59,7 +59,7 @@ struct GroupSettingsView: View {
         .appListBackground()
         .overlay {
             if viewModel.group == nil {
-                ProgressView()
+                GroupSettingsSkeleton()
             }
         }
         // Where Android's top bar has none: the group's title heads the list, and this is what the
@@ -411,7 +411,11 @@ private struct MemberSheetView: View {
                     }
                     .padding(.top, 8)
                 } else {
-                    ProgressView()
+                    // Its one button, which most sheets have, until where the user stands with the
+                    // member is read.
+                    ButtonBone()
+                        .padding(.top, 8)
+                        .skeleton(.loading)
                 }
             }
             .padding(24)

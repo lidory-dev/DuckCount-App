@@ -138,7 +138,7 @@ public struct ExpenseListView: View {
         }
         .overlay {
             if viewModel.isLoading {
-                ProgressView()
+                ExpenseListSkeleton()
             } else if viewModel.days.isEmpty {
                 ContentUnavailableView {
                     Label {
@@ -295,8 +295,8 @@ enum ExpenseCard {
     static let deletedOpacity = 0.75
 
     static let cornerRadius: CGFloat = 12
-    fileprivate static let margins = EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8)
-    fileprivate static let contentInsets = EdgeInsets(top: 20, leading: 24, bottom: 20, trailing: 20)
+    static let margins = EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8)
+    static let contentInsets = EdgeInsets(top: 20, leading: 24, bottom: 20, trailing: 20)
 }
 
 extension View {
