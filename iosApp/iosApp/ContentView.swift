@@ -20,6 +20,22 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
+        content
+            .overlay {
+                // Over whatever the app starts on, which it then fades away from.
+                ZStack {
+                    if startupViewModel.isLaunchScreenShown {
+                        LaunchScreenView()
+                            .ignoresSafeArea()
+                            .transition(.opacity)
+                    }
+                }
+                .animation(.default, value: startupViewModel.isLaunchScreenShown)
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if updateRequirement.isRequired {
             UpdateRequiredScreen()
         } else {

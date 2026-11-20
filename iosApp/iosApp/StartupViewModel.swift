@@ -18,11 +18,25 @@ final class StartupViewModel: ObservableObject {
 
     @Published private(set) var startup = Startup.loading
 
+    /// Whether the launch screen is still up, see `LaunchScreenView`: on launch, until where the app
+    /// starts is known and a second has passed, as Android's `MainActivity` holds its splash, the
+    /// check being local and done in milliseconds. Never after a session ends, `AppSession` showing
+    /// a screen of its own meanwhile.
+    @Published private(set) var isLaunchScreenShown: Bool
+
     let authenticationCallBacks: AuthenticationCallBacksImpl
 
     private let authentication: AccountAuthentication
 
+    /// Whether the app has already started once in this process, see `isLaunchScreenShown`.
+    private static var hasLaunched = false
+
+    private static let launchScreenMinimumDuration = Duration.seconds(1)
+
     init() {
+        isLaunchScreenShown = !Self.hasLaunched
+        Self.hasLaunched = true
+
         authentication = KoinHelper().getAccountAuthentication()
         authenticationCallBacks = AuthenticationCallBacksImpl(authentication: authentication)
 
@@ -44,8 +58,11 @@ final class StartupViewModel: ObservableObject {
     }
 
     private func resolve() async {
+        let shownAt = ContinuousClock.now
+        let resolved: Startup
+
         if let pending = try? await authentication.pendingRegistration() {
-            startup = .resumeRegistration(
+            resolved = .resumeRegistration(
                 PendingProfile(
                     uuid: pending.uuid,
                     username: pending.username,
@@ -53,9 +70,18 @@ final class StartupViewModel: ObservableObject {
                 )
             )
         } else if (try? await authentication.isLoggedIn())?.boolValue == true {
-            startup = .loggedIn
+            resolved = .loggedIn
         } else {
-            startup = .notLoggedIn
+            resolved = .notLoggedIn
         }
+
+        if isLaunchScreenShown {
+            // The first screen is only built once the launch screen is about to go, so that
+            // nothing it asks, the notification permission for one, comes up over it.
+            try? await Task.sleep(until: shownAt + Self.launchScreenMinimumDuration, clock: .continuous)
+        }
+
+        startup = resolved
+        isLaunchScreenShown = false
     }
 }

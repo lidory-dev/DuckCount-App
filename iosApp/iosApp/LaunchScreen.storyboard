@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    The launch screen, as Android's splash: the coin, its enclosing circle 176 pt across, in the middle
+    of the screen on the brand's green, and the sign-off, 200 by 80 pt and 60 pt off the bottom edge,
+    Android's own measures. The sign-off is Android's without its "by" or "par": iOS draws the launch
+    screen in a daemon of its own, in English whatever the language, so nothing on it may depend on
+    the language. The app shows this very storyboard until its first screen is up, see
+    LaunchScreenView.
+-->
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="23504" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="Lnc-Sc-Vc1">
+    <device id="retina6_12" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="23506"/>
+        <capability name="Named colors" minToolsVersion="9.0"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <scene sceneID="Lnc-Sc-Sn1">
+            <objects>
+                <viewController id="Lnc-Sc-Vc1" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="Lnc-Sc-Vw1">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="LaunchLogo" translatesAutoresizingMaskIntoConstraints="NO" id="Lnc-Sc-Lg1">
+                                <rect key="frame" x="108.66666666666669" y="338" width="176" height="176"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="176" id="Lnc-Sc-Lw1"/>
+                                    <constraint firstAttribute="height" constant="176" id="Lnc-Sc-Lh1"/>
+                                </constraints>
+                            </imageView>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="LaunchBranding" translatesAutoresizingMaskIntoConstraints="NO" id="Lnc-Sc-Br1">
+                                <rect key="frame" x="96.666666666666671" y="712" width="200" height="80"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="200" id="Lnc-Sc-Bw1"/>
+                                    <constraint firstAttribute="height" constant="80" id="Lnc-Sc-Bh1"/>
+                                </constraints>
+                            </imageView>
+                        </subviews>
+                        <color key="backgroundColor" name="LaunchBackground"/>
+                        <constraints>
+                            <constraint firstItem="Lnc-Sc-Lg1" firstAttribute="centerX" secondItem="Lnc-Sc-Vw1" secondAttribute="centerX" id="Lnc-Sc-Cx1"/>
+                            <constraint firstItem="Lnc-Sc-Lg1" firstAttribute="centerY" secondItem="Lnc-Sc-Vw1" secondAttribute="centerY" id="Lnc-Sc-Cy1"/>
+                            <constraint firstItem="Lnc-Sc-Br1" firstAttribute="centerX" secondItem="Lnc-Sc-Vw1" secondAttribute="centerX" id="Lnc-Sc-Cx2"/>
+                            <!-- 60 pt off the bottom edge, unless a screen in landscape is too short for it. -->
+                            <constraint firstItem="Lnc-Sc-Vw1" firstAttribute="bottom" secondItem="Lnc-Sc-Br1" secondAttribute="bottom" constant="60" priority="750" id="Lnc-Sc-Bb1"/>
+                            <!-- Never over the coin. -->
+                            <constraint firstItem="Lnc-Sc-Br1" firstAttribute="top" relation="greaterThanOrEqual" secondItem="Lnc-Sc-Lg1" secondAttribute="bottom" constant="8" id="Lnc-Sc-Bt1"/>
+                        </constraints>
+                    </view>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="Lnc-Sc-Fr1" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="53" y="375"/>
+        </scene>
+    </scenes>
+    <resources>
+        <image name="LaunchBranding" width="200" height="80"/>
+        <image name="LaunchLogo" width="176" height="176"/>
+        <namedColor name="LaunchBackground">
+            <color red="0.21176470588235294" green="0.41176470588235292" blue="0.23137254901960785" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </namedColor>
+    </resources>
+</document>
