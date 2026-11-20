@@ -60,6 +60,8 @@
 		79EE22C28C748E450BCF7B31 /* Exceptions for "iosApp" folder in "iosApp" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				AppColors,
+				AppFonts,
 				AppSettings,
 				Authentication,
 				ContactList,
