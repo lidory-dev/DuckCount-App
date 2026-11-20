@@ -3,9 +3,13 @@ import AppFonts
 import SwiftUI
 
 /// Tells the user this build is no longer supported, in place of the whole app: there is no way
-/// past it but updating. No button leads to the App Store, since there is no App Store ID to link
-/// to yet, so the text names it instead.
+/// past it but updating, which its button leads to, as Android's `UpdateRequiredScreen` does.
 struct UpdateRequiredScreen: View {
+    /// DuckCount's page on the App Store, by its Apple ID in App Store Connect.
+    private static let appStorePage = URL(string: "https://apps.apple.com/app/id6837376653")!
+
+    @Environment(\.openURL) private var openURL
+
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
@@ -18,9 +22,17 @@ struct UpdateRequiredScreen: View {
                     .font(.app(.title2))
 
                 Text(
-                    "For security and compatibility reasons, this version of DuckCount is no longer supported. Update the app from the App Store to keep using it."
+                    "For security and compatibility reasons, this version of DuckCount is no longer supported. Update the app to keep using it."
                 )
                 .foregroundStyle(AppColors.onSurfaceVariant)
+
+                Button {
+                    openURL(Self.appStorePage)
+                } label: {
+                    Text("Update")
+                }
+                .buttonStyle(.appProminent)
+                .padding(.top, 8)
             }
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)

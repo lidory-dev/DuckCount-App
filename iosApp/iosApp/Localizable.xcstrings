@@ -21,6 +21,16 @@
         }
       }
     },
+    "For security and compatibility reasons, this version of DuckCount is no longer supported. Update the app to keep using it." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pour des raisons de sécurité et de compatibilité, cette version de DuckCount n’est plus prise en charge. Une mise à jour est nécessaire pour continuer à utiliser l’application."
+          }
+        }
+      }
+    },
     "Groups" : {
       "localizations" : {
         "fr" : {
@@ -47,6 +57,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Réglages"
+          }
+        }
+      }
+    },
+    "Update" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mettre à jour"
+          }
+        }
+      }
+    },
+    "Update required" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mise à jour requise"
           }
         }
       }
