@@ -89,18 +89,23 @@ public struct ExpenseListView: View {
             ForEach(viewModel.days) { day in
                 Section {
                     ForEach(day.expenses) { expense in
-                        NavigationLink(value: expense.id) {
-                            ExpenseRow(
-                                expense: expense,
-                                creditorName: viewModel.names.displayName(of: expense.creditorUuid),
-                                selfUuid: viewModel.selfUuid
-                            )
+                        ExpenseRow(
+                            expense: expense,
+                            creditorName: viewModel.names.displayName(of: expense.creditorUuid),
+                            selfUuid: viewModel.selfUuid
+                        )
+                        // Under the card, which shows no chevron, as Android's card has none.
+                        .background {
+                            NavigationLink(value: expense.id) {
+                                EmptyView()
+                            }
+                            .opacity(0)
                         }
+                        .expenseCard(isDeleted: expense.isDeleted)
                     }
                 } header: {
                     Text(day.date?.dayTitle ?? day.id)
                 }
-                .appPlainRows()
             }
         }
         .appListBackground()
@@ -131,9 +136,11 @@ public struct ExpenseListView: View {
     }
 }
 
-/// An expense in the list: what it was for and who paid, what it came to, and what the user is owed
-/// of it or owes, or that it was paid back. A settlement says who paid whom back instead, and a
-/// deleted expense of a group is still listed, struck through and dimmed, as Android's `ExpenseCard`.
+/// An expense in the list, as Android's `ExpenseCard` shows it: what it was for and who paid, what it
+/// came to, and what the user is owed of it or owes, or that it was paid back. A settlement says who
+/// paid whom back instead, and a deleted expense of a group is still listed, struck through and
+/// dimmed. In `onSecondary`, its card being `secondary`, see `expenseCard(isDeleted:)`, at the sizes
+/// Android sets it in: its title and amount in `titleLarge`, who paid in an italic `labelMedium`.
 struct ExpenseRow: View {
     let expense: Expense
     let creditorName: String
@@ -148,7 +155,7 @@ struct ExpenseRow: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 title
-                    .font(.app(.headline))
+                    .font(.app(.title2))
                     .lineLimit(1)
 
                 Group {
@@ -158,8 +165,8 @@ struct ExpenseRow: View {
                         Text("Paid by \(creditorName)", bundle: .module)
                     }
                 }
-                .font(.app(.subheadline))
-                .foregroundStyle(AppColors.onSurfaceVariant)
+                .font(.app(.caption))
+                .italic()
                 .lineLimit(1)
             }
 
@@ -167,15 +174,16 @@ struct ExpenseRow: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text(expense.amount.formattedAmount(in: expense.currency))
-                    .font(.app(.headline))
+                    .font(.app(.title2))
                     .monospacedDigit()
                     .lineLimit(1)
 
                 // Nobody owes anything of it any more.
                 if expense.isSettled {
-                    SettledLabel()
+                    // The card's colour, where the tint does not read.
+                    SettledLabel(color: AppColors.onSecondary)
                         .font(.app(.subheadline))
-                        .labelStyle(.titleAndIcon)
+                        .labelStyle(InlineLabelStyle())
                         .lineLimit(1)
                 } else if let balance = expense.shownBalance(selfUuid: selfUuid) {
                     Text(balance.formatted(in: expense.currency, withSign: true))
@@ -187,13 +195,13 @@ struct ExpenseRow: View {
             }
             .layoutPriority(1)
         }
-        // Every text of a deleted one, which counts in no balance any more.
+        .foregroundStyle(AppColors.onSecondary)
+        // Every text of a deleted one, which counts in no balance any more, its card dimmed with it.
         .strikethrough(expense.isDeleted)
-        .opacity(expense.isDeleted ? 0.6 : 1)
+        .opacity(expense.isDeleted ? ExpenseCard.deletedOpacity : 1)
         // Which VoiceOver says, as it says neither of those.
         .accessibilityElement(children: .combine)
         .accessibilityValue(expense.isDeleted ? Text("Deleted", bundle: .module) : Text(verbatim: ""))
-        .padding(.vertical, 4)
     }
 
     @ViewBuilder
@@ -204,9 +212,49 @@ struct ExpenseRow: View {
             } icon: {
                 Image(systemName: "arrow.left.arrow.right")
             }
+            .labelStyle(InlineLabelStyle())
         } else {
             Text(expense.title)
         }
+    }
+}
+
+/// A label's icon right by its title, 4 pt apart as Android's card sets them, where a list would set
+/// it in a column of its own, far from its title.
+private struct InlineLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            configuration.icon
+            configuration.title
+        }
+    }
+}
+
+/// The card an expense's row is drawn on, as Android's `ExpenseCard`, an elevated Material card on
+/// `secondary`, 8 pt from the screen's edges and from the next card, its content 16 pt in (12 pt on
+/// the amount's side, which Android pads no further).
+enum ExpenseCard {
+    /// A deleted expense's, whole card: Android's.
+    static let deletedOpacity = 0.75
+
+    fileprivate static let cornerRadius: CGFloat = 12
+    fileprivate static let margins = EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8)
+    fileprivate static let contentInsets = EdgeInsets(top: 20, leading: 24, bottom: 20, trailing: 20)
+}
+
+extension View {
+    /// This row of an expense list on its card, see `ExpenseCard`: no separator between cards.
+    func expenseCard(isDeleted: Bool) -> some View {
+        listRowInsets(ExpenseCard.contentInsets)
+            .listRowSeparator(.hidden)
+            .listRowBackground(
+                RoundedRectangle(cornerRadius: ExpenseCard.cornerRadius, style: .continuous)
+                    .fill(AppColors.secondary)
+                    // Android's card is raised by 4 dp.
+                    .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                    .padding(ExpenseCard.margins)
+                    .opacity(isDeleted ? ExpenseCard.deletedOpacity : 1)
+            )
     }
 }
 

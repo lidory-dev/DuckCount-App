@@ -35,21 +35,26 @@ public struct GroupExpensesView: View {
             ForEach(viewModel.days) { day in
                 Section {
                     ForEach(day.expenses) { expense in
-                        NavigationLink {
-                            PushedExpenseDetailView(expenseId: expense.id, callBacks: callBacks)
-                        } label: {
-                            ExpenseRow(
-                                expense: expense,
-                                creditorName: viewModel.names.displayName(of: expense.creditorUuid),
-                                recipientName: expense.settlementRecipientUuid.map(viewModel.names.displayName(of:)) ?? "",
-                                selfUuid: viewModel.selfUuid
-                            )
+                        ExpenseRow(
+                            expense: expense,
+                            creditorName: viewModel.names.displayName(of: expense.creditorUuid),
+                            recipientName: expense.settlementRecipientUuid.map(viewModel.names.displayName(of:)) ?? "",
+                            selfUuid: viewModel.selfUuid
+                        )
+                        // Under the card, which shows no chevron, as Android's card has none.
+                        .background {
+                            NavigationLink {
+                                PushedExpenseDetailView(expenseId: expense.id, callBacks: callBacks)
+                            } label: {
+                                EmptyView()
+                            }
+                            .opacity(0)
                         }
+                        .expenseCard(isDeleted: expense.isDeleted)
                     }
                 } header: {
                     Text(day.date?.dayTitle ?? day.id)
                 }
-                .appPlainRows()
             }
         }
         .appListBackground()

@@ -48,9 +48,12 @@ struct PersonAmountRow: View {
     }
 }
 
-/// Says that the expense was marked as paid back, and on which day when `settledAt` is given.
+/// Says that the expense was marked as paid back, and on which day when `settledAt` is given, in the
+/// tint, or in `color` where the tint does not read, on an expense's card.
 struct SettledLabel: View {
     var settledAt: String?
+
+    var color: Color?
 
     var body: some View {
         Label {
@@ -62,7 +65,7 @@ struct SettledLabel: View {
         } icon: {
             Image(systemName: "checkmark.seal.fill")
         }
-        .foregroundStyle(.tint)
+        .foregroundStyle(color.map(AnyShapeStyle.init) ?? AnyShapeStyle(.tint))
     }
 }
 
