@@ -95,6 +95,7 @@
     <string name="mark_as_settled">Mark as settled</string>
     <string name="mark_as_not_settled">Mark as not settled</string>
     <string name="deleted_by">Deleted by %1$s</string>
+    <string name="expense_deleted">This expense was deleted</string>
     <string name="edit_limit_reached">This expense can’t be edited anymore: it has reached its %1$d edits</string>
 
     <!-- ExpenseDetailActionButtons -->

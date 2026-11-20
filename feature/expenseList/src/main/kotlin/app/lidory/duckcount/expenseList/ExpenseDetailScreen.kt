@@ -2,7 +2,6 @@ package app.lidory.duckcount.expenseList
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -43,6 +42,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
 import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
+import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.composable.button.DuckCountElevatedLoadingButton
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.component.ExpenseDetailActionButtons
@@ -192,15 +192,13 @@ fun ExpenseDetailScreen(
                     )
                 }
 
+                // Deleted by its creditor while open. The way back stays in the bar.
                 ExpenseScreenState.NotFound -> {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(text = stringResource(androidUiR.string.an_error_occurred))
-                    }
+                    EmptyContentContainer(
+                        modifier = Modifier.weight(1f),
+                        icon = androidUiR.drawable.ic_delete,
+                        text = R.string.expense_deleted,
+                    )
                 }
 
                 is ExpenseScreenState.Content -> {

@@ -53,13 +53,22 @@ class ExpenseDetailViewModel(
      */
     val maxGroupExpenseEdits: Int = expenseDetailCallBacks.maxGroupExpenseEdits
 
-    private val expense: StateFlow<ExpenseWithBeneficiaries?> =
+    /**
+     * What this device holds of the expense, null until it is first read. A read of null is an
+     * expense that is gone, deleted by its creditor while the screen is open: a one-time expense's
+     * deletion takes its row, where a group expense's only flags it. A tapped notification opens
+     * none that is gone already, but one can go between the tap and this read.
+     */
+    private val held: StateFlow<Held?> =
         expenseDetailCallBacks.getExpenseWithBeneficiaries(uuid = expenseUuid)
+            .map(::Held)
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5000L),
                 initialValue = null,
             )
+
+    private val expense: Flow<ExpenseWithBeneficiaries?> = held.map { it?.expense }
 
     /**
      * Null when this device holds no profile for them, which a one-time expense makes
@@ -130,14 +139,18 @@ class ExpenseDetailViewModel(
 
     val state: StateFlow<ExpenseScreenState> =
         combine(
-            expense,
+            held,
             creditorName,
             beneficiaries,
             isGroupLeft,
             deleterName,
-        ) { expenseValue, creditor, beneficiaryUis, isLeft, deleter ->
-            if (expenseValue == null) {
+        ) { heldValue, creditor, beneficiaryUis, isLeft, deleter ->
+            val expenseValue = heldValue?.expense
+
+            if (heldValue == null) {
                 ExpenseScreenState.Loading
+            } else if (expenseValue == null) {
+                ExpenseScreenState.NotFound
             } else {
                 val actions = expenseValue.actions(
                     selfUuid = authenticatedUserUuid,
@@ -176,7 +189,7 @@ class ExpenseDetailViewModel(
 
     /** Marks the expense as paid back, or no longer, as it is shown now. */
     fun toggleSettled() {
-        val shown = expense.value ?: return
+        val shown = held.value?.expense ?: return
 
         viewModelScope.launch {
             if (_isSettling.value) return@launch
@@ -204,9 +217,16 @@ class ExpenseDetailViewModel(
     }
 }
 
+/** A read of the expense, [expense] being null when this device holds it no more. */
+private data class Held(val expense: ExpenseWithBeneficiaries?)
+
 sealed interface ExpenseScreenState {
+    /** Until the expense is first read. */
     data object Loading : ExpenseScreenState
+
+    /** The expense is gone, see [ExpenseDetailViewModel.held]. */
     data object NotFound : ExpenseScreenState
+
     data class Content(
         val expenseWithBeneficiaries: ExpenseWithBeneficiaries,
         val creditorFullName: String?,
