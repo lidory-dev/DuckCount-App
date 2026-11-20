@@ -209,6 +209,7 @@ public struct ContactListView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .appListBackground()
         .searchable(
             text: Binding(get: { viewModel.searchQuery }, set: viewModel.search),
             prompt: Text("Search", bundle: .module)
