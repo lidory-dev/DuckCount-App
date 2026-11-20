@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -37,7 +38,9 @@ struct BlockedUserListView: View {
                                 bundle: .module
                             )
                         }
+                        .appCardRows()
                     }
+                    .appListBackground()
                 }
             } else {
                 ProgressView()
@@ -112,6 +115,7 @@ struct NewContactView: View {
                         )
                     }
                 }
+                .appCardRows()
 
                 Section {
                     UsernameField(
@@ -132,7 +136,9 @@ struct NewContactView: View {
                         FormMessage(String(localized: "Contact request sent to \(sentTo)", bundle: .module), isError: false)
                     }
                 }
+                .appCardRows()
             }
+            .appListBackground()
             .disabled(viewModel.isSending)
             .navigationTitle(Text("Add a new contact", bundle: .module))
             .navigationBarTitleDisplayMode(.inline)
@@ -231,14 +237,14 @@ private struct FormMessage: View {
     var body: some View {
         if isError {
             Text(text)
-                .foregroundStyle(.red)
+                .foregroundStyle(AppColors.error)
         } else {
             Label {
                 Text(text)
             } icon: {
                 Image(systemName: "checkmark.circle.fill")
             }
-            .foregroundStyle(.green)
+            .foregroundStyle(AppColors.primary)
         }
     }
 }

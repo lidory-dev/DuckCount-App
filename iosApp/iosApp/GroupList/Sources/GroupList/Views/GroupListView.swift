@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -41,6 +42,7 @@ public struct GroupListView: View {
     public var body: some View {
         NavigationSplitView {
             list
+                .appBackground()
                 .navigationTitle(Text("Groups", bundle: .module))
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
@@ -71,6 +73,7 @@ public struct GroupListView: View {
                             self.selection = nil
                         }
                     }
+                    .appBackground()
                 } else {
                     ContentUnavailableView {
                         Label {
@@ -80,6 +83,7 @@ public struct GroupListView: View {
                         }
                         .font(.app(.title2))
                     }
+                    .appBackground()
                 }
             }
             // A stack of its own for each group, which drops what was pushed over the last one.
@@ -127,7 +131,9 @@ public struct GroupListView: View {
                     GroupRow(group: group)
                 }
             }
+            .appCardRows()
         }
+        .appListBackground()
         .refreshable {
             await viewModel.refresh()
         }
@@ -188,7 +194,7 @@ struct GroupRow: View {
             if !group.description.isBlank {
                 Text(group.description)
                     .font(.app(.subheadline))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppColors.onSurfaceVariant)
                     .strikethrough(group.isLeft)
                     .lineLimit(1)
             }

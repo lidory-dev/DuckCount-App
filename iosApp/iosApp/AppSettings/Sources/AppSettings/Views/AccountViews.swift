@@ -1,3 +1,4 @@
+import AppColors
 import SwiftUI
 
 /// Where the account screen leads.
@@ -42,10 +43,12 @@ struct AccountView: View {
                     FormMessage(String(localized: "Your password has been changed.", bundle: .module), isError: false)
                 }
             }
+            .appCardRows()
 
             Section {
                 LogOutButton(isLoggingOut: viewModel.isLoggingOut, onConfirm: viewModel.logOut)
             }
+            .appCardRows()
 
             Section {
                 NavigationLink(value: AccountRoute.deletion) {
@@ -54,10 +57,12 @@ struct AccountView: View {
                     } icon: {
                         Image(systemName: "trash")
                     }
-                    .foregroundStyle(.red)
+                    .foregroundStyle(AppColors.error)
                 }
             }
+            .appCardRows()
         }
+        .appListBackground()
         .listStyle(.insetGrouped)
         .disabled(viewModel.isLoggingOut)
         .navigationTitle(Text("Account", bundle: .module))
@@ -103,7 +108,7 @@ private struct LogOutButton: View {
                     Image(systemName: "rectangle.portrait.and.arrow.right")
                 }
                 // The icon too, which the destructive role leaves in the accent color.
-                .foregroundStyle(.red)
+                .foregroundStyle(AppColors.error)
 
                 if isLoggingOut {
                     Spacer()
@@ -168,6 +173,7 @@ struct PasswordChangeView: View {
                     FormMessage(PasswordChangeError.wrongPassword.message)
                 }
             }
+            .appCardRows()
 
             Section {
                 SecureField(
@@ -196,7 +202,9 @@ struct PasswordChangeView: View {
                     viewModel.error.flatMap { $0.isFieldError ? nil : $0.message }
                 )
             }
+            .appCardRows()
         }
+        .appListBackground()
         .disabled(viewModel.isChanging)
         .navigationTitle(Text("Change password", bundle: .module))
         .navigationBarTitleDisplayMode(.inline)
@@ -222,6 +230,7 @@ struct PasswordChangeView: View {
             }
         ) { leak in
             PasswordLeakView(leakCount: leak.count)
+                .presentationBackground(AppColors.background)
         }
         .onAppear {
             focusedField = .currentPassword
@@ -260,13 +269,14 @@ struct AccountDeletionView: View {
     var body: some View {
         Form {
             Section {
-                Disclaimer(systemImage: "exclamationmark.triangle.fill", tint: .red) {
+                Disclaimer(systemImage: "exclamationmark.triangle.fill", tint: AppColors.error) {
                     Text(
                         "Deleting your account is permanent and your data cannot be recovered.\n\nGroups you created will be deleted for all their members, who keep a read-only copy.\n\nOther expenses you’ve created or participated in will not be deleted. They’ll remain visible to anyone else involved.\n\nTo continue, you’ll need to re-enter your password to confirm.",
                         bundle: .module
                     )
                 }
             }
+            .appCardRows()
 
             Section {
                 SecureField(
@@ -282,7 +292,9 @@ struct AccountDeletionView: View {
                     FormMessage(error.message)
                 }
             }
+            .appCardRows()
         }
+        .appListBackground()
         .disabled(viewModel.isDeleting)
         .navigationTitle(Text("Delete account", bundle: .module))
         .navigationBarTitleDisplayMode(.inline)

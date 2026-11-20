@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -51,6 +52,7 @@ struct RegisterView: View {
                     )
                 )
             }
+            .appCardRows()
 
             Section {
                 SecureField(
@@ -81,7 +83,9 @@ struct RegisterView: View {
                     viewModel.error?.message
                 )
             }
+            .appCardRows()
         }
+        .appListBackground()
         .disabled(viewModel.isLoading)
         .navigationTitle(Text("Welcome!", bundle: .module))
         // Nothing to go back to while registering.
@@ -97,6 +101,7 @@ struct RegisterView: View {
         }
         .sheet(item: $leak, onDismiss: viewModel.clearPasswords) { leak in
             PasswordLeakView(leakCount: leak.count)
+                .presentationBackground(AppColors.background)
         }
         .onAppear { focusedField = .username }
     }
@@ -130,7 +135,7 @@ struct RegistrationConsent: View {
 
         Text(AttributedString(localized: "By registering, you accept the \(termsOfUse) and the \(privacyPolicy).", bundle: .module))
             .font(.app(.footnote))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(AppColors.onSurfaceVariant)
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
     }

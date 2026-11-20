@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -26,6 +27,7 @@ public struct ExpenseListView: View {
     public var body: some View {
         NavigationSplitView {
             list
+                .appBackground()
                 .navigationTitle(Text("Expenses", bundle: .module))
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
@@ -56,6 +58,7 @@ public struct ExpenseListView: View {
                         }
                         .font(.app(.title2))
                     }
+                    .appBackground()
                 }
             }
         }
@@ -97,8 +100,10 @@ public struct ExpenseListView: View {
                 } header: {
                     Text(day.date?.dayTitle ?? day.id)
                 }
+                .appPlainRows()
             }
         }
+        .appListBackground()
         .listStyle(.plain)
         .refreshable {
             await viewModel.refresh()
@@ -154,7 +159,7 @@ struct ExpenseRow: View {
                     }
                 }
                 .font(.app(.subheadline))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppColors.onSurfaceVariant)
                 .lineLimit(1)
             }
 

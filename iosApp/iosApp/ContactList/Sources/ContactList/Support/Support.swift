@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -233,7 +234,7 @@ struct ConfirmButton: View {
                 }
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.appProminent)
         .controlSize(.large)
         .disabled(isLoading)
     }
@@ -257,7 +258,7 @@ private struct BottomBar<BarContent: View>: ViewModifier {
             }
         } else {
             screen.safeAreaInset(edge: .bottom) {
-                bar.background(.bar)
+                bar.background(AppColors.background)
             }
         }
     }

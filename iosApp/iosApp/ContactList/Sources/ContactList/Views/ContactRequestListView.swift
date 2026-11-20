@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -25,7 +26,9 @@ public struct ContactRequestListView: View {
                         onRefuse: { viewModel.refuse(request) },
                         onBlock: { viewModel.block(request) }
                     )
+                    .appCardRows()
                 }
+                .appListBackground()
                 .overlay {
                     if requests.isEmpty {
                         // A pull shows a spinner of its own.
@@ -153,7 +156,7 @@ private struct ContactRequestRow: View {
 
         // Bordered styles make each button a tap target of its own in a list's row.
         if isProminent {
-            button.buttonStyle(.borderedProminent)
+            button.buttonStyle(.appProminent)
         } else {
             button.buttonStyle(.bordered)
         }

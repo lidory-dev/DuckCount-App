@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -48,8 +49,10 @@ public struct GroupExpensesView: View {
                 } header: {
                     Text(day.date?.dayTitle ?? day.id)
                 }
+                .appPlainRows()
             }
         }
+        .appListBackground()
         .listStyle(.plain)
         .refreshable {
             await viewModel.refresh()

@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -41,7 +42,7 @@ struct PersonAmountRow: View {
 
             Text(amount.formattedAmount(in: currency))
                 .monospacedDigit()
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppColors.onSurfaceVariant)
         }
         .accessibilityElement(children: .combine)
     }

@@ -1,3 +1,4 @@
+import AppColors
 import SwiftUI
 
 /// What the user is to an expense, which says what its row shows of it, as Android's `ExpenseStatus`.
@@ -21,7 +22,7 @@ enum ExpenseRole: Equatable {
         switch self {
         case .creditor: Self.owedColor
         case .beneficiary: Self.owingColor
-        case .neutral: .secondary
+        case .neutral: AppColors.onSurfaceVariant
         }
     }
 }

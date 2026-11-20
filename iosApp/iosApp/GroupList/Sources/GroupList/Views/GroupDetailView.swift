@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -103,7 +104,7 @@ struct GroupDetailView: View {
                     if let description = viewModel.group?.description, !description.isBlank {
                         Text(description)
                             .font(.app(.caption))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppColors.onSurfaceVariant)
                             .lineLimit(1)
                     }
                 }

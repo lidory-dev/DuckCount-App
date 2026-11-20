@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -19,7 +20,7 @@ struct UpdateRequiredScreen: View {
                 Text(
                     "For security and compatibility reasons, this version of DuckCount is no longer supported. Update the app from the App Store to keep using it."
                 )
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppColors.onSurfaceVariant)
             }
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)

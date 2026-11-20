@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -31,18 +32,19 @@ struct AboutView: View {
                         "Lidory is a company specializing in software development and cybersecurity. It develops both consumer applications and business software.\n\nPrivacy and cybersecurity are top priorities for us.",
                         bundle: .module
                     )
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppColors.onSurfaceVariant)
 
                     Link(destination: learnMoreLink) {
                         Text("Learn more", bundle: .module)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.appProminent)
                     .padding(.top, 4)
                 }
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
             }
+            .appCardRows()
 
             Section {
                 LabeledContent {
@@ -70,7 +72,9 @@ struct AboutView: View {
                 }
                 .padding(.top, 8)
             }
+            .appCardRows()
         }
+        .appListBackground()
         .listStyle(.insetGrouped)
         .navigationTitle(Text("About", bundle: .module))
         .navigationBarTitleDisplayMode(.inline)
@@ -128,7 +132,9 @@ struct LicencesView: View {
             } label: {
                 LibraryRow(library: library)
             }
+            .appCardRows()
         }
+        .appListBackground()
         .listStyle(.insetGrouped)
         .overlay {
             if libraries.isEmpty {
@@ -166,14 +172,14 @@ private struct LibraryRow: View {
                     Text(verbatim: version)
                         .font(.app(.subheadline))
                         .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppColors.onSurfaceVariant)
                 }
             }
 
             if let author = library.author {
                 Text(verbatim: author)
                     .font(.app(.subheadline))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppColors.onSurfaceVariant)
                     .lineLimit(1)
             }
 
@@ -220,12 +226,13 @@ private struct LibraryView: View {
 
                             Image(systemName: "arrow.up.forward")
                                 .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(AppColors.outline)
                                 .accessibilityHidden(true)
                         }
                     }
                 }
             }
+            .appCardRows()
 
             ForEach(library.licences, id: \.self) { licence in
                 Section {
@@ -241,8 +248,10 @@ private struct LibraryView: View {
                 } header: {
                     Text(verbatim: licence.name)
                 }
+                .appCardRows()
             }
         }
+        .appListBackground()
         .listStyle(.insetGrouped)
         .navigationTitle(Text(verbatim: library.name))
         .navigationBarTitleDisplayMode(.inline)

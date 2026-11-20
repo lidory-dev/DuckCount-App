@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -35,7 +36,9 @@ struct GroupHistoryView: View {
             case .loaded(let versions):
                 List(versions) { version in
                     GroupVersionRow(version: version)
+                        .appCardRows()
                 }
+                .appListBackground()
             }
         }
         .navigationTitle(Text("Group history", bundle: .module))
@@ -59,10 +62,10 @@ struct GroupVersionRow: View {
                 if version.isCurrent {
                     Text("Current version", bundle: .module)
                         .font(.app(.caption))
-                        .foregroundStyle(.tint)
+                        .foregroundStyle(AppColors.onPrimaryContainer)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(Color.accentColor.opacity(0.15), in: Capsule())
+                        .background(AppColors.primaryContainer, in: Capsule())
                 }
             }
 
@@ -74,7 +77,7 @@ struct GroupVersionRow: View {
             madeOn
                 .font(.app(.footnote))
                 .italic()
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppColors.onSurfaceVariant)
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)

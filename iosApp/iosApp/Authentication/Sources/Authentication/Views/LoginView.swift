@@ -1,3 +1,4 @@
+import AppColors
 import SwiftUI
 
 /// Logs in to an existing account with its username and password.
@@ -50,7 +51,9 @@ struct LoginView: View {
                     viewModel.error?.message
                 )
             }
+            .appCardRows()
         }
+        .appListBackground()
         .disabled(viewModel.isLoading)
         .navigationTitle(Text("Welcome back!", bundle: .module))
         // Nothing to go back to while logging in.
@@ -83,7 +86,7 @@ struct FormErrors: View {
                     Text(message)
                 }
             }
-            .foregroundStyle(.red)
+            .foregroundStyle(AppColors.error)
         }
     }
 }

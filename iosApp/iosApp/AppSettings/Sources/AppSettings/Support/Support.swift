@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -88,9 +89,8 @@ struct ConfirmButton: View {
                 }
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.appProminent)
         .controlSize(.large)
-        .tint(role == .destructive ? .red : nil)
         .disabled(isLoading)
     }
 }
@@ -113,7 +113,7 @@ private struct BottomBar<BarContent: View>: ViewModifier {
             }
         } else {
             screen.safeAreaInset(edge: .bottom) {
-                bar.background(.bar)
+                bar.background(AppColors.background)
             }
         }
     }
@@ -162,14 +162,14 @@ struct FormMessage: View {
     var body: some View {
         if isError {
             Text(text)
-                .foregroundStyle(.red)
+                .foregroundStyle(AppColors.error)
         } else {
             Label {
                 Text(text)
             } icon: {
                 Image(systemName: "checkmark.circle.fill")
             }
-            .foregroundStyle(.green)
+            .foregroundStyle(AppColors.primary)
         }
     }
 }

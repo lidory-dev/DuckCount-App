@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -39,11 +40,13 @@ struct ExpenseHistoryView: View {
 
                             AuthorLabel(version: version, name: viewModel.names.displayName(of: version.authorUuid))
                                 .font(.app(.subheadline))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(AppColors.onSurfaceVariant)
                         }
                         .padding(.vertical, 2)
                     }
+                    .appCardRows()
                 }
+                .appListBackground()
             }
         }
         .navigationTitle(Text("History", bundle: .module))
@@ -68,18 +71,19 @@ struct ExpenseVersionView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     AuthorLabel(version: version, name: viewModel.names.displayName(of: version.authorUuid))
                         .font(.app(.subheadline))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppColors.onSurfaceVariant)
 
                     Text(expense.title)
                         .font(.app(.title2))
 
                     if !expense.description.isBlank {
                         Text(expense.description)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(AppColors.onSurfaceVariant)
                     }
                 }
                 .padding(.vertical, 4)
             }
+            .appCardRows()
 
             Section {
                 PersonAmountRow(
@@ -91,6 +95,7 @@ struct ExpenseVersionView: View {
             } header: {
                 Text("Paid by", bundle: .module)
             }
+            .appCardRows()
 
             Section {
                 ForEach(viewModel.beneficiaries(of: version), id: \.userUuid) { beneficiary in
@@ -104,7 +109,9 @@ struct ExpenseVersionView: View {
             } header: {
                 Text("Beneficiaries", bundle: .module)
             }
+            .appCardRows()
         }
+        .appListBackground()
         .navigationTitle(version.madeAt.flatMap(LocalDateTime.date(from:))?.shortDayAndTimeTitle ?? "")
         .navigationBarTitleDisplayMode(.inline)
     }

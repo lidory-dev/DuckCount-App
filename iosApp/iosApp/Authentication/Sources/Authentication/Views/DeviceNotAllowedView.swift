@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -12,14 +13,14 @@ struct DeviceNotAllowedView: View {
             VStack(spacing: 16) {
                 Image(systemName: "iphone.slash")
                     .font(.system(size: 64))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppColors.onSurfaceVariant)
                     .accessibilityHidden(true)
 
                 Text("Device not eligible", bundle: .module)
                     .font(.app(.title2))
 
                 Text(AuthError.deviceNotAllowed.message)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppColors.onSurfaceVariant)
             }
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)

@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -13,7 +14,7 @@ struct PasswordLeakView: View {
             VStack(spacing: 16) {
                 Image(systemName: "exclamationmark.shield.fill")
                     .font(.system(size: 64))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(AppColors.tertiary)
                     .accessibilityHidden(true)
 
                 Text("Watch out!", bundle: .module)

@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import Shared
 import SwiftUI
@@ -26,7 +27,7 @@ struct iOSApp: App {
             Group {
                 if session.isRestarting {
                     // Every screen down while the session's leftovers go, nothing to show meanwhile.
-                    Color(.systemBackground)
+                    AppColors.background
                         .ignoresSafeArea()
                 } else {
                     // Built anew each time the app starts over, see AppSession.
@@ -36,6 +37,8 @@ struct iOSApp: App {
             }
             // ABeeZee for whatever text sets no font of its own, as Android's body text is.
             .font(.app(.body))
+            // Android's primary for every button, link, toggle and selected tab, see AppColors.
+            .tint(AppColors.primary)
             .alert(
                 session.notice?.message ?? Text(verbatim: ""),
                 isPresented: Binding(

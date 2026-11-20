@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -59,7 +60,7 @@ struct ContactVerificationView: View {
 
                     Image(systemName: "exclamationmark.octagon.fill")
                         .font(.largeTitle)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(AppColors.error)
 
                     Text("Your safety number with this contact has changed", bundle: .module)
                         .font(.app(.headline))
@@ -85,7 +86,7 @@ struct ContactVerificationView: View {
                         bundle: .module
                     )
                     .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppColors.onSurfaceVariant)
 
                     if isVerified {
                         VerifiedLabel()
@@ -121,7 +122,7 @@ struct SafetyNumberGrid: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity)
-        .background(.fill.tertiary, in: .rect(cornerRadius: 16))
+        .background(AppColors.surfaceContainerHighest, in: .rect(cornerRadius: 16))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("Safety number: \(groups.joined(separator: ", "))", bundle: .module))
     }

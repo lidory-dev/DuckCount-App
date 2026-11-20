@@ -29,6 +29,7 @@ iosApp/iosApp/GroupList/.build
 iosApp/iosApp/AppSettings/.build
 iosApp/iosApp/PushSignals/.build
 iosApp/iosApp/AppFonts/.build
+iosApp/iosApp/AppColors/.build
 
 # Output of fdroid/build-release.sh
 fdroid/out/

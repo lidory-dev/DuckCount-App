@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -14,7 +15,9 @@ struct BalanceTabView: View {
             BalanceBarRow(name: viewModel.name(of: row), label: viewModel.amountLabel(row.amount), row: row)
                 .listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
+                .appPlainRows()
         }
+        .appListBackground()
         .listStyle(.plain)
         .overlay {
             switch viewModel.state {
@@ -124,7 +127,9 @@ struct SettleUpTabView: View {
 
         List(debts) { debt in
             row(debt)
+                .appPlainRows()
         }
+        .appListBackground()
         .listStyle(.plain)
         .overlay {
             switch viewModel.state {
@@ -165,7 +170,7 @@ struct SettleUpTabView: View {
 
         return HStack(spacing: 12) {
             Text(viewModel.sentence(for: debt))
-                .foregroundStyle(side == .betweenOthers ? Color.secondary : Color.primary)
+                .foregroundStyle(side == .betweenOthers ? AppColors.onSurfaceVariant : Color.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             // Only the creditor records a debt paid back, at once, as on Android.

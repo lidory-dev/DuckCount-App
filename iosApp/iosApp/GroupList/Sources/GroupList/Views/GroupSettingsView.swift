@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -47,6 +48,7 @@ struct GroupSettingsView: View {
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
                     }
+                    .appCardRows()
                 }
 
                 membersSection
@@ -54,6 +56,7 @@ struct GroupSettingsView: View {
                 actionsSection(group)
             }
         }
+        .appListBackground()
         .overlay {
             if viewModel.group == nil {
                 ProgressView()
@@ -187,13 +190,14 @@ struct GroupSettingsView: View {
 
                 if !group.description.isBlank {
                     Text(group.description)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppColors.onSurfaceVariant)
                 }
             }
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
             .listRowBackground(Color.clear)
         }
+        .appCardRows()
     }
 
     private var membersSection: some View {
@@ -260,10 +264,10 @@ struct GroupSettingsView: View {
                     ProgressLabel(isInProgress: viewModel.change == .leave) {
                         Text("Leave the group", bundle: .module)
                     } icon: {
-                        // Red like its title: a row's icon keeps the app's tint, whatever the role.
                         Image(systemName: "rectangle.portrait.and.arrow.right")
-                            .foregroundStyle(.red)
                     }
+                    // Its title as well as its icon: the role would leave the one in iOS's red, the other in the tint.
+                    .foregroundStyle(AppColors.error)
                 }
                 .disabled(viewModel.isChanging)
                 // On the button, for the dialog to point at it where it shows as a popover.
@@ -292,8 +296,9 @@ struct GroupSettingsView: View {
                         Text("Delete the group", bundle: .module)
                     } icon: {
                         Image(systemName: "trash")
-                            .foregroundStyle(.red)
                     }
+                    // Its title as well as its icon: the role would leave the one in iOS's red, the other in the tint.
+                    .foregroundStyle(AppColors.error)
                 }
                 .disabled(viewModel.isChanging || group.hasPendingChange)
                 .confirmationDialog(
@@ -321,8 +326,9 @@ struct GroupSettingsView: View {
                         Text("Delete from this device", bundle: .module)
                     } icon: {
                         Image(systemName: "trash")
-                            .foregroundStyle(.red)
                     }
+                    // Its title as well as its icon: the role would leave the one in iOS's red, the other in the tint.
+                    .foregroundStyle(AppColors.error)
                 }
                 .disabled(viewModel.isChanging)
                 .confirmationDialog(
@@ -341,6 +347,7 @@ struct GroupSettingsView: View {
                 }
             }
         }
+        .appCardRows()
     }
 
     /// Goes where the member's sheet led, once it is gone.
@@ -397,7 +404,7 @@ private struct MemberSheetView: View {
                             if action != .remove, let error = viewModel.requestError {
                                 Text(error.message)
                                     .font(.app(.subheadline))
-                                    .foregroundStyle(.red)
+                                    .foregroundStyle(AppColors.error)
                                     .multilineTextAlignment(.center)
                             }
                         }
@@ -411,6 +418,8 @@ private struct MemberSheetView: View {
             .frame(maxWidth: .infinity)
         }
         .presentationDetents([.medium, .large])
+        // Android's bottom sheet's colour.
+        .presentationBackground(AppColors.surfaceContainerLow)
         .presentationDragIndicator(.visible)
         // Closed while a request is on its way, it would cut short what comes of it.
         .interactiveDismissDisabled(viewModel.isSendingRequest)
@@ -452,7 +461,7 @@ private struct MemberSheetView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.large)
-            .tint(.red)
+            .tint(AppColors.error)
             .disabled(viewModel.isSendingRequest || viewModel.isChanging)
         }
     }

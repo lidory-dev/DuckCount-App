@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -32,6 +33,7 @@ public struct SettingsView: View {
         } detail: {
             NavigationStack {
                 detail
+                    .appBackground()
             }
         }
     }
@@ -46,6 +48,7 @@ public struct SettingsView: View {
                     )
                 }
             }
+            .appCardRows()
 
             Section {
                 NavigationLink(value: SettingsRoute.username) {
@@ -70,6 +73,7 @@ public struct SettingsView: View {
                     }
                 }
             }
+            .appCardRows()
 
             Section {
                 NavigationLink(value: SettingsRoute.about) {
@@ -88,6 +92,7 @@ public struct SettingsView: View {
                     }
                 }
             }
+            .appCardRows()
 
             Section {
                 ExternalLinkRow(url: callBacks.sourceCodeLink, systemImage: "chevron.left.forwardslash.chevron.right") {
@@ -102,7 +107,9 @@ public struct SettingsView: View {
                     Text("Privacy policy", bundle: .module)
                 }
             }
+            .appCardRows()
         }
+        .appListBackground()
         .listStyle(.insetGrouped)
     }
 
@@ -158,7 +165,7 @@ private struct ProfileHeader: View {
 
                 Text("Profile", bundle: .module)
                     .font(.app(.subheadline))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppColors.onSurfaceVariant)
             }
         }
         .padding(.vertical, 4)
@@ -186,7 +193,7 @@ private struct ExternalLinkRow<Title: View>: View {
 
                 Image(systemName: "arrow.up.forward")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(AppColors.outline)
                     .accessibilityHidden(true)
             }
         }

@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -30,12 +31,13 @@ struct SetUpProfileView: View {
                         bundle: .module
                     )
                     .font(.app(.subheadline))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppColors.onSurfaceVariant)
                     .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity)
                 .listRowBackground(Color.clear)
             }
+            .appCardRows()
 
             Section {
                 TextField(
@@ -62,7 +64,9 @@ struct SetUpProfileView: View {
                     FormErrors(viewModel.error?.message)
                 }
             }
+            .appCardRows()
         }
+        .appListBackground()
         .disabled(viewModel.isSaving)
         .navigationTitle(Text("Set up your profile", bundle: .module))
         .navigationBarBackButtonHidden()

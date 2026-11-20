@@ -16,6 +16,7 @@
 		A0711E0B2ED5EF2400CC845E /* Authentication in Frameworks */ = {isa = PBXBuildFile; productRef = A0711E0A2ED5EF2400CC845E /* Authentication */; };
 		A11C710B2ED5EF2400CC845E /* ExpenseList in Frameworks */ = {isa = PBXBuildFile; productRef = A11C710A2ED5EF2400CC845E /* ExpenseList */; };
 		A9F0E1C20000000000000001 /* AppFonts in Frameworks */ = {isa = PBXBuildFile; productRef = A9F0E1C20000000000000002 /* AppFonts */; };
+		A9F0E1C30000000000000001 /* AppColors in Frameworks */ = {isa = PBXBuildFile; productRef = A9F0E1C30000000000000002 /* AppColors */; };
 		CA17C0A12ED5EF2400CC845E /* ContactList in Frameworks */ = {isa = PBXBuildFile; productRef = CA17C0A22ED5EF2400CC845E /* ContactList */; };
 /* End PBXBuildFile section */
 
@@ -114,6 +115,7 @@
 				A0711E0B2ED5EF2400CC845E /* Authentication in Frameworks */,
 				5E7715A02ED5EF2400CC845E /* AppSettings in Frameworks */,
 				A9F0E1C20000000000000001 /* AppFonts in Frameworks */,
+				A9F0E1C30000000000000001 /* AppColors in Frameworks */,
 				416EC95582E244E030191CBF /* SQLCipher in Frameworks */,
 				4E5A0C01000000000000000E /* PushSignals in Frameworks */,
 			);
@@ -202,6 +204,7 @@
 				A0711E0A2ED5EF2400CC845E /* Authentication */,
 				5E7715A12ED5EF2400CC845E /* AppSettings */,
 				A9F0E1C20000000000000002 /* AppFonts */,
+				A9F0E1C30000000000000002 /* AppColors */,
 				32AAC9ED64381F7DBF4B5996 /* SQLCipher */,
 				4E5A0C01000000000000000D /* PushSignals */,
 			);
@@ -651,6 +654,10 @@
 		A9F0E1C20000000000000002 /* AppFonts */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = AppFonts;
+		};
+		A9F0E1C30000000000000002 /* AppColors */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AppColors;
 		};
 		CA17C0A22ED5EF2400CC845E /* ContactList */ = {
 			isa = XCSwiftPackageProductDependency;

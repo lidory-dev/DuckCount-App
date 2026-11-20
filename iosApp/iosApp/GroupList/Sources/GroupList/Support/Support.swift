@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -242,7 +243,7 @@ struct ConfirmButton: View {
                 }
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.appProminent)
         .controlSize(.large)
         .disabled(isLoading)
     }
@@ -285,9 +286,9 @@ struct NoticeCard: View {
             Image(systemName: "info.circle.fill")
         }
         .font(.app(.subheadline))
-        .foregroundStyle(Color(rgb: 0xFFF5F1))
+        .foregroundStyle(AppColors.onTertiaryContainer)
         .padding(12)
-        .background(Color(rgb: 0xAE5B20), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(AppColors.tertiaryContainer, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -295,13 +296,13 @@ struct NoticeCard: View {
 /// `OwnerLabel`.
 struct OwnerLabel: View {
     var body: some View {
-        // The system's grey rather than `.secondary`, which a row that is a button tints.
+        // Android's onSurfaceVariant, a colour rather than `.secondary`, which a row that is a button tints.
         Text("Owner", bundle: .module)
             .font(.app(.caption))
-            .foregroundStyle(Color(uiColor: .secondaryLabel))
+            .foregroundStyle(AppColors.onSurfaceVariant)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(Color(uiColor: .secondaryLabel).opacity(0.15), in: Capsule())
+            .background(AppColors.onSurfaceVariant.opacity(0.15), in: Capsule())
     }
 }
 
@@ -348,7 +349,7 @@ private struct BottomBar<BarContent: View>: ViewModifier {
             }
         } else {
             screen.safeAreaInset(edge: .bottom) {
-                bar.background(.bar)
+                bar.background(AppColors.background)
             }
         }
     }

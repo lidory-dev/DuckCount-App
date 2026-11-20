@@ -1,3 +1,4 @@
+import AppColors
 import SwiftUI
 
 /// The whole authentication flow, onboarding, then logging in, or registering and setting up the
@@ -42,6 +43,7 @@ public struct AuthenticationFlowView: View {
                     )
                 }
             }
+            .appBackground()
             .navigationDestination(for: Route.self, destination: destination)
         }
     }
@@ -64,6 +66,7 @@ public struct AuthenticationFlowView: View {
 
         case .deviceNotAllowed:
             DeviceNotAllowedView()
+                .appBackground()
 
         case .setUpProfile(let profile):
             SetUpProfileView(profile: profile, callBacks: callBacks, onSaved: onAuthenticated)

@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -20,7 +21,7 @@ struct OnBoardingView: View {
                     "Split bills with your group in seconds. The amounts and what they’re for stay encrypted — we can’t read them.",
                     bundle: .module
                 )
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppColors.onSurfaceVariant)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 24)

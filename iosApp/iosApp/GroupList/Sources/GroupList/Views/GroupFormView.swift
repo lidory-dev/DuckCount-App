@@ -1,3 +1,4 @@
+import AppColors
 import SwiftUI
 
 /// The form a group is created with, its title, currency, description and members, or its title
@@ -42,6 +43,7 @@ struct GroupFormView: View {
                     membersSection
                 }
             }
+            .appListBackground()
             .disabled(viewModel.isSaving || viewModel.isBeingRead)
             .navigationTitle(
                 viewModel.isNewGroup ? Text("Create a group", bundle: .module) : Text("Edit group", bundle: .module)
@@ -159,9 +161,10 @@ struct GroupFormView: View {
             // Counted as it is saved, without the whitespace around it, as Confirm counts it.
             if let error = viewModel.titleError {
                 Text(error)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(AppColors.error)
             }
         }
+        .appCardRows()
     }
 
     private var currencySection: some View {
@@ -181,6 +184,7 @@ struct GroupFormView: View {
             }
             .pickerStyle(.menu)
         }
+        .appCardRows()
     }
 
     private var descriptionSection: some View {
@@ -195,9 +199,10 @@ struct GroupFormView: View {
         } footer: {
             if let error = viewModel.descriptionError {
                 Text(error)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(AppColors.error)
             }
         }
+        .appCardRows()
     }
 
     private var membersSection: some View {
@@ -233,6 +238,7 @@ struct GroupFormView: View {
         } header: {
             Text("Members (\(viewModel.form.memberUuids.count)/\(viewModel.maxMembers))", bundle: .module)
         }
+        .appCardRows()
     }
 }
 

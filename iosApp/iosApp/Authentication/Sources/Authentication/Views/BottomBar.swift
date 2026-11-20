@@ -1,3 +1,4 @@
+import AppColors
 import SwiftUI
 
 /// The full-width, prominent button that confirms a screen, with a spinner in place of its title
@@ -25,7 +26,7 @@ struct ConfirmButton: View {
                 }
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.appProminent)
         .controlSize(.large)
         .disabled(isLoading)
     }
@@ -49,7 +50,7 @@ private struct BottomBar<BarContent: View>: ViewModifier {
             }
         } else {
             screen.safeAreaInset(edge: .bottom) {
-                bar.background(.bar)
+                bar.background(AppColors.background)
             }
         }
     }

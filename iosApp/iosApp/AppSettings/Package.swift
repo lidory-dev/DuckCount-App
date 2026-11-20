@@ -16,13 +16,15 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(path: "../AppFonts")
+        .package(path: "../AppFonts"),
+        .package(path: "../AppColors")
     ],
     targets: [
         .target(
             name: "AppSettings",
             dependencies: [
-                .product(name: "AppFonts", package: "AppFonts")
+                .product(name: "AppFonts", package: "AppFonts"),
+                .product(name: "AppColors", package: "AppColors")
             ],
             resources: [
                 .process("Resources")

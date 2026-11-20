@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -26,7 +27,9 @@ struct MemberPickerView: View {
                         row(user)
                     }
                 }
+                .appCardRows()
             }
+            .appListBackground()
             .disabled(isConfirming)
             .navigationTitle(Text("Select new members", bundle: .module))
             .navigationBarTitleDisplayMode(.inline)
@@ -65,7 +68,7 @@ struct MemberPickerView: View {
                 // is what says why.
                 Text("\(picker.memberCount)/\(picker.maxMembers) members", bundle: .module)
                     .font(.app(.footnote))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppColors.onSurfaceVariant)
                     .monospacedDigit()
 
                 ConfirmButton(Text("Confirm", bundle: .module), isLoading: isConfirming, action: onConfirm)
@@ -96,7 +99,7 @@ struct MemberPickerView: View {
             HStack(spacing: 12) {
                 Image(systemName: isPicked ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(isPicked ? AnyShapeStyle(.tint) : AnyShapeStyle(Color.secondary))
+                    .foregroundStyle(isPicked ? AnyShapeStyle(.tint) : AnyShapeStyle(AppColors.onSurfaceVariant))
 
                 MemberAvatar(userUuid: user.id, name: user.fullName, size: 32)
 

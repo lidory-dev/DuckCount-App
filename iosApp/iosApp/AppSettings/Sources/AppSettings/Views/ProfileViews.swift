@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -45,6 +46,7 @@ struct ProfileView: View {
                     )
                 }
             }
+            .appCardRows()
 
             Section {
                 TextField(
@@ -77,7 +79,9 @@ struct ProfileView: View {
                     }
                 }
             }
+            .appCardRows()
         }
+        .appListBackground()
         .disabled(viewModel.isSaving)
         .bottomBar {
             ConfirmButton(Text("Save", bundle: .module), isLoading: viewModel.isSaving, action: save)
@@ -188,6 +192,7 @@ private struct ReserveUsernameForm: View {
                     }
                 }
             }
+            .appCardRows()
 
             Section {
                 // Done only closes the keyboard, as on Android: a new username releases the old one,
@@ -210,7 +215,9 @@ private struct ReserveUsernameForm: View {
                     FormMessage(error.message)
                 }
             }
+            .appCardRows()
         }
+        .appListBackground()
         .disabled(viewModel.isReserving)
         .bottomBar {
             ConfirmButton(Text("Reserve", bundle: .module), isLoading: viewModel.isReserving, action: viewModel.reserve)

@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -79,6 +80,7 @@ struct ExpenseDetailView: View {
             Section {
                 header(expense: expense, actions: actions)
             }
+            .appCardRows()
 
             Section {
                 PersonAmountRow(
@@ -90,6 +92,7 @@ struct ExpenseDetailView: View {
             } header: {
                 Text("Paid by", bundle: .module)
             }
+            .appCardRows()
 
             Section {
                 ForEach(viewModel.beneficiaries, id: \.userUuid) { beneficiary in
@@ -103,6 +106,7 @@ struct ExpenseDetailView: View {
             } header: {
                 Text("Beneficiaries", bundle: .module)
             }
+            .appCardRows()
 
             if actions.canSettle {
                 settleSection(expense: expense)
@@ -127,12 +131,14 @@ struct ExpenseDetailView: View {
                     }
                     .disabled(viewModel.isBusy)
                 }
+                .appCardRows()
             }
 
             if !expense.isDeleted, actions.canDelete {
                 deleteSection(expense: expense)
             }
         }
+        .appListBackground()
     }
 
     /// What it was for, or that it is a settlement, which has no title, and what became of it.
@@ -154,7 +160,7 @@ struct ExpenseDetailView: View {
 
             if !expense.description.isBlank {
                 Text(expense.description)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppColors.onSurfaceVariant)
                     .strikethrough(expense.isDeleted)
             }
 
@@ -179,7 +185,7 @@ struct ExpenseDetailView: View {
                     bundle: .module
                 )
                 .font(.app(.subheadline))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppColors.onSurfaceVariant)
                 .padding(.top, 4)
             }
         }
@@ -213,6 +219,7 @@ struct ExpenseDetailView: View {
             }
             .disabled(viewModel.isBusy)
         }
+        .appCardRows()
     }
 
     private var restoreSection: some View {
@@ -234,6 +241,7 @@ struct ExpenseDetailView: View {
             }
             .disabled(viewModel.isBusy)
         }
+        .appCardRows()
     }
 
     private func deleteSection(expense: Expense) -> some View {
@@ -254,7 +262,7 @@ struct ExpenseDetailView: View {
                         Image(systemName: "trash")
                     }
                     // Its icon too, which the list would tint otherwise.
-                    .foregroundStyle(.red)
+                    .foregroundStyle(AppColors.error)
 
                     Spacer()
 
@@ -281,6 +289,7 @@ struct ExpenseDetailView: View {
                 }
             }
         }
+        .appCardRows()
     }
 }
 

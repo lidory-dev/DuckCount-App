@@ -1,3 +1,4 @@
+import AppColors
 import SwiftUI
 
 /// The form a new expense is made with, or one is edited with, as Android's `CreateExpenseScreen`:
@@ -36,6 +37,7 @@ struct CreateExpenseView: View {
                 descriptionSection
                 beneficiariesSection
             }
+            .appListBackground()
             .disabled(viewModel.isSaving || viewModel.isBeingRead)
             .navigationTitle(
                 viewModel.isNewExpense ? Text("New Expense", bundle: .module) : Text("Edit Expense", bundle: .module)
@@ -157,6 +159,7 @@ struct CreateExpenseView: View {
             // Counted as it is saved, without the whitespace around it, as Save counts it.
             LengthCounter(length: viewModel.titleLength, maxLength: viewModel.maxTitleLength)
         }
+        .appCardRows()
     }
 
     private var paidBySection: some View {
@@ -172,6 +175,7 @@ struct CreateExpenseView: View {
                 paidByContent
             }
         }
+        .appCardRows()
     }
 
     private var paidByContent: some View {
@@ -195,7 +199,7 @@ struct CreateExpenseView: View {
                 if viewModel.isGroupExpense {
                     // The group's, which every expense of it is in.
                     Text(viewModel.form.currency.symbol)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppColors.onSurfaceVariant)
                         .accessibilityLabel(Text("Currency", bundle: .module))
                         .accessibilityValue(viewModel.currencyDisplayName(viewModel.form.currency))
                 } else {
@@ -203,6 +207,7 @@ struct CreateExpenseView: View {
                 }
             }
         }
+        .appCardRows()
     }
 
     private var currencyMenu: some View {
@@ -248,6 +253,7 @@ struct CreateExpenseView: View {
         } footer: {
             LengthCounter(length: viewModel.descriptionLength, maxLength: viewModel.maxDescriptionLength)
         }
+        .appCardRows()
     }
 
     private var beneficiariesSection: some View {
@@ -258,7 +264,7 @@ struct CreateExpenseView: View {
                 } icon: {
                     Image(systemName: "exclamationmark.triangle.fill")
                 }
-                .foregroundStyle(.red)
+                .foregroundStyle(AppColors.error)
                 .transition(.opacity)
             }
 
@@ -291,6 +297,7 @@ struct CreateExpenseView: View {
                 bundle: .module
             )
         }
+        .appCardRows()
     }
 
     private func shareRow(_ beneficiary: Beneficiary) -> some View {
@@ -321,7 +328,7 @@ struct CreateExpenseView: View {
             .focused($focusedField, equals: .share(userUuid: beneficiary.userUuid))
 
             Text(viewModel.form.currency.symbol)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppColors.onSurfaceVariant)
         }
     }
 }
@@ -376,7 +383,7 @@ private struct LengthCounter: View {
 
             Text(verbatim: "\(length)/\(maxLength)")
                 .monospacedDigit()
-                .foregroundStyle(length > maxLength ? Color.red : Color.secondary)
+                .foregroundStyle(length > maxLength ? AppColors.error : AppColors.onSurfaceVariant)
                 .contentTransition(.numericText())
                 .animation(.snappy, value: length)
         }
@@ -397,6 +404,7 @@ struct BeneficiaryPickerView: View {
                 Section {
                     selectAllRow
                 }
+                .appCardRows()
             }
 
             Section {
@@ -406,7 +414,9 @@ struct BeneficiaryPickerView: View {
             } header: {
                 Text("Selected: \(viewModel.selectedUuids.count)/\(viewModel.maxBeneficiaries)", bundle: .module)
             }
+            .appCardRows()
         }
+        .appListBackground()
         .navigationTitle(Text("Beneficiaries", bundle: .module))
         .navigationBarTitleDisplayMode(.inline)
         .searchable(
@@ -439,7 +449,7 @@ struct BeneficiaryPickerView: View {
             HStack(spacing: 12) {
                 Image(systemName: state.symbolName)
                     .font(.title3)
-                    .foregroundStyle(state == .none ? AnyShapeStyle(Color.secondary) : AnyShapeStyle(.tint))
+                    .foregroundStyle(state == .none ? AnyShapeStyle(AppColors.onSurfaceVariant) : AnyShapeStyle(.tint))
 
                 Text("Select All", bundle: .module)
                     .foregroundStyle(Color.primary)
@@ -461,7 +471,7 @@ struct BeneficiaryPickerView: View {
             HStack(spacing: 12) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(Color.secondary))
+                    .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(AppColors.onSurfaceVariant))
 
                 PersonAvatar(userUuid: user.id, name: user.fullName)
 
@@ -509,7 +519,9 @@ struct CreditorPickerView: View {
                 }
             }
             .accessibilityAddTraits(isPayer ? .isSelected : [])
+            .appCardRows()
         }
+        .appListBackground()
         .navigationTitle(Text("Paid by", bundle: .module))
         .navigationBarTitleDisplayMode(.inline)
         .searchable(

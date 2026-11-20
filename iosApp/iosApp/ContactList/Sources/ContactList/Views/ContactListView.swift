@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -50,11 +51,13 @@ public struct ContactListView: View {
     public var body: some View {
         NavigationSplitView {
             sidebar
+                .appBackground()
                 .navigationTitle(Text("Contacts", bundle: .module))
                 .toolbar { toolbar }
         } detail: {
             NavigationStack {
                 detail
+                    .appBackground()
             }
         }
         .sheet(isPresented: $isAddingContact) {
@@ -111,7 +114,7 @@ public struct ContactListView: View {
                 } label: {
                     Text("Reserve a username", bundle: .module)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.appProminent)
             }
 
         case .content(let content):
@@ -153,7 +156,10 @@ public struct ContactListView: View {
                         }
                     }
                     .badge(content.contactRequestCount)
+                    .foregroundStyle(AppColors.onSecondaryContainer)
                 }
+                // As Android's card for them stands out from the contacts.
+                .listRowBackground(AppColors.secondaryContainer)
             }
 
             ForEach(content.sections) { section in
@@ -174,6 +180,7 @@ public struct ContactListView: View {
                         Text(verbatim: section.id)
                     }
                 }
+                .appCardRows()
             }
 
             // Between the other rows, as Android lays it out, rather than over them.
@@ -182,6 +189,7 @@ public struct ContactListView: View {
                     noContacts
                         .listRowBackground(Color.clear)
                 }
+                .appCardRows()
             }
 
             // At the end, out of the way: blocking is rare, and nothing about it is urgent. Not while
@@ -197,6 +205,7 @@ public struct ContactListView: View {
                     }
                     .badge(content.blockedUserCount)
                 }
+                .appCardRows()
             }
         }
         .listStyle(.insetGrouped)

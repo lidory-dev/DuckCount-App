@@ -1,3 +1,4 @@
+import AppColors
 import Authentication
 import Shared
 import SwiftUI
@@ -38,13 +39,14 @@ struct ContentView: View {
     private var content: some View {
         if updateRequirement.isRequired {
             UpdateRequiredScreen()
+                .background(AppColors.background)
         } else {
             Group {
                 switch startupViewModel.startup {
                 // Brief, while the device's own storage is read, so that the onboarding screen
                 // never flashes by on the way to the app.
                 case .loading:
-                    Color(.systemBackground)
+                    AppColors.background
                         .ignoresSafeArea()
 
                 case .loggedIn:

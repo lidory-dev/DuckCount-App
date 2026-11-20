@@ -1,3 +1,4 @@
+import AppColors
 import AppFonts
 import SwiftUI
 
@@ -33,11 +34,13 @@ public struct ContactDetailView: View {
                 .frame(maxWidth: .infinity)
                 .listRowBackground(Color.clear)
             }
+            .appCardRows()
 
             if viewModel.isContact {
                 Section {
                     NavigationLink {
                         ContactVerificationView(contactId: viewModel.contactId, callBacks: callBacks)
+                            .appBackground()
                     } label: {
                         HStack {
                             Label {
@@ -54,6 +57,7 @@ public struct ContactDetailView: View {
                         }
                     }
                 }
+                .appCardRows()
 
                 Section {
                     Button(role: .destructive) {
@@ -62,10 +66,10 @@ public struct ContactDetailView: View {
                         ProgressLabel(isInProgress: viewModel.isBlocking) {
                             Text("Block", bundle: .module)
                         } icon: {
-                            // Red like its title: a row's icon keeps the app's tint, whatever the role.
                             Image(systemName: "nosign")
-                                .foregroundStyle(.red)
                         }
+                        // Its title as well as its icon: the role would leave the one in iOS's red, the other in the tint.
+                        .foregroundStyle(AppColors.error)
                     }
                     .disabled(viewModel.isBusy)
                     // On the button, for the dialog to point at it where it shows as a popover.
@@ -84,6 +88,7 @@ public struct ContactDetailView: View {
                         )
                     }
                 }
+                .appCardRows()
             }
 
             Section {
@@ -94,8 +99,9 @@ public struct ContactDetailView: View {
                         Text("Delete contact", bundle: .module)
                     } icon: {
                         Image(systemName: "trash")
-                            .foregroundStyle(.red)
                     }
+                    // Its title as well as its icon: the role would leave the one in iOS's red, the other in the tint.
+                    .foregroundStyle(AppColors.error)
                 }
                 .disabled(viewModel.isBusy)
                 .confirmationDialog(
@@ -110,7 +116,9 @@ public struct ContactDetailView: View {
                     Text("Are you sure you want to delete this contact?", bundle: .module)
                 }
             }
+            .appCardRows()
         }
+        .appListBackground()
         .navigationBarTitleDisplayMode(.inline)
         .alert(
             viewModel.error?.message ?? "",
