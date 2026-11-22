@@ -49,6 +49,8 @@ class ProfileKeyRotationTest {
         profileStore = store,
         profileKeyVault = vault,
         userDao = UsersWritten(),
+        oweProfileKeyAgain = { false },
+        handOutSoon = {},
     )
 
     /** Her profile as she filled it in, under the key she holds now. */

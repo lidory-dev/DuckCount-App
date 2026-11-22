@@ -329,6 +329,15 @@ interface GroupDao {
     suspend fun setHandedProfileKeyHash(uuid: String, handedProfileKeyHash: String?)
 
     /**
+     * Has every group owed the key to the user's profile again, see
+     * [GroupEntity.handedProfileKeyHash]: posted once more, it tells the members the profile
+     * changed, see [ProfileRepository.uploadProfile][profile.ProfileRepository.uploadProfile]. Only
+     * the groups the user is still in, nobody reading a post in the others. How many groups that is.
+     */
+    @Query("UPDATE GroupEntity SET handedProfileKeyHash = NULL WHERE isLeft = false")
+    suspend fun oweProfileKeyAgain(): Int
+
+    /**
      * The groups owed the key to the user's profile whose partial hash is [profileKeyHash], see
      * [GroupEntity.handedProfileKeyHash], that it can be posted into now: those the user is still
      * in, whose MLS group this device holds, whose creator is not blocked, see

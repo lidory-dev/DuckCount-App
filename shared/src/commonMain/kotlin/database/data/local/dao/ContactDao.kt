@@ -155,6 +155,37 @@ interface ContactDao {
     suspend fun setHandedProfileKeyHash(userUuid: String, handedProfileKeyHash: String)
 
     /**
+     * Has every contact owed the key to the user's profile again, for the vault to take in turn,
+     * see [ContactEntity.handedProfileKeyHash]: handed over once more, it tells them the profile
+     * changed, see [ProfileRepository.uploadProfile][profile.ProfileRepository.uploadProfile].
+     * Tombstones are left alone, a former contact is told nothing. How many contacts that is.
+     */
+    @Query("UPDATE ContactEntity SET handedProfileKeyHash = NULL, isBackedUp = false WHERE isRemoved = false")
+    suspend fun oweProfileKeyAgain(): Int
+
+    /**
+     * Counts one more hand-over of the key to the profile of the contact [userUuid], see
+     * [ContactEntity.unreadProfileUpdates]. Nobody else's: one who is not, or no longer, a contact
+     * is left alone.
+     */
+    @Query(
+        """UPDATE ContactEntity SET unreadProfileUpdates = unreadProfileUpdates + 1
+        WHERE userUuid = :userUuid AND isRemoved = false""",
+    )
+    suspend fun countProfileUpdate(userUuid: String)
+
+    /**
+     * Records the profile of the contact [userUuid] as read since the [count] hand-overs it was
+     * found due with, see [ContactEntity.unreadProfileUpdates]. Unless more came in meanwhile,
+     * which keeps them due: the read may have been made before the edit they tell of.
+     */
+    @Query(
+        """UPDATE ContactEntity SET unreadProfileUpdates = 0
+        WHERE userUuid = :userUuid AND unreadProfileUpdates = :count""",
+    )
+    suspend fun markProfileRead(userUuid: String, count: Int)
+
+    /**
      * The contact [userUuid] as checking their identity needs them, see [VerifiableContact], or
      * null when they are not, or no longer, one: a removal, theirs or the user's, and a log-out,
      * which empties every table, can both happen under the screen observing it.
@@ -209,4 +240,11 @@ interface ContactDao {
         )""",
     )
     suspend fun getDueForRead(): List<ContactEntity>
+
+    /**
+     * The contacts who handed over the key to their profile since this device last read it, see
+     * [ContactEntity.unreadProfileUpdates], whose profile is due a read too.
+     */
+    @Query("SELECT * FROM ContactEntity WHERE isRemoved = false AND unreadProfileUpdates > 0")
+    suspend fun getUpdatedSinceRead(): List<ContactEntity>
 }

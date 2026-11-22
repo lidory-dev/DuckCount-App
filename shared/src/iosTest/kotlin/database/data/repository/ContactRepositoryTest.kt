@@ -89,7 +89,13 @@ class ContactRepositoryTest {
 
     private val aliceFirstKey = generateSymmetricEncryptionKey()
     private val aliceVault = InMemoryProfileKeyVault(profileEncryptionKey = aliceFirstKey)
-    private val aliceProfiles = ProfileRepository(profileStore = store, profileKeyVault = aliceVault, userDao = UsersWritten())
+    private val aliceProfiles = ProfileRepository(
+        profileStore = store,
+        profileKeyVault = aliceVault,
+        userDao = UsersWritten(),
+        oweProfileKeyAgain = { false },
+        handOutSoon = {},
+    )
 
     /** Who the user replied to, in which group. */
     private val replies = mutableListOf<Pair<String, ByteArray>>()
@@ -123,7 +129,13 @@ class ContactRepositoryTest {
         wakeList = wakeList,
     )
 
-    private val profiles = ProfileRepository(profileStore = store, profileKeyVault = userVault, userDao = tables.userDao)
+    private val profiles = ProfileRepository(
+        profileStore = store,
+        profileKeyVault = userVault,
+        userDao = tables.userDao,
+        oweProfileKeyAgain = { false },
+        handOutSoon = {},
+    )
 
     private val contacts = contactsWith(directChannelDao = NoChannels)
 
@@ -739,6 +751,98 @@ class ContactRepositoryTest {
 
         assertTrue(tables.pending.isEmpty())
         assertTrue(tables.contacts.getValue(ALICE).isBackedUp)
+    }
+
+    /**
+     * Alice renamed herself under the key the user holds, which only her handing it over again
+     * tells this device of: until then, the name shown is the one read before.
+     */
+    @Test
+    fun `a contact handing over the very key held after an edit is read again`() = runBlocking<Unit> {
+        aliceUploads()
+        tables.add(contact(ALICE, key = aliceFirstKey))
+        contacts.resolveNames()
+
+        assertIs<Result.Success<Unit>>(
+            aliceProfiles.uploadProfile(userUuid = ALICE, username = "alice", fullName = "Alice Durand"),
+        )
+        contacts.resolveNames()
+
+        assertEquals("Alice Martin", tables.names[ALICE])
+
+        receive(from = ALICE, payload = ProfileKeyUpdate(aliceFirstKey).serialize())
+
+        assertEquals(1, tables.contacts.getValue(ALICE).unreadProfileUpdates)
+
+        assertIs<Result.Success<Unit>>(contacts.resolveNames())
+
+        assertEquals("Alice Durand", tables.names[ALICE])
+        assertEquals(0, tables.contacts.getValue(ALICE).unreadProfileUpdates)
+        assertTrue(tables.pending.isEmpty())
+        assertTrue(tables.contactDao.getUpdatedSinceRead().isEmpty())
+    }
+
+    /** Edited after a removal of hers rotated it, under the new key she hands over with the edit. */
+    @Test
+    fun `a contact handing over a new key is read again with it`() = runBlocking<Unit> {
+        aliceUploads()
+        tables.add(contact(ALICE, key = aliceFirstKey))
+        contacts.resolveNames()
+
+        aliceProfiles.oweProfileKeyRotation {}
+        assertIs<Result.Success<Unit>>(
+            aliceProfiles.uploadProfile(userUuid = ALICE, username = "alice", fullName = "Alice Durand"),
+        )
+        receive(from = ALICE, payload = ProfileKeyUpdate(aliceVault.profileEncryptionKey).serialize())
+        contacts.resolveNames()
+
+        assertEquals("Alice Durand", tables.names[ALICE])
+        assertTrue(tables.pending.isEmpty())
+    }
+
+    /**
+     * A rotation of Alice's cut short by a log-out left a version under a key she never held, so
+     * the one she hands over after an edit opens no latest version: it is hers as it stands all
+     * the same, and asked for it, she would only answer the same, every day.
+     */
+    @Test
+    fun `a contact read again for handing over the very key held is not asked for it`() = runBlocking<Unit> {
+        aliceUploads()
+        aliceVault.failsReplacement = true
+        aliceProfiles.oweProfileKeyRotation {}
+        aliceProfiles.rotateProfileKey(userUuid = ALICE)
+        aliceVault.pendingKey = null
+
+        tables.add(contact(ALICE, key = aliceFirstKey))
+        contacts.resolveNames()
+        receive(from = ALICE, payload = ProfileKeyUpdate(aliceFirstKey).serialize())
+
+        assertIs<Result.Success<Unit>>(
+            aliceProfiles.uploadProfile(userUuid = ALICE, username = "alice", fullName = "Alice Durand"),
+        )
+        receive(from = ALICE, payload = ProfileKeyUpdate(aliceFirstKey).serialize())
+        contacts.resolveNames()
+
+        assertEquals("Alice Durand", tables.names[ALICE])
+        assertTrue(tables.pending.isEmpty())
+        assertTrue(tables.contactDao.getUpdatedSinceRead().isEmpty())
+    }
+
+    @Test
+    fun `a contact read again whose profile could not be asked for stays due`() = runBlocking<Unit> {
+        aliceUploads()
+        tables.add(contact(ALICE, key = aliceFirstKey))
+        contacts.resolveNames()
+        receive(from = ALICE, payload = ProfileKeyUpdate(aliceFirstKey).serialize())
+        store.failsReading = true
+
+        assertIs<Result.Error<ContactSyncError>>(contacts.resolveNames())
+        assertEquals(1, tables.contacts.getValue(ALICE).unreadProfileUpdates)
+
+        store.failsReading = false
+
+        assertIs<Result.Success<Unit>>(contacts.resolveNames())
+        assertEquals(0, tables.contacts.getValue(ALICE).unreadProfileUpdates)
     }
 
     /** Nothing learnt about the key, so nothing recorded: the next sync reads it again. */

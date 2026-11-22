@@ -108,6 +108,26 @@ internal class ContactTables {
             add(row.copy(handedProfileKeyHash = handedProfileKeyHash, isBackedUp = false))
         }
 
+        override suspend fun oweProfileKeyAgain(): Int {
+            val owed = current()
+
+            owed.forEach { add(it.copy(handedProfileKeyHash = null, isBackedUp = false)) }
+
+            return owed.size
+        }
+
+        override suspend fun countProfileUpdate(userUuid: String) {
+            val row = get(userUuid) ?: return
+
+            add(row.copy(unreadProfileUpdates = row.unreadProfileUpdates + 1))
+        }
+
+        override suspend fun markProfileRead(userUuid: String, count: Int) {
+            val row = contacts[userUuid]?.takeIf { it.unreadProfileUpdates == count } ?: return
+
+            add(row.copy(unreadProfileUpdates = 0))
+        }
+
         /** The row as it stands when the flow is collected, which is all a test reads of it. */
         override fun getVerifiableAsFlow(userUuid: String): Flow<VerifiableContact?> = flow {
             emit(
@@ -134,6 +154,9 @@ internal class ContactTables {
                 contact.userUuid !in names ||
                     (stale != null && !stale.profileEncryptionKey.contentEquals(contact.profileEncryptionKey))
             }
+
+        override suspend fun getUpdatedSinceRead(): List<ContactEntity> =
+            current().filter { it.unreadProfileUpdates > 0 }
     }
 
     val pendingProfileKeyDao: PendingProfileKeyDao = object : PendingProfileKeyDao {
@@ -303,6 +326,7 @@ internal fun ContactEntity.copy(
     isBackedUp: Boolean = this.isBackedUp,
     isRemoved: Boolean = this.isRemoved,
     rotatesProfileKey: Boolean = this.rotatesProfileKey,
+    unreadProfileUpdates: Int = this.unreadProfileUpdates,
 ) = ContactEntity(
     userUuid = userUuid,
     profileEncryptionKey = profileEncryptionKey,
@@ -311,6 +335,7 @@ internal fun ContactEntity.copy(
     isBackedUp = isBackedUp,
     isRemoved = isRemoved,
     rotatesProfileKey = rotatesProfileKey,
+    unreadProfileUpdates = unreadProfileUpdates,
 )
 
 internal fun PendingProfileKeyEntity.copy(

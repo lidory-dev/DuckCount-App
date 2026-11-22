@@ -67,8 +67,9 @@ class ContactSync(
     /**
      * Carries the contact changes this device made to the vault, and who the user blocked or
      * unblocked, see [BlockedUserRepository.backUp], hands the key to the user's
-     * profile to the contacts who do not hold it yet, reads the profiles of the contacts it has
-     * no name for, or was missing the current key of and has a new one from, see
+     * profile to the contacts who do not hold it yet, or are owed it again since the user edited
+     * the profile, reads the profiles of the contacts it has no name for, or was missing the
+     * current key of and has a new one from, or who handed theirs over since the last read, see
      * [ContactRepository.resolveNames], asks those whose key it is missing for it, and rebuilds
      * who may wake the user, see [WakeList].
      *

@@ -27,6 +27,12 @@ import vault.ProfileKeyVault
  * since, until handed the new one: this is what hands it over, at the end of every backup, see
  * [ContactSync.backUp], so a key that just rotated goes out at once.
  *
+ * And again to every contact once the user edits their profile, the very key they hold, see
+ * `ProfileRepository.uploadProfile`: an edit goes up under the current key, and the key handed
+ * over once more is what tells them to read the profile again, see
+ * [ContactRepository.receiveProfileKey][database.data.repository.ContactRepository.receiveProfileKey].
+ * A build from before reads it as the key it already holds, and changes nothing.
+ *
  * Who is owed it is told by the hash of the current key the device keeps, see
  * [ProfileKeyVault.getCachedProfileEncryptionKeyPartialHash], so a sync that owes nobody, nearly
  * every one, reads nothing from the vault. One that owes somebody reads the key once.

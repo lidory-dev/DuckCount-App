@@ -34,12 +34,16 @@ class ProfileOwnerBindingTest {
         profileStore = store,
         profileKeyVault = InMemoryProfileKeyVault(profileEncryptionKey = aliceKey),
         userDao = UsersWritten(),
+        oweProfileKeyAgain = { false },
+        handOutSoon = {},
     )
 
     private val bob = ProfileRepository(
         profileStore = store,
         profileKeyVault = InMemoryProfileKeyVault(profileEncryptionKey = bobKey),
         userDao = UsersWritten(),
+        oweProfileKeyAgain = { false },
+        handOutSoon = {},
     )
 
     @Test
@@ -91,6 +95,8 @@ class ProfileOwnerBindingTest {
             profileStore = store,
             profileKeyVault = InMemoryProfileKeyVault(profileEncryptionKey = aliceKey),
             userDao = UsersWritten(),
+            oweProfileKeyAgain = { false },
+            handOutSoon = {},
         )
 
         assertIs<Result.Success<Unit>>(alice.uploadProfile(userUuid = ALICE, username = "alice", fullName = "Alice Martin"))

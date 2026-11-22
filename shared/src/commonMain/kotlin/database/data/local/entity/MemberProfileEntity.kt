@@ -77,7 +77,9 @@ class MemberProfileEntity(
     /**
      * The partial hash of the key [fullName] was last read with, or a read under it settled
      * without one, the profile it opens being gone: one that differs from that of
-     * [profileEncryptionKey] is a profile still to read. Null when none was read.
+     * [profileEncryptionKey] is a profile still to read. Null when none was read, or when its owner
+     * posted the key again since, as they do after every edit of their profile, see
+     * [MemberProfileDao.raiseOwnerKeySentAt][database.data.local.dao.MemberProfileDao.raiseOwnerKeySentAt].
      */
     val nameKeyHash: String?,
 

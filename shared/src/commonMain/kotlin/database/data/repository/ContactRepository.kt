@@ -191,14 +191,17 @@ class ContactRepository(
     }
 
     /**
-     * Takes [profileEncryptionKey] as the new key to the profile of [senderUserUuid], from
-     * their [ProfileKeyUpdate][contact.ProfileKeyUpdate], pushed as it rotated or answering
-     * this device's request for it. The vault only gets it with the next [backUp].
+     * Takes [profileEncryptionKey] as the key to the profile of [senderUserUuid], from their
+     * [ProfileKeyUpdate][contact.ProfileKeyUpdate], pushed as it rotated or as they edited their
+     * profile, or answering this device's request for it. The vault only gets a new one with the
+     * next [backUp].
      *
      * Only from a contact: anybody else is handing over the key to a profile this device has
      * no business reading, and a former contact one it no longer reads. The name shown stays
-     * as it is, and [resolveNames] reads it with the new key whenever this device has none, or
-     * was missing their current key, which it reads to find out whether this is the one.
+     * as it is until [resolveNames] reads it again, with whichever key this is, see
+     * [ContactEntity.unreadProfileUpdates]: an edit of theirs goes up under the key they hold,
+     * and the key handed over once more is all that tells of it, see
+     * [ProfileRepository.uploadProfile].
      *
      * The very key this device holds is the contact saying it is their current one, so there
      * is nothing newer to ask them for, whatever the version it opens says: one of theirs can
@@ -211,14 +214,14 @@ class ContactRepository(
 
         if (contact.profileEncryptionKey.contentEquals(profileEncryptionKey)) {
             pendingProfileKeyDao.delete(userUuid = senderUserUuid)
-
-            return
+        } else {
+            contactDao.replaceProfileEncryptionKey(
+                userUuid = senderUserUuid,
+                profileEncryptionKey = profileEncryptionKey,
+            )
         }
 
-        contactDao.replaceProfileEncryptionKey(
-            userUuid = senderUserUuid,
-            profileEncryptionKey = profileEncryptionKey,
-        )
+        contactDao.countProfileUpdate(userUuid = senderUserUuid)
     }
 
     /**
@@ -455,8 +458,10 @@ class ContactRepository(
 
     /**
      * Reads the profile of every contact this device has no name for, or was missing the current
-     * key of and has a new one from, saving the name on it, see
-     * [ContactDao.getDueForRead][database.data.local.dao.ContactDao.getDueForRead].
+     * key of and has a new one from, see
+     * [ContactDao.getDueForRead][database.data.local.dao.ContactDao.getDueForRead], or who handed
+     * over their key since the last read, as they do after every edit, see
+     * [ContactEntity.unreadProfileUpdates], saving the name on it.
      *
      * What the read says of the key it was made with goes along: one that opens no version of
      * the profile, or one that is not the latest, is most often a key the contact replaced, the
@@ -467,13 +472,22 @@ class ContactRepository(
      * saved all the same: off an older version, it is the one they had when that key was
      * replaced, which beats none. A read that opens their latest version settles it too.
      *
+     * Not for a contact read only for having handed over their key: they hand over the one they
+     * hold as current, and asked, would answer the same, see [receiveProfileKey]. Asking them would
+     * have them answer, and the answer read again, every day.
+     *
      * Every contact is attempted, and the first failure is reported. Only a profile that
-     * could not be asked for is one, see [ContactSyncError.Profile].
+     * could not be asked for is one, see [ContactSyncError.Profile], which leaves a contact who
+     * handed over their key due for the next pass.
      */
     suspend fun resolveNames(): EmptyResult<ContactSyncError> {
         var failure: ContactSyncError? = null
 
-        for (contact in contactDao.getDueForRead()) {
+        val inDoubt = contactDao.getDueForRead()
+        val inDoubtUuids = inDoubt.mapTo(HashSet()) { it.userUuid }
+        val updated = contactDao.getUpdatedSinceRead().filterNot { it.userUuid in inDoubtUuids }
+
+        for (contact in inDoubt + updated) {
             val read = profileRepository.readFullName(
                 userUuid = contact.userUuid,
                 profileEncryptionKey = contact.profileEncryptionKey,
@@ -485,7 +499,7 @@ class ContactRepository(
 
                     if (read.data.isLatest) {
                         pendingProfileKeyDao.delete(userUuid = contact.userUuid)
-                    } else {
+                    } else if (contact.userUuid in inDoubtUuids) {
                         pendingProfileKeyDao.recordStale(
                             userUuid = contact.userUuid,
                             profileEncryptionKey = contact.profileEncryptionKey,
@@ -504,12 +518,21 @@ class ContactRepository(
                     )
 
                     // One contact's profile failing says nothing about the next one's.
-                    is ProfileError.Network -> failure = failure ?: ContactSyncError.Profile(read.error)
+                    is ProfileError.Network -> {
+                        failure = failure ?: ContactSyncError.Profile(read.error)
+
+                        continue
+                    }
 
                     // A version that does not open with the key it was asked for under is its
-                    // owner's to put right, not a key gone missing.
+                    // owner's to put right, not a key gone missing, and their next save hands it
+                    // over again.
                     else -> Unit
                 }
+            }
+
+            if (contact.unreadProfileUpdates > 0) {
+                contactDao.markProfileRead(userUuid = contact.userUuid, count = contact.unreadProfileUpdates)
             }
         }
 

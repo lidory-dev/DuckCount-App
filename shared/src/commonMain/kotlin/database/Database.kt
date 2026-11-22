@@ -1,5 +1,6 @@
 package database
 
+import androidx.room.AutoMigration
 import androidx.room.ConstructedBy
 import androidx.room.Database
 import androidx.room.RoomDatabase
@@ -102,7 +103,12 @@ import org.koin.mp.KoinPlatform.getKoin
         MlsRecordEntity::class,
         MemberProfileEntity::class,
     ],
-    version = 1,
+    // What each version adds, the one before it being what a released build may still hold, see
+    // `shared/schemas`: 2, `ContactEntity.unreadProfileUpdates`.
+    version = 2,
+    autoMigrations = [
+        AutoMigration(from = 1, to = 2),
+    ],
 )
 @ConstructedBy(AppDatabaseConstructor::class)
 @TypeConverters(CurrencyConverter::class)

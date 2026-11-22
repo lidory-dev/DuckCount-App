@@ -77,11 +77,17 @@ interface MemberProfileDao {
 
     /**
      * Moves the time the key held for [userUuid] came in from its owner up to [sentAt], when it is
-     * earlier or there is none, see [takeOwnerKey]. The key and the name stay, and so does the
-     * vault's copy: the vault holds no time, see [MemberProfileEntity.ownerKeySentAt].
+     * earlier or there is none, see [takeOwnerKey], and has their profile read again with it, see
+     * [MemberProfileEntity.nameKeyHash]. The key and the name stay, and so does the vault's copy:
+     * the vault holds no time, see [MemberProfileEntity.ownerKeySentAt].
+     *
+     * Read again since a member posts the very key they hold into every group of theirs after
+     * every edit of their profile, see `profile.ProfileRepository.uploadProfile`, which is all
+     * that tells this device the name it shows may no longer be theirs. A post says nothing of why
+     * it was made, so the ones made as a group's creator seats somebody have it read again too.
      */
     @Query(
-        """UPDATE MemberProfileEntity SET ownerKeySentAt = :sentAt
+        """UPDATE MemberProfileEntity SET ownerKeySentAt = :sentAt, nameKeyHash = NULL
         WHERE userUuid = :userUuid AND (ownerKeySentAt IS NULL OR ownerKeySentAt < :sentAt)""",
     )
     suspend fun raiseOwnerKeySentAt(userUuid: String, sentAt: Long)
@@ -127,28 +133,40 @@ interface MemberProfileDao {
 
     /**
      * Saves [fullName] as the name of [userUuid], read with [profileEncryptionKey], whose partial
-     * hash is [nameKeyHash], only while that is still the key held: one that replaced it during the
-     * read is read in turn by the next pass. A name that changed is for the vault to take.
+     * hash is [nameKeyHash], only while that is still the key held, and [ownerKeySentAt] still the
+     * time of the latest post of it, see [raiseOwnerKeySentAt]: one that replaced it during the
+     * read is read in turn by the next pass, and so is the profile of a member who posted it again
+     * meanwhile, which the read may have been made before. A name that changed is for the vault to
+     * take.
      */
     @Query(
         """UPDATE MemberProfileEntity
         SET fullName = :fullName,
         nameKeyHash = :nameKeyHash,
         isBackedUp = CASE WHEN fullName IS :fullName THEN isBackedUp ELSE false END
-        WHERE userUuid = :userUuid AND profileEncryptionKey = :profileEncryptionKey""",
+        WHERE userUuid = :userUuid AND profileEncryptionKey = :profileEncryptionKey
+        AND ownerKeySentAt IS :ownerKeySentAt""",
     )
-    suspend fun setName(userUuid: String, profileEncryptionKey: ByteArray, fullName: String, nameKeyHash: String)
+    suspend fun setName(
+        userUuid: String,
+        profileEncryptionKey: ByteArray,
+        ownerKeySentAt: Long?,
+        fullName: String,
+        nameKeyHash: String,
+    )
 
     /**
      * Records the read of the profile of [userUuid] under [profileEncryptionKey], whose partial
      * hash is [nameKeyHash], as settled without a name, the server holding nothing under it, while
-     * that is still the key held: whatever name was read before stays.
+     * that is still the key held, and [ownerKeySentAt] still the time of its latest post, as for
+     * [setName]: whatever name was read before stays.
      */
     @Query(
         """UPDATE MemberProfileEntity SET nameKeyHash = :nameKeyHash
-        WHERE userUuid = :userUuid AND profileEncryptionKey = :profileEncryptionKey""",
+        WHERE userUuid = :userUuid AND profileEncryptionKey = :profileEncryptionKey
+        AND ownerKeySentAt IS :ownerKeySentAt""",
     )
-    suspend fun settleRead(userUuid: String, profileEncryptionKey: ByteArray, nameKeyHash: String)
+    suspend fun settleRead(userUuid: String, profileEncryptionKey: ByteArray, ownerKeySentAt: Long?, nameKeyHash: String)
 
     /**
      * Takes [fullName], the name the contact list showed for [userUuid] as they stopped being the

@@ -31,7 +31,11 @@ import vault.ProfileKeyVault
  * get the new one one by one, see [ProfileKeyDelivery], and each group gets it here, in one post
  * its members all read. Each takes it as the owner's own, which replaces whatever key was held for
  * the user, the server having stored it after every post of theirs before it, in this group or any
- * other, see [MemberProfileRepository.takeOwnerKey].
+ * other, see [MemberProfileRepository.takeOwnerKey]. And into each again once the user edits their
+ * profile, the very key the group holds, see `ProfileRepository.uploadProfile`: each member reads
+ * the profile again for it, see
+ * [MemberProfileDao.raiseOwnerKeySentAt][database.data.local.dao.MemberProfileDao.raiseOwnerKeySentAt],
+ * at their next sync, the server waking nobody for a post.
  *
  * Into the groups the members can trust what the post says of its sender in, see
  * [GroupDao.getOwedProfileKey]: one the user is still in, whose MLS state this device holds, and

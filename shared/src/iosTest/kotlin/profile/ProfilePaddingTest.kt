@@ -32,7 +32,13 @@ class ProfilePaddingTest {
     private val hash = profileEncryptionKeyPartialHash(key)
     private val vault = InMemoryProfileKeyVault(profileEncryptionKey = key)
 
-    private val alice = ProfileRepository(profileStore = store, profileKeyVault = vault, userDao = UsersWritten())
+    private val alice = ProfileRepository(
+        profileStore = store,
+        profileKeyVault = vault,
+        userDao = UsersWritten(),
+        oweProfileKeyAgain = { false },
+        handOutSoon = {},
+    )
 
     private suspend fun upload(fullName: String = "Ada Lovelace") {
         assertIs<Result.Success<Unit>>(alice.uploadProfile(userUuid = ALICE, username = "alice", fullName = fullName))
@@ -147,6 +153,8 @@ class ProfilePaddingTest {
                 profileStore = store,
                 profileKeyVault = InMemoryProfileKeyVault(profileEncryptionKey = key),
                 userDao = UsersWritten(),
+                oweProfileKeyAgain = { false },
+                handOutSoon = {},
             )
 
             assertIs<Result.Success<Unit>>(owner.uploadProfile(userUuid = ALICE, username = "alice", fullName = "Ada"))

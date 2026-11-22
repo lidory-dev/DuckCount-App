@@ -9,5 +9,14 @@ import profile.ProfileStore
 
 val profileModule = module {
     singleOf(::ProfileApi) { bind<ProfileStore>() }
-    singleOf(::ProfileRepository)
+    single {
+        ProfileRepository(
+            profileStore = get(),
+            profileKeyVault = get(),
+            userDao = get(),
+            contactDao = get(),
+            groupDao = get(),
+            resendScheduler = get(),
+        )
+    }
 }

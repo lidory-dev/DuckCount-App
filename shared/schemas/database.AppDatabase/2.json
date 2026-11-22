@@ -1,0 +1,1252 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "8204a46c4c052d1f72378a0fb4295b0e",
+    "entities": [
+      {
+        "tableName": "UserEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `username` TEXT NOT NULL, `fullName` TEXT NOT NULL, `isDeleted` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "username",
+            "columnName": "username",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fullName",
+            "columnName": "fullName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isDeleted",
+            "columnName": "isDeleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        }
+      },
+      {
+        "tableName": "ExpenseEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `timestamp` TEXT NOT NULL, `description` TEXT NOT NULL, `amount` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `isSettlement` INTEGER NOT NULL, `currency` TEXT NOT NULL, `groupUuid` TEXT, `isDeleted` INTEGER NOT NULL, `revision` INTEGER, `authorUuid` TEXT, PRIMARY KEY(`uuid`))",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "amount",
+            "columnName": "amount",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "creditorUuid",
+            "columnName": "creditorUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isSettlement",
+            "columnName": "isSettlement",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currency",
+            "columnName": "currency",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isDeleted",
+            "columnName": "isDeleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "authorUuid",
+            "columnName": "authorUuid",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        }
+      },
+      {
+        "tableName": "CurrencyEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `name` TEXT NOT NULL, `symbol` TEXT NOT NULL, `hasSubunits` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "symbol",
+            "columnName": "symbol",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasSubunits",
+            "columnName": "hasSubunits",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        }
+      },
+      {
+        "tableName": "BeneficiaryEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `userUuid` TEXT NOT NULL, `share` TEXT NOT NULL, `isShareFixed` INTEGER NOT NULL, `sharePercentage` TEXT, `shareWeight` TEXT, PRIMARY KEY(`expenseUuid`, `userUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userUuid",
+            "columnName": "userUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "share",
+            "columnName": "share",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isShareFixed",
+            "columnName": "isShareFixed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sharePercentage",
+            "columnName": "sharePercentage",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "shareWeight",
+            "columnName": "shareWeight",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid",
+            "userUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "GroupEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `currency` TEXT NOT NULL, `infoRevision` INTEGER NOT NULL, `ownerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `groupKey` BLOB NOT NULL, `keyGeneration` INTEGER NOT NULL, `isBackedUp` INTEGER NOT NULL, `isLeft` INTEGER NOT NULL, `handedProfileKeyHash` TEXT, `hasTakenInExpenses` INTEGER NOT NULL, `isAwaitingOwner` INTEGER NOT NULL, `isDeleted` INTEGER NOT NULL, PRIMARY KEY(`uuid`))",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currency",
+            "columnName": "currency",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "infoRevision",
+            "columnName": "infoRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerUuid",
+            "columnName": "ownerUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mlsGroupId",
+            "columnName": "mlsGroupId",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "groupKey",
+            "columnName": "groupKey",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "keyGeneration",
+            "columnName": "keyGeneration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isBackedUp",
+            "columnName": "isBackedUp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLeft",
+            "columnName": "isLeft",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "handedProfileKeyHash",
+            "columnName": "handedProfileKeyHash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "hasTakenInExpenses",
+            "columnName": "hasTakenInExpenses",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isAwaitingOwner",
+            "columnName": "isAwaitingOwner",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isDeleted",
+            "columnName": "isDeleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        }
+      },
+      {
+        "tableName": "GroupMemberEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `groupUuid` TEXT NOT NULL, `isAdmin` INTEGER NOT NULL, PRIMARY KEY(`userUuid`, `groupUuid`))",
+        "fields": [
+          {
+            "fieldPath": "userUuid",
+            "columnName": "userUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isAdmin",
+            "columnName": "isAdmin",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "userUuid",
+            "groupUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "GroupKeyEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `generation` INTEGER NOT NULL, `groupKey` BLOB NOT NULL, `isLinkOwed` INTEGER NOT NULL, `isRecovered` INTEGER NOT NULL, PRIMARY KEY(`groupUuid`, `generation`))",
+        "fields": [
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generation",
+            "columnName": "generation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "groupKey",
+            "columnName": "groupKey",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLinkOwed",
+            "columnName": "isLinkOwed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isRecovered",
+            "columnName": "isRecovered",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "groupUuid",
+            "generation"
+          ]
+        }
+      },
+      {
+        "tableName": "GroupMemberSignatureKeyEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `userUuid` TEXT NOT NULL, `signatureKey` BLOB NOT NULL, PRIMARY KEY(`groupUuid`, `userUuid`))",
+        "fields": [
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userUuid",
+            "columnName": "userUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "signatureKey",
+            "columnName": "signatureKey",
+            "affinity": "BLOB",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "groupUuid",
+            "userUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "PendingGroupCreationEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `body` TEXT NOT NULL, PRIMARY KEY(`groupUuid`))",
+        "fields": [
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "body",
+            "columnName": "body",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "groupUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "PendingMembershipChangeEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `kind` TEXT NOT NULL, `body` TEXT NOT NULL, `commitEpoch` INTEGER NOT NULL, `isOutdated` INTEGER NOT NULL, PRIMARY KEY(`groupUuid`, `isOutdated`))",
+        "fields": [
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "body",
+            "columnName": "body",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "commitEpoch",
+            "columnName": "commitEpoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isOutdated",
+            "columnName": "isOutdated",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "groupUuid",
+            "isOutdated"
+          ]
+        }
+      },
+      {
+        "tableName": "DeclinedGroupEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, PRIMARY KEY(`groupUuid`))",
+        "fields": [
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "groupUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "ContactRequestEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uuid` TEXT NOT NULL, `senderUserUuid` TEXT NOT NULL, `ciphertext` TEXT NOT NULL, `createdAt` TEXT NOT NULL, `mlsGroupId` BLOB, `profileEncryptionKey` BLOB, `senderFullName` TEXT, `isAcceptanceSent` INTEGER NOT NULL, `handedProfileKeyHash` TEXT, PRIMARY KEY(`uuid`))",
+        "fields": [
+          {
+            "fieldPath": "uuid",
+            "columnName": "uuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "senderUserUuid",
+            "columnName": "senderUserUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ciphertext",
+            "columnName": "ciphertext",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mlsGroupId",
+            "columnName": "mlsGroupId",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "profileEncryptionKey",
+            "columnName": "profileEncryptionKey",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "senderFullName",
+            "columnName": "senderFullName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isAcceptanceSent",
+            "columnName": "isAcceptanceSent",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "handedProfileKeyHash",
+            "columnName": "handedProfileKeyHash",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uuid"
+          ]
+        }
+      },
+      {
+        "tableName": "OutgoingContactRequestEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`mlsGroupId` BLOB NOT NULL, `recipientUserUuid` TEXT NOT NULL, `handedProfileKeyHash` TEXT NOT NULL, `isStored` INTEGER NOT NULL, PRIMARY KEY(`mlsGroupId`))",
+        "fields": [
+          {
+            "fieldPath": "mlsGroupId",
+            "columnName": "mlsGroupId",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recipientUserUuid",
+            "columnName": "recipientUserUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "handedProfileKeyHash",
+            "columnName": "handedProfileKeyHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isStored",
+            "columnName": "isStored",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "mlsGroupId"
+          ]
+        }
+      },
+      {
+        "tableName": "ContactEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `handedProfileKeyHash` TEXT, `verifiedSafetyNumber` TEXT, `isBackedUp` INTEGER NOT NULL, `isRemoved` INTEGER NOT NULL, `rotatesProfileKey` INTEGER NOT NULL, `unreadProfileUpdates` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`userUuid`))",
+        "fields": [
+          {
+            "fieldPath": "userUuid",
+            "columnName": "userUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileEncryptionKey",
+            "columnName": "profileEncryptionKey",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "handedProfileKeyHash",
+            "columnName": "handedProfileKeyHash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "verifiedSafetyNumber",
+            "columnName": "verifiedSafetyNumber",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isBackedUp",
+            "columnName": "isBackedUp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isRemoved",
+            "columnName": "isRemoved",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rotatesProfileKey",
+            "columnName": "rotatesProfileKey",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unreadProfileUpdates",
+            "columnName": "unreadProfileUpdates",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "userUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "DirectChannelEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`peerUuid` TEXT NOT NULL, `mlsGroupId` BLOB, `previousMlsGroupId` BLOB, `olderMlsGroupId` BLOB, `pendingWelcome` BLOB, `pendingWelcomeSince` INTEGER, `welcomeAttachCount` INTEGER NOT NULL, `replyBudgetFullAt` INTEGER, PRIMARY KEY(`peerUuid`))",
+        "fields": [
+          {
+            "fieldPath": "peerUuid",
+            "columnName": "peerUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mlsGroupId",
+            "columnName": "mlsGroupId",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "previousMlsGroupId",
+            "columnName": "previousMlsGroupId",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "olderMlsGroupId",
+            "columnName": "olderMlsGroupId",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "pendingWelcome",
+            "columnName": "pendingWelcome",
+            "affinity": "BLOB"
+          },
+          {
+            "fieldPath": "pendingWelcomeSince",
+            "columnName": "pendingWelcomeSince",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "welcomeAttachCount",
+            "columnName": "welcomeAttachCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "replyBudgetFullAt",
+            "columnName": "replyBudgetFullAt",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "peerUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "IdentityConflictEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`peerUuid` TEXT NOT NULL, PRIMARY KEY(`peerUuid`))",
+        "fields": [
+          {
+            "fieldPath": "peerUuid",
+            "columnName": "peerUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "peerUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "BlockedUserEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `fullName` TEXT, `isBackedUp` INTEGER NOT NULL, `isUnblocked` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
+        "fields": [
+          {
+            "fieldPath": "userUuid",
+            "columnName": "userUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fullName",
+            "columnName": "fullName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isBackedUp",
+            "columnName": "isBackedUp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isUnblocked",
+            "columnName": "isUnblocked",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "userUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "OneTimeExpenseKeyEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `record` BLOB NOT NULL, PRIMARY KEY(`expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "record",
+            "columnName": "record",
+            "affinity": "BLOB",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "UnverifiedExpenseKeyEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `record` BLOB NOT NULL, PRIMARY KEY(`expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "record",
+            "columnName": "record",
+            "affinity": "BLOB",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "ExpenseRevisionEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `newestRevision` INTEGER NOT NULL, PRIMARY KEY(`expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "newestRevision",
+            "columnName": "newestRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "OneTimeExpenseSettledMarkEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `markedAt` INTEGER NOT NULL, `isSettled` INTEGER NOT NULL, PRIMARY KEY(`expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "markedAt",
+            "columnName": "markedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isSettled",
+            "columnName": "isSettled",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "GroupExpenseDeletionEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `deletionRevision` INTEGER NOT NULL, `isDeleted` INTEGER NOT NULL, `authorUuid` TEXT NOT NULL, PRIMARY KEY(`expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deletionRevision",
+            "columnName": "deletionRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isDeleted",
+            "columnName": "isDeleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "authorUuid",
+            "columnName": "authorUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "PendingExpenseKeyEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `creditorUuid` TEXT NOT NULL, `firstSeenAt` INTEGER NOT NULL, `lastRequestedAt` INTEGER, `requestCount` INTEGER NOT NULL, `state` TEXT NOT NULL, `isAwaitedAtRemoval` INTEGER NOT NULL, PRIMARY KEY(`expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "creditorUuid",
+            "columnName": "creditorUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstSeenAt",
+            "columnName": "firstSeenAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastRequestedAt",
+            "columnName": "lastRequestedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "requestCount",
+            "columnName": "requestCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isAwaitedAtRemoval",
+            "columnName": "isAwaitedAtRemoval",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "KeyRequestBudgetEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`creditorUuid` TEXT NOT NULL, `budgetFullAt` INTEGER NOT NULL, PRIMARY KEY(`creditorUuid`))",
+        "fields": [
+          {
+            "fieldPath": "creditorUuid",
+            "columnName": "creditorUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "budgetFullAt",
+            "columnName": "budgetFullAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "creditorUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "PendingProfileKeyEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `lastRequestedAt` INTEGER, `requestCount` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
+        "fields": [
+          {
+            "fieldPath": "userUuid",
+            "columnName": "userUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileEncryptionKey",
+            "columnName": "profileEncryptionKey",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastRequestedAt",
+            "columnName": "lastRequestedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "requestCount",
+            "columnName": "requestCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "userUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "ProfileKeyRequestBudgetEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`peerUuid` TEXT NOT NULL, `budgetFullAt` INTEGER NOT NULL, PRIMARY KEY(`peerUuid`))",
+        "fields": [
+          {
+            "fieldPath": "peerUuid",
+            "columnName": "peerUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "budgetFullAt",
+            "columnName": "budgetFullAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "peerUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "OwedExpenseKeyEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `recipientUuid` TEXT NOT NULL, PRIMARY KEY(`expenseUuid`, `recipientUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recipientUuid",
+            "columnName": "recipientUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid",
+            "recipientUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "ListedOneTimeExpenseEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`expenseUuid` TEXT NOT NULL, `json` TEXT NOT NULL, PRIMARY KEY(`expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "expenseUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "ListedGroupExpenseEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `expenseUuid` TEXT NOT NULL, `json` TEXT NOT NULL, PRIMARY KEY(`groupUuid`, `expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "json",
+            "columnName": "json",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "groupUuid",
+            "expenseUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "UnreadableGroupExpenseEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupUuid` TEXT NOT NULL, `expenseUuid` TEXT NOT NULL, PRIMARY KEY(`groupUuid`, `expenseUuid`))",
+        "fields": [
+          {
+            "fieldPath": "groupUuid",
+            "columnName": "groupUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expenseUuid",
+            "columnName": "expenseUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "groupUuid",
+            "expenseUuid"
+          ]
+        }
+      },
+      {
+        "tableName": "ChangeFeedEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`feed` TEXT NOT NULL, `token` TEXT NOT NULL, PRIMARY KEY(`feed`))",
+        "fields": [
+          {
+            "fieldPath": "feed",
+            "columnName": "feed",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "token",
+            "columnName": "token",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "feed"
+          ]
+        }
+      },
+      {
+        "tableName": "MlsRecordEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`namespace` TEXT NOT NULL, `key` BLOB NOT NULL, `value` BLOB NOT NULL, PRIMARY KEY(`namespace`, `key`))",
+        "fields": [
+          {
+            "fieldPath": "namespace",
+            "columnName": "namespace",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "BLOB",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "namespace",
+            "key"
+          ]
+        }
+      },
+      {
+        "tableName": "MemberProfileEntity",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `isFromOwner` INTEGER NOT NULL, `ownerKeySentAt` INTEGER, `fullName` TEXT, `nameKeyHash` TEXT, `isBackedUp` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
+        "fields": [
+          {
+            "fieldPath": "userUuid",
+            "columnName": "userUuid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileEncryptionKey",
+            "columnName": "profileEncryptionKey",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isFromOwner",
+            "columnName": "isFromOwner",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerKeySentAt",
+            "columnName": "ownerKeySentAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "fullName",
+            "columnName": "fullName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "nameKeyHash",
+            "columnName": "nameKeyHash",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isBackedUp",
+            "columnName": "isBackedUp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "userUuid"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8204a46c4c052d1f72378a0fb4295b0e')"
+    ]
+  }
+}

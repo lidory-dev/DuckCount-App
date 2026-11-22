@@ -85,6 +85,19 @@ class GroupDaoTest {
         }
     }
 
+    /** Posted again, the key tells the members to read the user's profile again. */
+    @Test
+    fun `an edit owes the key again to every group the user is still in`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            database.groupDao.insert(groupOf(GROUP, handedProfileKeyHash = CURRENT_HASH))
+            database.groupDao.insert(groupOf(OTHER_GROUP, isLeft = true, handedProfileKeyHash = CURRENT_HASH))
+
+            assertEquals(1, database.groupDao.oweProfileKeyAgain())
+            assertEquals(setOf(GROUP), database.groupDao.owed())
+            assertEquals(CURRENT_HASH, database.groupDao.get(uuid = OTHER_GROUP)?.handedProfileKeyHash)
+        }
+    }
+
     /** Nothing can be posted into either: the user is no longer a member, or this device holds no MLS state for it. */
     @Test
     fun `a group the user was removed from or brought back after a log-out is owed nothing`() =

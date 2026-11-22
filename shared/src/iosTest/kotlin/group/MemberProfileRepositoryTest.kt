@@ -67,6 +67,8 @@ class MemberProfileRepositoryTest {
         profileStore = store,
         profileKeyVault = InMemoryProfileKeyVault(profileEncryptionKey = generateSymmetricEncryptionKey()),
         userDao = UsersWritten(),
+        oweProfileKeyAgain = { false },
+        handOutSoon = {},
     )
 
     /** Whose profile was read, in order. */
@@ -240,6 +242,8 @@ class MemberProfileRepositoryTest {
             profileStore = store,
             profileKeyVault = InMemoryProfileKeyVault(profileEncryptionKey = key),
             userDao = UsersWritten(),
+            oweProfileKeyAgain = { false },
+            handOutSoon = {},
         )
 
         assertIs<Result.Success<Unit>>(theirs.uploadProfile(userUuid = userUuid, username = "", fullName = fullName))
@@ -290,12 +294,54 @@ class MemberProfileRepositoryTest {
 
     /** A member posts their key into every group they are in. */
     @Test
-    fun `the very key from its owner again changes nothing`() = runBlocking<Unit> {
+    fun `the very key from its owner again leaves the vault's copy as it is`() = runBlocking<Unit> {
         tables.add(member(NINA, key = ninaKey, isFromOwner = true, isBackedUp = true))
 
         members.takeOwnerKey(userUuid = NINA, profileEncryptionKey = ninaKey.copyOf(), sentAt = SENT_AT)
 
         assertTrue(row(NINA).isBackedUp)
+    }
+
+    /** Nina renamed herself under the key she holds, and posted it again for the groups to read. */
+    @Test
+    fun `the very key from its owner posted again has the member read again`() = runBlocking<Unit> {
+        upload(NINA, key = ninaKey, fullName = "Nina Petit")
+        members.takeOwnerKey(userUuid = NINA, profileEncryptionKey = ninaKey, sentAt = SENT_AT)
+        members.readNames()
+
+        upload(NINA, key = ninaKey, fullName = "Nina Roux")
+        members.readNames()
+
+        assertEquals("Nina Petit", row(NINA).fullName)
+
+        members.takeOwnerKey(userUuid = NINA, profileEncryptionKey = ninaKey, sentAt = SENT_AT + 1)
+        members.readNames()
+
+        assertEquals(listOf(NINA, NINA), reads)
+        assertEquals("Nina Roux", row(NINA).fullName)
+        assertEquals(profileEncryptionKeyPartialHash(ninaKey), row(NINA).nameKeyHash)
+    }
+
+    /** The read may have been made before the edit her post tells of: read again by the next pass. */
+    @Test
+    fun `a name read while its owner posted the very key again is not saved`() = runBlocking<Unit> {
+        upload(NINA, key = ninaKey, fullName = "Nina Petit")
+        members.takeOwnerKey(userUuid = NINA, profileEncryptionKey = ninaKey, sentAt = SENT_AT)
+
+        duringRead = {
+            duringRead = {}
+            upload(NINA, key = ninaKey, fullName = "Nina Roux")
+            members.takeOwnerKey(userUuid = NINA, profileEncryptionKey = ninaKey, sentAt = SENT_AT + 1)
+        }
+
+        members.readNames()
+
+        assertNull(row(NINA).fullName)
+        assertNull(row(NINA).nameKeyHash)
+
+        members.readNames()
+
+        assertEquals("Nina Roux", row(NINA).fullName)
     }
 
     @Test

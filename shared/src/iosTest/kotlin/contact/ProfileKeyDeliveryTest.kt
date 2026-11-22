@@ -294,6 +294,10 @@ private class ContactsOf(vararg contacts: ContactEntity) : ContactDao {
 
     override suspend fun deleteRemoved(userUuids: List<String>) = error("Not used here")
     override suspend fun getDueForRead(): List<ContactEntity> = error("Not used here")
+    override suspend fun getUpdatedSinceRead(): List<ContactEntity> = error("Not used here")
+    override suspend fun oweProfileKeyAgain(): Int = error("Not used here")
+    override suspend fun countProfileUpdate(userUuid: String) = error("Not used here")
+    override suspend fun markProfileRead(userUuid: String, count: Int) = error("Not used here")
     override suspend fun isUnblocked(userUuid: String): Boolean = error("Not used here")
     override fun getVerifiableAsFlow(userUuid: String): Flow<VerifiableContact?> = error("Not used here")
 

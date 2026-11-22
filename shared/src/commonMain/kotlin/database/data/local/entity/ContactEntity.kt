@@ -1,5 +1,6 @@
 package database.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -96,4 +97,22 @@ class ContactEntity(
      * contact, which is consistent with the key they hold.
      */
     val rotatesProfileKey: Boolean = false,
+
+    /**
+     * How many times the contact handed over the key to their profile since this device last read
+     * it, see [ContactRepository.receiveProfileKey][database.data.repository.ContactRepository.receiveProfileKey].
+     * They hand it over again after every edit of their profile, see
+     * [ProfileRepository.uploadProfile][profile.ProfileRepository.uploadProfile], which is all that
+     * tells this device the name it shows may no longer be theirs, so one that is not zero has the
+     * next [ContactRepository.resolveNames][database.data.repository.ContactRepository.resolveNames]
+     * read it again.
+     *
+     * Counted rather than flagged, so that one coming in while a read is under way, which may have
+     * read the version before the edit, keeps the contact due, see
+     * [ContactDao.markProfileRead][database.data.local.dao.ContactDao.markProfileRead].
+     * Kept on this device alone: a contact the vault brings back has no name here, and is read for
+     * that.
+     */
+    @ColumnInfo(defaultValue = "0")
+    val unreadProfileUpdates: Int = 0,
 )

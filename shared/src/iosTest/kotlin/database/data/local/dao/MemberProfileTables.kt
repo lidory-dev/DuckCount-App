@@ -32,7 +32,7 @@ internal class MemberProfileTables(private val contacts: ContactTables = Contact
             val row = rows[userUuid] ?: return
             val held = row.ownerKeySentAt
 
-            if (held == null || held < sentAt) add(row.copy(ownerKeySentAt = sentAt))
+            if (held == null || held < sentAt) add(row.copy(ownerKeySentAt = sentAt, nameKeyHash = null))
         }
 
         override suspend fun getKey(userUuid: String): ByteArray? = rows[userUuid]?.profileEncryptionKey
@@ -46,10 +46,13 @@ internal class MemberProfileTables(private val contacts: ContactTables = Contact
         override suspend fun setName(
             userUuid: String,
             profileEncryptionKey: ByteArray,
+            ownerKeySentAt: Long?,
             fullName: String,
             nameKeyHash: String,
         ) {
-            val row = rows[userUuid]?.takeIf { it.profileEncryptionKey.contentEquals(profileEncryptionKey) } ?: return
+            val row = rows[userUuid]
+                ?.takeIf { it.profileEncryptionKey.contentEquals(profileEncryptionKey) && it.ownerKeySentAt == ownerKeySentAt }
+                ?: return
 
             add(
                 row.copy(
@@ -60,8 +63,15 @@ internal class MemberProfileTables(private val contacts: ContactTables = Contact
             )
         }
 
-        override suspend fun settleRead(userUuid: String, profileEncryptionKey: ByteArray, nameKeyHash: String) {
-            val row = rows[userUuid]?.takeIf { it.profileEncryptionKey.contentEquals(profileEncryptionKey) } ?: return
+        override suspend fun settleRead(
+            userUuid: String,
+            profileEncryptionKey: ByteArray,
+            ownerKeySentAt: Long?,
+            nameKeyHash: String,
+        ) {
+            val row = rows[userUuid]
+                ?.takeIf { it.profileEncryptionKey.contentEquals(profileEncryptionKey) && it.ownerKeySentAt == ownerKeySentAt }
+                ?: return
 
             add(row.copy(nameKeyHash = nameKeyHash))
         }

@@ -1,12 +1,15 @@
 package profile
 
 import app.lidory.duckcount.ProfileLimits
+import database.data.local.dao.ContactDao
+import database.data.local.dao.GroupDao
 import database.data.local.dao.UserDao
 import database.data.mappers.toUserEntity
 import database.domain.User
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import message.ResendScheduler
 import uniffi.lib_duckcount.generateSymmetricEncryptionKey
 import uniffi.lib_duckcount.profileEncryptionKeyPartialHash
 import util.EmptyResult
@@ -71,11 +74,38 @@ private object Context {
  * an older one reads the profile as it was when that key was replaced, and nothing after, and
  * learns from the read that it is not the latest, see [readFullName].
  */
-class ProfileRepository(
+class ProfileRepository internal constructor(
     private val profileStore: ProfileStore,
     private val profileKeyVault: ProfileKeyVault,
     private val userDao: UserDao,
+    private val oweProfileKeyAgain: suspend () -> Boolean,
+    private val handOutSoon: suspend () -> Unit,
 ) {
+    /**
+     * [oweProfileKeyAgain] is [ContactDao.oweProfileKeyAgain] and [GroupDao.oweProfileKeyAgain]
+     * together, saying whether either owed anybody, and [handOutSoon] books
+     * [ResendScheduler.resendAfter] for now, or what a test stands in for either.
+     */
+    constructor(
+        profileStore: ProfileStore,
+        profileKeyVault: ProfileKeyVault,
+        userDao: UserDao,
+        contactDao: ContactDao,
+        groupDao: GroupDao,
+        resendScheduler: ResendScheduler,
+    ) : this(
+        profileStore = profileStore,
+        profileKeyVault = profileKeyVault,
+        userDao = userDao,
+        oweProfileKeyAgain = {
+            val contacts = contactDao.oweProfileKeyAgain()
+            val groups = groupDao.oweProfileKeyAgain()
+
+            contacts + groups > 0
+        },
+        handOutSoon = { resendScheduler.resendAfter(seconds = 0) },
+    )
+
     /**
      * Serializes [uploadProfile], [rotateProfileKey] and [oweProfileKeyRotation], the only ones
      * to read or write the key a removal owes the profile, see
@@ -102,6 +132,15 @@ class ProfileRepository(
      * `GroupCreator`: held to its limit, sealed and saved so. One longer than
      * [ProfileLimits.MAX_FULL_NAME_LENGTH] is refused before anything is sealed, see
      * [ProfileError.FullNameTooLong]: the server would refuse what it seals to.
+     *
+     * Nothing tells a contact, or a member of a group, that a profile they read changed but the key
+     * to it being handed over again, see [ContactDao.oweProfileKeyAgain] and
+     * [GroupDao.oweProfileKeyAgain]: the key is the same, and only the name they read with it is
+     * out of date. So every contact and every group is owed it again, and a pass handing it out is
+     * booked once the edit is saved, see [ResendScheduler], rather than left for whenever the next
+     * sync runs. Owed before the upload rather than after: one whose answer was lost may have
+     * landed all the same, and the next sync hands the key out then. An upload that did not land
+     * costs a read of the same profile.
      */
     suspend fun uploadProfile(
         userUuid: String,
@@ -119,6 +158,8 @@ class ProfileRepository(
             phoneNumber = UNSET_FIELD,
             bankDetails = UNSET_FIELD,
         )
+
+        val isKeyOwed = oweProfileKeyAgain()
 
         val upload = mutex.withLock {
             val currentKey = when (val outcome = profileKeyVault.getOrCreateProfileEncryptionKey()) {
@@ -141,6 +182,9 @@ class ProfileRepository(
                 fullName = trimmedFullName,
             ).toUserEntity(),
         )
+
+        // Nobody to tell at registration, when the user has no contact and no group yet.
+        if (isKeyOwed) handOutSoon()
 
         return Result.Success(Unit)
     }

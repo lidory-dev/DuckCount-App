@@ -111,6 +111,8 @@ class GroupSyncProfileKeysTest {
             profileStore = profileStore,
             profileKeyVault = bobProfileKeys,
             userDao = UsersWritten(),
+            oweProfileKeyAgain = { false },
+            handOutSoon = {},
         )::getFullName,
         isToRestore = { toRestore },
         markRestored = { toRestore = false },
@@ -744,6 +746,8 @@ class GroupSyncProfileKeysTest {
             profileStore = profileStore,
             profileKeyVault = InMemoryProfileKeyVault(profileEncryptionKey = key),
             userDao = UsersWritten(),
+            oweProfileKeyAgain = { false },
+            handOutSoon = {},
         )
 
         assertIs<Result.Success<Unit>>(theirs.uploadProfile(userUuid = userUuid, username = "", fullName = fullName))

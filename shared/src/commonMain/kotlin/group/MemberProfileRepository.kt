@@ -136,16 +136,18 @@ class MemberProfileRepository internal constructor(
 
     /**
      * Reads the profile of every member this device has a key for and has not read under it yet,
-     * see [MemberProfileEntity.nameKeyHash], saving the name on it.
+     * or not since its owner last posted it, as they do after every edit of their profile, see
+     * [MemberProfileDao.raiseOwnerKeySentAt] and [MemberProfileEntity.nameKeyHash], saving the name
+     * on it.
      *
      * Not a contact's, removed ones aside: the contact sync reads those, with the key the contact
      * handed over themselves, see
      * [ContactRepository.resolveNames][database.data.repository.ContactRepository.resolveNames], and
      * the contact list names them.
      *
-     * A name is saved only while the key it was read with is still the one held, see
-     * [MemberProfileDao.setName]: one that replaced it during the read is read in turn by the next
-     * pass. A key that opens nothing on the server any more, its owner having deleted their account
+     * A name is saved only while the key it was read with is still the one held, and posted no
+     * later, see [MemberProfileDao.setName]: one that replaced it, or a post of it, during the read
+     * is read in turn by the next pass. A key that opens nothing on the server any more, its owner having deleted their account
      * or rotated their key ten times since, settles the read all the same, see
      * [MemberProfileDao.settleRead], and whatever name was read before stays: there is nothing
      * newer to read until another key comes in.
@@ -168,6 +170,7 @@ class MemberProfileRepository internal constructor(
                 is Result.Success -> memberProfileDao.setName(
                     userUuid = member.userUuid,
                     profileEncryptionKey = member.profileEncryptionKey,
+                    ownerKeySentAt = member.ownerKeySentAt,
                     fullName = read.data,
                     nameKeyHash = keyHash,
                 )
@@ -176,6 +179,7 @@ class MemberProfileRepository internal constructor(
                     ProfileError.NotStored -> memberProfileDao.settleRead(
                         userUuid = member.userUuid,
                         profileEncryptionKey = member.profileEncryptionKey,
+                        ownerKeySentAt = member.ownerKeySentAt,
                         nameKeyHash = keyHash,
                     )
 

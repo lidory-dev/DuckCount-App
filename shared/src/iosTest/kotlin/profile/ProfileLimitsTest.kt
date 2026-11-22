@@ -29,7 +29,13 @@ class ProfileLimitsTest {
     private val vault = InMemoryProfileKeyVault(profileEncryptionKey = key)
     private val users = UsersWritten()
 
-    private val alice = ProfileRepository(profileStore = store, profileKeyVault = vault, userDao = users)
+    private val alice = ProfileRepository(
+        profileStore = store,
+        profileKeyVault = vault,
+        userDao = users,
+        oweProfileKeyAgain = { false },
+        handOutSoon = {},
+    )
 
     @Test
     fun `a full name past the limit is refused before anything is sealed or sent`() = runBlocking<Unit> {
