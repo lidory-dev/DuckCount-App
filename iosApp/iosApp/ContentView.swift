@@ -91,21 +91,34 @@ struct ContentView: View {
         TabView(selection: $selectedTab) {
             Tab("Expenses", systemImage: "receipt.fill", value: .expenseList) {
                 ExpenseListScreen()
+                    .tabBackground()
             }
 
             Tab("Groups", systemImage: "person.2.crop.square.stack.fill", value: .groupList) {
                 GroupListScreen()
+                    .tabBackground()
             }
 
             Tab("Contacts", systemImage: "person.3.fill", value: .contactList) {
                 ContactListScreen()
+                    .tabBackground()
             }
 
             Tab("Settings", systemImage: "gearshape.fill", value: .settings) {
                 SettingsScreen()
+                    .tabBackground()
             }
         }
         .transition(.opacity)
+    }
+}
+
+private extension View {
+    /// A tab on Android's `background` up to the top of the screen. On an iPad the tab bar sits
+    /// there, in a band the tab's split view stops below, which the tab would otherwise leave in
+    /// iOS's white or black, its columns' backgrounds reaching no higher than they do.
+    func tabBackground() -> some View {
+        background(AppColors.background, ignoresSafeAreaEdges: .all)
     }
 }
 
