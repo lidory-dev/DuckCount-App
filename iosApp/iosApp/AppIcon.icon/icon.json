@@ -1,0 +1,56 @@
+{
+  "fill": {
+    "solid": "srgb:0.21176,0.41176,0.23137,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "duck.svg",
+          "name": "duck"
+        }
+      ],
+      "name": "Duck",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    },
+    {
+      "layers": [
+        {
+          "image-name": "shine.svg",
+          "name": "shine"
+        },
+        {
+          "image-name": "inner.svg",
+          "name": "inner"
+        },
+        {
+          "image-name": "coin.svg",
+          "name": "coin"
+        },
+        {
+          "image-name": "rim.svg",
+          "name": "rim"
+        }
+      ],
+      "name": "Coin",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}
