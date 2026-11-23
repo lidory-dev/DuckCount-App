@@ -40,7 +40,8 @@ class GroupBalancesSnapshot(
     /** The repayments that would settle the group, as few as the library can make them. */
     val debts: List<GroupDebt>,
 
-    val currencySymbol: String,
+    /** The group's currency, which every amount here is in, written in it on the screen alone. */
+    val currency: Currency,
 )
 
 /** One repayment that settles a group: [debtorUuid] pays [creditorUuid] [amount]. */
@@ -170,7 +171,7 @@ class GroupManagement(
                         members = group.groupMembers,
                         expenses = expenses,
                     ).map { GroupDebt(debtorUuid = it.debtorUuid, creditorUuid = it.creditorUuid, amount = it.amount) },
-                    currencySymbol = group.currency.symbol,
+                    currency = group.currency,
                 )
             } catch (exception: CancellationException) {
                 throw exception

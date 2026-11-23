@@ -5,8 +5,10 @@ import Testing
 
 @MainActor
 struct CreateExpenseViewModelTests {
-    private func newViewModel(_ callBacks: FakeExpenseCallBacks = FakeExpenseCallBacks()) -> CreateExpenseViewModel {
-        CreateExpenseViewModel(callBacks: callBacks)
+    /// In English, whatever the machine runs: the fields show their amounts with its decimal
+    /// separator, see `amountFieldText`.
+    private func newViewModel(_ callBacks: FakeExpenseCallBacks = FakeExpenseCallBacks(), locale: Locale = english) -> CreateExpenseViewModel {
+        CreateExpenseViewModel(callBacks: callBacks, locale: locale)
     }
 
     private func shares(_ viewModel: CreateExpenseViewModel) -> [String: String] {
@@ -46,6 +48,43 @@ struct CreateExpenseViewModelTests {
         viewModel.finishAmount()
 
         #expect(viewModel.form.amountText == "12.50")
+    }
+
+    /// As the decimal pad has it in the user's language, the amount the form keeps being the
+    /// library's.
+    @Test func leavingTheAmountFieldWritesItWithTheDecimalSeparatorOfTheLanguage() {
+        let viewModel = newViewModel(locale: french)
+
+        viewModel.typeAmount("12.5")
+        viewModel.finishAmount()
+
+        #expect(viewModel.form.amountText == "12,50")
+        #expect(viewModel.form.amount == "12.50")
+    }
+
+    @Test func anAmountFieldWrittenWithACommaIsEditedAsTyped() {
+        let viewModel = newViewModel(locale: french)
+        viewModel.typeAmount("12.5")
+        viewModel.finishAmount()
+
+        #expect(viewModel.typeAmount("12,5"))
+        #expect(viewModel.form.amount == "12.50")
+
+        viewModel.typeAmount("12,59")
+        viewModel.finishAmount()
+        viewModel.typeAmount("1259")
+
+        #expect(viewModel.form.amountText == "12")
+        #expect(viewModel.form.amount == "12.00")
+    }
+
+    @Test func pickingACurrencyWritesTheAmountFieldWithTheDecimalSeparatorOfTheLanguage() {
+        let viewModel = newViewModel(locale: french)
+        viewModel.typeAmount("12")
+
+        viewModel.selectCurrency(euro)
+
+        #expect(viewModel.form.amountText == "12,00")
     }
 
     @Test func deletingTheDecimalSeparatorDropsTheDecimals() {
@@ -115,6 +154,32 @@ struct CreateExpenseViewModelTests {
         viewModel.finishShare(userUuid: ada)
 
         #expect(viewModel.shareText(of: viewModel.form.beneficiaries.first { $0.userUuid == ada }!) == "5.50")
+    }
+
+    @Test func theSharesAreShownWithTheDecimalSeparatorOfTheLanguageAndKeptAsTheLibraryWritesThem() {
+        let viewModel = newViewModel(locale: french)
+
+        viewModel.selectBeneficiaries([ada, bob])
+        viewModel.typeAmount("20")
+
+        func adaText() -> String {
+            viewModel.shareText(of: viewModel.form.beneficiaries.first { $0.userUuid == ada }!)
+        }
+
+        #expect(adaText() == "10,00")
+
+        // Its last decimal deleted, as the field shows it.
+        #expect(viewModel.typeShare(userUuid: ada, text: "10,0"))
+        #expect(adaText() == "10,0")
+        #expect(shares(viewModel)[ada] == "10.00")
+
+        // Its comma deleted: whole units, as with a dot.
+        viewModel.typeShare(userUuid: ada, text: "100")
+        #expect(adaText() == "10")
+        #expect(shares(viewModel)[ada] == "10.00")
+
+        viewModel.finishShare(userUuid: ada)
+        #expect(adaText() == "10,00")
     }
 
     @Test func aFixedShareStaysAsTheAmountChanges() {
@@ -356,7 +421,7 @@ struct CreateExpenseViewModelTests {
     @Test func anEditIsReadIntoTheFormAndSavesNothingUntilItChanges() async {
         let callBacks = FakeExpenseCallBacks()
         callBacks.storedExpenses["expense"] = expense()
-        let viewModel = CreateExpenseViewModel(callBacks: callBacks, expenseId: "expense")
+        let viewModel = CreateExpenseViewModel(callBacks: callBacks, expenseId: "expense", locale: english)
 
         #expect(viewModel.isBeingRead)
 
@@ -398,3 +463,6 @@ struct CreateExpenseViewModelTests {
         #expect(!viewModel.hasChanges)
     }
 }
+
+private let english = Locale(identifier: "en_GB")
+private let french = Locale(identifier: "fr_FR")

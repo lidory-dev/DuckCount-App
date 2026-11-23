@@ -1,5 +1,6 @@
 package app.lidory.duckcount.groupList.callBacks
 
+import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.groupList.model.GroupCreationFailure
 import app.lidory.duckcount.groupList.model.GroupMember
@@ -22,7 +23,8 @@ interface GroupSettleUpCallBacks {
     /** Emits whether the user is no longer in the group [groupUuid], removed or left, which leaves it read-only. */
     fun isGroupLeft(groupUuid: String): Flow<Boolean>
 
-    suspend fun getCurrencySymbol(groupUuid: String): String
+    /** The currency of the group [groupUuid], which every amount it owes is in. */
+    suspend fun getCurrency(groupUuid: String): Currency
 
     /**
      * Records that [debtorUuid] paid [amount] back to the user, [creditorUuid], in the group

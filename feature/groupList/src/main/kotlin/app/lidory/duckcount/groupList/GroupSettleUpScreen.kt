@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.lidory.duckcount.android.ui.composable.DuckCountSnackbarHost
 import app.lidory.duckcount.android.ui.composable.EmptyContentContainer
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.android.ui.text.formatAmount
 import app.lidory.duckcount.groupList.component.DebtCard
 import app.lidory.duckcount.groupList.component.GroupSettleUpSkeleton
 import app.lidory.duckcount.groupList.component.SettlementCard
@@ -84,7 +85,13 @@ private fun SettleUpContent(state: GroupSettleUpState, viewModel: GroupSettleUpV
                     ) { transaction ->
                         val debtorFullName = transaction.debtorFullName ?: stringResource(R.string.unknown_member)
                         val creditorFullName = transaction.creditorFullName ?: stringResource(R.string.unknown_member)
-                        val amount = "${transaction.amount} ${state.currencySymbol}"
+                        // Written for the screen alone: the settlement records the amount as the library wrote it.
+                        val amount = formatAmount(
+                            amount = transaction.amount,
+                            currencyCode = state.currency.name,
+                            symbol = state.currency.symbol,
+                            hasSubunits = state.currency.hasSubunits,
+                        )
 
                         when (transaction.sideFor(userUuid = state.authenticatedUserUuid)) {
                             DebtSide.OWED_TO_USER -> SettlementCard(

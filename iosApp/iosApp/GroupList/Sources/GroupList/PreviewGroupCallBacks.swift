@@ -117,7 +117,7 @@ final class PreviewGroupCallBacks: GroupCallBacks {
                 Debt(debtorUuid: "ada", creditorUuid: "me", amount: "20.00"),
                 Debt(debtorUuid: "bob", creditorUuid: "me", amount: "10.00"),
             ],
-            currencySymbol: "€"
+            currency: GroupCurrency(id: "eur", code: "EUR", symbol: "€", hasSubunits: true)
         )
 
         return AsyncStream { $0.yield(balances) }

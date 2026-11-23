@@ -5,6 +5,7 @@ import database.data.local.dao.GroupDao
 import database.data.local.dao.BlockedUserDao
 import database.data.local.dao.IdentityConflictDao
 import database.data.local.dao.UserDao
+import database.domain.Currency
 import database.domain.ExpenseWithBeneficiaries
 import group.GroupExpenseChange
 import group.GroupExpenseSync
@@ -31,10 +32,11 @@ data class GroupExpenseUpdate(
      */
     val isSettlement: Boolean,
 
-    /** Its amount, in the group's currency, whose symbol is [currencySymbol]. */
+    /** Its amount, as the library writes it, in [currency]. */
     val amount: String,
 
-    val currencySymbol: String,
+    /** The group's currency, which a notification writes [amount] in. */
+    val currency: Currency,
 
     /** Null when this device has yet to read the name of whoever made the change. */
     val authorFullName: String?,
@@ -105,7 +107,7 @@ class GroupExpenseUpdates(
                 title = expense.title,
                 isSettlement = expense.isSettlement,
                 amount = expense.amount,
-                currencySymbol = expense.currency.symbol,
+                currency = expense.currency,
                 authorFullName = names.getOrPut(change.authorUuid) {
                     userDao.getDisplayName(uuid = change.authorUuid)
                 },

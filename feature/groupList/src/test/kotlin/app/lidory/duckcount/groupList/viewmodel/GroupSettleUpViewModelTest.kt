@@ -1,6 +1,7 @@
 package app.lidory.duckcount.groupList.viewmodel
 
 import app.lidory.duckcount.groupList.callBacks.GroupSettleUpCallBacks
+import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.groupList.model.GroupCreationFailure
 import app.lidory.duckcount.groupList.model.GroupMember
@@ -142,6 +143,7 @@ private class SettleUpCallBacks(
     override fun getAllGroupActiveExpenses(groupUuid: String): Flow<List<ExpenseWithBeneficiaries>> = flowOf(emptyList())
     override fun getAuthenticatedUserUuid(): String = ALICE
     override fun isGroupLeft(groupUuid: String): Flow<Boolean> = flowOf(false)
-    override suspend fun getCurrencySymbol(groupUuid: String): String = "€"
+    override suspend fun getCurrency(groupUuid: String): Currency =
+        Currency(uuid = "eur", name = "EUR", symbol = "€", hasSubunits = true)
     override fun getDisplayName(userUuid: String): Flow<String?> = flowOf(null)
 }

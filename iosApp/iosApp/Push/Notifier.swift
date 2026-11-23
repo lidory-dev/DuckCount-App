@@ -374,7 +374,7 @@ final class Notifier: NSObject, SyncAnnouncer, @unchecked Sendable {
     /// What a member did to an expense of a group, naming them, the expense and the group. A
     /// settlement has no title, the member who paid it knowing it by its amount.
     private func groupExpenseText(_ update: GroupExpenseUpdate) -> String {
-        let expense = update.isSettlement ? "\(update.amount) \(update.currencySymbol)" : update.title
+        let expense = update.isSettlement ? update.amount.formattedAmount(in: update.currency) : update.title
 
         let key = switch update.kind {
         case .added: update.isSettlement ? "push.groupSettlement.added" : "push.groupExpense.added"
@@ -633,3 +633,20 @@ private let maxCreditorsAnnounced = 4
 
 /// How many updates to one group's expenses a sync brings before they are told in one, as on Android.
 private let manyGroupExpenseUpdates = 4
+
+extension String {
+    /// `self`, an amount as the library writes it, written in `currency` the way the user's language
+    /// writes it, "€121.66" or "121,66 €" in French, as the app's screens write one, or as it is next
+    /// to the currency's symbol when it is no amount.
+    fileprivate func formattedAmount(in currency: Shared.Currency) -> String {
+        guard let decimal = Decimal(string: self, locale: Locale(identifier: "en_US_POSIX")) else {
+            return "\(self) \(currency.symbol)"
+        }
+
+        // Its name is its ISO 4217 code, which every device names it by.
+        let style = Decimal.FormatStyle.Currency(code: currency.name)
+            .precision(.fractionLength(currency.hasSubunits ? 2 : 0))
+
+        return decimal.formatted(style)
+    }
+}

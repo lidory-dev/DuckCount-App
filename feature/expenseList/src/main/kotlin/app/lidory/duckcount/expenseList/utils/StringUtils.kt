@@ -2,6 +2,8 @@ package app.lidory.duckcount.expenseList.utils
 
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 
 fun String.formatAmountWithSubunits(): String {
     val replaced = this
@@ -62,6 +64,17 @@ fun String.toAmount(hasSubunits: Boolean): String {
         else -> formatted.roundAmountWithoutSubunits()
     }
 }
+
+/**
+ * [this], an amount as the form keeps it (see [toAmount]), "1234.50", as its field shows it once the
+ * form writes it there: with [locale]'s decimal separator when that is a comma, "1234,50" in French,
+ * and as it is otherwise. Nothing else of how [locale] writes a number, no grouping, other digits
+ * or symbol, which the field would refuse as typed (see [isAmountInput]), so that the field still
+ * takes its own text back, and [toAmount] reads a comma as a dot: what the form keeps, hands the
+ * library and saves stays the amount as the library writes it.
+ */
+fun String.toAmountFieldText(locale: Locale = Locale.getDefault()): String =
+    if (DecimalFormatSymbols.getInstance(locale).decimalSeparator == ',') replace('.', ',') else this
 
 /**
  * [this], an amount field's text right after an edit of [previous], its decimals dropped along

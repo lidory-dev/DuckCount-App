@@ -80,6 +80,9 @@ final class GroupBalancesViewModel: ObservableObject {
     let groupId: String
     let selfUuid: String?
 
+    /// Whose language the tabs write amounts in, see `amountLabel`.
+    private let locale: Locale
+
     private let callBacks: any GroupCallBacks
     private let balancesTask = TaskHandle()
     private var nameFollower: NameFollower?
@@ -89,9 +92,10 @@ final class GroupBalancesViewModel: ObservableObject {
     /// then, the tabs show what they showed, loading at first.
     private var readBalances: GroupBalances?
 
-    init(groupId: String, callBacks: any GroupCallBacks) {
+    init(groupId: String, callBacks: any GroupCallBacks, locale: Locale = .current) {
         self.groupId = groupId
         self.callBacks = callBacks
+        self.locale = locale
         self.selfUuid = callBacks.authenticatedUserUuid()
 
         nameFollower = NameFollower { [weak self] names in
@@ -149,15 +153,6 @@ final class GroupBalancesViewModel: ObservableObject {
         return balances.debts
     }
 
-    /// The group's currency symbol, which every amount is in.
-    var currencySymbol: String {
-        guard case .content(let balances) = state else {
-            return ""
-        }
-
-        return balances.currencySymbol
-    }
-
     /// What the Balance tab calls the person of `row`: their name, and that they are a former member
     /// when they are.
     func name(of row: BalanceRow) -> String {
@@ -166,9 +161,14 @@ final class GroupBalancesViewModel: ObservableObject {
         return row.isFormerMember ? String(localized: "\(name) (former member)", bundle: .module) : name
     }
 
-    /// `amount` as the tabs write it, next to the group's currency symbol, as Android writes it.
+    /// `amount`, as the library writes it, as the tabs write it: in the group's currency, the way
+    /// the user's language writes it, see `formattedAmount(in:locale:)`.
     func amountLabel(_ amount: String) -> String {
-        "\(amount) \(currencySymbol)"
+        guard case .content(let balances) = state else {
+            return amount
+        }
+
+        return amount.formattedAmount(in: balances.currency, locale: locale)
     }
 
     /// What the Settle up tab says of `debt`, worded for the user reading it, see `DebtSide`.

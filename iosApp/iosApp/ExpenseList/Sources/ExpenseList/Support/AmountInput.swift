@@ -27,6 +27,17 @@ extension String {
         return formatted.rounded(scale: hasSubunits ? 2 : 0)
     }
 
+    /// `self`, an amount as the form keeps it (see `toAmount`), "1234.50", as its field shows it
+    /// once the form writes it there: with `locale`'s decimal separator when that is a comma,
+    /// "1234,50" in French, as the decimal pad has it, and as it is otherwise. Nothing else of how
+    /// `locale` writes a number, no grouping, other digits or symbol, which the field would refuse
+    /// as typed (see `isAmountInput`), so that the field still takes its own text back, and
+    /// `toAmount` reads a comma as a dot: what the form keeps, hands the library and saves stays the
+    /// amount as the library writes it.
+    func amountFieldText(locale: Locale) -> String {
+        locale.decimalSeparator == "," ? replacingOccurrences(of: ".", with: ",") : self
+    }
+
     /// `self`, an amount field's text right after an edit of `previous`, its decimals dropped along
     /// with the decimal separator when the edit deleted that alone: 12.50 without its dot is 12,
     /// never 1250.

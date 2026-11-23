@@ -10,14 +10,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import app.lidory.duckcount.android.ui.text.formatAmount
+import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.ExpenseStatus
 
 @Composable
 fun ExpenseAmount(
     modifier: Modifier = Modifier,
     totalAmount: String,
-    currencySymbol: String,
+    currency: Currency,
     role: ExpenseStatus,
+
+    /**
+     * What the user gets back of it as its creditor, or owes of it as a beneficiary, as the library
+     * writes an amount: shown with a plus or a minus as [role] says.
+     */
     personalShare: String? = null,
     isActive: Boolean,
 
@@ -30,8 +37,12 @@ fun ExpenseAmount(
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            // TODO: adapt order if the currency has to be before (ex: 20€ / $20)
-            text = "$totalAmount $currencySymbol",
+            text = formatAmount(
+                amount = totalAmount,
+                currencyCode = currency.name,
+                symbol = currency.symbol,
+                hasSubunits = currency.hasSubunits,
+            ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.titleLarge.copy(
@@ -44,8 +55,13 @@ fun ExpenseAmount(
             SettledLabel(color = LocalContentColor.current, singleLine = true)
         } else personalShare?.let {
             Text(
-                // TODO: adapt order if the currency has to be before (ex: 20€ / $20)
-                text = "${role.labelAmount} $personalShare $currencySymbol",
+                text = formatAmount(
+                    amount = if (role == ExpenseStatus.BENEFICIARY) "-$personalShare" else personalShare,
+                    currencyCode = currency.name,
+                    symbol = currency.symbol,
+                    hasSubunits = currency.hasSubunits,
+                    withSign = true,
+                ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = role.color,

@@ -1,5 +1,6 @@
 package app.lidory.duckcount.push
 
+import database.domain.CurrencyCatalog
 import expense.GroupExpenseUpdate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -248,7 +249,7 @@ class GroupExpenseAnnouncementTest {
             title = "Expense $index",
             isSettlement = false,
             amount = "12.50",
-            currencySymbol = "€",
+            currency = CurrencyCatalog.defaultCurrency,
             authorFullName = "Alice",
             kind = GroupExpenseUpdate.Kind.ADDED,
         )

@@ -4,6 +4,7 @@ import android.util.Log
 import app.lidory.duckcount.expenseList.utils.getCurrentTimestamp
 import app.lidory.duckcount.getTransactionForGroup
 import app.lidory.duckcount.groupList.callBacks.GroupSettleUpCallBacks
+import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.groupList.model.GroupCreationFailure
 import app.lidory.duckcount.groupList.model.GroupMember
@@ -35,7 +36,7 @@ class GroupSettleUpCallBacksImpl(
         groupExpenses: List<ExpenseWithBeneficiaries>,
     ): List<Transaction> {
         return getTransactionForGroup(
-            currency = getCurrency(groupUuid),
+            currency = getDbCurrency(groupUuid),
             members = groupMembers.map { groupMember ->
                 groupMember.toDb()
             },
@@ -72,11 +73,11 @@ class GroupSettleUpCallBacksImpl(
         return groupRepository.isLeft(uuid = groupUuid)
     }
 
-    override suspend fun getCurrencySymbol(groupUuid: String): String {
-        return getCurrency(groupUuid).symbol
+    override suspend fun getCurrency(groupUuid: String): Currency {
+        return getDbCurrency(groupUuid).toGroupListModel()
     }
 
-    private suspend fun getCurrency(groupUuid: String): DBCurrency {
+    private suspend fun getDbCurrency(groupUuid: String): DBCurrency {
         return groupRepository.get(groupUuid).first().currency
     }
 

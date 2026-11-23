@@ -2,6 +2,7 @@ package app.lidory.duckcount.groupList
 
 import app.lidory.duckcount.calculateNetDebtsPerUser
 import app.lidory.duckcount.groupList.callBacks.GroupBalanceCallBacks
+import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.groupList.model.GroupMember
 import database.data.repository.ExpenseRepository
@@ -38,8 +39,8 @@ class GroupBalanceCallBacksImpl(
             .map { expenses -> expenses.map { it.toGroupListModel() } }
     }
 
-    override suspend fun getCurrencySymbol(groupUuid: String): String {
-        return groupRepository.get(groupUuid).first().currency.symbol
+    override suspend fun getCurrency(groupUuid: String): Currency {
+        return groupRepository.get(groupUuid).first().currency.toGroupListModel()
     }
 
     override fun getDisplayName(userUuid: String): Flow<String?> {

@@ -12,6 +12,7 @@ import app.lidory.duckcount.EXTRA_OPEN_GROUPS
 import app.lidory.duckcount.EXTRA_OPEN_GROUP_UUID
 import app.lidory.duckcount.MainActivity
 import app.lidory.duckcount.R
+import app.lidory.duckcount.android.ui.text.formatAmount
 import expense.ExpenseArrival
 import expense.ExpenseChange
 import expense.GroupExpenseUpdate
@@ -737,8 +738,18 @@ class ExpenseNotifier(
 
         val title = if (isAdded) R.string.push_group_expense_added_title else R.string.push_group_expense_changed_title
 
-        // A settlement has no title: the member who paid it knows it by its amount.
-        val expense = if (update.isSettlement) "${update.amount} ${update.currencySymbol}" else update.title
+        // A settlement has no title: the member who paid it knows it by its amount, written as the
+        // app writes one.
+        val expense = if (update.isSettlement) {
+            formatAmount(
+                amount = update.amount,
+                currencyCode = update.currency.name,
+                symbol = update.currency.symbol,
+                hasSubunits = update.currency.hasSubunits,
+            )
+        } else {
+            update.title
+        }
 
         val text = when (val authorFullName = update.authorFullName) {
             null -> context.getString(unnamedGroupExpenseTextOf(update = update), expense, update.groupTitle)

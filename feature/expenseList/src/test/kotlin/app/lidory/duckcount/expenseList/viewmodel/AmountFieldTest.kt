@@ -9,6 +9,7 @@ import app.lidory.duckcount.expenseList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.expenseList.model.User
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -39,8 +40,11 @@ class AmountFieldTest {
         Dispatchers.resetMain()
     }
 
-    // Built in each test, once the main dispatcher is set.
-    private val viewModel by lazy { CreateExpenseViewModel(createExpenseCallBacks = SplittingCallBacks()) }
+    // Built in each test, once the main dispatcher is set, in English, whatever the machine runs:
+    // the fields show their amounts with its decimal separator.
+    private val viewModel by lazy { formIn(Locale.UK) }
+
+    private fun formIn(locale: Locale) = CreateExpenseViewModel(createExpenseCallBacks = SplittingCallBacks(), locale = locale)
 
     @Test
     fun `an amount typed with a comma is held as typed and stands for its amount`() {
@@ -159,6 +163,79 @@ class AmountFieldTest {
         viewModel.finishBeneficiaryShare(userUuid = ADA)
 
         assertEquals("5.50", viewModel.displayedShareOf(ADA))
+    }
+
+    /** As the user's language writes a decimal, the amount the form keeps being the library's. */
+    @Test
+    fun `leaving the amount field writes it with the decimal separator of the language`() {
+        val viewModel = formIn(Locale.FRANCE)
+
+        viewModel.updateAmount("12.5")
+        viewModel.finishAmount()
+
+        assertEquals("12,50", viewModel.state.amountText)
+        assertEquals("12.50", viewModel.state.amount)
+    }
+
+    @Test
+    fun `an amount field written with a comma is edited as typed`() {
+        val viewModel = formIn(Locale.FRANCE)
+        viewModel.updateAmount("12.5")
+        viewModel.finishAmount()
+
+        viewModel.updateAmount("12,5")
+
+        assertEquals("12,5", viewModel.state.amountText)
+        assertEquals("12.50", viewModel.state.amount)
+
+        viewModel.updateAmount("12,59")
+        viewModel.finishAmount()
+        viewModel.updateAmount("1259")
+
+        assertEquals("12", viewModel.state.amountText)
+        assertEquals("12.00", viewModel.state.amount)
+    }
+
+    @Test
+    fun `a currency picked writes the amount field with the decimal separator of the language`() {
+        val viewModel = formIn(Locale.FRANCE)
+        viewModel.updateAmount("12")
+
+        viewModel.updateCurrency(EURO)
+
+        assertEquals("12,00", viewModel.state.amountText)
+    }
+
+    @Test
+    fun `the shares are shown with the decimal separator of the language and kept as the library writes them`() {
+        val viewModel = formIn(Locale.FRANCE)
+        viewModel.updateAmount("20")
+        viewModel.updateBeneficiaries(
+            listOf(
+                Beneficiary(expenseUuid = "", userUuid = ADA, share = "10.00"),
+                Beneficiary(expenseUuid = "", userUuid = BOB, share = "10.00"),
+            ),
+        )
+
+        assertEquals("10,00", viewModel.displayedShareOf(ADA))
+
+        // Its last decimal deleted, as the field shows it.
+        viewModel.typeBeneficiaryShare(userUuid = ADA, text = "10,0")
+        viewModel.setBeneficiaryFixedShare(userUuid = ADA)
+        viewModel.calculateShares()
+
+        assertEquals("10,0", viewModel.displayedShareOf(ADA))
+        assertEquals("10.00", viewModel.state.beneficiaries.single { it.userUuid == ADA }.share)
+
+        // Its comma deleted: whole units, as with a dot.
+        viewModel.typeBeneficiaryShare(userUuid = ADA, text = "100")
+
+        assertEquals("10", viewModel.displayedShareOf(ADA))
+        assertEquals("10.00", viewModel.state.beneficiaries.single { it.userUuid == ADA }.share)
+
+        viewModel.finishBeneficiaryShare(userUuid = ADA)
+
+        assertEquals("10,00", viewModel.displayedShareOf(ADA))
     }
 
     private fun CreateExpenseViewModel.displayedShareOf(userUuid: String): String =

@@ -64,9 +64,9 @@ fun GroupBalanceScreen(
                             } else {
                                 fullName
                             },
-                            debt = member.balance.toBigDecimal(),
+                            balance = member.balance,
                             maxAmount = membersWithBalanceSorted.maxOf { it.balance.toBigDecimal().abs() },
-                            currencySymbol = state.currencySymbol,
+                            currency = state.currency,
                             isAppInDarkTheme = isAppInDarkTheme,
                             modifier = Modifier
                                 .fillMaxWidth()

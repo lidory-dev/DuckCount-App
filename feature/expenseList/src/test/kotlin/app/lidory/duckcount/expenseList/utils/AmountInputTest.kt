@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.Locale
 
 /** An amount field's text as typed, and the amount it stands for. */
 class AmountInputTest {
@@ -58,5 +59,32 @@ class AmountInputTest {
         assertEquals("12.0", "12.0".dropDecimalsIfSeparatorDeleted(previous = "12.50"))
         assertEquals("1250", "1250".dropDecimalsIfSeparatorDeleted(previous = "125"))
         assertEquals("12.5", "12.5".dropDecimalsIfSeparatorDeleted(previous = "12."))
+    }
+
+    @Test
+    fun `an amount is shown in its field with the decimal separator of the language`() {
+        assertEquals("1234.50", "1234.50".toAmountFieldText(Locale.UK))
+        assertEquals("1234,50", "1234.50".toAmountFieldText(Locale.FRANCE))
+        assertEquals("1200", "1200".toAmountFieldText(Locale.FRANCE))
+        assertEquals("", "".toAmountFieldText(Locale.FRANCE))
+    }
+
+    /** Grouped, or in other digits, the field would refuse its own text as soon as it is edited. */
+    @Test
+    fun `nothing else of how the language writes a number reaches the field`() {
+        assertEquals("1234,50", "1234.50".toAmountFieldText(Locale.GERMANY))
+        assertEquals("1234.50", "1234.50".toAmountFieldText(Locale.forLanguageTag("ar-EG")))
+        assertEquals("1234.50", "1234.50".toAmountFieldText(Locale.forLanguageTag("de-CH")))
+    }
+
+    /** What the field shows stands for the very amount it was written from, whatever the language. */
+    @Test
+    fun `an amount shown in its field is taken back as the same amount`() {
+        listOf(Locale.UK, Locale.FRANCE, Locale.forLanguageTag("ar-EG")).forEach { locale ->
+            val shown = "1234.50".toAmountFieldText(locale)
+
+            assertTrue(shown, shown.isAmountInput(hasSubunits = true))
+            assertEquals("1234.50", shown.toAmount(hasSubunits = true))
+        }
     }
 }

@@ -250,7 +250,7 @@ struct GroupHistoryViewModelTests {
 @MainActor
 struct BalanceTests {
     private func balances(_ netAmounts: [String: String], memberUuids: Set<String> = [me, ada, bob], debts: [Debt] = []) -> GroupBalances {
-        GroupBalances(netAmounts: netAmounts, memberUuids: memberUuids, debts: debts, currencySymbol: "€")
+        GroupBalances(netAmounts: netAmounts, memberUuids: memberUuids, debts: debts, currency: euro)
     }
 
     @Test func everybodyIsListedByWhatTheyComeToTheMostOwedFirst() {
@@ -368,14 +368,24 @@ struct BalanceTests {
         #expect(viewModel.debts.isEmpty)
     }
 
-    @Test func eachAmountIsWrittenNextToTheGroupsCurrencySymbol() async {
-        let callBacks = FakeGroupCallBacks()
-        callBacks.groupBalances.send(balances([me: "10.00", ada: "-10.00"]))
-        let viewModel = GroupBalancesViewModel(groupId: groupId, callBacks: callBacks)
+    /// As the expense lists write theirs: the library's own way of writing it, "-1234.50", is for
+    /// what is recorded.
+    @Test func eachAmountIsWrittenInTheGroupsCurrencyAsTheLanguageWritesIt() async {
+        for (locale, written) in [("en_GB", "-€1,234.50"), ("fr_FR", "-1 234,50 €")] {
+            let callBacks = FakeGroupCallBacks()
+            callBacks.groupBalances.send(balances([me: "1234.50", ada: "-1234.50"]))
+            let viewModel = GroupBalancesViewModel(groupId: groupId, callBacks: callBacks, locale: Locale(identifier: locale))
 
-        await settle { viewModel.state != .loading }
+            await settle { viewModel.state != .loading }
 
-        #expect(viewModel.amountLabel("-10.00") == "-10.00 €")
+            #expect(viewModel.amountLabel("-1234.50").withPlainSpaces == written)
+        }
+    }
+
+    @Test func anAmountInACurrencyWithoutSubunitsHasNoDecimals() {
+        let yen = GroupCurrency(id: "jpy", code: "JPY", symbol: "¥", hasSubunits: false)
+
+        #expect("1200".formattedAmount(in: yen, locale: Locale(identifier: "en_US")) == "¥1,200")
     }
 }
 
@@ -391,11 +401,11 @@ struct SettleUpTests {
                 netAmounts: [me: "20.00", ada: "-20.00", bob: "5.00", carol: "-5.00"],
                 memberUuids: [me, ada, bob, carol],
                 debts: [adaOwesMe, Debt(debtorUuid: me, creditorUuid: bob, amount: "5.00"), Debt(debtorUuid: carol, creditorUuid: bob, amount: "5.00")],
-                currencySymbol: "€"
+                currency: euro
             )
         )
 
-        let viewModel = GroupBalancesViewModel(groupId: groupId, callBacks: callBacks)
+        let viewModel = GroupBalancesViewModel(groupId: groupId, callBacks: callBacks, locale: Locale(identifier: "en_GB"))
 
         await settle { viewModel.names.known.count == 4 }
 
@@ -413,7 +423,7 @@ struct SettleUpTests {
     @Test func eachDebtIsWordedForTheUser() async {
         let viewModel = await settleUp(FakeGroupCallBacks())
         let sentences = viewModel.debts.map(viewModel.sentence(for:))
-        let (adaName, bobName, carolName, twenty, five) = ("Ada", "Bob", "Carol", "20.00 €", "5.00 €")
+        let (adaName, bobName, carolName, twenty, five) = ("Ada", "Bob", "Carol", "€20.00", "€5.00")
 
         #expect(Set(sentences).count == 3)
         #expect(sentences[0] == String(localized: "\(adaName) owes you \(twenty)", bundle: .module))
@@ -427,10 +437,10 @@ struct SettleUpTests {
         let callBacks = FakeGroupCallBacks()
         callBacks.names.send([me: "Me"])
         callBacks.groupBalances.send(
-            GroupBalances(netAmounts: [me: "20.00", ada: "-20.00"], memberUuids: [me, ada], debts: [adaOwesMe], currencySymbol: "€")
+            GroupBalances(netAmounts: [me: "20.00", ada: "-20.00"], memberUuids: [me, ada], debts: [adaOwesMe], currency: euro)
         )
-        let viewModel = GroupBalancesViewModel(groupId: groupId, callBacks: callBacks)
-        let (someoneElse, name, twenty) = (MemberNames.someoneElse, "Ada", "20.00 €")
+        let viewModel = GroupBalancesViewModel(groupId: groupId, callBacks: callBacks, locale: Locale(identifier: "en_GB"))
+        let (someoneElse, name, twenty) = (MemberNames.someoneElse, "Ada", "€20.00")
 
         await settle { viewModel.state != .loading }
 
@@ -447,7 +457,7 @@ struct SettleUpTests {
         let callBacks = FakeGroupCallBacks()
         // Never opened: no name is ever read.
         callBacks.namesGate = Gate()
-        let settled = GroupBalances(netAmounts: [me: "0.00", ada: "0.00"], memberUuids: [me, ada], debts: [], currencySymbol: "€")
+        let settled = GroupBalances(netAmounts: [me: "0.00", ada: "0.00"], memberUuids: [me, ada], debts: [], currency: euro)
         callBacks.groupBalances.send(settled)
         let viewModel = GroupBalancesViewModel(groupId: groupId, callBacks: callBacks)
 
@@ -523,5 +533,13 @@ struct SettleUpTests {
         await settle()
 
         #expect(callBacks.settlements.isEmpty)
+    }
+}
+
+extension String {
+    /// French writes a narrow no-break space between thousands and a no-break space before the
+    /// symbol, which versions of the locale data differ on: what matters here is where they are.
+    var withPlainSpaces: String {
+        replacingOccurrences(of: "\u{202F}", with: " ").replacingOccurrences(of: "\u{00A0}", with: " ")
     }
 }

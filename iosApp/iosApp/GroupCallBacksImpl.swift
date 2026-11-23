@@ -100,7 +100,7 @@ final class GroupCallBacksImpl: GroupCallBacks {
                 debts: snapshot.debts.map {
                     GroupList.Debt(debtorUuid: $0.debtorUuid, creditorUuid: $0.creditorUuid, amount: $0.amount)
                 },
-                currencySymbol: snapshot.currencySymbol
+                currency: snapshot.currency.groupCurrency
             )
         }
     }

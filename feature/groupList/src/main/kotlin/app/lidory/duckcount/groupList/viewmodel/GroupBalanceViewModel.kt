@@ -3,6 +3,7 @@ package app.lidory.duckcount.groupList.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.groupList.callBacks.GroupBalanceCallBacks
+import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.groupList.model.GroupMember
 import app.lidory.duckcount.groupList.model.GroupMemberWithBalance
@@ -35,7 +36,7 @@ class GroupBalanceViewModel(
                     groupMembers = groupMembers,
                     groupExpenses = groupExpenses,
                 )
-            val currencySymbol = groupBalanceCallBacks.getCurrencySymbol(groupUuid)
+            val currency = groupBalanceCallBacks.getCurrency(groupUuid)
 
             membersWithBalance(
                 groupUuid = groupUuid,
@@ -43,7 +44,7 @@ class GroupBalanceViewModel(
                 debts = debts,
                 nameOf = groupBalanceCallBacks::getDisplayName,
             ).map { members ->
-                MembersWithBalanceState.Content(members = members, currencySymbol = currencySymbol)
+                MembersWithBalanceState.Content(members = members, currency = currency)
             }
         }.flatMapLatest { content -> content }.stateIn(
             scope = viewModelScope,
@@ -56,7 +57,9 @@ sealed interface MembersWithBalanceState {
     data object Loading : MembersWithBalanceState
     data class Content(
         val members: List<GroupMemberWithBalance>,
-        val currencySymbol: String,
+
+        /** The group's currency, which every balance is in. */
+        val currency: Currency,
     ) : MembersWithBalanceState
 }
 

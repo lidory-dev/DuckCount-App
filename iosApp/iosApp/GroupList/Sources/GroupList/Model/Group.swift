@@ -196,14 +196,14 @@ public struct GroupBalances: Hashable, Sendable {
     /// The repayments that would settle the group, as few as the library can make them.
     public let debts: [Debt]
 
-    /// The group's currency symbol, which every amount here is in.
-    public let currencySymbol: String
+    /// The group's currency, which every amount here is in.
+    public let currency: GroupCurrency
 
-    public init(netAmounts: [String: String], memberUuids: Set<String>, debts: [Debt], currencySymbol: String) {
+    public init(netAmounts: [String: String], memberUuids: Set<String>, debts: [Debt], currency: GroupCurrency) {
         self.netAmounts = netAmounts
         self.memberUuids = memberUuids
         self.debts = debts
-        self.currencySymbol = currencySymbol
+        self.currency = currency
     }
 }
 

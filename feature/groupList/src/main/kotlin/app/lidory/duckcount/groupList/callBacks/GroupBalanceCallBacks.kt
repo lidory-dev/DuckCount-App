@@ -1,5 +1,6 @@
 package app.lidory.duckcount.groupList.callBacks
 
+import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.groupList.model.GroupMember
 import kotlinx.coroutines.flow.Flow
@@ -15,7 +16,8 @@ interface GroupBalanceCallBacks {
 
     fun getAllMembers(groupUuid: String): Flow<List<GroupMember>>
 
-    suspend fun getCurrencySymbol(groupUuid: String): String
+    /** The currency of the group [groupUuid], which every amount of it is in. */
+    suspend fun getCurrency(groupUuid: String): Currency
 
     /**
      * Emits the name to show for [userUuid] as it changes, or null while this device has none for

@@ -23,6 +23,7 @@ import app.lidory.duckcount.expenseList.utils.isAmountInput
 import app.lidory.duckcount.expenseList.utils.roundAmountWithSubunits
 import app.lidory.duckcount.expenseList.utils.roundAmountWithoutSubunits
 import app.lidory.duckcount.expenseList.utils.toAmount
+import app.lidory.duckcount.expenseList.utils.toAmountFieldText
 import app.lidory.duckcount.expenseList.utils.toValidNumber
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -43,6 +44,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.Locale
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -51,6 +53,9 @@ class CreateExpenseViewModel(
     private val groupUuid: String? = null,
     private val expenseUuid: String? = null,
     private val createExpenseCallBacks: CreateExpenseCallBacks,
+
+    /** Whose decimal separator the amount and share fields show, see [toAmountFieldText]. */
+    private val locale: Locale = Locale.getDefault(),
 ) : ViewModel() {
 
     private val _expenseUuid = MutableStateFlow(expenseUuid)
@@ -222,7 +227,7 @@ class CreateExpenseViewModel(
                     uuid = beneficiary.uuid,
                     userUuid = beneficiary.userUuid,
                     // As typed while its field is being typed in.
-                    share = state.shareTexts[beneficiary.userUuid] ?: beneficiary.share,
+                    share = state.shareTexts[beneficiary.userUuid] ?: beneficiary.share.toAmountFieldText(locale),
                     // TODO: Show that the username was not found?
                     fullName = names[beneficiary.userUuid] ?: beneficiary.userUuid,
                     isShareFixed = beneficiary.isShareFixed,
@@ -263,6 +268,8 @@ class CreateExpenseViewModel(
         updateTitle(expense.title)
         updateCreditor(expense.creditorUuid)
         updateAmount(expense.amount)
+        // Shown as the form writes an amount, not as typed.
+        finishAmount()
         updateDescription(expense.description)
         state = state.copy(timestamp = expense.timestamp, revision = expense.revision, isDeleted = expense.isDeleted)
         updateBeneficiaries(expense.beneficiaries)
@@ -446,9 +453,12 @@ class CreateExpenseViewModel(
         )
     }
 
-    /** Writes the amount field's text as the amount it stands for, once the field is left. */
+    /**
+     * Writes the amount field's text as the amount it stands for, once the field is left, with the
+     * user's decimal separator, see [toAmountFieldText].
+     */
     fun finishAmount() {
-        state = state.copy(amountText = state.amount)
+        state = state.copy(amountText = state.amount.toAmountFieldText(locale))
     }
 
     /**
@@ -476,7 +486,7 @@ class CreateExpenseViewModel(
         state = state.copy(
             currency = currency,
             amount = amount,
-            amountText = amount,
+            amountText = amount.toAmountFieldText(locale),
             beneficiaries = state.beneficiaries.map { it.copy(share = reformat(it.share)) },
             shareTexts = emptyMap(),
         )
@@ -530,7 +540,8 @@ class CreateExpenseViewModel(
      */
     fun typeBeneficiaryShare(userUuid: String, text: String) {
         val share = state.beneficiaries.firstOrNull { it.userUuid == userUuid }?.share ?: return
-        val typed = text.dropDecimalsIfSeparatorDeleted(previous = state.shareTexts[userUuid] ?: share)
+        val shown = state.shareTexts[userUuid] ?: share.toAmountFieldText(locale)
+        val typed = text.dropDecimalsIfSeparatorDeleted(previous = shown)
         if (!acceptsAmount(typed)) return
 
         state = state.copy(shareTexts = state.shareTexts + (userUuid to typed))

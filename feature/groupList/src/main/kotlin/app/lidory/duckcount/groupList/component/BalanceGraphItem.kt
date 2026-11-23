@@ -20,17 +20,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.android.ui.text.formatAmount
+import app.lidory.duckcount.groupList.model.Currency
 import java.math.BigDecimal
 
+/** [fullName] and what they come to, [balance], as the library writes a signed amount: positive when owed. */
 @Composable
 fun BalanceGraphItem(
     fullName: String,
-    debt: BigDecimal,
+    balance: String,
     maxAmount: BigDecimal,
-    currencySymbol: String,
+    currency: Currency,
     isAppInDarkTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val debt = balance.toBigDecimal()
     val elements: List<@Composable RowScope.() -> Unit> = listOf(
         {
             Text(
@@ -44,7 +48,12 @@ fun BalanceGraphItem(
                 modifier = Modifier.weight(1f),
                 maxAmount = maxAmount,
                 amount = debt,
-                currencySymbol = currencySymbol,
+                label = formatAmount(
+                    amount = balance,
+                    currencyCode = currency.name,
+                    symbol = currency.symbol,
+                    hasSubunits = currency.hasSubunits,
+                ),
                 isAppInDarkTheme = isAppInDarkTheme,
             )
         },
@@ -68,7 +77,9 @@ fun BalanceGraphItem(
 fun Bar(
     maxAmount: BigDecimal,
     amount: BigDecimal,
-    currencySymbol: String,
+
+    /** [amount] as the bar writes it, in the group's currency. */
+    label: String,
     isAppInDarkTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -90,7 +101,7 @@ fun Bar(
 
         Text(
             modifier = Modifier.padding(horizontal = Padding.medium),
-            text = "$amount $currencySymbol",
+            text = label,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

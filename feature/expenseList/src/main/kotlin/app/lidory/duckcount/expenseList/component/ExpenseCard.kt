@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import app.lidory.duckcount.android.ui.constant.Elevation
 import app.lidory.duckcount.android.ui.constant.Padding
 import app.lidory.duckcount.expenseList.R
+import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.model.ExpenseStatus
 
 @Composable
@@ -36,7 +37,7 @@ fun ExpenseCard(
     creditorName: String,
     debtorName: String = "",
     totalAmount: String,
-    currencySymbol: String,
+    currency: Currency,
     personalShare: String?,
     role: ExpenseStatus,
     isActive: Boolean,
@@ -131,7 +132,7 @@ fun ExpenseCard(
                 role = role,
                 isActive = isActive,
                 personalShare = if (isSettlement) null else personalShare,
-                currencySymbol = currencySymbol,
+                currency = currency,
                 isSettled = isSettled,
             )
         }

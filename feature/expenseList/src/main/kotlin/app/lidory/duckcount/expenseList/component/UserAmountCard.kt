@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import app.lidory.duckcount.android.ui.composable.profilepicture.ProfilePictureCard
 import app.lidory.duckcount.android.ui.constant.Padding
+import app.lidory.duckcount.android.ui.text.formatAmount
 import app.lidory.duckcount.expenseList.model.Currency
 import app.lidory.duckcount.expenseList.R
 import androidx.compose.ui.res.stringResource
@@ -61,10 +62,14 @@ fun UserAmountCard(
                 )
             }
 
-            // TODO: The currency symbol might be before the amount.
             Text(
                 modifier = Modifier.padding(horizontal = Padding.medium),
-                text = "$amount ${currency.symbol}",
+                text = formatAmount(
+                    amount = amount,
+                    currencyCode = currency.name,
+                    symbol = currency.symbol,
+                    hasSubunits = currency.hasSubunits,
+                ),
             )
         }
     }

@@ -3,6 +3,7 @@ package app.lidory.duckcount.groupList.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.lidory.duckcount.groupList.callBacks.GroupSettleUpCallBacks
+import app.lidory.duckcount.groupList.model.Currency
 import app.lidory.duckcount.groupList.model.ExpenseWithBeneficiaries
 import app.lidory.duckcount.groupList.model.GroupCreationFailure
 import app.lidory.duckcount.groupList.model.GroupMember
@@ -43,7 +44,7 @@ class GroupSettleUpViewModel(
                 groupMembers = groupMembers,
                 groupExpenses = groupExpenses,
             )
-            val currencySymbol = groupSettleUpCallBacks.getCurrencySymbol(groupUuid)
+            val currency = groupSettleUpCallBacks.getCurrency(groupUuid)
 
             namedTransactions(
                 transactions = transactions,
@@ -52,7 +53,7 @@ class GroupSettleUpViewModel(
                 GroupSettleUpState.Content(
                     transactions = named,
                     authenticatedUserUuid = groupSettleUpCallBacks.getAuthenticatedUserUuid(),
-                    currencySymbol = currencySymbol,
+                    currency = currency,
                     // A settlement is an expense, which a group the user is no longer in takes no more of.
                     canSettle = !isLeft,
                 )
@@ -97,8 +98,8 @@ sealed interface GroupSettleUpState {
         val transactions: List<TransactionWithFullName>,
         val authenticatedUserUuid: String,
 
-        /** The symbol of the group's currency, which every amount it owes is in. */
-        val currencySymbol: String,
+        /** The group's currency, which every amount it owes is in. */
+        val currency: Currency,
         val canSettle: Boolean,
     ) : GroupSettleUpState
 }

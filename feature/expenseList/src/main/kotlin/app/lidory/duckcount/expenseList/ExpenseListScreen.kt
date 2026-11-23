@@ -218,7 +218,7 @@ private fun ExpenseListItem(
             .collectAsStateWithLifecycle("").value
             ?: stringResource(R.string.unknown_person),
         totalAmount = expense.amount,
-        currencySymbol = expense.currency.symbol,
+        currency = expense.currency,
         personalShare = personalShare,
         role = role,
         isActive = !expense.isDeleted,

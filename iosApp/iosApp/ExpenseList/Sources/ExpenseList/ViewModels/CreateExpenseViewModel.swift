@@ -150,12 +150,16 @@ public final class CreateExpenseViewModel: ObservableObject {
     /// differ from for there to be anything to save.
     private var loadedForm: ExpenseForm?
 
+    /// Whose decimal separator the amount and share fields show, see `amountFieldText`.
+    private let locale: Locale
+
     private let callBacks: any ExpenseCallBacks
     private let usersTask = TaskHandle()
     private var nameFollower: NameFollower?
 
-    public init(callBacks: any ExpenseCallBacks, groupId: String? = nil, expenseId: String? = nil) {
+    public init(callBacks: any ExpenseCallBacks, groupId: String? = nil, expenseId: String? = nil, locale: Locale = .current) {
         self.callBacks = callBacks
+        self.locale = locale
         self.groupId = groupId
         self.expenseId = expenseId
         self.maxTitleLength = callBacks.maxTitleLength
@@ -250,9 +254,10 @@ public final class CreateExpenseViewModel: ObservableObject {
         )
     }
 
-    /// The text the share field of `beneficiary` shows: as typed while it is being typed in.
+    /// The text the share field of `beneficiary` shows: as typed while it is being typed in, and
+    /// with the user's decimal separator otherwise, see `amountFieldText`.
     func shareText(of beneficiary: Beneficiary) -> String {
-        form.shareTexts[beneficiary.userUuid] ?? beneficiary.share
+        form.shareTexts[beneficiary.userUuid] ?? beneficiary.share.amountFieldText(locale: locale)
     }
 
     func currencyDisplayName(_ currency: Currency) -> String {
@@ -288,9 +293,10 @@ public final class CreateExpenseViewModel: ObservableObject {
         return true
     }
 
-    /// Writes the amount field's text as the amount it stands for, once the field is left.
+    /// Writes the amount field's text as the amount it stands for, once the field is left, with the
+    /// user's decimal separator, see `amountFieldText`.
     func finishAmount() {
-        form.amountText = form.amount
+        form.amountText = form.amount.amountFieldText(locale: locale)
     }
 
     /// The user picked `currency`: the form is written anew for it, and the shares worked out again
@@ -309,7 +315,8 @@ public final class CreateExpenseViewModel: ObservableObject {
             return false
         }
 
-        let typed = text.droppingDecimalsIfSeparatorDeleted(previous: form.shareTexts[userUuid] ?? share)
+        let shown = form.shareTexts[userUuid] ?? share.amountFieldText(locale: locale)
+        let typed = text.droppingDecimalsIfSeparatorDeleted(previous: shown)
         let isTaken = typed.isAmountInput(hasSubunits: form.currency.hasSubunits)
 
         if isTaken {
@@ -619,6 +626,8 @@ public final class CreateExpenseViewModel: ObservableObject {
         // Typed anew, rather than as an edit of what the field held, read before.
         form.amountText = ""
         typeAmount(expense.amount)
+        // Shown as the form writes an amount, not as typed.
+        finishAmount()
         form.description = expense.description
         form.timestamp = expense.timestamp
         form.revision = expense.revision
@@ -646,7 +655,7 @@ public final class CreateExpenseViewModel: ObservableObject {
 
         form.currency = currency
         form.amount = amount
-        form.amountText = amount
+        form.amountText = amount.amountFieldText(locale: locale)
         form.beneficiaries = form.beneficiaries.map { beneficiary in
             var reformatted = beneficiary
             reformatted.share = reformat(beneficiary.share)
