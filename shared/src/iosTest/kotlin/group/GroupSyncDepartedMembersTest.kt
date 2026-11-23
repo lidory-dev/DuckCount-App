@@ -1201,7 +1201,7 @@ class GroupSyncDepartedMembersTest {
             markDeleted = { error("Nobody deletes a group here.") },
             isBlocked = { false },
             setHandedProfileKey = { _, _ -> },
-            takeOwnerKey = { owner, profileEncryptionKey, _ -> ownerKeys[owner] = profileEncryptionKey },
+            takeOwnerKey = { owner, profileEncryptionKey, _, _ -> ownerKeys[owner] = profileEncryptionKey },
             fillGap = { _, _ -> },
             restoreMemberProfiles = { Result.Success(Unit) },
             readMemberNames = { Result.Success(Unit) },

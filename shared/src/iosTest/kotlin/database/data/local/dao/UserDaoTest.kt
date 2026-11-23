@@ -90,7 +90,7 @@ class UserDaoTest {
             database.memberProfileDao.setName(
                 userUuid = CAROL,
                 profileEncryptionKey = key,
-                ownerKeySentAt = null,
+                profileRevision = null,
                 fullName = "Carol Blanc",
                 nameKeyHash = "carol",
             )

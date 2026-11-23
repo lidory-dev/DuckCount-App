@@ -106,12 +106,24 @@ class MemberProfileRepository internal constructor(
      * post into a group, or the creator's own entry in what he hands over, see
      * [MemberProfileDao.takeOwnerKey]. It replaces whichever key was held, relayed or not, but one
      * of theirs that came in a message stored no earlier, which is the newer, and the name read
-     * with the one it replaces goes on showing until [readNames] reads one with this one.
+     * with the one it replaces goes on showing until [readNames] reads one with this one. So does
+     * one a post of theirs tells of a later edit than any before, [profileRevision], see
+     * [MemberProfileDao.raiseProfileRevision].
      *
      * Only for somebody other than the user, whose own key no group needs to hand them.
      */
-    suspend fun takeOwnerKey(userUuid: String, profileEncryptionKey: ByteArray, sentAt: Long) {
-        memberProfileDao.takeOwnerKey(userUuid = userUuid, profileEncryptionKey = profileEncryptionKey, sentAt = sentAt)
+    suspend fun takeOwnerKey(
+        userUuid: String,
+        profileEncryptionKey: ByteArray,
+        sentAt: Long,
+        profileRevision: Long?,
+    ) {
+        memberProfileDao.takeOwnerKey(
+            userUuid = userUuid,
+            profileEncryptionKey = profileEncryptionKey,
+            sentAt = sentAt,
+            profileRevision = profileRevision,
+        )
     }
 
     /**
@@ -136,21 +148,20 @@ class MemberProfileRepository internal constructor(
 
     /**
      * Reads the profile of every member this device has a key for and has not read under it yet,
-     * or not since its owner last posted it, as they do after every edit of their profile, see
-     * [MemberProfileDao.raiseOwnerKeySentAt] and [MemberProfileEntity.nameKeyHash], saving the name
-     * on it.
+     * or not since a post of theirs told of a later edit, see [MemberProfileDao.raiseProfileRevision]
+     * and [MemberProfileEntity.nameKeyHash], saving the name on it.
      *
      * Not a contact's, removed ones aside: the contact sync reads those, with the key the contact
      * handed over themselves, see
      * [ContactRepository.resolveNames][database.data.repository.ContactRepository.resolveNames], and
      * the contact list names them.
      *
-     * A name is saved only while the key it was read with is still the one held, and posted no
-     * later, see [MemberProfileDao.setName]: one that replaced it, or a post of it, during the read
-     * is read in turn by the next pass. A key that opens nothing on the server any more, its owner having deleted their account
-     * or rotated their key ten times since, settles the read all the same, see
-     * [MemberProfileDao.settleRead], and whatever name was read before stays: there is nothing
-     * newer to read until another key comes in.
+     * A name is saved only while the key it was read with is still the one held, and no later edit
+     * was told of, see [MemberProfileDao.setName]: one that replaced it, or a post telling of an
+     * edit, during the read is read in turn by the next pass. A key that opens nothing on the
+     * server any more, its owner having deleted their account or rotated their key ten times since,
+     * settles the read all the same, see [MemberProfileDao.settleRead], and whatever name was read
+     * before stays: there is nothing newer to read until another key comes in.
      *
      * Runs outside the lock the groups are synced under: it reads only what the groups already
      * handed over, and a read is a request per member.
@@ -170,7 +181,7 @@ class MemberProfileRepository internal constructor(
                 is Result.Success -> memberProfileDao.setName(
                     userUuid = member.userUuid,
                     profileEncryptionKey = member.profileEncryptionKey,
-                    ownerKeySentAt = member.ownerKeySentAt,
+                    profileRevision = member.profileRevision,
                     fullName = read.data,
                     nameKeyHash = keyHash,
                 )
@@ -179,7 +190,7 @@ class MemberProfileRepository internal constructor(
                     ProfileError.NotStored -> memberProfileDao.settleRead(
                         userUuid = member.userUuid,
                         profileEncryptionKey = member.profileEncryptionKey,
-                        ownerKeySentAt = member.ownerKeySentAt,
+                        profileRevision = member.profileRevision,
                         nameKeyHash = keyHash,
                     )
 

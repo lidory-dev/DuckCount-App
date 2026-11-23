@@ -77,12 +77,24 @@ class MemberProfileEntity(
     /**
      * The partial hash of the key [fullName] was last read with, or a read under it settled
      * without one, the profile it opens being gone: one that differs from that of
-     * [profileEncryptionKey] is a profile still to read. Null when none was read, or when its owner
-     * posted the key again since, as they do after every edit of their profile, see
-     * [MemberProfileDao.raiseOwnerKeySentAt][database.data.local.dao.MemberProfileDao.raiseOwnerKeySentAt].
+     * [profileEncryptionKey] is a profile still to read. Null when none was read, or when a post of
+     * their owner's told of a later edit of the profile since, see [profileRevision].
      */
     val nameKeyHash: String?,
 
     /** Whether the vault holds this key and name, see `vault.MemberProfileBook`. */
     val isBackedUp: Boolean,
+
+    /**
+     * The time of their latest edit of the profile that any post of theirs told of, in milliseconds
+     * since the epoch as their device recorded it, see `contact.ProfileKeyUpdate.profileRevision`,
+     * or null when none did. Every post carries it, whatever it was made for, and one telling of a
+     * later edit has the profile read again, see
+     * [MemberProfileDao.raiseProfileRevision][database.data.local.dao.MemberProfileDao.raiseProfileRevision]:
+     * an edit goes up under the key they hold, and nothing else tells of it.
+     *
+     * Kept on this device alone, as [ownerKeySentAt] is: a row the vault brings back has its name
+     * read again anyway.
+     */
+    val profileRevision: Long? = null,
 )

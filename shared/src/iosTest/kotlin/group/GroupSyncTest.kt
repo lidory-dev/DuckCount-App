@@ -290,7 +290,7 @@ class GroupSyncTest {
         setHandedProfileKey = { groupUuid, handedProfileKeyHash ->
             groups[groupUuid] = groups.getValue(groupUuid).withHanded(handedProfileKeyHash)
         },
-        takeOwnerKey = { userUuid, profileEncryptionKey, _ -> ownerKeys[userUuid] = profileEncryptionKey },
+        takeOwnerKey = { userUuid, profileEncryptionKey, _, _ -> ownerKeys[userUuid] = profileEncryptionKey },
         fillGap = { userUuid, profileEncryptionKey -> relayedKeys.getOrPut(userUuid) { profileEncryptionKey } },
         restoreMemberProfiles = { Result.Success(Unit) },
         readMemberNames = {

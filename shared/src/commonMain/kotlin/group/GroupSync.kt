@@ -356,7 +356,12 @@ class GroupSync internal constructor(
     private val markDeleted: suspend (groupUuid: String) -> Unit,
     private val isBlocked: suspend (userUuid: String) -> Boolean,
     private val setHandedProfileKey: suspend (groupUuid: String, handedProfileKeyHash: String?) -> Unit,
-    private val takeOwnerKey: suspend (userUuid: String, profileEncryptionKey: ByteArray, sentAt: Long) -> Unit,
+    private val takeOwnerKey: suspend (
+        userUuid: String,
+        profileEncryptionKey: ByteArray,
+        sentAt: Long,
+        profileRevision: Long?,
+    ) -> Unit,
     private val fillGap: suspend (userUuid: String, profileEncryptionKey: ByteArray) -> Unit,
     private val restoreMemberProfiles: suspend () -> EmptyResult<GroupSyncError>,
     private val readMemberNames: suspend () -> EmptyResult<GroupSyncError>,
@@ -1157,7 +1162,7 @@ class GroupSync internal constructor(
      * The server's list for that message alone, never what this device makes of who departed, so
      * that every member's device decides alike. The creator's application messages hand over the
      * keys to every member's profile, see [profileKeysOf]. Any member can send one, and the one
-     * thing taken from anybody else is the key to their own profile, see [ownProfileKeyOf]:
+     * thing taken from anybody else is the key to their own profile, see [ownProfileKeyUpdateOf]:
      * whatever else they send, or the creator sends, is of no use to the user.
      */
     private suspend fun read(
@@ -1223,10 +1228,15 @@ class GroupSync internal constructor(
             }
         }
 
-        return ownProfileKeyOf(payload = message.payload)
+        return ownProfileKeyUpdateOf(payload = message.payload)
             ?.let {
                 GroupMessageReading.HandedProfileKeys(
-                    ProfileKeyHandover.Own(ownerUuid = message.senderUserUuid, profileKey = it, sentAt = sentAt),
+                    ProfileKeyHandover.Own(
+                        ownerUuid = message.senderUserUuid,
+                        profileKey = it.profileEncryptionKey,
+                        profileRevision = it.profileRevision,
+                        sentAt = sentAt,
+                    ),
                 )
             }
             ?: GroupMessageReading.Ignored
@@ -1313,14 +1323,15 @@ class GroupSync internal constructor(
         for (handover in handedOver) {
             when (handover) {
                 is ProfileKeyHandover.Own -> if (handover.ownerUuid in memberUuids) {
-                    takeOwnerKey(handover.ownerUuid, handover.profileKey, handover.sentAt)
+                    takeOwnerKey(handover.ownerUuid, handover.profileKey, handover.sentAt, handover.profileRevision)
                 }
 
                 is ProfileKeyHandover.Relayed -> handover.profileKeys.forEach { (userUuid, profileKey) ->
                     when (userUuid) {
                         selfUuid -> Unit
                         !in memberUuids -> Unit
-                        creatorUuid -> takeOwnerKey(userUuid, profileKey, handover.sentAt)
+                        // His map tells of no edit: his own posts do, see GroupProfileKeyDelivery.
+                        creatorUuid -> takeOwnerKey(userUuid, profileKey, handover.sentAt, null)
                         else -> fillGap(userUuid, profileKey)
                     }
                 }
@@ -2580,8 +2591,16 @@ private sealed interface ProfileKeyHandover {
      */
     class Relayed(val profileKeys: Map<String, ByteArray>, override val sentAt: Long) : ProfileKeyHandover
 
-    /** [ownerUuid] handing over [profileKey], the key to their own profile, see [ownProfileKeyOf]. */
-    class Own(val ownerUuid: String, val profileKey: ByteArray, override val sentAt: Long) : ProfileKeyHandover
+    /**
+     * [ownerUuid] handing over [profileKey], the key to their own profile, and the time of their
+     * latest edit of it, [profileRevision], see [ownProfileKeyUpdateOf].
+     */
+    class Own(
+        val ownerUuid: String,
+        val profileKey: ByteArray,
+        val profileRevision: Long?,
+        override val sentAt: Long,
+    ) : ProfileKeyHandover
 }
 
 /** A Welcome waiting in a group, at [index] among its messages, decoded, and what [inspection] read in it. */

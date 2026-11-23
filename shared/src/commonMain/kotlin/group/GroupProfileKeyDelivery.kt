@@ -32,10 +32,15 @@ import vault.ProfileKeyVault
  * its members all read. Each takes it as the owner's own, which replaces whatever key was held for
  * the user, the server having stored it after every post of theirs before it, in this group or any
  * other, see [MemberProfileRepository.takeOwnerKey]. And into each again once the user edits their
- * profile, the very key the group holds, see `ProfileRepository.uploadProfile`: each member reads
- * the profile again for it, see
- * [MemberProfileDao.raiseOwnerKeySentAt][database.data.local.dao.MemberProfileDao.raiseOwnerKeySentAt],
- * at their next sync, the server waking nobody for a post.
+ * profile, the very key the group holds, see `ProfileRepository.uploadProfile`.
+ *
+ * Every post carries the time of the user's latest edit of the profile, see
+ * [ProfileKeyUpdate.profileRevision], whatever it is made for: a member reads the profile again
+ * only for a later edit than the one they read, see
+ * [MemberProfileDao.raiseProfileRevision][database.data.local.dao.MemberProfileDao.raiseProfileRevision],
+ * at their next sync, the server waking nobody for a post. So the posts made as a creator seats
+ * somebody have nobody read anything, and whichever post of an edit a member reads first, in
+ * whichever group, is the one that has them read it.
  *
  * Into the groups the members can trust what the post says of its sender in, see
  * [GroupDao.getOwedProfileKey]: one the user is still in, whose MLS state this device holds, and
@@ -123,7 +128,10 @@ class GroupProfileKeyDelivery internal constructor(
         // What each group is recorded as holding is the key that went out, not the one the hash
         // named: a rotation in between leaves it owed the newer one, and the next pass posts it.
         val handedHash = profileEncryptionKeyPartialHash(profileEncryptionKey)
-        val payload = ProfileKeyUpdate(profileEncryptionKey = profileEncryptionKey).serialize()
+        val payload = ProfileKeyUpdate(
+            profileEncryptionKey = profileEncryptionKey,
+            profileRevision = profileKeyVault.getProfileRevision(),
+        ).serialize()
 
         var failure: GroupSyncError? = null
 

@@ -38,6 +38,10 @@ private const val CAROL = "55555555-5555-5555-5555-555555555555"
 /** When the server stored the post each key from its owner comes in, in milliseconds since the epoch. */
 private const val SENT_AT = 1_000L
 
+/** When Nina edited her profile, as her device recorded it, the earlier first. */
+private const val FIRST_EDIT = 1_761_000_000_000L
+private const val SECOND_EDIT = 1_761_100_000_000L
+
 /**
  * What the user's groups hand over of their members' profile keys comes to on this device: which
  * key is kept, the names read with them, and their copy in the vault, with the database stood in
@@ -267,7 +271,12 @@ class MemberProfileRepositoryTest {
     /** The creator may hold a key its owner replaced since, and a relayed key is as good as another. */
     @Test
     fun `a relayed key never replaces one held`() = runBlocking<Unit> {
-        members.takeOwnerKey(userUuid = NINA, profileEncryptionKey = ninaNewKey, sentAt = SENT_AT)
+        members.takeOwnerKey(
+            userUuid = NINA,
+            profileEncryptionKey = ninaNewKey,
+            sentAt = SENT_AT,
+            profileRevision = null,
+        )
         members.fillGap(userUuid = PAUL, profileEncryptionKey = paulKey)
 
         members.fillGap(userUuid = NINA, profileEncryptionKey = ninaKey)
@@ -282,7 +291,12 @@ class MemberProfileRepositoryTest {
     fun `a key from its owner replaces a relayed one and keeps the name shown`() = runBlocking<Unit> {
         tables.add(member(NINA, key = ninaKey, fullName = "Nina Leroy", isBackedUp = true))
 
-        members.takeOwnerKey(userUuid = NINA, profileEncryptionKey = ninaNewKey, sentAt = SENT_AT)
+        members.takeOwnerKey(
+            userUuid = NINA,
+            profileEncryptionKey = ninaNewKey,
+            sentAt = SENT_AT,
+            profileRevision = null,
+        )
 
         val nina = row(NINA)
 
@@ -294,19 +308,29 @@ class MemberProfileRepositoryTest {
 
     /** A member posts their key into every group they are in. */
     @Test
-    fun `the very key from its owner again leaves the vault's copy as it is`() = runBlocking<Unit> {
+    fun `the very key from its owner again changes nothing`() = runBlocking<Unit> {
         tables.add(member(NINA, key = ninaKey, isFromOwner = true, isBackedUp = true))
 
-        members.takeOwnerKey(userUuid = NINA, profileEncryptionKey = ninaKey.copyOf(), sentAt = SENT_AT)
+        members.takeOwnerKey(
+            userUuid = NINA,
+            profileEncryptionKey = ninaKey.copyOf(),
+            sentAt = SENT_AT,
+            profileRevision = null,
+        )
 
         assertTrue(row(NINA).isBackedUp)
     }
 
     /** Nina renamed herself under the key she holds, and posted it again for the groups to read. */
     @Test
-    fun `the very key from its owner posted again has the member read again`() = runBlocking<Unit> {
+    fun `a post telling of a later edit has the member read again`() = runBlocking<Unit> {
         upload(NINA, key = ninaKey, fullName = "Nina Petit")
-        members.takeOwnerKey(userUuid = NINA, profileEncryptionKey = ninaKey, sentAt = SENT_AT)
+        members.takeOwnerKey(
+            userUuid = NINA,
+            profileEncryptionKey = ninaKey,
+            sentAt = SENT_AT,
+            profileRevision = FIRST_EDIT,
+        )
         members.readNames()
 
         upload(NINA, key = ninaKey, fullName = "Nina Roux")
@@ -314,7 +338,12 @@ class MemberProfileRepositoryTest {
 
         assertEquals("Nina Petit", row(NINA).fullName)
 
-        members.takeOwnerKey(userUuid = NINA, profileEncryptionKey = ninaKey, sentAt = SENT_AT + 1)
+        members.takeOwnerKey(
+            userUuid = NINA,
+            profileEncryptionKey = ninaKey,
+            sentAt = SENT_AT + 1,
+            profileRevision = SECOND_EDIT,
+        )
         members.readNames()
 
         assertEquals(listOf(NINA, NINA), reads)
@@ -322,16 +351,51 @@ class MemberProfileRepositoryTest {
         assertEquals(profileEncryptionKeyPartialHash(ninaKey), row(NINA).nameKeyHash)
     }
 
+    /** Her posts as the creator seats somebody in each of her groups, a hundred in a full group. */
+    @Test
+    fun `posts telling of the edit already read have nothing read again`() = runBlocking<Unit> {
+        upload(NINA, key = ninaKey, fullName = "Nina Petit")
+        members.takeOwnerKey(
+            userUuid = NINA,
+            profileEncryptionKey = ninaKey,
+            sentAt = SENT_AT,
+            profileRevision = FIRST_EDIT,
+        )
+        members.readNames()
+
+        repeat(3) {
+            members.takeOwnerKey(
+                userUuid = NINA,
+                profileEncryptionKey = ninaKey,
+                sentAt = SENT_AT + 1 + it,
+                profileRevision = FIRST_EDIT,
+            )
+            members.readNames()
+        }
+
+        assertEquals(listOf(NINA), reads)
+    }
+
     /** The read may have been made before the edit her post tells of: read again by the next pass. */
     @Test
-    fun `a name read while its owner posted the very key again is not saved`() = runBlocking<Unit> {
+    fun `a name read while a post told of a later edit is not saved`() = runBlocking<Unit> {
         upload(NINA, key = ninaKey, fullName = "Nina Petit")
-        members.takeOwnerKey(userUuid = NINA, profileEncryptionKey = ninaKey, sentAt = SENT_AT)
+        members.takeOwnerKey(
+            userUuid = NINA,
+            profileEncryptionKey = ninaKey,
+            sentAt = SENT_AT,
+            profileRevision = FIRST_EDIT,
+        )
 
         duringRead = {
             duringRead = {}
             upload(NINA, key = ninaKey, fullName = "Nina Roux")
-            members.takeOwnerKey(userUuid = NINA, profileEncryptionKey = ninaKey, sentAt = SENT_AT + 1)
+            members.takeOwnerKey(
+                userUuid = NINA,
+                profileEncryptionKey = ninaKey,
+                sentAt = SENT_AT + 1,
+                profileRevision = SECOND_EDIT,
+            )
         }
 
         members.readNames()
@@ -377,7 +441,12 @@ class MemberProfileRepositoryTest {
         members.fillGap(userUuid = NINA, profileEncryptionKey = ninaKey)
         members.readNames()
 
-        members.takeOwnerKey(userUuid = NINA, profileEncryptionKey = ninaNewKey, sentAt = SENT_AT)
+        members.takeOwnerKey(
+            userUuid = NINA,
+            profileEncryptionKey = ninaNewKey,
+            sentAt = SENT_AT,
+            profileRevision = null,
+        )
         members.readNames()
 
         assertEquals(listOf(NINA, NINA), reads)
@@ -419,7 +488,12 @@ class MemberProfileRepositoryTest {
 
         duringRead = {
             duringRead = {}
-            members.takeOwnerKey(userUuid = NINA, profileEncryptionKey = ninaNewKey, sentAt = SENT_AT)
+            members.takeOwnerKey(
+                userUuid = NINA,
+                profileEncryptionKey = ninaNewKey,
+                sentAt = SENT_AT,
+                profileRevision = null,
+            )
         }
 
         members.readNames()
@@ -568,7 +642,12 @@ class MemberProfileRepositoryTest {
     fun `a member that changes during the write stays to back up`() = runBlocking<Unit> {
         tables.add(member(NINA, key = ninaKey))
         vault.duringWrite = {
-            members.takeOwnerKey(userUuid = NINA, profileEncryptionKey = ninaNewKey, sentAt = SENT_AT)
+            members.takeOwnerKey(
+                userUuid = NINA,
+                profileEncryptionKey = ninaNewKey,
+                sentAt = SENT_AT,
+                profileRevision = null,
+            )
         }
 
         assertIs<Result.Success<Unit>>(members.backUp())

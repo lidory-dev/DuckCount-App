@@ -28,6 +28,7 @@ fun clearSession() {
     clearKeyPackagesPublishedAt()
     clearProfileKeyPartialHash()
     clearPendingProfileKey()
+    clearProfileRevision()
     clearRootKey()
     clearAccountDeletionInDoubt()
 }

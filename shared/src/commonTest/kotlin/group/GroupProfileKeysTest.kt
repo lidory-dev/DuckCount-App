@@ -81,20 +81,20 @@ class GroupProfileKeysTest {
 
         assertEquals(setOf(ALICE, BOB), read.keys)
         assertContentEquals(bobKey, read[BOB])
-        assertNull(ownProfileKeyOf(message))
+        assertNull(ownProfileKeyUpdateOf(message))
     }
 
     @Test
     fun `a member's own key reads back as theirs and as nothing else`() {
         val message = ProfileKeyUpdate(profileEncryptionKey = bobKey).serialize()
 
-        assertContentEquals(bobKey, ownProfileKeyOf(message))
+        assertContentEquals(bobKey, ownProfileKeyUpdateOf(message)?.profileEncryptionKey)
         assertNull(profileKeysOf(message))
     }
 
     @Test
     fun `a member's own key that is no profile key is not read`() {
-        assertNull(ownProfileKeyOf(ProfileKeyUpdate(profileEncryptionKey = bobKey + 0).serialize()))
+        assertNull(ownProfileKeyUpdateOf(ProfileKeyUpdate(profileEncryptionKey = bobKey + 0).serialize()))
     }
 
     /** Dave is no longer a contact, and was learned through a group; Carol neither. */

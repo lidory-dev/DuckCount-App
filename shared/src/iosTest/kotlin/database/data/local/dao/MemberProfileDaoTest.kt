@@ -25,6 +25,10 @@ private const val OLDER_POST = 1_761_566_400_000L
 private const val NEWER_POST = 1_761_566_460_000L
 private const val LATEST_POST = 1_761_566_520_000L
 
+/** When Carol edited her profile, as her device recorded it, the earlier first. */
+private const val FIRST_EDIT = 1_761_000_000_000L
+private const val SECOND_EDIT = 1_761_100_000_000L
+
 /**
  * What [MemberProfileDao] keeps of the keys and names the groups handed over, run on the database
  * itself, whose queries `MemberProfileTables` stands in for in the tests of the group sync.
@@ -41,11 +45,16 @@ class MemberProfileDaoTest {
                 dao.setName(
                     userUuid = CAROL,
                     profileEncryptionKey = OLDER_KEY,
-                    ownerKeySentAt = null,
+                    profileRevision = null,
                     fullName = "Carol",
                     nameKeyHash = "older",
                 )
-                dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = NEWER_POST)
+                dao.takeOwnerKey(
+                    userUuid = CAROL,
+                    profileEncryptionKey = NEWER_KEY,
+                    sentAt = NEWER_POST,
+                    profileRevision = null,
+                )
 
                 val carols = assertNotNull(dao.get(userUuid = CAROL))
 
@@ -68,7 +77,12 @@ class MemberProfileDaoTest {
 
             assertContentEquals(OLDER_KEY, dao.getKey(userUuid = CAROL))
 
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = NEWER_POST)
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = NEWER_POST,
+                profileRevision = null,
+            )
             dao.fillGap(userUuid = CAROL, profileEncryptionKey = OLDER_KEY)
 
             assertContentEquals(NEWER_KEY, dao.getKey(userUuid = CAROL))
@@ -78,81 +92,229 @@ class MemberProfileDaoTest {
     /**
      * A member posts their key into every group they are in, and each post is read, in whatever
      * order: the latest is what an older key has to lose to, and the vault, which holds no time,
-     * holds the row as it is. A later post has the name read again, a member posting the very key
-     * they hold after every edit of their profile, and the name shown stays until then.
+     * holds the row as it is.
      */
     @Test
-    fun `the very key from its owner again moves the time it came in up and has the name read again`() =
-        runBlocking<Unit> {
-            withInMemoryDatabase { database ->
-                val dao = database.memberProfileDao
-
-                dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = OLDER_POST)
-                dao.setName(
-                    userUuid = CAROL,
-                    profileEncryptionKey = NEWER_KEY,
-                    ownerKeySentAt = OLDER_POST,
-                    fullName = "Carol",
-                    nameKeyHash = "newer",
-                )
-                dao.markBackedUp(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, isFromOwner = true, fullName = "Carol")
-                dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = LATEST_POST)
-
-                val carols = assertNotNull(dao.get(userUuid = CAROL))
-
-                assertContentEquals(NEWER_KEY, carols.profileEncryptionKey)
-                assertEquals(LATEST_POST, carols.ownerKeySentAt)
-                assertEquals("Carol", carols.fullName)
-                assertNull(carols.nameKeyHash)
-                assertTrue(carols.isBackedUp)
-            }
-        }
-
-    /** Read in a group read after the one holding the later post, or in a later pass. */
-    @Test
-    fun `an earlier post of the very key from its owner leaves the name as read`() = runBlocking<Unit> {
+    fun `the very key from its owner again only moves the time it came in up`() = runBlocking<Unit> {
         withInMemoryDatabase { database ->
             val dao = database.memberProfileDao
 
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = NEWER_POST)
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = OLDER_POST,
+                profileRevision = null,
+            )
             dao.setName(
                 userUuid = CAROL,
                 profileEncryptionKey = NEWER_KEY,
-                ownerKeySentAt = NEWER_POST,
+                profileRevision = null,
                 fullName = "Carol",
                 nameKeyHash = "newer",
             )
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = OLDER_POST)
+            dao.markBackedUp(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, isFromOwner = true, fullName = "Carol")
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = LATEST_POST,
+                profileRevision = null,
+            )
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = NEWER_POST,
+                profileRevision = null,
+            )
 
             val carols = assertNotNull(dao.get(userUuid = CAROL))
 
-            assertEquals(NEWER_POST, carols.ownerKeySentAt)
+            assertContentEquals(NEWER_KEY, carols.profileEncryptionKey)
+            assertEquals(LATEST_POST, carols.ownerKeySentAt)
+            assertEquals("Carol", carols.fullName)
+            assertEquals("newer", carols.nameKeyHash)
+            assertTrue(carols.isBackedUp)
+        }
+    }
+
+    /** Carol renamed herself under the key she holds, and posted it again into her groups. */
+    @Test
+    fun `a post telling of a later edit has the name read again`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            val dao = database.memberProfileDao
+
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = OLDER_POST,
+                profileRevision = FIRST_EDIT,
+            )
+            dao.setName(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                profileRevision = FIRST_EDIT,
+                fullName = "Carol",
+                nameKeyHash = "newer",
+            )
+            dao.markBackedUp(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, isFromOwner = true, fullName = "Carol")
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = NEWER_POST,
+                profileRevision = SECOND_EDIT,
+            )
+
+            val carols = assertNotNull(dao.get(userUuid = CAROL))
+
+            assertEquals(SECOND_EDIT, carols.profileRevision)
+            assertNull(carols.nameKeyHash)
+            assertEquals("Carol", carols.fullName)
+            assertTrue(carols.isBackedUp)
+        }
+    }
+
+    /**
+     * Carol posts her key into a group again each time its creator seats somebody, and its creator's
+     * own entry in his map tells of no edit: nothing is read again for either.
+     */
+    @Test
+    fun `a post telling of the same edit or of none leaves the name as read`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            val dao = database.memberProfileDao
+
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = OLDER_POST,
+                profileRevision = FIRST_EDIT,
+            )
+            dao.setName(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                profileRevision = FIRST_EDIT,
+                fullName = "Carol",
+                nameKeyHash = "newer",
+            )
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = NEWER_POST,
+                profileRevision = FIRST_EDIT,
+            )
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = LATEST_POST,
+                profileRevision = null,
+            )
+
+            val carols = assertNotNull(dao.get(userUuid = CAROL))
+
+            assertEquals(LATEST_POST, carols.ownerKeySentAt)
+            assertEquals(FIRST_EDIT, carols.profileRevision)
+            assertEquals("newer", carols.nameKeyHash)
+        }
+    }
+
+    /** Read in a group read after the one holding the later post, or in a later pass. */
+    @Test
+    fun `a post telling of an earlier edit read after a later one leaves the name as read`() = runBlocking<Unit> {
+        withInMemoryDatabase { database ->
+            val dao = database.memberProfileDao
+
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = NEWER_POST,
+                profileRevision = SECOND_EDIT,
+            )
+            dao.setName(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                profileRevision = SECOND_EDIT,
+                fullName = "Carol",
+                nameKeyHash = "newer",
+            )
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = OLDER_POST,
+                profileRevision = FIRST_EDIT,
+            )
+
+            val carols = assertNotNull(dao.get(userUuid = CAROL))
+
+            assertEquals(SECOND_EDIT, carols.profileRevision)
             assertEquals("newer", carols.nameKeyHash)
         }
     }
 
     /**
-     * Carol edited her profile and posted her key again while it was being read: the read may have
-     * been made before the edit.
+     * Her newer key came first in the map she wrote as a group's creator, which tells of no edit,
+     * and her post of the older one, read after it, tells of hers.
      */
     @Test
-    fun `a name read before a later post of the very key is not saved`() = runBlocking<Unit> {
+    fun `a post of an older key telling of a later edit has the name read again with the newer key`() =
+        runBlocking<Unit> {
+            withInMemoryDatabase { database ->
+                val dao = database.memberProfileDao
+
+                dao.takeOwnerKey(
+                    userUuid = CAROL,
+                    profileEncryptionKey = NEWER_KEY,
+                    sentAt = NEWER_POST,
+                    profileRevision = null,
+                )
+                dao.setName(
+                    userUuid = CAROL,
+                    profileEncryptionKey = NEWER_KEY,
+                    profileRevision = null,
+                    fullName = "Carol",
+                    nameKeyHash = "newer",
+                )
+                dao.takeOwnerKey(
+                    userUuid = CAROL,
+                    profileEncryptionKey = OLDER_KEY,
+                    sentAt = OLDER_POST,
+                    profileRevision = FIRST_EDIT,
+                )
+
+                val carols = assertNotNull(dao.get(userUuid = CAROL))
+
+                assertContentEquals(NEWER_KEY, carols.profileEncryptionKey)
+                assertEquals(FIRST_EDIT, carols.profileRevision)
+                assertNull(carols.nameKeyHash)
+            }
+        }
+
+    /** The read may have been made before the edit her post tells of: read again by the next pass. */
+    @Test
+    fun `a name read before a post telling of a later edit is not saved`() = runBlocking<Unit> {
         withInMemoryDatabase { database ->
             val dao = database.memberProfileDao
 
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = OLDER_POST)
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = NEWER_POST)
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = OLDER_POST,
+                profileRevision = FIRST_EDIT,
+            )
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = NEWER_POST,
+                profileRevision = SECOND_EDIT,
+            )
             dao.setName(
                 userUuid = CAROL,
                 profileEncryptionKey = NEWER_KEY,
-                ownerKeySentAt = OLDER_POST,
+                profileRevision = FIRST_EDIT,
                 fullName = "Carol",
                 nameKeyHash = "newer",
             )
             dao.settleRead(
                 userUuid = CAROL,
                 profileEncryptionKey = NEWER_KEY,
-                ownerKeySentAt = OLDER_POST,
+                profileRevision = FIRST_EDIT,
                 nameKeyHash = "newer",
             )
 
@@ -173,9 +335,24 @@ class MemberProfileDaoTest {
             withInMemoryDatabase { database ->
                 val dao = database.memberProfileDao
 
-                dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = OLDER_POST)
-                dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = LATEST_POST)
-                dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = OLDER_KEY, sentAt = NEWER_POST)
+                dao.takeOwnerKey(
+                    userUuid = CAROL,
+                    profileEncryptionKey = NEWER_KEY,
+                    sentAt = OLDER_POST,
+                    profileRevision = null,
+                )
+                dao.takeOwnerKey(
+                    userUuid = CAROL,
+                    profileEncryptionKey = NEWER_KEY,
+                    sentAt = LATEST_POST,
+                    profileRevision = null,
+                )
+                dao.takeOwnerKey(
+                    userUuid = CAROL,
+                    profileEncryptionKey = OLDER_KEY,
+                    sentAt = NEWER_POST,
+                    profileRevision = null,
+                )
 
                 val carols = assertNotNull(dao.get(userUuid = CAROL))
 
@@ -193,17 +370,27 @@ class MemberProfileDaoTest {
         withInMemoryDatabase { database ->
             val dao = database.memberProfileDao
 
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = NEWER_POST)
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = NEWER_POST,
+                profileRevision = null,
+            )
             dao.setName(
                 userUuid = CAROL,
                 profileEncryptionKey = NEWER_KEY,
-                ownerKeySentAt = NEWER_POST,
+                profileRevision = null,
                 fullName = "Carol",
                 nameKeyHash = "newer",
             )
             dao.markBackedUp(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, isFromOwner = true, fullName = "Carol")
 
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = OLDER_KEY, sentAt = OLDER_POST)
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = OLDER_KEY,
+                sentAt = OLDER_POST,
+                profileRevision = null,
+            )
 
             val carols = assertNotNull(dao.get(userUuid = CAROL))
 
@@ -219,10 +406,20 @@ class MemberProfileDaoTest {
         withInMemoryDatabase { database ->
             val dao = database.memberProfileDao
 
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = OLDER_KEY, sentAt = OLDER_POST)
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = OLDER_KEY,
+                sentAt = OLDER_POST,
+                profileRevision = null,
+            )
             dao.markBackedUp(userUuid = CAROL, profileEncryptionKey = OLDER_KEY, isFromOwner = true, fullName = null)
 
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = NEWER_POST)
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = NEWER_POST,
+                profileRevision = null,
+            )
 
             val carols = assertNotNull(dao.get(userUuid = CAROL))
 
@@ -238,8 +435,18 @@ class MemberProfileDaoTest {
         withInMemoryDatabase { database ->
             val dao = database.memberProfileDao
 
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = OLDER_KEY, sentAt = NEWER_POST)
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = NEWER_POST)
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = OLDER_KEY,
+                sentAt = NEWER_POST,
+                profileRevision = null,
+            )
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = NEWER_POST,
+                profileRevision = null,
+            )
 
             assertContentEquals(OLDER_KEY, dao.getKey(userUuid = CAROL))
         }
@@ -268,7 +475,12 @@ class MemberProfileDaoTest {
                 ),
             )
 
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = OLDER_POST)
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = OLDER_POST,
+                profileRevision = null,
+            )
 
             val carols = assertNotNull(dao.get(userUuid = CAROL))
 
@@ -298,7 +510,12 @@ class MemberProfileDaoTest {
                 ),
             )
 
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = NEWER_POST)
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = NEWER_POST,
+                profileRevision = null,
+            )
 
             val carols = assertNotNull(dao.get(userUuid = CAROL))
 
@@ -313,11 +530,16 @@ class MemberProfileDaoTest {
             val dao = database.memberProfileDao
 
             dao.fillGap(userUuid = CAROL, profileEncryptionKey = OLDER_KEY)
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = NEWER_POST)
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = NEWER_POST,
+                profileRevision = null,
+            )
             dao.setName(
                 userUuid = CAROL,
                 profileEncryptionKey = OLDER_KEY,
-                ownerKeySentAt = null,
+                profileRevision = null,
                 fullName = "Carol",
                 nameKeyHash = "older",
             )
@@ -335,11 +557,16 @@ class MemberProfileDaoTest {
             withInMemoryDatabase { database ->
                 val dao = database.memberProfileDao
 
-                dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = NEWER_POST)
+                dao.takeOwnerKey(
+                    userUuid = CAROL,
+                    profileEncryptionKey = NEWER_KEY,
+                    sentAt = NEWER_POST,
+                    profileRevision = null,
+                )
                 dao.setName(
                     userUuid = CAROL,
                     profileEncryptionKey = NEWER_KEY,
-                    ownerKeySentAt = NEWER_POST,
+                    profileRevision = null,
                     fullName = "Carol",
                     nameKeyHash = "newer",
                 )
@@ -348,7 +575,7 @@ class MemberProfileDaoTest {
                 dao.setName(
                     userUuid = CAROL,
                     profileEncryptionKey = NEWER_KEY,
-                    ownerKeySentAt = NEWER_POST,
+                    profileRevision = null,
                     fullName = "Carol",
                     nameKeyHash = "newer",
                 )
@@ -358,7 +585,7 @@ class MemberProfileDaoTest {
                 dao.setName(
                     userUuid = CAROL,
                     profileEncryptionKey = NEWER_KEY,
-                    ownerKeySentAt = NEWER_POST,
+                    profileRevision = null,
                     fullName = "Carol Blanc",
                     nameKeyHash = "newer",
                 )
@@ -374,19 +601,29 @@ class MemberProfileDaoTest {
         withInMemoryDatabase { database ->
             val dao = database.memberProfileDao
 
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = OLDER_KEY, sentAt = OLDER_POST)
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = OLDER_KEY,
+                sentAt = OLDER_POST,
+                profileRevision = null,
+            )
             dao.setName(
                 userUuid = CAROL,
                 profileEncryptionKey = OLDER_KEY,
-                ownerKeySentAt = OLDER_POST,
+                profileRevision = null,
                 fullName = "Carol",
                 nameKeyHash = "older",
             )
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = NEWER_POST)
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = NEWER_POST,
+                profileRevision = null,
+            )
             dao.settleRead(
                 userUuid = CAROL,
                 profileEncryptionKey = NEWER_KEY,
-                ownerKeySentAt = NEWER_POST,
+                profileRevision = null,
                 nameKeyHash = "newer",
             )
 
@@ -403,11 +640,16 @@ class MemberProfileDaoTest {
         withInMemoryDatabase { database ->
             val dao = database.memberProfileDao
 
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = NEWER_POST)
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = NEWER_POST,
+                profileRevision = null,
+            )
             dao.setName(
                 userUuid = CAROL,
                 profileEncryptionKey = NEWER_KEY,
-                ownerKeySentAt = NEWER_POST,
+                profileRevision = null,
                 fullName = "carol",
                 nameKeyHash = "newer",
             )
@@ -431,11 +673,16 @@ class MemberProfileDaoTest {
             withInMemoryDatabase { database ->
                 val dao = database.memberProfileDao
 
-                dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = NEWER_POST)
+                dao.takeOwnerKey(
+                    userUuid = CAROL,
+                    profileEncryptionKey = NEWER_KEY,
+                    sentAt = NEWER_POST,
+                    profileRevision = null,
+                )
                 dao.setName(
                     userUuid = CAROL,
                     profileEncryptionKey = NEWER_KEY,
-                    ownerKeySentAt = NEWER_POST,
+                    profileRevision = null,
                     fullName = "Carol",
                     nameKeyHash = "newer",
                 )
@@ -481,7 +728,12 @@ class MemberProfileDaoTest {
             val dao = database.memberProfileDao
 
             dao.fillGap(userUuid = CAROL, profileEncryptionKey = OLDER_KEY)
-            dao.takeOwnerKey(userUuid = CAROL, profileEncryptionKey = NEWER_KEY, sentAt = NEWER_POST)
+            dao.takeOwnerKey(
+                userUuid = CAROL,
+                profileEncryptionKey = NEWER_KEY,
+                sentAt = NEWER_POST,
+                profileRevision = null,
+            )
             dao.markBackedUp(userUuid = CAROL, profileEncryptionKey = OLDER_KEY, isFromOwner = false, fullName = null)
 
             assertFalse(assertNotNull(dao.get(userUuid = CAROL)).isBackedUp)
@@ -499,6 +751,7 @@ class MemberProfileDaoTest {
                 userUuid = CAROL,
                 profileEncryptionKey = NEWER_KEY,
                 sentAt = NEWER_POST,
+                profileRevision = null,
             )
 
             database.localDataDao.deleteAll()

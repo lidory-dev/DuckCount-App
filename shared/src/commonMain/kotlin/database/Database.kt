@@ -104,7 +104,7 @@ import org.koin.mp.KoinPlatform.getKoin
         MemberProfileEntity::class,
     ],
     // What each version adds, the one before it being what a released build may still hold, see
-    // `shared/schemas`: 2, `ContactEntity.unreadProfileUpdates`.
+    // `shared/schemas`: 2, `ContactEntity.unreadProfileUpdates` and `MemberProfileEntity.profileRevision`.
     version = 2,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),

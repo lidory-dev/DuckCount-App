@@ -1241,7 +1241,7 @@ class GroupSyncRejoinTest {
             markDeleted = { error("Nobody deletes a group here.") },
             isBlocked = { false },
             setHandedProfileKey = { _, _ -> },
-            takeOwnerKey = { _, _, _ -> },
+            takeOwnerKey = { _, _, _, _ -> },
             fillGap = { _, _ -> },
             restoreMemberProfiles = { Result.Success(Unit) },
             readMemberNames = { Result.Success(Unit) },

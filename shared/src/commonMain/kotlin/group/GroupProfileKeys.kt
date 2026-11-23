@@ -102,13 +102,13 @@ internal fun profileKeysOf(payload: ByteArray): Map<String, ByteArray>? {
 
 /**
  * The key to their own profile a member posts into a group, as [ProfileKeyUpdate] carries it to a
- * contact, see [GroupProfileKeyDelivery], or null when [payload] is no such message, or hands over
- * something that is no profile key.
+ * contact, with the time of their latest edit of the profile, see [GroupProfileKeyDelivery], or null
+ * when [payload] is no such message, or hands over something that is no profile key.
  *
  * Whose key it is, is whoever MLS says sent it: the caller's to read.
  */
-internal fun ownProfileKeyOf(payload: ByteArray): ByteArray? =
-    ProfileKeyUpdate.parse(plaintext = payload)?.profileEncryptionKey?.takeIf { it.size == PROFILE_KEY_LENGTH }
+internal fun ownProfileKeyUpdateOf(payload: ByteArray): ProfileKeyUpdate? =
+    ProfileKeyUpdate.parse(plaintext = payload)?.takeIf { it.profileEncryptionKey.size == PROFILE_KEY_LENGTH }
 
 /**
  * The key to the profile of each of [memberUuids], the members of a group the user created once a

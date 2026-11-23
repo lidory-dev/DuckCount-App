@@ -16,6 +16,7 @@ import util.EmptyResult
 import util.NetworkError
 import util.Result
 import util.map
+import util.nowEpochMilliseconds
 import vault.ProfileKeyVault
 import vault.paddedTo
 import vault.sealBound
@@ -80,11 +81,13 @@ class ProfileRepository internal constructor(
     private val userDao: UserDao,
     private val oweProfileKeyAgain: suspend () -> Boolean,
     private val handOutSoon: suspend () -> Unit,
+    private val now: () -> Long = ::nowEpochMilliseconds,
 ) {
     /**
      * [oweProfileKeyAgain] is [ContactDao.oweProfileKeyAgain] and [GroupDao.oweProfileKeyAgain]
      * together, saying whether either owed anybody, and [handOutSoon] books
-     * [ResendScheduler.resendAfter] for now, or what a test stands in for either.
+     * [ResendScheduler.resendAfter] for now, or what a test stands in for either, and [now] the
+     * time an edit is recorded at, see [ProfileKeyVault.setProfileRevision].
      */
     constructor(
         profileStore: ProfileStore,
@@ -141,6 +144,13 @@ class ProfileRepository internal constructor(
      * sync runs. Owed before the upload rather than after: one whose answer was lost may have
      * landed all the same, and the next sync hands the key out then. An upload that did not land
      * costs a read of the same profile.
+     *
+     * The edit is recorded first, as the profile's revision, see
+     * [ProfileKeyVault.setProfileRevision], which every post of the key into a group carries from
+     * then on: the members read the profile again only for a post telling of a later edit than the
+     * one they read, see `MemberProfileDao.raiseProfileRevision`, so that the posts a member makes
+     * each time a group's creator seats somebody cost them nothing. The time of the edit, and later
+     * than the one recorded before, the device's clock having gone back since or not.
      */
     suspend fun uploadProfile(
         userUuid: String,
@@ -157,6 +167,10 @@ class ProfileRepository internal constructor(
             fullName = trimmedFullName.encodeToByteArray(),
             phoneNumber = UNSET_FIELD,
             bankDetails = UNSET_FIELD,
+        )
+
+        profileKeyVault.setProfileRevision(
+            profileRevision = maxOf(now(), (profileKeyVault.getProfileRevision() ?: 0) + 1),
         )
 
         val isKeyOwed = oweProfileKeyAgain()

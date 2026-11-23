@@ -165,18 +165,36 @@ object AccountDeletionNotice {
  * share, so MLS authenticates whose key it is. Its `type` tells it apart from a
  * [ContactCard], which carries a key under the same name but no `type`, being recognised by
  * its shape: an update has to be recognised first, see [ContactMessage.read].
+ *
+ * A member posts the same into each group they are in, see `GroupProfileKeyDelivery`, there with
+ * [profileRevision].
  */
 class ProfileKeyUpdate(
     val profileEncryptionKey: ByteArray,
+
+    /**
+     * The time of the sender's latest edit of their profile, in milliseconds since the epoch, as
+     * their device recorded it, see `ProfileRepository.uploadProfile`, or null when it recorded
+     * none since it logged in, which tells of no edit, or the update is a contact's, which nothing
+     * reads it in, see `ContactRepository.receiveProfileKey`.
+     *
+     * Posted into a group, it tells a member whether the profile changed since they read it, see
+     * `MemberProfileDao.raiseProfileRevision`: the post is the same whatever it was made for, the
+     * creator seating somebody most often. Left out when null, so that an update to a contact is
+     * written as before. A build from before ignores it, and the server learns nothing from it it
+     * did not see in the upload of the profile.
+     */
+    val profileRevision: Long? = null,
 ) {
 
-    /** The plaintext to encrypt for the contact. */
+    /** The plaintext to encrypt for the contact, or to post into a group. */
     fun serialize(): ByteArray =
         json.encodeToString(
             SerializedProfileKeyUpdate.serializer(),
             SerializedProfileKeyUpdate(
                 type = TYPE,
                 profileEncryptionKey = Base64.Default.encode(profileEncryptionKey),
+                profileRevision = profileRevision,
             ),
         ).encodeToByteArray()
 
@@ -192,7 +210,10 @@ class ProfileKeyUpdate(
                 )
 
                 serialized.takeIf { it.type == TYPE }?.let {
-                    ProfileKeyUpdate(profileEncryptionKey = Base64.Default.decode(it.profileEncryptionKey))
+                    ProfileKeyUpdate(
+                        profileEncryptionKey = Base64.Default.decode(it.profileEncryptionKey),
+                        profileRevision = it.profileRevision,
+                    )
                 }
             }.getOrNull()
     }
@@ -255,6 +276,9 @@ private class SerializedProfileKeyUpdate(
 
     @SerialName("profile_encryption_key")
     val profileEncryptionKey: String,
+
+    @SerialName("profile_revision")
+    val profileRevision: Long? = null,
 )
 
 @Serializable

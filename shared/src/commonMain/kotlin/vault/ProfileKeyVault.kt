@@ -31,4 +31,10 @@ interface ProfileKeyVault {
 
     /** See [VaultRepository.dropPendingProfileEncryptionKey]. */
     fun dropPendingProfileEncryptionKey()
+
+    /** See [VaultRepository.getProfileRevision]. */
+    fun getProfileRevision(): Long?
+
+    /** See [VaultRepository.setProfileRevision]. */
+    fun setProfileRevision(profileRevision: Long)
 }

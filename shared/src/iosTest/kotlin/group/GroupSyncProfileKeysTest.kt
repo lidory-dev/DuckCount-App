@@ -708,7 +708,7 @@ class GroupSyncProfileKeysTest {
 
         assertEquals(BOB, read.senderUserUuid)
 
-        return ownProfileKeyOf(read.payload)
+        return ownProfileKeyUpdateOf(read.payload)?.profileEncryptionKey
     }
 
     /** What Erin reads in [post], one of Bob's, as the key to his profile, once she joined. */
@@ -724,7 +724,7 @@ class GroupSyncProfileKeysTest {
 
         assertEquals(BOB, read.senderUserUuid)
 
-        return ownProfileKeyOf(read.payload)
+        return ownProfileKeyUpdateOf(read.payload)?.profileEncryptionKey
     }
 
     /** Has [newcomer] join Alice's group from her last addition's Welcome, seating [otherMembers] with them. */

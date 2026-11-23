@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 2,
-    "identityHash": "8204a46c4c052d1f72378a0fb4295b0e",
+    "identityHash": "d6c76604bafd3de72ebefb613d924cee",
     "entities": [
       {
         "tableName": "UserEntity",
@@ -1194,7 +1194,7 @@
       },
       {
         "tableName": "MemberProfileEntity",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `isFromOwner` INTEGER NOT NULL, `ownerKeySentAt` INTEGER, `fullName` TEXT, `nameKeyHash` TEXT, `isBackedUp` INTEGER NOT NULL, PRIMARY KEY(`userUuid`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userUuid` TEXT NOT NULL, `profileEncryptionKey` BLOB NOT NULL, `isFromOwner` INTEGER NOT NULL, `ownerKeySentAt` INTEGER, `fullName` TEXT, `nameKeyHash` TEXT, `isBackedUp` INTEGER NOT NULL, `profileRevision` INTEGER, PRIMARY KEY(`userUuid`))",
         "fields": [
           {
             "fieldPath": "userUuid",
@@ -1234,6 +1234,11 @@
             "columnName": "isBackedUp",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "profileRevision",
+            "columnName": "profileRevision",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -1246,7 +1251,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8204a46c4c052d1f72378a0fb4295b0e')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd6c76604bafd3de72ebefb613d924cee')"
     ]
   }
 }

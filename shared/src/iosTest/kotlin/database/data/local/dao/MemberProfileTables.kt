@@ -32,7 +32,16 @@ internal class MemberProfileTables(private val contacts: ContactTables = Contact
             val row = rows[userUuid] ?: return
             val held = row.ownerKeySentAt
 
-            if (held == null || held < sentAt) add(row.copy(ownerKeySentAt = sentAt, nameKeyHash = null))
+            if (held == null || held < sentAt) add(row.copy(ownerKeySentAt = sentAt))
+        }
+
+        override suspend fun raiseProfileRevision(userUuid: String, profileRevision: Long) {
+            val row = rows[userUuid] ?: return
+            val held = row.profileRevision
+
+            if (held == null || held < profileRevision) {
+                add(row.copy(profileRevision = profileRevision, nameKeyHash = null))
+            }
         }
 
         override suspend fun getKey(userUuid: String): ByteArray? = rows[userUuid]?.profileEncryptionKey
@@ -46,13 +55,11 @@ internal class MemberProfileTables(private val contacts: ContactTables = Contact
         override suspend fun setName(
             userUuid: String,
             profileEncryptionKey: ByteArray,
-            ownerKeySentAt: Long?,
+            profileRevision: Long?,
             fullName: String,
             nameKeyHash: String,
         ) {
-            val row = rows[userUuid]
-                ?.takeIf { it.profileEncryptionKey.contentEquals(profileEncryptionKey) && it.ownerKeySentAt == ownerKeySentAt }
-                ?: return
+            val row = rows[userUuid]?.takeIf { it.isReadWith(profileEncryptionKey, profileRevision) } ?: return
 
             add(
                 row.copy(
@@ -66,12 +73,10 @@ internal class MemberProfileTables(private val contacts: ContactTables = Contact
         override suspend fun settleRead(
             userUuid: String,
             profileEncryptionKey: ByteArray,
-            ownerKeySentAt: Long?,
+            profileRevision: Long?,
             nameKeyHash: String,
         ) {
-            val row = rows[userUuid]
-                ?.takeIf { it.profileEncryptionKey.contentEquals(profileEncryptionKey) && it.ownerKeySentAt == ownerKeySentAt }
-                ?: return
+            val row = rows[userUuid]?.takeIf { it.isReadWith(profileEncryptionKey, profileRevision) } ?: return
 
             add(row.copy(nameKeyHash = nameKeyHash))
         }
@@ -102,6 +107,13 @@ internal class MemberProfileTables(private val contacts: ContactTables = Contact
     }
 }
 
+/**
+ * Whether a read made with [profileEncryptionKey], [profileRevision] being the latest edit told of,
+ * still holds for this row.
+ */
+private fun MemberProfileEntity.isReadWith(profileEncryptionKey: ByteArray, profileRevision: Long?) =
+    this.profileEncryptionKey.contentEquals(profileEncryptionKey) && this.profileRevision == profileRevision
+
 internal fun MemberProfileEntity.copy(
     profileEncryptionKey: ByteArray = this.profileEncryptionKey,
     isFromOwner: Boolean = this.isFromOwner,
@@ -109,6 +121,7 @@ internal fun MemberProfileEntity.copy(
     fullName: String? = this.fullName,
     nameKeyHash: String? = this.nameKeyHash,
     isBackedUp: Boolean = this.isBackedUp,
+    profileRevision: Long? = this.profileRevision,
 ) = MemberProfileEntity(
     userUuid = userUuid,
     profileEncryptionKey = profileEncryptionKey,
@@ -117,4 +130,5 @@ internal fun MemberProfileEntity.copy(
     fullName = fullName,
     nameKeyHash = nameKeyHash,
     isBackedUp = isBackedUp,
+    profileRevision = profileRevision,
 )

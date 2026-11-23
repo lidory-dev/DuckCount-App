@@ -24,6 +24,9 @@ internal class InMemoryProfileKeyVault(
     /** The key a removal owes the profile, as the device keeps it. */
     var pendingKey: ByteArray? = null
 
+    /** The time of the latest edit of the profile, as the device keeps it. */
+    var profileRevision: Long? = null
+
     /** Whether replacing the key fails, as a vault out of reach would. */
     var failsReplacement = false
 
@@ -86,5 +89,11 @@ internal class InMemoryProfileKeyVault(
         events += "pending dropped"
 
         pendingKey = null
+    }
+
+    override fun getProfileRevision(): Long? = profileRevision
+
+    override fun setProfileRevision(profileRevision: Long) {
+        this.profileRevision = profileRevision
     }
 }

@@ -29,6 +29,9 @@ private const val CAROL = "33333333-3333-3333-3333-333333333333"
 private const val GROUP = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 private const val OTHER_GROUP = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 
+/** When Bob last edited his profile, in milliseconds since the epoch. */
+private const val EDITED_AT = 1_763_900_000_000L
+
 /**
  * What Bob's device posts of the key to his profile into the two groups Alice created with him,
  * Carol in the first, and what the server answering each post comes to: with every MLS client made
@@ -103,8 +106,37 @@ class GroupProfileKeyDeliveryTest {
             )
 
             assertEquals(BOB, read.senderUserUuid)
-            assertContentEquals(bobKey, ownProfileKeyOf(read.payload))
+            assertContentEquals(bobKey, ownProfileKeyUpdateOf(read.payload)?.profileEncryptionKey)
         }
+    }
+
+    /** What Alice reads in Bob's post into [GROUP], as her group sync would. */
+    private suspend fun readByAlice(): ProcessedMessage.ApplicationMessage =
+        assertIs<ProcessedMessage.ApplicationMessage>(
+            alice.processUnderPolicy(
+                mlsGroupId = aliceGroups.getValue(GROUP),
+                message = posts.first { it.first == GROUP }.second,
+                groupUuid = GROUP,
+                creatorUuid = ALICE,
+            ).processed,
+        )
+
+    /** Whatever the post is made for, a member reads the profile again only for a later edit. */
+    @Test
+    fun `every post tells the members of the user's latest edit`() = runBlocking<Unit> {
+        profileKeyVault.profileRevision = EDITED_AT
+
+        delivery.handOut(behind = emptySet())
+
+        assertEquals(EDITED_AT, ownProfileKeyUpdateOf(readByAlice().payload)?.profileRevision)
+    }
+
+    /** Since this device logged in: until the next edit, nothing changed. */
+    @Test
+    fun `a post made before any edit tells of none`() = runBlocking<Unit> {
+        delivery.handOut(behind = emptySet())
+
+        assertNull(ownProfileKeyUpdateOf(readByAlice().payload)?.profileRevision)
     }
 
     /** Nearly every sync: the hash the device keeps tells it without reading the vault. */
@@ -151,7 +183,7 @@ class GroupProfileKeyDeliveryTest {
             ).processed,
         )
 
-        assertContentEquals(newKey, ownProfileKeyOf(read.payload))
+        assertContentEquals(newKey, ownProfileKeyUpdateOf(read.payload)?.profileEncryptionKey)
     }
 
     /** Nobody else to read it, nobody holding an older key for Bob either. */

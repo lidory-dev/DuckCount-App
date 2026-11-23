@@ -167,6 +167,17 @@ class VaultRepository(
     override fun dropPendingProfileEncryptionKey() = dropPendingProfileKey()
 
     /**
+     * The time of the user's latest edit of their profile as this device recorded it, or null when
+     * they made none since it logged in, see [authenticationUtils.setProfileRevision]. Not the
+     * vault's: kept on the device alone, as the cached hash is.
+     */
+    override fun getProfileRevision(): Long? = authenticationUtils.getProfileRevision()
+
+    /** Keeps [profileRevision] as that time, see [authenticationUtils.setProfileRevision]. */
+    override fun setProfileRevision(profileRevision: Long) =
+        authenticationUtils.setProfileRevision(profileRevision = profileRevision)
+
+    /**
      * The handle the user reserved to be discoverable by, or null when the vault holds
      * none because they never reserved one.
      */
